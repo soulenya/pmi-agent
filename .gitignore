@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.env
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# Secrets — NEVER commit these
+*.key
+*.pem
+*.p12
+secrets/
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Encrypted document storage — never commit user files
+.pmi-agent/
+
+# Alembic env overrides
+backend/migrations/versions/*.pyc
+
+# Tauri build output
+frontend/src-tauri/target/
+
+# Tauri
+desktop/target/
+desktop/src-tauri/target/
+
+# Logs
+*.log
+logs/
+
+# Database dumps
+*.sql.gz
+*.dump
+
+# Alembic (keep versions/, not __pycache__)
+backend/migrations/__pycache__/

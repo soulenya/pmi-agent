@@ -1,0 +1,51 @@
+// Document and search TypeScript types
+
+export interface DocumentCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface Document {
+  id: string;
+  category_id: string | null;
+  title: string;
+  source_type: string;
+  source_uri: string | null;
+  file_extension: string | null;
+  mime_type: string | null;
+  file_size_bytes: number | null;
+  checksum_sha256: string | null;
+  is_regulated: boolean;
+  status: "processing" | "ready" | "failed";
+  chunk_count: number;
+  created_by_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentChunk {
+  id: string;
+  document_id: string;
+  chunk_index: number;
+  content: string;
+  token_count: number | null;
+  page_number: number | null;
+}
+
+export interface SearchRequest {
+  query: string;
+  top_k?: number;
+  category_id?: string | null;
+}
+
+export interface SearchResult {
+  chunk_id: string;
+  document_id: string;
+  document_title: string;
+  chunk_index: number;
+  page_number: number | null;
+  content: string;
+  score: number;
+}

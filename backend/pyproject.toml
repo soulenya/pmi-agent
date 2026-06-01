@@ -1,0 +1,90 @@
+[project]
+name = "pmi-agent-backend"
+version = "0.1.0"
+description = "PMI AI Executive Assistant — Backend"
+requires-python = ">=3.12"
+dependencies = [
+    # Web framework
+    "fastapi[standard]>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.20",
+
+    # Database
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    "pgvector>=0.3.6",
+
+    # Validation & settings
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "python-dotenv>=1.0.1",
+
+    # Auth & security
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "keyring>=25.6.0",
+    "cryptography>=44.0.0",
+
+    # HTTP client
+    "httpx>=0.28.0",
+
+    # Rate limiting
+    "slowapi>=0.1.9",
+
+    # WebSockets
+    "websockets>=14.0",
+
+    # Document parsing (Sprint 3)
+    "pymupdf>=1.25.0",
+    "python-docx>=1.1.0",
+
+    # AI / LangGraph (Phase C)
+    # "langgraph>=0.3.0",
+    # "langchain-openai>=0.3.0",
+    # "langchain-anthropic>=0.3.0",
+    # "ollama>=0.4.0",
+
+    # Search (Phase G)
+    # "tavily-python>=0.5.0",
+
+    # Google (Phase E)
+    # "google-auth>=2.38.0",
+    # "google-auth-oauthlib>=1.2.0",
+    # "google-api-python-client>=2.166.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "types-passlib>=1.7.7",
+    "types-python-jose>=3.3.4",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", "migrations/*"]
