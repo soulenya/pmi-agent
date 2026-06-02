@@ -14,6 +14,7 @@ import { RegulatoryPage } from "@/pages/RegulatoryPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 import { ResearchPage } from "@/pages/ResearchPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,6 +45,7 @@ export default function App() {
               <Route path="notifications" element={<NotificationsPage />} />
               <Route path="research" element={<ResearchPage />} />
               <Route path="projects" element={<ProjectsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Route>
         </Routes>

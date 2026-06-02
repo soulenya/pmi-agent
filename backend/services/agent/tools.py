@@ -208,6 +208,52 @@ TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_web",
+            "description": (
+                "Search the internet using DuckDuckGo for current information, news, "
+                "regulatory guidance, competitor research, or any topic not found in the "
+                "internal knowledge base. Always cite the URLs you reference."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The web search query.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Number of results to return (1–10). Default 5.",
+                        "default": 5,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_page",
+            "description": (
+                "Fetch and read the text content of a specific web page URL. "
+                "Use this to read the full content of a search result or any public URL."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The full URL to fetch.",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
+    },
 ]
 
 
@@ -419,6 +465,41 @@ async def execute_get_regulatory_status(ctx: ToolContext, _args: dict[str, Any])
     return "\n".join(lines)
 
 
+async def execute_search_web(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services.research.searcher import web_search
+
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return "Error: query must not be empty."
+    max_results = min(int(args.get("max_results", 5)), 10)
+
+    results = await web_search(query, max_results=max_results)
+    if not results:
+        return f"No web search results found for: {query}"
+
+    lines = [f"Web search results for \"{query}\" ({len(results)} found):\n"]
+    for i, r in enumerate(results, 1):
+        lines.append(
+            f"[{i}] {r['title']}\n"
+            f"    URL: {r['url']}\n"
+            f"    {r['snippet']}"
+        )
+    return "\n\n".join(lines)
+
+
+async def execute_fetch_page(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services.research.searcher import fetch_page_text
+
+    url = str(args.get("url", "")).strip()
+    if not url or not url.startswith("http"):
+        return "Error: a valid http/https URL is required."
+
+    text = await fetch_page_text(url, max_chars=4000)
+    if not text:
+        return f"Could not fetch content from {url} (network error or empty page)."
+    return f"Content from {url}:\n\n{text}"
+
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 TOOL_EXECUTORS = {
@@ -428,6 +509,8 @@ TOOL_EXECUTORS = {
     "get_pending_approvals": execute_get_pending_approvals,
     "get_tasks": execute_get_tasks,
     "get_regulatory_status": execute_get_regulatory_status,
+    "search_web": execute_search_web,
+    "fetch_page": execute_fetch_page,
 }
 
 
