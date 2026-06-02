@@ -25,6 +25,15 @@ export interface ProjectCreate {
   target_date?: string;
 }
 
+export interface ProjectUpdate {
+  name?: string;
+  description?: string | null;
+  status?: string;
+  color?: string | null;
+  target_date?: string | null;
+  is_archived?: boolean;
+}
+
 export interface Task {
   id: string;
   project_id: string | null;

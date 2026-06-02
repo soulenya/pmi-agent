@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listTasks, createTask, updateTask } from "@/api/tasks";
+import { listTasks, createTask, updateTask, listProjects } from "@/api/tasks";
 import type { Task, TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 
@@ -208,19 +209,45 @@ function TaskRow({
 }
 
 export function TasksPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showNewTask, setShowNewTask] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("active");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  // Project filter — seeded from URL ?project_id=
+  const [projectFilter, setProjectFilter] = useState<string>(
+    searchParams.get("project_id") ?? ""
+  );
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks"],
     queryFn: () => listTasks(),
   });
 
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => listProjects(),
+    staleTime: 60_000,
+  });
+
+  function handleProjectFilterChange(value: string) {
+    setProjectFilter(value);
+    if (value) {
+      setSearchParams({ project_id: value });
+    } else {
+      setSearchParams({});
+    }
+  }
+
   const filtered = tasks.filter((t) => {
-    if (filterStatus === "active") return t.status !== "done" && t.status !== "cancelled";
-    if (filterStatus === "done") return t.status === "done";
-    return true;
+    const statusMatch =
+      filterStatus === "active"
+        ? t.status !== "done" && t.status !== "cancelled"
+        : filterStatus === "done"
+          ? t.status === "done"
+          : true;
+    const projectMatch = projectFilter ? t.project_id === projectFilter : true;
+    return statusMatch && projectMatch;
   });
 
   const counts = {
@@ -239,6 +266,10 @@ export function TasksPage() {
   const liveSelectedTask =
     selectedTask ? (tasks.find((t) => t.id === selectedTask.id) ?? selectedTask) : null;
 
+  const activeProjectName = projectFilter
+    ? (projects.find((p) => p.id === projectFilter)?.name ?? "")
+    : "";
+
   return (
     <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
       {/* Task detail drawer */}
@@ -253,7 +284,16 @@ export function TasksPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Tasks</h1>
+          <h1 className="text-2xl font-bold">
+            {activeProjectName ? (
+              <span className="flex items-center gap-2">
+                <FolderOpen className="h-6 w-6 text-primary" />
+                {activeProjectName}
+              </span>
+            ) : (
+              "Tasks"
+            )}
+          </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {counts.active} active · {counts.done} done
             {counts.overdue > 0 && (
@@ -270,22 +310,51 @@ export function TasksPage() {
         </button>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-1 rounded-lg border bg-muted p-1 w-fit">
-        {(["active", "done", "all"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilterStatus(f)}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              filterStatus === f
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
+      {/* Filter row */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Status tabs */}
+        <div className="flex gap-1 rounded-lg border bg-muted p-1">
+          {(["active", "done", "all"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilterStatus(f)}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                filterStatus === f
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {f === "active" ? "Active" : f === "done" ? "Completed" : "All"}
+            </button>
+          ))}
+        </div>
+
+        {/* Project filter */}
+        {projects.length > 0 && (
+          <select
+            value={projectFilter}
+            onChange={(e) => handleProjectFilterChange(e.target.value)}
+            className="rounded-md border bg-background px-2.5 py-1.5 text-sm"
           >
-            {f === "active" ? "Active" : f === "done" ? "Completed" : "All"}
+            <option value="">All Projects</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Clear project filter badge */}
+        {projectFilter && (
+          <button
+            onClick={() => handleProjectFilterChange("")}
+            className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/20"
+          >
+            <FolderOpen className="h-3 w-3" />
+            {activeProjectName}
+            <span className="ml-0.5 text-primary/60">×</span>
           </button>
-        ))}
+        )}
       </div>
 
       {/* New task form */}

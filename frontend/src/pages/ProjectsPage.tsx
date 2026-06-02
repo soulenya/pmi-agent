@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
 import {
@@ -9,10 +9,14 @@ import {
   Clock,
   AlertCircle,
   ExternalLink,
+  Pencil,
+  X,
+  Archive,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listProjects, createProject, listTasks } from "@/api/tasks";
-import type { Project, Task, TaskStatus, ProjectCreate } from "@/types/tasks";
+import { listProjects, createProject, updateProject, listTasks } from "@/api/tasks";
+import type { Project, Task, TaskStatus, ProjectCreate, ProjectUpdate } from "@/types/tasks";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -35,6 +39,179 @@ function statusIcon(status: TaskStatus) {
     cancelled: <Circle className="h-3.5 w-3.5 text-muted-foreground/40" />,
   };
   return map[status];
+}
+
+// ── Edit project modal ────────────────────────────────────────────────────────
+
+const PROJECT_STATUSES = [
+  { value: "active", label: "Active" },
+  { value: "on_hold", label: "On Hold" },
+  { value: "completed", label: "Completed" },
+];
+
+function EditProjectModal({
+  project,
+  onClose,
+}: {
+  project: Project;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description ?? "");
+  const [color, setColor] = useState(project.color ?? "#1e6db5");
+  const [targetDate, setTargetDate] = useState(
+    project.target_date ? project.target_date.slice(0, 10) : ""
+  );
+  const [status, setStatus] = useState(project.status);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const saveMutation = useMutation({
+    mutationFn: (body: ProjectUpdate) => updateProject(project.id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      onClose();
+    },
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: () => updateProject(project.id, { is_archived: true }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      onClose();
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    saveMutation.mutate({
+      name: name.trim(),
+      description: description.trim() || null,
+      color,
+      target_date: targetDate || null,
+      status,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-full max-w-md rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <h2 className="font-semibold text-sm">Edit Project</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* Name */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Name *</label>
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          {/* Status + Color */}
+          <div className="flex gap-4">
+            <div className="flex-1 space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+              >
+                {PROJECT_STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Color</label>
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                className="h-9 w-16 cursor-pointer rounded-md border bg-background"
+              />
+            </div>
+          </div>
+
+          {/* Target date */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Target Date</label>
+            <input
+              type="date"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm("Archive this project? It will be hidden from the main view.")) {
+                  archiveMutation.mutate();
+                }
+              }}
+              disabled={archiveMutation.isPending}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+            >
+              {archiveMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Archive className="h-3.5 w-3.5" />
+              )}
+              Archive
+            </button>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border px-4 py-2 text-sm text-muted-foreground hover:bg-accent"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!name.trim() || saveMutation.isPending}
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {saveMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Save
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 // ── New project form ──────────────────────────────────────────────────────────
@@ -137,12 +314,20 @@ function NewProjectForm({ onClose }: { onClose: () => void }) {
 
 // ── Project card ──────────────────────────────────────────────────────────────
 
+const PROJECT_STATUS_STYLES: Record<string, string> = {
+  active: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  on_hold: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
+  completed: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+};
+
 function ProjectCard({
   project,
   tasks,
+  onEdit,
 }: {
   project: Project;
   tasks: Task[];
+  onEdit: () => void;
 }) {
   const { done, total, pct } = taskProgress(tasks);
   const activeTasks = tasks.filter((t) => !STATUS_DONE.includes(t.status));
@@ -164,7 +349,7 @@ function ProjectCard({
     project.status !== "completed";
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-shadow">
+    <div className="group rounded-xl border bg-card shadow-sm hover:shadow-md transition-shadow">
       {/* Color bar */}
       <div
         className="h-1.5 w-full rounded-t-xl"
@@ -172,22 +357,43 @@ function ProjectCard({
       />
 
       <div className="p-5 space-y-4">
-        {/* Title + status */}
+        {/* Title + actions */}
         <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <FolderOpen
               className="h-5 w-5 shrink-0"
               style={{ color: project.color ?? "#1e6db5" }}
             />
-            <h3 className="font-semibold text-sm leading-snug">{project.name}</h3>
+            <h3 className="font-semibold text-sm leading-snug truncate">{project.name}</h3>
           </div>
-          <NavLink
-            to={`/tasks?project_id=${project.id}`}
-            className="flex items-center gap-1 rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-            title="View tasks"
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={onEdit}
+              className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-foreground transition-opacity"
+              title="Edit project"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <NavLink
+              to={`/tasks?project_id=${project.id}`}
+              className="flex items-center gap-1 rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              title="View all tasks"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </NavLink>
+          </div>
+        </div>
+
+        {/* Status badge */}
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-xs font-medium",
+              PROJECT_STATUS_STYLES[project.status] ?? PROJECT_STATUS_STYLES.active
+            )}
           >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </NavLink>
+            {PROJECT_STATUSES.find((s) => s.value === project.status)?.label ?? project.status}
+          </span>
         </div>
 
         {project.description && (
@@ -255,6 +461,7 @@ function ProjectCard({
 
 export function ProjectsPage() {
   const [showForm, setShowForm] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ["projects"],
@@ -274,6 +481,14 @@ export function ProjectsPage() {
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-6xl mx-auto">
+      {/* Edit modal */}
+      {editingProject && (
+        <EditProjectModal
+          project={editingProject}
+          onClose={() => setEditingProject(null)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -332,7 +547,12 @@ export function ProjectsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p) => (
-            <ProjectCard key={p.id} project={p} tasks={tasksByProject(p.id)} />
+            <ProjectCard
+              key={p.id}
+              project={p}
+              tasks={tasksByProject(p.id)}
+              onEdit={() => setEditingProject(p)}
+            />
           ))}
         </div>
       )}

@@ -2,6 +2,7 @@ import { apiClient } from "./client";
 import type {
   Project,
   ProjectCreate,
+  ProjectUpdate,
   Task,
   TaskCreate,
   TaskComment,
@@ -19,6 +20,11 @@ export async function listProjects(includeArchived = false): Promise<Project[]> 
 
 export async function createProject(body: ProjectCreate): Promise<Project> {
   const resp = await apiClient.post<Project>("/projects", body);
+  return resp.data;
+}
+
+export async function updateProject(id: string, body: ProjectUpdate): Promise<Project> {
+  const resp = await apiClient.patch<Project>(`/projects/${id}`, body);
   return resp.data;
 }
 
