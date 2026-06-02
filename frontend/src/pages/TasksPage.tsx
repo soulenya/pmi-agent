@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Check, Circle, Clock, AlertCircle, Trash2 } from "lucide-react";
+import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listTasks, createTask, updateTask, deleteTask } from "@/api/tasks";
+import { listTasks, createTask, updateTask } from "@/api/tasks";
 import type { Task, TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
+import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 
 const STATUS_ICONS: Record<TaskStatus, React.ReactNode> = {
   backlog: <Circle className="h-4 w-4 text-muted-foreground" />,
@@ -104,17 +105,18 @@ function NewTaskForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-function TaskRow({ task }: { task: Task }) {
+function TaskRow({
+  task,
+  onOpen,
+}: {
+  task: Task;
+  onOpen: () => void;
+}) {
   const qc = useQueryClient();
 
   const statusMutation = useMutation({
     mutationFn: (newStatus: TaskStatus) =>
       updateTask(task.id, { status: newStatus }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteTask(task.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
@@ -134,66 +136,72 @@ function TaskRow({ task }: { task: Task }) {
     new Date(task.due_date) < new Date();
 
   return (
-    <div className={cn("group rounded-md border bg-card px-4 py-3 transition-colors hover:bg-accent/30", task.status === "done" && "opacity-60")}>
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => statusMutation.mutate(nextStatus[task.status])}
-          className="shrink-0 hover:scale-110 transition-transform"
-          title={`Mark as ${STATUS_LABELS[nextStatus[task.status]]}`}
-        >
-          {STATUS_ICONS[task.status]}
-        </button>
+    <div
+      className={cn(
+        "group flex items-center gap-3 rounded-md border bg-card px-4 py-3 transition-colors hover:bg-accent/30 cursor-pointer",
+        task.status === "done" && "opacity-60"
+      )}
+      onClick={onOpen}
+    >
+      {/* Status toggle — stops propagation so clicking it doesn't open drawer */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          statusMutation.mutate(nextStatus[task.status]);
+        }}
+        className="shrink-0 hover:scale-110 transition-transform"
+        title={`Mark as ${STATUS_LABELS[nextStatus[task.status]]}`}
+      >
+        {STATUS_ICONS[task.status]}
+      </button>
 
-        <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0">
+        <span
+          className={cn(
+            "text-sm",
+            task.status === "done" && "line-through text-muted-foreground"
+          )}
+        >
+          {task.title}
+        </span>
+        {task.description && (
+          <p className="mt-0.5 text-xs text-muted-foreground truncate">
+            {task.description}
+          </p>
+        )}
+        {task.tags.length > 0 && (
+          <div className="mt-1 flex items-center gap-1 flex-wrap">
+            {task.tags.slice(0, 4).map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+              >
+                <Tag className="h-2 w-2" />
+                {tag}
+              </span>
+            ))}
+            {task.tags.length > 4 && (
+              <span className="text-[10px] text-muted-foreground">+{task.tags.length - 4}</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <span className={cn("text-xs", PRIORITY_COLORS[task.priority])}>
+          {task.priority}
+        </span>
+        {task.due_date && (
           <span
             className={cn(
-              "text-sm",
-              task.status === "done" && "line-through text-muted-foreground"
+              "text-xs",
+              isOverdue ? "text-destructive font-medium" : "text-muted-foreground"
             )}
           >
-            {task.title}
+            {new Date(task.due_date).toLocaleDateString()}
           </span>
-          {task.description && (
-            <p className="mt-0.5 text-xs text-muted-foreground truncate">
-              {task.description}
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3 shrink-0">
-          <span className={cn("text-xs", PRIORITY_COLORS[task.priority])}>
-            {task.priority}
-          </span>
-          {task.due_date && (
-            <span
-              className={cn(
-                "text-xs",
-                isOverdue ? "text-destructive font-medium" : "text-muted-foreground"
-              )}
-            >
-              {new Date(task.due_date).toLocaleDateString()}
-            </span>
-          )}
-          <select
-            value={task.status}
-            onChange={(e) => statusMutation.mutate(e.target.value as TaskStatus)}
-            className="text-xs rounded border bg-background px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            {(Object.keys(STATUS_LABELS) as TaskStatus[]).map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => {
-              if (confirm("Delete this task?")) deleteMutation.mutate();
-            }}
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        )}
+        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
     </div>
   );
@@ -202,6 +210,7 @@ function TaskRow({ task }: { task: Task }) {
 export function TasksPage() {
   const [showNewTask, setShowNewTask] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("active");
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["tasks"],
@@ -226,8 +235,21 @@ export function TasksPage() {
     ).length,
   };
 
+  // Keep selectedTask in sync with latest cached data
+  const liveSelectedTask =
+    selectedTask ? (tasks.find((t) => t.id === selectedTask.id) ?? selectedTask) : null;
+
   return (
     <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
+      {/* Task detail drawer */}
+      {liveSelectedTask && (
+        <TaskDrawer
+          task={liveSelectedTask}
+          onClose={() => setSelectedTask(null)}
+          onDeleted={() => setSelectedTask(null)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -286,7 +308,11 @@ export function TasksPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((task) => (
-            <TaskRow key={task.id} task={task} />
+            <TaskRow
+              key={task.id}
+              task={task}
+              onOpen={() => setSelectedTask(task)}
+            />
           ))}
         </div>
       )}
