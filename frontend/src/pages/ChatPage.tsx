@@ -395,7 +395,7 @@ export function ChatPage() {
           disabled={!conversationId && createConvMutation.isPending}
           placeholder={
             conversationId
-              ? "Message PMI Agent…"
+              ? "Message Little Gerry…"
               : "Start typing to create a new conversation…"
           }
         />
@@ -613,7 +613,7 @@ export function ChatPage() {
           disabled={!conversationId && createConvMutation.isPending}
           placeholder={
             conversationId
-              ? "Message PMI Agent…"
+              ? "Message Little Gerry…"
               : "Start typing to create a new conversation…"
           }
         />

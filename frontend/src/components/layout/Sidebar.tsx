@@ -65,7 +65,7 @@ export function Sidebar() {
     <nav className="flex w-56 flex-col border-r bg-card py-4">
       {/* Logo */}
       <div className="px-4 pb-4">
-        <h1 className="text-lg font-bold tracking-tight text-primary">PMI Agent</h1>
+        <h1 className="text-lg font-bold tracking-tight text-primary">Little Gerry</h1>
         <p className="text-xs text-muted-foreground">VACTOR Platform</p>
       </div>
 

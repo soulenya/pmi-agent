@@ -32,7 +32,7 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm rounded-lg border bg-card p-8 shadow-md">
-        <h1 className="mb-1 text-2xl font-bold">PMI Agent</h1>
+        <h1 className="mb-1 text-2xl font-bold">Little Gerry</h1>
         <p className="mb-6 text-sm text-muted-foreground">Sign in to your account</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

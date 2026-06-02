@@ -50,7 +50,7 @@ export function ChatInput({ onSend, disabled = false, placeholder }: Props) {
         ref={ref}
         rows={1}
         disabled={disabled}
-        placeholder={placeholder ?? "Message PMI Agent… (Shift+Enter for new line)"}
+        placeholder={placeholder ?? "Message Little Gerry… (Shift+Enter for new line)"}
         onKeyDown={handleKeyDown}
         className={cn(
           "flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground",
