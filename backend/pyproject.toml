@@ -41,6 +41,8 @@ dependencies = [
     # "google-auth-oauthlib>=1.2.0",
     # "google-api-python-client>=2.166.0",
     "duckduckgo-search>=8.1.1",
+    "openai>=1.30.0",
+    "anthropic>=0.28.0",
 ]
 
 [dependency-groups]

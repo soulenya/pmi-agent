@@ -14,7 +14,7 @@ from models.db.enums import ResearchStatus
 from models.db.user import User
 from models.schemas.research import ResearchReportOut, RunResearchRequest
 from repositories.research_repo import ResearchRepository
-from services.llm.ollama import OllamaClient
+from services.llm.router import get_llm_client
 from services.research.searcher import web_search
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ async def _summarise(query: str, sources: list[dict]) -> tuple[str, str]:
     )
 
     try:
-        client = OllamaClient()
+        client = await get_llm_client(db)
         chunk = await client.chat(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,

@@ -16,7 +16,7 @@ from models.db.approval import ApprovalIntent
 from models.db.email_draft import EmailDraft
 from models.db.enums import ApprovalStatus, IntentType, RiskLevel
 from models.db.user import User
-from services.llm.ollama import OllamaClient
+from services.llm.router import get_llm_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/emails", tags=["emails"])
@@ -92,7 +92,7 @@ async def _llm_draft_email(
         "Keep it concise and professional."
     )
     try:
-        client = OllamaClient()
+        client = await get_llm_client(db)
         chunk = await client.chat(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4,

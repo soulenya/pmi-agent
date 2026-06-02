@@ -30,6 +30,7 @@ from repositories.conversation_repo import ConversationRepository, MessageReposi
 from services.agent.tools import TOOL_DEFINITIONS, ToolContext, dispatch_tool
 from services.embeddings.service import get_embedding_service
 from services.llm.ollama import OllamaClient, OllamaError, get_ollama_client
+from services.llm.router import get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,12 @@ class AgentExecutor:
     user_id: uuid.UUID
     conversation_id: uuid.UUID
     ollama: OllamaClient = field(default_factory=get_ollama_client)
+
+    @classmethod
+    async def create(cls, db: AsyncSession, user_id, conversation_id) -> "AgentExecutor":
+        """Factory that resolves the active LLM client from system settings."""
+        client = await get_llm_client(db)
+        return cls(db=db, user_id=user_id, conversation_id=conversation_id, ollama=client)
 
     async def run(self, user_text: str) -> AsyncGenerator[str, None]:
         """
@@ -130,8 +137,11 @@ class AgentExecutor:
                         final_tokens = chunk.output_tokens
                         final_model = chunk.model
 
-            except OllamaError as exc:
-                err = WSError(detail=f"LLM unavailable: {exc}")
+            except (OllamaError, Exception) as exc:
+                if "LLM" in str(type(exc).__name__) or isinstance(exc, OllamaError):
+                    err = WSError(detail=f"LLM unavailable: {exc}")
+                else:
+                    err = WSError(detail=f"LLM error: {exc}")
                 yield err.model_dump_json()
                 return
 

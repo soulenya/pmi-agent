@@ -16,7 +16,7 @@ from dependencies import get_current_user
 from models.db.meeting import MeetingNote
 from models.db.task import Task
 from models.db.user import User
-from services.llm.ollama import OllamaClient
+from services.llm.router import get_llm_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/meetings", tags=["meetings"])
@@ -79,7 +79,7 @@ async def _llm_summarize(title: str, transcript: str) -> dict:
         "Output ONLY the four sections above with their ## headings."
     )
     try:
-        client = OllamaClient()
+        client = await get_llm_client(db)
         chunk = await client.chat(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,

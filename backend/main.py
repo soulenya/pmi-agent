@@ -227,7 +227,7 @@ def create_app() -> FastAPI:
                     if incoming.type != "human" or not incoming.content.strip():
                         continue
 
-                    executor = AgentExecutor(
+                    executor = await AgentExecutor.create(
                         db=db,
                         user_id=user.id,
                         conversation_id=conv_uuid,
