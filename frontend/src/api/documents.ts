@@ -62,6 +62,16 @@ export async function deleteDocument(id: string): Promise<void> {
   await apiClient.delete(`/documents/${id}`);
 }
 
+export async function listChunks(id: string): Promise<DocumentChunk[]> {
+  const { data } = await apiClient.get<ApiResponse<DocumentChunk[]>>(`/documents/${id}/chunks`);
+  return data.data ?? [];
+}
+
+export async function reembed(id: string): Promise<Document> {
+  const { data } = await apiClient.post<ApiResponse<Document>>(`/documents/${id}/reembed`);
+  return data.data!;
+}
+
 // ── Search ────────────────────────────────────────────────────────────────────
 
 export async function semanticSearch(

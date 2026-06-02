@@ -24,11 +24,12 @@ from models.db.user import User
 from models.schemas.common import ApiResponse, Meta, PaginationParams
 from models.schemas.documents import (
     DocumentCategoryOut,
+    DocumentChunkOut,
     DocumentCreate,
     DocumentOut,
     DocumentUpdate,
 )
-from repositories.document_repo import DocumentCategoryRepository, DocumentRepository
+from repositories.document_repo import DocumentCategoryRepository, DocumentRepository, DocumentChunkRepository
 from services.documents.ingestion import DocumentIngestionService
 from services.embeddings.service import EmbeddingService, get_embedding_service
 
@@ -166,3 +167,43 @@ async def delete_document(
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return ApiResponse.ok(None)
+
+
+@router.get("/{doc_id}/chunks", response_model=ApiResponse[list[DocumentChunkOut]])
+async def list_document_chunks(
+    doc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> ApiResponse[list[DocumentChunkOut]]:
+    doc = await DocumentRepository(db).get_active(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    chunks = await DocumentChunkRepository(db).get_by_document(doc_id)
+    return ApiResponse.ok([DocumentChunkOut.model_validate(c) for c in chunks])
+
+
+@router.post("/{doc_id}/reembed", response_model=ApiResponse[DocumentOut])
+async def reembed_document(
+    doc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service),
+) -> ApiResponse[DocumentOut]:
+    svc = DocumentIngestionService(db=db, embedding_svc=embedding_svc)
+    try:
+        doc = await svc.reembed(doc_id)
+    except LookupError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Stored file not found — cannot re-embed.",
+        )
+    except Exception:
+        logger.exception("Re-embed failed for doc %s", doc_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Re-embed failed — check server logs",
+        )
+    await db.commit()
+    return ApiResponse.ok(_doc_out(doc))

@@ -256,6 +256,58 @@ class DocumentIngestionService:
         await self._doc_repo.soft_delete(doc_id)
         return True
 
+    async def reembed(self, doc_id: UUID) -> Document:
+        """
+        Re-run chunking + embedding for an existing document.
+        Decrypts the stored file, wipes old chunks, re-chunks and re-embeds.
+        Raises LookupError if document not found.
+        Raises FileNotFoundError if the encrypted file is missing.
+        """
+        doc = await self._doc_repo.get_active(doc_id)
+        if doc is None:
+            raise LookupError(f"Document {doc_id} not found")
+
+        extension = doc.file_extension or ".bin"
+        raw_bytes = _decrypt_file(doc_id, extension)
+
+        # Wipe old chunks
+        await self._chunk_repo.delete_by_document(doc_id)
+        doc.status = "processing"
+        doc.chunk_count = 0
+        await self._db.flush()
+
+        try:
+            mime_type = doc.mime_type or "text/plain"
+            text = _extract_text(raw_bytes, mime_type)
+            text = re.sub(r"\s{3,}", "\n\n", text).strip()
+
+            chunks = _chunk_text(text)
+            if not chunks:
+                chunks = [text] if text else ["(no content)"]
+
+            for idx, chunk_text in enumerate(chunks):
+                embedding = await self._emb.embed(chunk_text)
+                chunk = DocumentChunk(
+                    document_id=doc.id,
+                    chunk_index=idx,
+                    content=chunk_text,
+                    embedding=embedding,
+                    token_count=len(chunk_text.split()),
+                    page_number=None,
+                )
+                self._db.add(chunk)
+
+            doc.chunk_count = len(chunks)
+            doc.status = "ready"
+            await self._db.flush()
+
+        except Exception:
+            doc.status = "failed"
+            await self._db.flush()
+            raise
+
+        return doc
+
 
 # ── FastAPI dependency ────────────────────────────────────────────────────────
 
