@@ -41,7 +41,7 @@ function StatCard({
 export function DashboardPage() {
   const { data: tasks = [] } = useQuery({
     queryKey: ["tasks"],
-    queryFn: listTasks,
+    queryFn: () => listTasks(),
     staleTime: 60_000,
   });
 

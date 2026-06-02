@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, FileText, ShieldAlert, ChevronRight } from "lucide-react";
+import { Plus, FileText, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   listRegDocs,

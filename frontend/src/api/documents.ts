@@ -8,7 +8,7 @@ export async function listCategories(): Promise<DocumentCategory[]> {
   const { data } = await apiClient.get<ApiResponse<DocumentCategory[]>>(
     "/documents/categories",
   );
-  return data.data;
+  return data.data ?? [];
 }
 
 // ── Documents ─────────────────────────────────────────────────────────────────
@@ -21,12 +21,12 @@ export async function listDocuments(params?: {
   const { data } = await apiClient.get<ApiResponse<Document[]>>("/documents", {
     params,
   });
-  return data.data;
+  return data.data ?? [];
 }
 
 export async function getDocument(id: string): Promise<Document> {
   const { data } = await apiClient.get<ApiResponse<Document>>(`/documents/${id}`);
-  return data.data;
+  return data.data!;
 }
 
 export async function uploadDocument(
@@ -44,7 +44,7 @@ export async function uploadDocument(
     form,
     { headers: { "Content-Type": "multipart/form-data" } },
   );
-  return data.data;
+  return data.data!;
 }
 
 export async function updateDocument(
@@ -55,7 +55,7 @@ export async function updateDocument(
     `/documents/${id}`,
     updates,
   );
-  return data.data;
+  return data.data!;
 }
 
 export async function deleteDocument(id: string): Promise<void> {
@@ -71,5 +71,5 @@ export async function semanticSearch(
     "/search",
     req,
   );
-  return data.data;
+  return data.data ?? [];
 }

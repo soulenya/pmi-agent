@@ -1,5 +1,3 @@
-import type { User } from "@/types";
-
 // ── Conversations ─────────────────────────────────────────────────────────────
 
 export interface Conversation {

@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Check, Circle, Clock, AlertCircle, Trash2, ChevronDown } from "lucide-react";
+import { Plus, Check, Circle, Clock, AlertCircle, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listTasks, createTask, updateTask, deleteTask } from "@/api/tasks";
-import { listProjects, createProject } from "@/api/tasks";
 import type { Task, TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
 
 const STATUS_ICONS: Record<TaskStatus, React.ReactNode> = {
@@ -107,7 +106,6 @@ function NewTaskForm({ onClose }: { onClose: () => void }) {
 
 function TaskRow({ task }: { task: Task }) {
   const qc = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
 
   const statusMutation = useMutation({
     mutationFn: (newStatus: TaskStatus) =>
@@ -202,7 +200,6 @@ function TaskRow({ task }: { task: Task }) {
 }
 
 export function TasksPage() {
-  const qc = useQueryClient();
   const [showNewTask, setShowNewTask] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("active");
 

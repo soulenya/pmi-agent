@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listPendingApprovals, resolveApproval } from "@/api/chat";
 import type { ApprovalIntent } from "@/types/chat";
-import { ShieldCheck, ShieldX, AlertTriangle, Clock } from "lucide-react";
+import { ShieldCheck, ShieldX, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
