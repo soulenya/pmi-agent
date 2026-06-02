@@ -5,6 +5,8 @@ import type {
   RegDoc,
   RegDocCreate,
   RegDocUpdate,
+  RiskItem,
+  RiskItemCreate,
   Briefing,
 } from "@/types/regulatory";
 
@@ -61,4 +63,30 @@ export async function getTodayBriefing(refresh = false): Promise<Briefing> {
     params: refresh ? { refresh: true } : undefined,
   });
   return resp.data;
+}
+
+// ── Risk Items ────────────────────────────────────────────────────────────────
+
+export async function listRiskItems(regulatory_doc_id?: string): Promise<RiskItem[]> {
+  const resp = await apiClient.get<RiskItem[]>("/regulatory/risks", {
+    params: regulatory_doc_id ? { regulatory_doc_id } : undefined,
+  });
+  return resp.data;
+}
+
+export async function createRiskItem(docId: string, body: RiskItemCreate): Promise<RiskItem> {
+  const resp = await apiClient.post<RiskItem>(`/regulatory/${docId}/risks`, body);
+  return resp.data;
+}
+
+export async function updateRiskItem(
+  itemId: string,
+  body: Partial<RiskItemCreate>,
+): Promise<RiskItem> {
+  const resp = await apiClient.patch<RiskItem>(`/regulatory/risks/${itemId}`, body);
+  return resp.data;
+}
+
+export async function deleteRiskItem(itemId: string): Promise<void> {
+  await apiClient.delete(`/regulatory/risks/${itemId}`);
 }

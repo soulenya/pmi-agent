@@ -74,6 +74,18 @@ export interface CAPA {
   updated_at: string;
 }
 
+export interface RiskItemCreate {
+  hazard: string;
+  hazardous_situation: string;
+  harm: string;
+  probability_before?: number | null;
+  severity_before?: number | null;
+  mitigation_measures?: string | null;
+  probability_after?: number | null;
+  severity_after?: number | null;
+  risk_acceptability?: string | null;
+}
+
 export interface CAPACreate {
   capa_number: string;
   title: string;

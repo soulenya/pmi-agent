@@ -97,6 +97,18 @@ async def delete_reg_doc(
 
 # ── Risk Items ────────────────────────────────────────────────────────────────
 
+@router.get("/risks", response_model=list[RiskItemOut])
+async def list_all_risk_items(
+    regulatory_doc_id: uuid.UUID | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> list[RiskItemOut]:
+    """List all risk items, optionally filtered by regulatory document."""
+    repo = RiskItemRepository(db)
+    items = await repo.list(regulatory_doc_id=regulatory_doc_id)
+    return [RiskItemOut.model_validate(i) for i in items]
+
+
 @router.get("/{doc_id}/risks", response_model=list[RiskItemOut])
 async def list_risk_items(
     doc_id: uuid.UUID,
@@ -141,6 +153,19 @@ async def update_risk_item(
         raise HTTPException(status_code=404, detail="Risk item not found.")
     await db.commit()
     return RiskItemOut.model_validate(item)
+
+
+@router.delete("/risks/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_risk_item(
+    item_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> None:
+    repo = RiskItemRepository(db)
+    deleted = await repo.delete(item_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Risk item not found.")
+    await db.commit()
 
 
 # ── CAPAs ──────────────────────────────────────────────────────────────────────
