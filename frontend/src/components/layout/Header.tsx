@@ -1,8 +1,12 @@
-import { Bell, LogOut, User } from "lucide-react";
+import { Bell, LogOut, User, Search } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { logout as apiLogout } from "@/api/auth";
 
-export function Header() {
+interface HeaderProps {
+  onOpenPalette: () => void;
+}
+
+export function Header({ onOpenPalette }: HeaderProps) {
   const { user, refreshToken, logout } = useAuthStore();
 
   async function handleLogout() {
@@ -18,7 +22,18 @@ export function Header() {
 
   return (
     <header className="flex h-14 items-center justify-between border-b bg-card px-6">
-      <div />
+      {/* ⌘K palette trigger */}
+      <button
+        onClick={onOpenPalette}
+        className="flex items-center gap-2 rounded-md border bg-muted px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+        title="Open command palette (Ctrl+K)"
+      >
+        <Search className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline text-xs">Search…</span>
+        <kbd className="hidden sm:flex h-5 items-center rounded bg-background border px-1.5 text-[10px] font-medium ml-1">
+          Ctrl+K
+        </kbd>
+      </button>
 
       <div className="flex items-center gap-3">
         {/* Notifications */}

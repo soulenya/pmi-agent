@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import {
   getSettings,
   updateSettings,
@@ -411,7 +412,11 @@ function AppearanceSection({
       <Field label="Theme">
         <select
           value={settings.theme}
-          onChange={(e) => onChange({ theme: e.target.value })}
+          onChange={(e) => {
+            const v = e.target.value as ThemeValue;
+            setTheme(v);
+            onChange({ theme: v });
+          }}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="system">System</option>
