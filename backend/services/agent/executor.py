@@ -25,7 +25,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.enums import MessageRole
-from models.schemas.conversations import WSDone, WSError, WSToken
+from models.schemas.conversations import WSDone, WSError, WSToken, WSToolStatus
 from repositories.conversation_repo import ConversationRepository, MessageRepository
 from services.agent.tools import TOOL_DEFINITIONS, ToolContext, dispatch_tool
 from services.embeddings.service import get_embedding_service
@@ -63,6 +63,72 @@ no document modifications). Always use request_approval for these.
 
 Today's date: {today}
 """
+
+
+# ── Tool status helpers ───────────────────────────────────────────────────────
+
+_TOOL_RUNNING_LABELS: dict[str, str] = {
+    "search_knowledge_base": "Searching knowledge base…",
+    "create_task": "Creating task…",
+    "request_approval": "Submitting approval request…",
+    "get_pending_approvals": "Fetching pending approvals…",
+    "get_tasks": "Looking up tasks…",
+    "get_regulatory_status": "Checking regulatory status…",
+    "search_web": "Searching the web…",
+    "fetch_page": "Fetching page…",
+}
+
+
+def _tool_running_label(tool_name: str, args: dict) -> str:
+    label = _TOOL_RUNNING_LABELS.get(tool_name, f"Running {tool_name}...")
+    if tool_name == "search_knowledge_base":
+        query = args.get("query", "")
+        if query:
+            label = f'Searching knowledge base for "{query[:60]}"...'
+    elif tool_name == "search_web":
+        query = args.get("query", "")
+        if query:
+            label = f'Searching web for "{query[:60]}"...'
+    elif tool_name == "fetch_page":
+        url = args.get("url", "")
+        if url:
+            label = f"Fetching {url[:80]}..."
+    elif tool_name == "create_task":
+        title = args.get("title", "")
+        if title:
+            label = f"Creating task: {title[:60]}..."
+    return label
+
+
+def _tool_done_label(tool_name: str, result: str) -> str:
+    # Brief summary — first non-empty line of result, capped at 80 chars
+    first_line = next((l.strip() for l in result.splitlines() if l.strip()), "Done")
+    if len(first_line) > 80:
+        first_line = first_line[:77] + "…"
+    return first_line
+
+
+async def _auto_title_conversation(
+    db: AsyncSession,
+    conversation_id: uuid.UUID,
+    user_id: uuid.UUID,
+    user_text: str,
+) -> None:
+    """Set the conversation title from the first user message if still untitled."""
+    conv_repo = ConversationRepository(db)
+    conv = await conv_repo.get(conversation_id, user_id)
+    if conv is None or conv.title:
+        return  # already titled or not found
+
+    # Truncate at word boundary ≤ 60 chars
+    raw = user_text.strip().replace("\n", " ")
+    if len(raw) <= 60:
+        title = raw
+    else:
+        title = raw[:60].rsplit(" ", 1)[0] + "…"
+
+    await conv_repo.update(conv, title=title)
+    await db.commit()
 
 
 # ── Executor ──────────────────────────────────────────────────────────────────
@@ -158,6 +224,10 @@ class AgentExecutor:
                 )
                 await self.db.commit()
 
+                # Auto-title: if conversation still untitled, use the first ~60 chars
+                # of the user's first message (word-boundary truncated)
+                await _auto_title_conversation(self.db, self.conversation_id, self.user_id, user_text)
+
                 done_frame = WSDone(
                     conversation_id=str(self.conversation_id),
                     message_id=str(assistant_msg.id),
@@ -176,8 +246,26 @@ class AgentExecutor:
                 raw_args = fn.get("arguments", {})
                 args: dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
 
+                # Emit "running" status so the UI can show a live indicator
+                running_label = _tool_running_label(tool_name, args)
+                yield WSToolStatus(
+                    tool_name=tool_name,
+                    status="running",
+                    label=running_label,
+                    conversation_id=str(self.conversation_id),
+                ).model_dump_json()
+
                 result = await dispatch_tool(tool_ctx, tool_name, args)
                 await self.db.commit()  # flush any tool-created DB rows
+
+                # Emit "done" status with a brief summary
+                done_label = _tool_done_label(tool_name, result)
+                yield WSToolStatus(
+                    tool_name=tool_name,
+                    status="done",
+                    label=done_label,
+                    conversation_id=str(self.conversation_id),
+                ).model_dump_json()
 
                 messages.append({"role": "tool", "content": result})
 
@@ -190,6 +278,7 @@ class AgentExecutor:
                 cited_chunk_ids=cited_chunk_ids,
             )
             await self.db.commit()
+            await _auto_title_conversation(self.db, self.conversation_id, self.user_id, user_text)
             done_frame = WSDone(
                 conversation_id=str(self.conversation_id),
                 message_id=str(assistant_msg.id),

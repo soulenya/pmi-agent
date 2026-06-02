@@ -1,13 +1,409 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, Loader2 } from "lucide-react";
+import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench } from "lucide-react";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { createConversation, listConversations, listMessages } from "@/api/chat";
+import {
+  createConversation,
+  listConversations,
+  listMessages,
+  updateConversation,
+} from "@/api/chat";
 import { useAuthStore } from "@/stores/authStore";
-import type { Message } from "@/types/chat";
+import type { Message, WSToolStatusFrame } from "@/types/chat";
 import { cn } from "@/lib/utils";
+
+// WebSocket URL — connects to the backend WS endpoint
+const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
+
+// ── Tool activity item ─────────────────────────────────────────────────────────
+
+interface ToolActivity {
+  tool_name: string;
+  status: "running" | "done";
+  label: string;
+}
+
+// ── ConversationItem — sidebar item with inline rename ─────────────────────────
+
+function ConversationItem({
+  id,
+  title,
+  isActive,
+  onClick,
+  onRename,
+  onArchive,
+}: {
+  id: string;
+  title: string | null;
+  isActive: boolean;
+  onClick: () => void;
+  onRename: (id: string, newTitle: string) => void;
+  onArchive: (id: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const startEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraft(title ?? "");
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== title) {
+      onRename(id, trimmed);
+    }
+    setEditing(false);
+  };
+
+  const cancel = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 rounded-md bg-accent px-2 py-1">
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") cancel();
+          }}
+          onBlur={commit}
+          className="flex-1 bg-transparent text-sm outline-none text-accent-foreground min-w-0"
+        />
+        <button onClick={commit} className="shrink-0 text-green-500 hover:text-green-400">
+          <Check className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={cancel} className="shrink-0 text-muted-foreground hover:text-foreground">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "group flex items-center rounded-md text-sm transition-colors",
+        isActive
+          ? "bg-accent text-accent-foreground"
+          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+      )}
+    >
+      <button
+        onClick={onClick}
+        className="flex-1 truncate px-3 py-2 text-left"
+      >
+        {title ?? "Untitled conversation"}
+      </button>
+      {/* Action buttons visible on hover */}
+      <div className="flex shrink-0 items-center gap-0.5 pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={startEdit}
+          title="Rename"
+          className="rounded p-1 hover:bg-background/30"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onArchive(id); }}
+          title="Archive"
+          className="rounded p-1 hover:bg-background/30"
+        >
+          <Archive className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Tool activity strip ────────────────────────────────────────────────────────
+
+function ToolActivityStrip({ activities }: { activities: ToolActivity[] }) {
+  if (activities.length === 0) return null;
+  const latest = activities[activities.length - 1];
+  return (
+    <div className="flex items-center gap-2 rounded-xl bg-secondary/70 px-3 py-2 text-xs text-muted-foreground max-w-[75%]">
+      <Wrench className={cn("h-3.5 w-3.5 shrink-0", latest.status === "running" && "animate-pulse text-primary")} />
+      <span className="truncate">{latest.label}</span>
+      {latest.status === "running" && (
+        <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+      )}
+    </div>
+  );
+}
+
+export function ChatPage() {
+  const { conversationId } = useParams<{ conversationId?: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  const [streamingContent, setStreamingContent] = useState<string | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
+
+  // ── Conversation list ──────────────────────────────────────────────────────
+  const { data: conversations = [] } = useQuery({
+    queryKey: ["conversations"],
+    queryFn: listConversations,
+  });
+
+  // ── Messages for active conversation ──────────────────────────────────────
+  const { data: messages = [], isLoading: messagesLoading } = useQuery({
+    queryKey: ["messages", conversationId],
+    queryFn: () => listMessages(conversationId!),
+    enabled: !!conversationId,
+  });
+
+  // ── Create conversation ────────────────────────────────────────────────────
+  const createConvMutation = useMutation({
+    mutationFn: () => createConversation(),
+    onSuccess: (conv) => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      navigate(`/chat/${conv.id}`);
+    },
+  });
+
+  // ── Rename conversation ────────────────────────────────────────────────────
+  const renameMutation = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) =>
+      updateConversation(id, { title }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+
+  // ── Archive conversation ───────────────────────────────────────────────────
+  const archiveMutation = useMutation({
+    mutationFn: (id: string) => updateConversation(id, { is_archived: true }),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      // Navigate away if the archived conversation was active
+      if (id === conversationId) navigate("/chat");
+    },
+  });
+
+  // ── WebSocket connection for this conversation ─────────────────────────────
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const token = useAuthStore.getState().accessToken;
+    const wsUrl = token
+      ? `${WS_BASE}/ws/chat/${conversationId}?token=${encodeURIComponent(token)}`
+      : `${WS_BASE}/ws/chat/${conversationId}`;
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => setWsConnected(true);
+    ws.onclose = () => setWsConnected(false);
+    ws.onerror = () => setWsConnected(false);
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data as string) as {
+          type: "token" | "done" | "error" | "tool_status";
+          content?: string;
+          tool_name?: string;
+          status?: string;
+          label?: string;
+        };
+
+        if (msg.type === "token" && msg.content) {
+          setStreamingContent((prev) => (prev ?? "") + msg.content);
+          // Clear tool activity once the LLM starts responding
+          setToolActivities([]);
+        } else if (msg.type === "tool_status") {
+          const frame = msg as unknown as WSToolStatusFrame;
+          setToolActivities((prev) => {
+            // Update existing entry for this tool_name or append
+            const idx = prev.findLastIndex((a) => a.tool_name === frame.tool_name);
+            if (idx >= 0 && prev[idx].status === "running") {
+              const next = [...prev];
+              next[idx] = { tool_name: frame.tool_name, status: frame.status, label: frame.label };
+              return next;
+            }
+            return [...prev, { tool_name: frame.tool_name, status: frame.status, label: frame.label }];
+          });
+        } else if (msg.type === "done") {
+          // Flush streamed message into real message list
+          queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+          // Refresh conversations to pick up auto-title if set
+          queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          setStreamingContent(null);
+          setToolActivities([]);
+        }
+      } catch {
+        // ignore malformed frames
+      }
+    };
+
+    return () => {
+      ws.close();
+      setStreamingContent(null);
+      setWsConnected(false);
+      setToolActivities([]);
+    };
+  }, [conversationId, queryClient]);
+
+  // ── Auto-scroll to bottom ──────────────────────────────────────────────────
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, streamingContent, toolActivities]);
+
+  // ── Send message ───────────────────────────────────────────────────────────
+  const handleSend = useCallback(
+    (content: string) => {
+      if (!conversationId) {
+        // Create a conversation first, then send
+        createConvMutation.mutate();
+        return;
+      }
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(content);
+
+        // Optimistically add user message to the list
+        const optimistic: Message = {
+          id: crypto.randomUUID(),
+          conversation_id: conversationId,
+          role: "user",
+          content,
+          agent_type: null,
+          model_name: null,
+          cited_chunk_ids: [],
+          tool_calls: null,
+          tool_results: null,
+          created_at: new Date().toISOString(),
+        };
+        queryClient.setQueryData<Message[]>(
+          ["messages", conversationId],
+          (prev) => [...(prev ?? []), optimistic],
+        );
+      }
+    },
+    [conversationId, createConvMutation, queryClient],
+  );
+
+  return (
+    <div className="flex h-full gap-4">
+      {/* ── Conversation sidebar ─────────────────────────────────────────── */}
+      <aside className="flex w-56 flex-col gap-2 border-r pr-4">
+        <button
+          onClick={() => createConvMutation.mutate()}
+          disabled={createConvMutation.isPending}
+          className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+        >
+          <PlusCircle className="h-4 w-4" />
+          New conversation
+        </button>
+
+        <div className="flex-1 space-y-1 overflow-y-auto">
+          {conversations.map((c) => (
+            <ConversationItem
+              key={c.id}
+              id={c.id}
+              title={c.title}
+              isActive={c.id === conversationId}
+              onClick={() => navigate(`/chat/${c.id}`)}
+              onRename={(id, newTitle) => renameMutation.mutate({ id, title: newTitle })}
+              onArchive={(id) => archiveMutation.mutate(id)}
+            />
+          ))}
+        </div>
+      </aside>
+
+      {/* ── Message thread ────────────────────────────────────────────────── */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Status badge */}
+        {conversationId && (
+          <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                wsConnected ? "bg-green-500" : "bg-yellow-500",
+              )}
+            />
+            {wsConnected ? "Connected" : "Connecting…"}
+          </div>
+        )}
+
+        {/* Messages */}
+        <div className="flex-1 space-y-4 overflow-y-auto pb-2">
+          {!conversationId && (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+              <p className="text-lg font-medium">How can I help you today?</p>
+              <p className="text-sm">
+                Start a new conversation or select one from the sidebar.
+              </p>
+            </div>
+          )}
+
+          {messagesLoading && (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {messages.map((m) => (
+            <MessageBubble key={m.id} message={m} />
+          ))}
+
+          {/* Live tool activity indicator (shown while no streaming content yet) */}
+          {toolActivities.length > 0 && !streamingContent && (
+            <div className="flex flex-row gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+              <ToolActivityStrip activities={toolActivities} />
+            </div>
+          )}
+
+          {/* Streaming token buffer */}
+          {streamingContent && (
+            <MessageBubble
+              message={{
+                id: "streaming",
+                conversation_id: conversationId ?? "",
+                role: "assistant",
+                content: streamingContent,
+                agent_type: null,
+                model_name: null,
+                cited_chunk_ids: [],
+                tool_calls: null,
+                tool_results: null,
+                created_at: new Date().toISOString(),
+              }}
+            />
+          )}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <ChatInput
+          onSend={handleSend}
+          disabled={!conversationId && createConvMutation.isPending}
+          placeholder={
+            conversationId
+              ? "Message PMI Agent…"
+              : "Start typing to create a new conversation…"
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
 
 // WebSocket URL — connects to the backend WS endpoint
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";

@@ -25,6 +25,14 @@ export async function getConversation(id: string): Promise<Conversation> {
   return resp.data;
 }
 
+export async function updateConversation(
+  id: string,
+  body: import("@/types/chat").ConversationUpdate
+): Promise<Conversation> {
+  const resp = await apiClient.patch<Conversation>(`/conversations/${id}`, body);
+  return resp.data;
+}
+
 export async function listMessages(conversationId: string): Promise<Message[]> {
   const resp = await apiClient.get<Message[]>(
     `/conversations/${conversationId}/messages`

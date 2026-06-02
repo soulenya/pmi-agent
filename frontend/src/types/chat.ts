@@ -15,6 +15,22 @@ export interface ConversationCreate {
   title?: string;
 }
 
+export interface ConversationUpdate {
+  title?: string;
+  is_pinned?: boolean;
+  is_archived?: boolean;
+}
+
+// ── WebSocket frames ──────────────────────────────────────────────────────────
+
+export interface WSToolStatusFrame {
+  type: "tool_status";
+  tool_name: string;
+  status: "running" | "done";
+  label: string;
+  conversation_id: string;
+}
+
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 export type MessageRole = "user" | "assistant" | "system" | "tool";

@@ -109,6 +109,15 @@ class WSToken(BaseModel):
     conversation_id: str
 
 
+class WSToolStatus(BaseModel):
+    """Server → client: tool call status update."""
+    type: str = "tool_status"
+    tool_name: str
+    status: str  # "running" | "done"
+    label: str
+    conversation_id: str
+
+
 class WSDone(BaseModel):
     """Server → client: stream finished."""
     type: str = "done"
