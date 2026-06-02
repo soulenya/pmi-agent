@@ -56,6 +56,7 @@ export interface TaskCreate {
   title: string;
   description?: string;
   project_id?: string;
+  parent_task_id?: string;
   priority?: TaskPriority;
   due_date?: string;
   tags?: string[];

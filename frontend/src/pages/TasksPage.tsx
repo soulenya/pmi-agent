@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen } from "lucide-react";
+import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen, LayoutList, Columns2, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listTasks, createTask, updateTask, listProjects } from "@/api/tasks";
 import type { Task, TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
@@ -109,9 +109,11 @@ function NewTaskForm({ onClose }: { onClose: () => void }) {
 function TaskRow({
   task,
   onOpen,
+  subtaskCount = 0,
 }: {
   task: Task;
   onOpen: () => void;
+  subtaskCount?: number;
 }) {
   const qc = useQueryClient();
 
@@ -170,6 +172,13 @@ function TaskRow({
             {task.description}
           </p>
         )}
+        {/* subtask badge */}
+        {subtaskCount > 0 && (
+          <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+            <ListChecks className="h-2.5 w-2.5" />
+            {subtaskCount} subtask{subtaskCount > 1 ? "s" : ""}
+          </span>
+        )}
         {task.tags.length > 0 && (
           <div className="mt-1 flex items-center gap-1 flex-wrap">
             {task.tags.slice(0, 4).map((tag) => (
@@ -208,11 +217,173 @@ function TaskRow({
   );
 }
 
+// ── Kanban board ───────────────────────────────────────────────────────────────
+
+const KANBAN_COLUMNS: { status: TaskStatus; label: string }[] = [
+  { status: "backlog", label: "Backlog" },
+  { status: "todo", label: "To Do" },
+  { status: "in_progress", label: "In Progress" },
+  { status: "in_review", label: "In Review" },
+  { status: "done", label: "Done" },
+];
+
+const COLUMN_COLORS: Record<TaskStatus, string> = {
+  backlog: "border-t-slate-400",
+  todo: "border-t-blue-400",
+  in_progress: "border-t-yellow-400",
+  in_review: "border-t-orange-400",
+  done: "border-t-green-500",
+  cancelled: "border-t-muted",
+};
+
+function KanbanCard({
+  task,
+  onOpen,
+  subtaskCount,
+}: {
+  task: Task;
+  onOpen: () => void;
+  subtaskCount: number;
+}) {
+  const isOverdue =
+    task.due_date &&
+    task.status !== "done" &&
+    task.status !== "cancelled" &&
+    new Date(task.due_date) < new Date();
+
+  return (
+    <div
+      onClick={onOpen}
+      className={cn(
+        "rounded-lg border bg-card px-3 py-2.5 shadow-sm cursor-pointer hover:shadow-md hover:bg-accent/30 transition-all space-y-1.5",
+        task.status === "done" && "opacity-60"
+      )}
+    >
+      <p
+        className={cn(
+          "text-sm font-medium leading-snug",
+          task.status === "done" && "line-through text-muted-foreground"
+        )}
+      >
+        {task.title}
+      </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className={cn("text-[10px] font-medium", PRIORITY_COLORS[task.priority])}>
+          {task.priority}
+        </span>
+        {task.due_date && (
+          <span
+            className={cn(
+              "text-[10px]",
+              isOverdue ? "text-destructive font-medium" : "text-muted-foreground"
+            )}
+          >
+            {new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </span>
+        )}
+        {subtaskCount > 0 && (
+          <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+            <ListChecks className="h-2.5 w-2.5" />
+            {subtaskCount}
+          </span>
+        )}
+      </div>
+      {task.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {task.tags.slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+            >
+              {tag}
+            </span>
+          ))}
+          {task.tags.length > 3 && (
+            <span className="text-[10px] text-muted-foreground">+{task.tags.length - 3}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KanbanBoard({
+  tasks,
+  allTasks,
+  onOpen,
+}: {
+  tasks: Task[];
+  allTasks: Task[];
+  onOpen: (task: Task) => void;
+}) {
+  const qc = useQueryClient();
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: TaskStatus }) =>
+      updateTask(id, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+  });
+
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1">
+      {KANBAN_COLUMNS.map((col) => {
+        const colTasks = tasks.filter((t) => t.status === col.status);
+        return (
+          <div
+            key={col.status}
+            className={cn(
+              "flex flex-col gap-2 rounded-xl border-t-2 bg-muted/30 p-3 min-w-[220px] w-[220px] shrink-0",
+              COLUMN_COLORS[col.status]
+            )}
+          >
+            {/* Column header */}
+            <div className="flex items-center justify-between px-0.5 mb-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                {col.label}
+              </span>
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {colTasks.length}
+              </span>
+            </div>
+
+            {/* Cards */}
+            {colTasks.map((task) => (
+              <KanbanCard
+                key={task.id}
+                task={task}
+                onOpen={() => onOpen(task)}
+                subtaskCount={allTasks.filter((t) => t.parent_task_id === task.id).length}
+              />
+            ))}
+
+            {colTasks.length === 0 && (
+              <p className="rounded-lg border border-dashed py-6 text-center text-[11px] text-muted-foreground/50">
+                Empty
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showNewTask, setShowNewTask] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("active");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  // View preference
+  const [view, setView] = useState<"list" | "kanban">(() => {
+    try { return (localStorage.getItem("tasks-view") as "list" | "kanban") || "list"; }
+    catch { return "list"; }
+  });
+
+  function switchView(v: "list" | "kanban") {
+    setView(v);
+    try { localStorage.setItem("tasks-view", v); } catch { /* ignore */ }
+  }
 
   // Project filter — seeded from URL ?project_id=
   const [projectFilter, setProjectFilter] = useState<string>(
@@ -270,8 +441,19 @@ export function TasksPage() {
     ? (projects.find((p) => p.id === projectFilter)?.name ?? "")
     : "";
 
+  // Top-level tasks only (no subtasks in main list/kanban)
+  const topLevel = filtered.filter((t) => t.parent_task_id === null);
+
+  // Subtask counts per parent for badges
+  const subtaskCounts: Record<string, number> = {};
+  for (const t of tasks) {
+    if (t.parent_task_id) {
+      subtaskCounts[t.parent_task_id] = (subtaskCounts[t.parent_task_id] ?? 0) + 1;
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
+    <div className={cn("flex flex-col gap-6 p-6 mx-auto", view === "kanban" ? "max-w-full" : "max-w-4xl")}>
       {/* Task detail drawer */}
       {liveSelectedTask && (
         <TaskDrawer
@@ -301,34 +483,61 @@ export function TasksPage() {
             )}
           </p>
         </div>
-        <button
-          onClick={() => setShowNewTask(true)}
-          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          New Task
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex gap-1 rounded-lg border bg-muted p-1">
+            <button
+              onClick={() => switchView("list")}
+              className={cn(
+                "rounded-md p-1.5 transition-colors",
+                view === "list" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+              title="List view"
+            >
+              <LayoutList className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => switchView("kanban")}
+              className={cn(
+                "rounded-md p-1.5 transition-colors",
+                view === "kanban" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+              title="Kanban board"
+            >
+              <Columns2 className="h-4 w-4" />
+            </button>
+          </div>
+          <button
+            onClick={() => setShowNewTask(true)}
+            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            New Task
+          </button>
+        </div>
       </div>
 
       {/* Filter row */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Status tabs */}
-        <div className="flex gap-1 rounded-lg border bg-muted p-1">
-          {(["active", "done", "all"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilterStatus(f)}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                filterStatus === f
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {f === "active" ? "Active" : f === "done" ? "Completed" : "All"}
-            </button>
-          ))}
-        </div>
+        {/* Status tabs — hidden in kanban (columns serve as status filter) */}
+        {view === "list" && (
+          <div className="flex gap-1 rounded-lg border bg-muted p-1">
+            {(["active", "done", "all"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilterStatus(f)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  filterStatus === f
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {f === "active" ? "Active" : f === "done" ? "Completed" : "All"}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Project filter */}
         {projects.length > 0 && (
@@ -360,10 +569,16 @@ export function TasksPage() {
       {/* New task form */}
       {showNewTask && <NewTaskForm onClose={() => setShowNewTask(false)} />}
 
-      {/* Task list */}
+      {/* Content */}
       {isLoading ? (
         <div className="text-center text-muted-foreground py-12">Loading tasks…</div>
-      ) : filtered.length === 0 ? (
+      ) : view === "kanban" ? (
+        <KanbanBoard
+          tasks={topLevel}
+          allTasks={tasks}
+          onOpen={setSelectedTask}
+        />
+      ) : topLevel.length === 0 ? (
         <div className="rounded-lg border border-dashed py-16 text-center text-muted-foreground">
           {filterStatus === "active" ? (
             <>
@@ -376,11 +591,12 @@ export function TasksPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((task) => (
+          {topLevel.map((task) => (
             <TaskRow
               key={task.id}
               task={task}
               onOpen={() => setSelectedTask(task)}
+              subtaskCount={subtaskCounts[task.id] ?? 0}
             />
           ))}
         </div>

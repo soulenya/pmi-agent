@@ -11,16 +11,20 @@ import {
   Loader2,
   MessageSquare,
   Send,
+  ListChecks,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   updateTask,
   deleteTask,
+  createTask,
   listTaskComments,
   addTaskComment,
   listProjects,
+  listTasks,
 } from "@/api/tasks";
-import type { Task, TaskStatus, TaskPriority, TaskUpdate } from "@/types/tasks";
+import type { Task, TaskCreate, TaskStatus, TaskPriority, TaskUpdate } from "@/types/tasks";
 
 // ── Shared constants ───────────────────────────────────────────────────────────
 
@@ -107,6 +111,178 @@ function TagInput({
         placeholder={tags.length === 0 ? "Add tags…" : ""}
         className="flex-1 min-w-[80px] bg-transparent text-xs outline-none placeholder:text-muted-foreground"
       />
+    </div>
+  );
+}
+
+// ── Subtasks section ──────────────────────────────────────────────────────────
+
+const SUBTASK_STATUS_ICONS: Record<TaskStatus, React.ReactNode> = {
+  backlog: <Circle className="h-3.5 w-3.5 text-muted-foreground" />,
+  todo: <Circle className="h-3.5 w-3.5 text-blue-500" />,
+  in_progress: <Clock className="h-3.5 w-3.5 text-yellow-500" />,
+  in_review: <AlertCircle className="h-3.5 w-3.5 text-orange-500" />,
+  done: <Check className="h-3.5 w-3.5 text-green-500" />,
+  cancelled: <Circle className="h-3.5 w-3.5 text-muted-foreground/40" />,
+};
+
+const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
+  backlog: "todo",
+  todo: "in_progress",
+  in_progress: "in_review",
+  in_review: "done",
+  done: "done",
+  cancelled: "cancelled",
+};
+
+function SubtasksSection({ parentTask }: { parentTask: Task }) {
+  const qc = useQueryClient();
+  const [newTitle, setNewTitle] = useState("");
+  const [adding, setAdding] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const { data: allTasks = [] } = useQuery({
+    queryKey: ["tasks"],
+    queryFn: () => listTasks(),
+    staleTime: 30_000,
+  });
+
+  const subtasks = allTasks.filter((t) => t.parent_task_id === parentTask.id);
+  const doneCount = subtasks.filter((t) => t.status === "done").length;
+  const pct = subtasks.length > 0 ? Math.round((doneCount / subtasks.length) * 100) : 0;
+
+  const addMutation = useMutation({
+    mutationFn: (body: TaskCreate) => createTask(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      setNewTitle("");
+      setAdding(false);
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: TaskStatus }) =>
+      updateTask(id, { status }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteTask(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+  });
+
+  function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    const title = newTitle.trim();
+    if (!title) return;
+    addMutation.mutate({
+      title,
+      parent_task_id: parentTask.id,
+      project_id: parentTask.project_id ?? undefined,
+      priority: parentTask.priority,
+    });
+  }
+
+  useEffect(() => {
+    if (adding) inputRef.current?.focus();
+  }, [adding]);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <ListChecks className="h-3.5 w-3.5" />
+          Subtasks ({doneCount}/{subtasks.length})
+        </h3>
+        <button
+          onClick={() => setAdding((x) => !x)}
+          className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <Plus className="h-3 w-3" />
+          Add
+        </button>
+      </div>
+
+      {/* Progress bar */}
+      {subtasks.length > 0 && (
+        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+          <div
+            className="h-full rounded-full bg-green-500 transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+
+      {/* Subtask rows */}
+      {subtasks.length > 0 && (
+        <div className="space-y-1">
+          {subtasks.map((sub) => (
+            <div
+              key={sub.id}
+              className={cn(
+                "group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent/30",
+                sub.status === "done" && "opacity-60"
+              )}
+            >
+              <button
+                onClick={() =>
+                  toggleMutation.mutate({ id: sub.id, status: NEXT_STATUS[sub.status] })
+                }
+                className="shrink-0"
+              >
+                {SUBTASK_STATUS_ICONS[sub.status]}
+              </button>
+              <span
+                className={cn(
+                  "flex-1 text-sm",
+                  sub.status === "done" && "line-through text-muted-foreground"
+                )}
+              >
+                {sub.title}
+              </span>
+              <button
+                onClick={() => deleteMutation.mutate(sub.id)}
+                className="shrink-0 opacity-0 group-hover:opacity-100 rounded p-0.5 text-muted-foreground hover:text-destructive"
+                title="Delete subtask"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add form */}
+      {adding && (
+        <form onSubmit={handleAdd} className="flex items-center gap-2">
+          <input
+            ref={inputRef}
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && setAdding(false)}
+            placeholder="Subtask title…"
+            className="flex-1 rounded-md border bg-background px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
+          <button
+            type="submit"
+            disabled={!newTitle.trim() || addMutation.isPending}
+            className="rounded-md bg-primary px-2.5 py-1.5 text-xs text-primary-foreground disabled:opacity-50"
+          >
+            {addMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdding(false)}
+            className="rounded-md px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent"
+          >
+            Cancel
+          </button>
+        </form>
+      )}
+
+      {subtasks.length === 0 && !adding && (
+        <p className="text-xs text-muted-foreground italic">No subtasks yet.</p>
+      )}
     </div>
   );
 }
@@ -351,6 +527,12 @@ export function TaskDrawer({ task, onClose, onDeleted }: TaskDrawerProps) {
               }}
             />
           </div>
+
+          {/* Divider */}
+          <div className="border-t" />
+
+          {/* Subtasks */}
+          <SubtasksSection parentTask={task} />
 
           {/* Divider */}
           <div className="border-t" />
