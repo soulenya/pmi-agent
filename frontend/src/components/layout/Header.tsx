@@ -1,6 +1,7 @@
-import { Bell, LogOut, User, Search } from "lucide-react";
+import { LogOut, User, Search } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { logout as apiLogout } from "@/api/auth";
+import { NotificationDropdown } from "@/components/NotificationDropdown";
 
 interface HeaderProps {
   onOpenPalette: () => void;
@@ -37,12 +38,7 @@ export function Header({ onOpenPalette }: HeaderProps) {
 
       <div className="flex items-center gap-3">
         {/* Notifications */}
-        <button
-          className="relative rounded-full p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label="Notifications"
-        >
-          <Bell className="h-5 w-5" />
-        </button>
+        <NotificationDropdown />
 
         {/* User avatar + name */}
         <div className="flex items-center gap-2">

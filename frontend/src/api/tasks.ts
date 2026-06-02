@@ -18,6 +18,11 @@ export async function listProjects(includeArchived = false): Promise<Project[]> 
   return resp.data;
 }
 
+export async function getProject(id: string): Promise<Project> {
+  const resp = await apiClient.get<Project>(`/projects/${id}`);
+  return resp.data;
+}
+
 export async function createProject(body: ProjectCreate): Promise<Project> {
   const resp = await apiClient.post<Project>("/projects", body);
   return resp.data;

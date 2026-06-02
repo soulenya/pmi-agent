@@ -360,12 +360,17 @@ function ProjectCard({
         {/* Title + actions */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <FolderOpen
-              className="h-5 w-5 shrink-0"
-              style={{ color: project.color ?? "#1e6db5" }}
-            />
-            <h3 className="font-semibold text-sm leading-snug truncate">{project.name}</h3>
-          </div>
+              <FolderOpen
+                className="h-5 w-5 shrink-0"
+                style={{ color: project.color ?? "#1e6db5" }}
+              />
+              <NavLink
+                to={`/projects/${project.id}`}
+                className="font-semibold text-sm leading-snug truncate hover:underline"
+              >
+                {project.name}
+              </NavLink>
+            </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={onEdit}
@@ -375,9 +380,9 @@ function ProjectCard({
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <NavLink
-              to={`/tasks?project_id=${project.id}`}
+              to={`/projects/${project.id}`}
               className="flex items-center gap-1 rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-              title="View all tasks"
+              title="View project detail"
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </NavLink>

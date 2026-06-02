@@ -20,6 +20,7 @@ import { MeetingsPage } from "@/pages/MeetingsPage";
 import { EmailsPage } from "@/pages/EmailsPage";
 import { AuditPage } from "@/pages/AuditPage";
 import { UsersPage } from "@/pages/UsersPage";
+import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
 
 const queryClient = new QueryClient({
@@ -56,6 +57,7 @@ function ThemedApp() {
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="research" element={<ResearchPage />} />
             <Route path="projects" element={<ProjectsPage />} />
+            <Route path="projects/:id" element={<ProjectDetailPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="meetings" element={<MeetingsPage />} />
             <Route path="emails" element={<EmailsPage />} />
