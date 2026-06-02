@@ -6,6 +6,8 @@ export interface Conversation {
   id: string;
   user_id: string;
   title: string | null;
+  agent_type: string | null;
+  is_pinned: boolean;
   is_archived: boolean;
   created_at: string;
   updated_at: string;
@@ -24,11 +26,11 @@ export interface Message {
   conversation_id: string;
   role: MessageRole;
   content: string;
-  cited_chunk_ids: string[] | null;
+  agent_type: string | null;
+  model_name: string | null;
+  cited_chunk_ids: string[];
   tool_calls: unknown[] | null;
   tool_results: unknown[] | null;
-  token_count: number | null;
-  model_used: string | null;
   created_at: string;
 }
 
@@ -44,12 +46,14 @@ export type RiskLevel = "low" | "medium" | "high" | "critical";
 
 export interface ApprovalIntent {
   id: string;
-  action_type: string;
-  description: string | null;
+  user_id: string;
+  intent_type: string;
+  intent_title: string;
+  intent_description: string | null;
   intent_payload: Record<string, unknown>;
   risk_level: RiskLevel;
   status: ApprovalStatus;
-  expires_at: string;
+  expires_at: string | null;
   resolved_at: string | null;
   rejection_reason: string | null;
   created_at: string;
@@ -64,6 +68,7 @@ export interface ResolveApprovalRequest {
 
 export interface Notification {
   id: string;
+  user_id: string;
   type: string;
   title: string;
   message: string | null;

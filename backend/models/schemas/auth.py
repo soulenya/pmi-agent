@@ -9,7 +9,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str  # plain str — EmailStr rejects .local domains used in dev
     password: str = Field(min_length=8)
 
 

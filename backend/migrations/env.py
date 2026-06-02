@@ -85,14 +85,13 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    alembic_config = config.get_section(config.config_ini_section, {})
-    alembic_config["sqlalchemy.url"] = get_url()
+    from sqlalchemy.ext.asyncio import create_async_engine
 
-    connectable = async_engine_from_config(
-        alembic_config,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # Build asyncpg URL directly — avoids any configparser whitespace issues
+    sync_url = get_url().strip()
+    async_url = sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    connectable = create_async_engine(async_url, poolclass=pool.NullPool)
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

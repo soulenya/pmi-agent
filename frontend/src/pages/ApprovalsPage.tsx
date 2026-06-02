@@ -19,8 +19,8 @@ function ApprovalCard({ intent, onResolve }: {
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectBox, setShowRejectBox] = useState(false);
 
-  const expiresAt = new Date(intent.expires_at);
-  const isExpired = expiresAt < new Date();
+  const expiresAt = intent.expires_at ? new Date(intent.expires_at) : null;
+  const isExpired = expiresAt !== null && expiresAt < new Date();
 
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
@@ -28,10 +28,11 @@ function ApprovalCard({ intent, onResolve }: {
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {intent.action_type.replace(/_/g, " ")}
+            {intent.intent_type.replace(/_/g, " ")}
           </span>
-          {intent.description && (
-            <p className="mt-0.5 text-sm">{intent.description}</p>
+          <p className="mt-0.5 font-medium">{intent.intent_title}</p>
+          {intent.intent_description && (
+            <p className="mt-0.5 text-sm text-muted-foreground">{intent.intent_description}</p>
           )}
         </div>
         <span
@@ -52,14 +53,16 @@ function ApprovalCard({ intent, onResolve }: {
       )}
 
       {/* Expiry */}
-      <div className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Clock className="h-3.5 w-3.5" />
-        {isExpired ? (
-          <span className="text-destructive">Expired</span>
-        ) : (
-          <span>Expires {expiresAt.toLocaleString()}</span>
-        )}
-      </div>
+      {expiresAt && (
+        <div className="mb-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Clock className="h-3.5 w-3.5" />
+          {isExpired ? (
+            <span className="text-destructive">Expired</span>
+          ) : (
+            <span>Expires {expiresAt.toLocaleString()}</span>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       {!isExpired && intent.status === "pending" && (

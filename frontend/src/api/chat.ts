@@ -1,5 +1,4 @@
 import { apiClient } from "./client";
-import type { ApiResponse } from "@/types";
 import type {
   Conversation,
   ConversationCreate,
@@ -12,57 +11,56 @@ import type {
 // ── Conversations ─────────────────────────────────────────────────────────────
 
 export async function listConversations(): Promise<Conversation[]> {
-  const resp = await apiClient.get<ApiResponse<Conversation[]>>("/conversations");
-  return resp.data.data ?? [];
+  const resp = await apiClient.get<Conversation[]>("/conversations");
+  return resp.data;
 }
 
 export async function createConversation(body: ConversationCreate = {}): Promise<Conversation> {
-  const resp = await apiClient.post<ApiResponse<Conversation>>("/conversations", body);
-  return resp.data.data!;
+  const resp = await apiClient.post<Conversation>("/conversations", body);
+  return resp.data;
 }
 
 export async function getConversation(id: string): Promise<Conversation> {
-  const resp = await apiClient.get<ApiResponse<Conversation>>(`/conversations/${id}`);
-  return resp.data.data!;
+  const resp = await apiClient.get<Conversation>(`/conversations/${id}`);
+  return resp.data;
 }
 
 export async function listMessages(conversationId: string): Promise<Message[]> {
-  const resp = await apiClient.get<ApiResponse<Message[]>>(
+  const resp = await apiClient.get<Message[]>(
     `/conversations/${conversationId}/messages`
   );
-  return resp.data.data ?? [];
+  return resp.data;
 }
 
 // ── Approvals ─────────────────────────────────────────────────────────────────
 
 export async function listPendingApprovals(): Promise<ApprovalIntent[]> {
-  const resp = await apiClient.get<ApiResponse<ApprovalIntent[]>>(
-    "/approvals?status=pending"
-  );
-  return resp.data.data ?? [];
+  const resp = await apiClient.get<ApprovalIntent[]>("/approvals/pending");
+  return resp.data;
+}
+
+export async function getPendingApprovalCount(): Promise<number> {
+  const resp = await apiClient.get<{ count: number }>("/approvals/count");
+  return resp.data.count;
 }
 
 export async function resolveApproval(
   id: string,
   body: ResolveApprovalRequest
 ): Promise<ApprovalIntent> {
-  const resp = await apiClient.post<ApiResponse<ApprovalIntent>>(
-    `/approvals/${id}/resolve`,
-    body
-  );
-  return resp.data.data!;
+  const resp = await apiClient.post<ApprovalIntent>(`/approvals/${id}/resolve`, body);
+  return resp.data;
 }
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 
-export async function listNotifications(unreadOnly = false): Promise<Notification[]> {
-  const params = unreadOnly ? "?unread=true" : "";
-  const resp = await apiClient.get<ApiResponse<Notification[]>>(`/notifications${params}`);
-  return resp.data.data ?? [];
+export async function listNotifications(): Promise<Notification[]> {
+  const resp = await apiClient.get<Notification[]>("/notifications");
+  return resp.data;
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  await apiClient.patch(`/notifications/${id}/read`);
+  await apiClient.post(`/notifications/${id}/read`);
 }
 
 export async function markAllNotificationsRead(): Promise<void> {

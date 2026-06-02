@@ -15,8 +15,9 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from config import settings
-from database import engine
+from database import engine, get_db
 from routers import audit, auth, documents, health, search, users
+from routers.conversations import approvals_router, notifications_router, router as conversations_router
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -73,25 +74,95 @@ def create_app() -> FastAPI:
     app.include_router(users.router)
     app.include_router(documents.router)
     app.include_router(search.router)
+    app.include_router(conversations_router)
+    app.include_router(approvals_router)
+    app.include_router(notifications_router)
 
     # ── WebSocket: real-time chat stream ─────────────────────────────────────
     @app.websocket("/ws/chat/{conversation_id}")
     async def ws_chat(websocket: WebSocket, conversation_id: str) -> None:
         """
         WebSocket endpoint for streaming AI responses.
-        Phase C (LangGraph agents) will fill in the business logic.
-        For now: echo back messages as a placeholder.
+
+        Authentication: pass JWT access token as query param `?token=<jwt>`
+        (standard browsers cannot set Authorization headers on WebSocket upgrades).
+
+        Client → server: {"type": "human", "content": "<user message>"}
+        Server → client: WSToken | WSDone | WSError (JSON strings)
         """
-        await websocket.accept()
-        try:
-            while True:
-                data = await websocket.receive_text()
-                # Placeholder — real streaming added in Phase C
-                await websocket.send_json(
-                    {"type": "token", "content": data, "conversation_id": conversation_id}
-                )
-        except WebSocketDisconnect:
-            logger.info("WebSocket disconnected: conversation=%s", conversation_id)
+        from models.schemas.conversations import WSError, WSIncoming
+        from services.agent.executor import AgentExecutor
+        from services.auth.service import AuthService
+
+        # ── Authenticate via query param token ────────────────────────────────
+        token = websocket.query_params.get("token", "")
+        if not token:
+            await websocket.close(code=4401, reason="Missing token")
+            return
+
+        async for db in get_db():
+            auth_svc = AuthService(db)
+            user = await auth_svc.get_user_from_access_token(token)
+            if user is None:
+                await websocket.close(code=4401, reason="Invalid token")
+                return
+
+            await websocket.accept()
+            logger.info("WebSocket connected: user=%s conversation=%s", user.id, conversation_id)
+
+            # Verify conversation belongs to user
+            from repositories.conversation_repo import ConversationRepository
+            import uuid as uuid_mod
+            try:
+                conv_uuid = uuid_mod.UUID(conversation_id)
+            except ValueError:
+                await websocket.send_text(WSError(detail="Invalid conversation ID.").model_dump_json())
+                await websocket.close()
+                return
+
+            conv_repo = ConversationRepository(db)
+            conv = await conv_repo.get(conv_uuid, user.id)
+            if conv is None:
+                await websocket.send_text(WSError(detail="Conversation not found.").model_dump_json())
+                await websocket.close()
+                return
+
+            try:
+                while True:
+                    raw = await websocket.receive_text()
+                    try:
+                        incoming = WSIncoming.model_validate_json(raw)
+                    except Exception:
+                        await websocket.send_text(
+                            WSError(detail="Invalid message format.").model_dump_json()
+                        )
+                        continue
+
+                    if incoming.type == "ping":
+                        await websocket.send_text('{"type":"pong"}')
+                        continue
+
+                    if incoming.type != "human" or not incoming.content.strip():
+                        continue
+
+                    executor = AgentExecutor(
+                        db=db,
+                        user_id=user.id,
+                        conversation_id=conv_uuid,
+                    )
+                    async for frame in executor._run(incoming.content.strip()):
+                        await websocket.send_text(frame)
+
+            except WebSocketDisconnect:
+                logger.info("WebSocket disconnected: user=%s conversation=%s", user.id, conversation_id)
+            except Exception as exc:
+                logger.exception("WebSocket error: %s", exc)
+                try:
+                    await websocket.send_text(WSError(detail="Internal server error.").model_dump_json())
+                    await websocket.close()
+                except Exception:
+                    pass
+            break  # exit the get_db() generator after one iteration
 
     return app
 

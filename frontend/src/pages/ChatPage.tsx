@@ -5,6 +5,7 @@ import { PlusCircle, Loader2 } from "lucide-react";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { createConversation, listConversations, listMessages } from "@/api/chat";
+import { useAuthStore } from "@/stores/authStore";
 import type { Message } from "@/types/chat";
 import { cn } from "@/lib/utils";
 
@@ -47,7 +48,11 @@ export function ChatPage() {
   useEffect(() => {
     if (!conversationId) return;
 
-    const ws = new WebSocket(`${WS_BASE}/ws/chat/${conversationId}`);
+    const token = useAuthStore.getState().accessToken;
+    const wsUrl = token
+      ? `${WS_BASE}/ws/chat/${conversationId}?token=${encodeURIComponent(token)}`
+      : `${WS_BASE}/ws/chat/${conversationId}`;
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => setWsConnected(true);
@@ -102,11 +107,11 @@ export function ChatPage() {
           conversation_id: conversationId,
           role: "user",
           content,
-          cited_chunk_ids: null,
+          agent_type: null,
+          model_name: null,
+          cited_chunk_ids: [],
           tool_calls: null,
           tool_results: null,
-          token_count: null,
-          model_used: null,
           created_at: new Date().toISOString(),
         };
         queryClient.setQueryData<Message[]>(
@@ -193,11 +198,11 @@ export function ChatPage() {
                 conversation_id: conversationId ?? "",
                 role: "assistant",
                 content: streamingContent,
-                cited_chunk_ids: null,
+                agent_type: null,
+                model_name: null,
+                cited_chunk_ids: [],
                 tool_calls: null,
                 tool_results: null,
-                token_count: null,
-                model_used: null,
                 created_at: new Date().toISOString(),
               }}
             />

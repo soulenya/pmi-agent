@@ -51,8 +51,8 @@ export function MessageBubble({ message }: Props) {
         )}
 
         {/* Model label */}
-        {isAssistant && message.model_used && (
-          <p className="mt-0.5 text-xs opacity-40">{message.model_used}</p>
+        {isAssistant && message.model_name && (
+          <p className="mt-0.5 text-xs opacity-40">{message.model_name}</p>
         )}
       </div>
     </div>

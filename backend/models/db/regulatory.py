@@ -86,20 +86,20 @@ class RiskItem(Base):
 
     # Risk before mitigation (1-5 scale)
     probability_before: Mapped[int | None] = mapped_column(
-        Integer, CheckConstraint("probability_before BETWEEN 1 AND 5"), nullable=True
+        Integer, CheckConstraint("probability_before BETWEEN 1 AND 5", name="ck_risk_items_probability_before"), nullable=True
     )
     severity_before: Mapped[int | None] = mapped_column(
-        Integer, CheckConstraint("severity_before BETWEEN 1 AND 5"), nullable=True
+        Integer, CheckConstraint("severity_before BETWEEN 1 AND 5", name="ck_risk_items_severity_before"), nullable=True
     )
 
     mitigation_measures: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Risk after mitigation (1-5 scale)
     probability_after: Mapped[int | None] = mapped_column(
-        Integer, CheckConstraint("probability_after BETWEEN 1 AND 5"), nullable=True
+        Integer, CheckConstraint("probability_after BETWEEN 1 AND 5", name="ck_risk_items_probability_after"), nullable=True
     )
     severity_after: Mapped[int | None] = mapped_column(
-        Integer, CheckConstraint("severity_after BETWEEN 1 AND 5"), nullable=True
+        Integer, CheckConstraint("severity_after BETWEEN 1 AND 5", name="ck_risk_items_severity_after"), nullable=True
     )
 
     # acceptable | alarp | unacceptable
