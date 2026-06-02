@@ -120,6 +120,7 @@ class NotificationType(str, enum.Enum):
 class ResearchStatus(str, enum.Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    FAILED = "failed"
     ARCHIVED = "archived"
 
 

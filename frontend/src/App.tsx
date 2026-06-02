@@ -12,6 +12,8 @@ import { SearchPage } from "@/pages/SearchPage";
 import { TasksPage } from "@/pages/TasksPage";
 import { RegulatoryPage } from "@/pages/RegulatoryPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
+import { ResearchPage } from "@/pages/ResearchPage";
+import { ProjectsPage } from "@/pages/ProjectsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,6 +42,8 @@ export default function App() {
               <Route path="tasks" element={<TasksPage />} />
               <Route path="regulatory" element={<RegulatoryPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
+              <Route path="research" element={<ResearchPage />} />
+              <Route path="projects" element={<ProjectsPage />} />
             </Route>
           </Route>
         </Routes>

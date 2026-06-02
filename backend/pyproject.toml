@@ -40,6 +40,7 @@ dependencies = [
     # "google-auth>=2.38.0",
     # "google-auth-oauthlib>=1.2.0",
     # "google-api-python-client>=2.166.0",
+    "duckduckgo-search>=8.1.1",
 ]
 
 [dependency-groups]
