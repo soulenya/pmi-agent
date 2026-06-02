@@ -10,6 +10,7 @@ import {
   reembed,
 } from "@/api/documents";
 import type { Document, DocumentChunk } from "@/types/documents";
+import { DocumentViewer } from "@/components/DocumentViewer";
 import {
   Upload,
   Trash2,
@@ -24,6 +25,7 @@ import {
   RefreshCw,
   Pencil,
   X,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -323,12 +325,14 @@ function DocumentRow({
   onDelete,
   onReembed,
   onEdit,
+  onView,
 }: {
   doc: Document;
   categories: { id: string; name: string }[];
   onDelete: () => void;
   onReembed: () => void;
   onEdit: () => void;
+  onView: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const categoryName = categories.find((c) => c.id === doc.category_id)?.name;
@@ -379,6 +383,13 @@ function DocumentRow({
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
           <button
+            onClick={onView}
+            className="rounded p-1.5 text-muted-foreground hover:text-primary"
+            title="View document"
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </button>
+          <button
             onClick={onEdit}
             className="rounded p-1.5 text-muted-foreground hover:text-foreground"
             title="Edit"
@@ -415,6 +426,7 @@ export function DocumentsPage() {
   const [activeCategoryId, setActiveCategoryId] = useState<string | undefined>();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [editDoc, setEditDoc] = useState<Document | null>(null);
+  const [viewDoc, setViewDoc] = useState<Document | null>(null);
   const [uploadError, setUploadError] = useState("");
 
   const { data: categories = [] } = useQuery({
@@ -615,6 +627,7 @@ export function DocumentsPage() {
               onDelete={() => setConfirmDelete(doc.id)}
               onReembed={() => reembedMutation.mutate(doc.id)}
               onEdit={() => setEditDoc(doc)}
+              onView={() => setViewDoc(doc)}
             />
           ))}
         </div>
@@ -625,6 +638,15 @@ export function DocumentsPage() {
           </p>
         )}
       </div>
-    </div>
+      {/* Document viewer panel */}
+      {viewDoc && (
+        <DocumentViewer
+          doc={viewDoc}
+          categoryName={categories.find((c) => c.id === viewDoc.category_id)?.name}
+          onClose={() => setViewDoc(null)}
+          onEdit={() => { setEditDoc(viewDoc); setViewDoc(null); }}
+          onReembed={() => { reembedMutation.mutate(viewDoc.id); setViewDoc(null); }}
+        />
+      )}    </div>
   );
 }
