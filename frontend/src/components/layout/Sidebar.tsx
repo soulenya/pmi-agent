@@ -16,6 +16,7 @@ import {
   Mail,
   ScrollText,
   Users,
+  CalendarDays,
 } from "lucide-react";
 import { listPendingApprovals, listNotifications } from "@/api/chat";
 
@@ -24,6 +25,7 @@ const navItems = [
   { to: "/chat", icon: MessageSquare, label: "AI Assistant" },
   { to: "/projects", icon: FolderOpen, label: "Projects" },
   { to: "/tasks", icon: FolderKanban, label: "Tasks" },
+  { to: "/calendar", icon: CalendarDays, label: "Calendar" },
   { to: "/documents", icon: FileText, label: "Knowledge Base" },
   { to: "/search", icon: Search, label: "Search" },
   { to: "/research", icon: FlaskConical, label: "Research" },

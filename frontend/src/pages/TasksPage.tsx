@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen, LayoutList, Columns2, ListChecks } from "lucide-react";
+import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen, LayoutList, Columns2, ListChecks, Trash2, MoveRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listTasks, createTask, updateTask, listProjects } from "@/api/tasks";
+import { listTasks, createTask, updateTask, deleteTask, listProjects } from "@/api/tasks";
 import type { Task, TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 
@@ -110,10 +110,14 @@ function TaskRow({
   task,
   onOpen,
   subtaskCount = 0,
+  selected,
+  onToggleSelect,
 }: {
   task: Task;
   onOpen: () => void;
   subtaskCount?: number;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const qc = useQueryClient();
 
@@ -142,10 +146,21 @@ function TaskRow({
     <div
       className={cn(
         "group flex items-center gap-3 rounded-md border bg-card px-4 py-3 transition-colors hover:bg-accent/30 cursor-pointer",
-        task.status === "done" && "opacity-60"
+        task.status === "done" && "opacity-60",
+        selected && "border-primary/50 bg-primary/5"
       )}
       onClick={onOpen}
     >
+      {/* Checkbox for bulk select */}
+      {onToggleSelect && (
+        <input
+          type="checkbox"
+          checked={!!selected}
+          onChange={(e) => { e.stopPropagation(); onToggleSelect(task.id); }}
+          onClick={(e) => e.stopPropagation()}
+          className="h-4 w-4 shrink-0 cursor-pointer accent-primary"
+        />
+      )}
       {/* Status toggle — stops propagation so clicking it doesn't open drawer */}
       <button
         onClick={(e) => {
@@ -373,6 +388,10 @@ export function TasksPage() {
   const [showNewTask, setShowNewTask] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("active");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<TaskStatus>("todo");
+  const [bulkProject, setBulkProject] = useState("");
+  const qcBulk = useQueryClient();
 
   // View preference
   const [view, setView] = useState<"list" | "kanban">(() => {
@@ -436,6 +455,37 @@ export function TasksPage() {
   // Keep selectedTask in sync with latest cached data
   const liveSelectedTask =
     selectedTask ? (tasks.find((t) => t.id === selectedTask.id) ?? selectedTask) : null;
+
+  // Bulk action helpers
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() { setSelectedIds(new Set()); }
+
+  async function bulkUpdateStatus() {
+    await Promise.all([...selectedIds].map((id) => updateTask(id, { status: bulkStatus })));
+    qcBulk.invalidateQueries({ queryKey: ["tasks"] });
+    clearSelection();
+  }
+
+  async function bulkMoveProject() {
+    if (!bulkProject) return;
+    await Promise.all([...selectedIds].map((id) => updateTask(id, { project_id: bulkProject })));
+    qcBulk.invalidateQueries({ queryKey: ["tasks"] });
+    clearSelection();
+  }
+
+  async function bulkDelete() {
+    if (!window.confirm(`Delete ${selectedIds.size} task${selectedIds.size > 1 ? "s" : ""}? This cannot be undone.`)) return;
+    await Promise.all([...selectedIds].map((id) => deleteTask(id)));
+    qcBulk.invalidateQueries({ queryKey: ["tasks"] });
+    clearSelection();
+  }
 
   const activeProjectName = projectFilter
     ? (projects.find((p) => p.id === projectFilter)?.name ?? "")
@@ -597,8 +647,75 @@ export function TasksPage() {
               task={task}
               onOpen={() => setSelectedTask(task)}
               subtaskCount={subtaskCounts[task.id] ?? 0}
+              selected={selectedIds.has(task.id)}
+              onToggleSelect={toggleSelect}
             />
           ))}
+        </div>
+      )}
+
+      {/* Floating bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border bg-popover px-4 py-3 shadow-2xl">
+          <span className="text-sm font-medium text-muted-foreground">
+            {selectedIds.size} selected
+          </span>
+          <div className="h-4 w-px bg-border" />
+          {/* Status change */}
+          <div className="flex items-center gap-1.5">
+            <select
+              value={bulkStatus}
+              onChange={(e) => setBulkStatus(e.target.value as TaskStatus)}
+              className="rounded-md border bg-background px-2 py-1 text-xs"
+            >
+              <option value="todo">To Do</option>
+              <option value="in_progress">In Progress</option>
+              <option value="in_review">In Review</option>
+              <option value="done">Done</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <button
+              onClick={bulkUpdateStatus}
+              className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs text-primary-foreground hover:bg-primary/90"
+            >
+              <Check className="h-3 w-3" /> Set status
+            </button>
+          </div>
+          {/* Move to project */}
+          {projects.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <select
+                value={bulkProject}
+                onChange={(e) => setBulkProject(e.target.value)}
+                className="rounded-md border bg-background px-2 py-1 text-xs"
+              >
+                <option value="">Move to…</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              {bulkProject && (
+                <button
+                  onClick={bulkMoveProject}
+                  className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-accent"
+                >
+                  <MoveRight className="h-3 w-3" /> Move
+                </button>
+              )}
+            </div>
+          )}
+          <div className="h-4 w-px bg-border" />
+          {/* Delete */}
+          <button
+            onClick={bulkDelete}
+            className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-3 w-3" /> Delete
+          </button>
+          {/* Clear */}
+          <button onClick={clearSelection} className="text-xs text-muted-foreground hover:underline ml-1">
+            Cancel
+          </button>
         </div>
       )}
     </div>

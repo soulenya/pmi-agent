@@ -21,6 +21,8 @@ import { EmailsPage } from "@/pages/EmailsPage";
 import { AuditPage } from "@/pages/AuditPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
+import { CalendarPage } from "@/pages/CalendarPage";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
 
 const queryClient = new QueryClient({
@@ -46,23 +48,24 @@ function ThemedApp() {
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="chat" element={<ChatPage />} />
-            <Route path="chat/:conversationId" element={<ChatPage />} />
-            <Route path="approvals" element={<ApprovalsPage />} />
-            <Route path="documents" element={<DocumentsPage />} />
-            <Route path="search" element={<SearchPage />} />
-            <Route path="tasks" element={<TasksPage />} />
-            <Route path="regulatory" element={<RegulatoryPage />} />
-            <Route path="notifications" element={<NotificationsPage />} />
-            <Route path="research" element={<ResearchPage />} />
-            <Route path="projects" element={<ProjectsPage />} />
-            <Route path="projects/:id" element={<ProjectDetailPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="meetings" element={<MeetingsPage />} />
-            <Route path="emails" element={<EmailsPage />} />
-            <Route path="audit" element={<AuditPage />} />
-            <Route path="users" element={<UsersPage />} />
+            <Route index element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+            <Route path="chat" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
+            <Route path="chat/:conversationId" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
+            <Route path="approvals" element={<ErrorBoundary><ApprovalsPage /></ErrorBoundary>} />
+            <Route path="documents" element={<ErrorBoundary><DocumentsPage /></ErrorBoundary>} />
+            <Route path="search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
+            <Route path="tasks" element={<ErrorBoundary><TasksPage /></ErrorBoundary>} />
+            <Route path="regulatory" element={<ErrorBoundary><RegulatoryPage /></ErrorBoundary>} />
+            <Route path="notifications" element={<ErrorBoundary><NotificationsPage /></ErrorBoundary>} />
+            <Route path="research" element={<ErrorBoundary><ResearchPage /></ErrorBoundary>} />
+            <Route path="projects" element={<ErrorBoundary><ProjectsPage /></ErrorBoundary>} />
+            <Route path="projects/:id" element={<ErrorBoundary><ProjectDetailPage /></ErrorBoundary>} />
+            <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
+            <Route path="meetings" element={<ErrorBoundary><MeetingsPage /></ErrorBoundary>} />
+            <Route path="emails" element={<ErrorBoundary><EmailsPage /></ErrorBoundary>} />
+            <Route path="audit" element={<ErrorBoundary><AuditPage /></ErrorBoundary>} />
+            <Route path="users" element={<ErrorBoundary><UsersPage /></ErrorBoundary>} />
+            <Route path="calendar" element={<ErrorBoundary><CalendarPage /></ErrorBoundary>} />
           </Route>
         </Route>
       </Routes>
