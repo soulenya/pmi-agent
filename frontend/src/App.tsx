@@ -9,6 +9,8 @@ import { ChatPage } from "@/pages/ChatPage";
 import { ApprovalsPage } from "@/pages/ApprovalsPage";
 import { DocumentsPage } from "@/pages/DocumentsPage";
 import { SearchPage } from "@/pages/SearchPage";
+import { TasksPage } from "@/pages/TasksPage";
+import { RegulatoryPage } from "@/pages/RegulatoryPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,7 +36,8 @@ export default function App() {
               <Route path="approvals" element={<ApprovalsPage />} />
               <Route path="documents" element={<DocumentsPage />} />
               <Route path="search" element={<SearchPage />} />
-              {/* Additional pages added in later sprints */}
+              <Route path="tasks" element={<TasksPage />} />
+              <Route path="regulatory" element={<RegulatoryPage />} />
             </Route>
           </Route>
         </Routes>

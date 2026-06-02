@@ -1,0 +1,197 @@
+"""Regulatory Documents, Risk Items, and CAPA REST API."""
+
+from __future__ import annotations
+
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database import get_db
+from dependencies import get_current_user
+from models.db.user import User
+from models.schemas.regulatory import (
+    CAPACreate,
+    CAPAOut,
+    CAPAUpdate,
+    RegDocCreate,
+    RegDocOut,
+    RegDocUpdate,
+    RiskItemCreate,
+    RiskItemOut,
+    RiskItemUpdate,
+)
+from repositories.regulatory_repo import CAPARepository, RegulatoryDocRepository, RiskItemRepository
+
+router = APIRouter(prefix="/regulatory", tags=["regulatory"])
+capa_router = APIRouter(prefix="/capas", tags=["capa"])
+
+
+# ── Regulatory Documents ──────────────────────────────────────────────────────
+
+@router.get("", response_model=list[RegDocOut])
+async def list_reg_docs(
+    doc_type: str | None = Query(None),
+    status: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[RegDocOut]:
+    repo = RegulatoryDocRepository(db)
+    docs = await repo.list(doc_type=doc_type, status=status)
+    return [RegDocOut.model_validate(d) for d in docs]
+
+
+@router.post("", response_model=RegDocOut, status_code=status.HTTP_201_CREATED)
+async def create_reg_doc(
+    body: RegDocCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RegDocOut:
+    repo = RegulatoryDocRepository(db)
+    doc = await repo.create(created_by=current_user.id, **body.model_dump())
+    await db.commit()
+    return RegDocOut.model_validate(doc)
+
+
+@router.get("/{doc_id}", response_model=RegDocOut)
+async def get_reg_doc(
+    doc_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RegDocOut:
+    repo = RegulatoryDocRepository(db)
+    doc = await repo.get(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Regulatory document not found.")
+    return RegDocOut.model_validate(doc)
+
+
+@router.patch("/{doc_id}", response_model=RegDocOut)
+async def update_reg_doc(
+    doc_id: uuid.UUID,
+    body: RegDocUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RegDocOut:
+    repo = RegulatoryDocRepository(db)
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    doc = await repo.update(doc_id, **updates)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Regulatory document not found.")
+    await db.commit()
+    return RegDocOut.model_validate(doc)
+
+
+@router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_reg_doc(
+    doc_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    repo = RegulatoryDocRepository(db)
+    deleted = await repo.delete(doc_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Regulatory document not found.")
+    await db.commit()
+
+
+# ── Risk Items ────────────────────────────────────────────────────────────────
+
+@router.get("/{doc_id}/risks", response_model=list[RiskItemOut])
+async def list_risk_items(
+    doc_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[RiskItemOut]:
+    repo = RiskItemRepository(db)
+    items = await repo.list(regulatory_doc_id=doc_id)
+    return [RiskItemOut.model_validate(i) for i in items]
+
+
+@router.post("/{doc_id}/risks", response_model=RiskItemOut, status_code=status.HTTP_201_CREATED)
+async def create_risk_item(
+    doc_id: uuid.UUID,
+    body: RiskItemCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RiskItemOut:
+    # Verify doc exists
+    reg_repo = RegulatoryDocRepository(db)
+    if await reg_repo.get(doc_id) is None:
+        raise HTTPException(status_code=404, detail="Regulatory document not found.")
+    data = body.model_dump()
+    data["regulatory_doc_id"] = doc_id
+    repo = RiskItemRepository(db)
+    item = await repo.create(**data)
+    await db.commit()
+    return RiskItemOut.model_validate(item)
+
+
+@router.patch("/risks/{item_id}", response_model=RiskItemOut)
+async def update_risk_item(
+    item_id: uuid.UUID,
+    body: RiskItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RiskItemOut:
+    repo = RiskItemRepository(db)
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    item = await repo.update(item_id, **updates)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Risk item not found.")
+    await db.commit()
+    return RiskItemOut.model_validate(item)
+
+
+# ── CAPAs ──────────────────────────────────────────────────────────────────────
+
+@capa_router.get("", response_model=list[CAPAOut])
+async def list_capas(
+    status: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[CAPAOut]:
+    repo = CAPARepository(db)
+    capas = await repo.list(status=status)
+    return [CAPAOut.model_validate(c) for c in capas]
+
+
+@capa_router.post("", response_model=CAPAOut, status_code=status.HTTP_201_CREATED)
+async def create_capa(
+    body: CAPACreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CAPAOut:
+    repo = CAPARepository(db)
+    capa = await repo.create(**body.model_dump())
+    await db.commit()
+    return CAPAOut.model_validate(capa)
+
+
+@capa_router.get("/{capa_id}", response_model=CAPAOut)
+async def get_capa(
+    capa_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CAPAOut:
+    repo = CAPARepository(db)
+    capa = await repo.get(capa_id)
+    if capa is None:
+        raise HTTPException(status_code=404, detail="CAPA not found.")
+    return CAPAOut.model_validate(capa)
+
+
+@capa_router.patch("/{capa_id}", response_model=CAPAOut)
+async def update_capa(
+    capa_id: uuid.UUID,
+    body: CAPAUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CAPAOut:
+    repo = CAPARepository(db)
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    capa = await repo.update(capa_id, **updates)
+    if capa is None:
+        raise HTTPException(status_code=404, detail="CAPA not found.")
+    await db.commit()
+    return CAPAOut.model_validate(capa)
