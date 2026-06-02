@@ -6,7 +6,9 @@ from models.db.base import Base
 from models.db.briefing import Briefing
 from models.db.conversation import AgentRun, Conversation, Message
 from models.db.document import Document, DocumentCategory, DocumentChunk
+from models.db.email_draft import EmailDraft
 from models.db.google import GoogleCredential, GoogleSyncState
+from models.db.meeting import MeetingNote
 from models.db.notification import Notification
 from models.db.regulatory import CAPA, RegulatoryDocument, RiskItem
 from models.db.research import ResearchReport, ResearchSource
@@ -40,4 +42,6 @@ __all__ = [
     "SystemSetting",
     "ModelRoutingRule",
     "AuditEvent",
+    "MeetingNote",
+    "EmailDraft",
 ]

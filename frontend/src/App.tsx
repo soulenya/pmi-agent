@@ -15,6 +15,8 @@ import { NotificationsPage } from "@/pages/NotificationsPage";
 import { ResearchPage } from "@/pages/ResearchPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { MeetingsPage } from "@/pages/MeetingsPage";
+import { EmailsPage } from "@/pages/EmailsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,6 +48,8 @@ export default function App() {
               <Route path="research" element={<ResearchPage />} />
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="meetings" element={<MeetingsPage />} />
+              <Route path="emails" element={<EmailsPage />} />
             </Route>
           </Route>
         </Routes>

@@ -12,6 +12,8 @@ import {
   Bell,
   Settings,
   Search,
+  Mic,
+  Mail,
 } from "lucide-react";
 import { listPendingApprovals, listNotifications } from "@/api/chat";
 
@@ -23,6 +25,8 @@ const navItems = [
   { to: "/documents", icon: FileText, label: "Knowledge Base" },
   { to: "/search", icon: Search, label: "Search" },
   { to: "/research", icon: FlaskConical, label: "Research" },
+  { to: "/meetings", icon: Mic, label: "Meeting Notes" },
+  { to: "/emails", icon: Mail, label: "Email Drafts" },
   { to: "/regulatory", icon: ShieldCheck, label: "Regulatory" },
   { to: "/approvals", icon: ShieldCheck, label: "Approvals", badge: "approvals" as const },
   { to: "/notifications", icon: Bell, label: "Notifications", badge: "notifications" as const },
