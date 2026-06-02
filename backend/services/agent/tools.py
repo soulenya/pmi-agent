@@ -163,6 +163,51 @@ TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_tasks",
+            "description": (
+                "Query the PMI task tracker to list tasks for the current user. "
+                "Use this to answer questions about what tasks are open, overdue, or due soon."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["backlog", "todo", "in_progress", "in_review", "done", "cancelled", "all"],
+                        "description": "Filter by task status. 'all' returns every status.",
+                        "default": "all",
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high", "critical", "any"],
+                        "description": "Filter by priority. 'any' skips priority filtering.",
+                        "default": "any",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_regulatory_status",
+            "description": (
+                "Retrieve the current regulatory compliance status for VACTOR: "
+                "regulatory document counts by status, open/in-progress CAPAs, "
+                "and any documents past their review date. "
+                "Use for questions about compliance posture, audit readiness, or CAPA status."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
 ]
 
 
@@ -291,6 +336,89 @@ async def execute_get_pending_approvals(ctx: ToolContext, _args: dict[str, Any])
     return "\n".join(lines)
 
 
+async def execute_get_tasks(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from sqlalchemy import select
+    from models.db.task import Task
+    from models.db.enums import TaskStatus
+
+    status_filter = str(args.get("status", "all"))
+    priority_filter = str(args.get("priority", "any"))
+
+    stmt = select(Task).where(
+        (Task.created_by == ctx.user_id) | (Task.assignee_id == ctx.user_id)
+    )
+    if status_filter != "all":
+        stmt = stmt.where(Task.status == status_filter)
+    if priority_filter != "any":
+        stmt = stmt.where(Task.priority == priority_filter)
+    stmt = stmt.order_by(Task.due_date.asc().nullslast(), Task.created_at.desc()).limit(30)
+
+    result = await ctx.db.execute(stmt)
+    tasks = list(result.scalars())
+
+    if not tasks:
+        return "No tasks found matching that filter."
+
+    now = datetime.now(timezone.utc)
+    lines = [f"Tasks ({len(tasks)} found):"]
+    for t in tasks:
+        due_str = ""
+        if t.due_date:
+            is_overdue = t.due_date < now and t.status not in (TaskStatus.DONE, TaskStatus.CANCELLED)
+            due_str = f", due {t.due_date.date()}" + (" [OVERDUE]" if is_overdue else "")
+        lines.append(
+            f"- [{t.status.upper()}][{t.priority}] {t.title}{due_str}"
+        )
+    return "\n".join(lines)
+
+
+async def execute_get_regulatory_status(ctx: ToolContext, _args: dict[str, Any]) -> str:
+    from sqlalchemy import func, select
+    from models.db.regulatory import RegulatoryDocument
+    from models.db.enums import RegDocStatus
+    from repositories.regulatory_repo import CAPARepository, RegulatoryDocRepository
+
+    reg_repo = RegulatoryDocRepository(ctx.db)
+    capa_repo = CAPARepository(ctx.db)
+
+    all_docs = await reg_repo.list()
+    all_capas = await capa_repo.list()
+
+    # Doc counts by status
+    status_counts: dict[str, int] = {}
+    for doc in all_docs:
+        status_counts[doc.status] = status_counts.get(doc.status, 0) + 1
+
+    # Overdue reviews
+    from datetime import date
+    today = date.today()
+    overdue_reviews = [
+        d for d in all_docs
+        if d.next_review_date and d.next_review_date < today
+        and d.status not in ("superseded",)
+    ]
+
+    # Open CAPAs
+    open_capas = [c for c in all_capas if c.status in ("open", "in_progress")]
+
+    lines = ["VACTOR Regulatory Compliance Status\n"]
+    lines.append(f"Total documents: {len(all_docs)}")
+    for s, n in sorted(status_counts.items()):
+        lines.append(f"  {s}: {n}")
+
+    if overdue_reviews:
+        lines.append(f"\nDocuments past review date ({len(overdue_reviews)}):")
+        for d in overdue_reviews[:5]:
+            lines.append(f"  - {d.title} (rev {d.revision}, review was due {d.next_review_date})")
+
+    lines.append(f"\nCAPAs: {len(all_capas)} total, {len(open_capas)} open/in-progress")
+    for c in open_capas[:5]:
+        due = f", due {c.due_date}" if getattr(c, "due_date", None) else ""
+        lines.append(f"  - [{c.status.upper()}] {c.capa_number}: {c.title}{due}")
+
+    return "\n".join(lines)
+
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 TOOL_EXECUTORS = {
@@ -298,6 +426,8 @@ TOOL_EXECUTORS = {
     "create_task": execute_create_task,
     "request_approval": execute_request_approval,
     "get_pending_approvals": execute_get_pending_approvals,
+    "get_tasks": execute_get_tasks,
+    "get_regulatory_status": execute_get_regulatory_status,
 }
 
 

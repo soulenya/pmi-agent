@@ -1,4 +1,4 @@
-import apiClient from "./client";
+import { apiClient } from "./client";
 import type { ApiResponse } from "@/types";
 import type { Document, DocumentCategory, SearchRequest, SearchResult } from "@/types/documents";
 

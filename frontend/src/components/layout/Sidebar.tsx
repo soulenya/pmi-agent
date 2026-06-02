@@ -12,7 +12,7 @@ import {
   Settings,
   Search,
 } from "lucide-react";
-import { listPendingApprovals } from "@/api/chat";
+import { listPendingApprovals, listNotifications } from "@/api/chat";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -22,8 +22,8 @@ const navItems = [
   { to: "/search", icon: Search, label: "Search" },
   { to: "/regulatory", icon: ShieldCheck, label: "Regulatory" },
   { to: "/research", icon: FlaskConical, label: "Research" },
-  { to: "/approvals", icon: ShieldCheck, label: "Approvals", badge: true },
-  { to: "/notifications", icon: Bell, label: "Notifications" },
+  { to: "/approvals", icon: ShieldCheck, label: "Approvals", badge: "approvals" as const },
+  { to: "/notifications", icon: Bell, label: "Notifications", badge: "notifications" as const },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
@@ -33,7 +33,21 @@ export function Sidebar() {
     queryFn: listPendingApprovals,
     refetchInterval: 30_000,
   });
+
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: listNotifications,
+    staleTime: 30_000,
+  });
+
   const approvalCount = pendingApprovals.length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  const badgeCount = (badge: "approvals" | "notifications" | undefined) => {
+    if (badge === "approvals") return approvalCount;
+    if (badge === "notifications") return unreadCount;
+    return 0;
+  };
 
   return (
     <nav className="flex w-56 flex-col border-r bg-card py-4">
@@ -44,29 +58,32 @@ export function Sidebar() {
       </div>
 
       <div className="flex-1 space-y-1 px-2">
-        {navItems.map(({ to, icon: Icon, label, badge }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === "/"}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-              )
-            }
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            <span className="flex-1">{label}</span>
-            {badge && approvalCount > 0 && (
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-bold text-destructive-foreground">
-                {approvalCount > 99 ? "99+" : approvalCount}
-              </span>
-            )}
-          </NavLink>
-        ))}
+        {navItems.map(({ to, icon: Icon, label, badge }) => {
+          const count = badgeCount(badge);
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === "/"}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                )
+              }
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{label}</span>
+              {count > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-bold text-destructive-foreground">
+                  {count > 99 ? "99+" : count}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </div>
     </nav>
   );

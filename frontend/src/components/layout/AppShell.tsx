@@ -2,8 +2,10 @@ import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { StatusBar } from "./StatusBar";
+import { useNotificationWS } from "@/hooks/useNotificationWS";
 
 export function AppShell() {
+  useNotificationWS();
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />

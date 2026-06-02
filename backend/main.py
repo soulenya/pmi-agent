@@ -5,8 +5,11 @@ Binds to 127.0.0.1 only. CORS restricted to Tauri + localhost origins.
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +33,63 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 
+# ── WebSocket connection manager ──────────────────────────────────────────────
+
+class ConnectionManager:
+    """In-memory WebSocket registry for real-time notification push, keyed by user_id string."""
+
+    def __init__(self) -> None:
+        self._conns: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, user_id: str, ws: WebSocket) -> None:
+        self._conns.setdefault(user_id, []).append(ws)
+
+    def disconnect(self, user_id: str, ws: WebSocket) -> None:
+        bucket = self._conns.get(user_id, [])
+        if ws in bucket:
+            bucket.remove(ws)
+
+    async def push(self, user_id: str, data: dict[str, Any]) -> None:
+        """Send a JSON frame to all active connections for user_id, dropping dead sockets."""
+        dead: list[WebSocket] = []
+        for ws in list(self._conns.get(user_id, [])):
+            try:
+                await ws.send_text(json.dumps(data))
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(user_id, ws)
+
+
+# Module-level singleton — imported by the WS endpoint and notification generator
+notification_manager = ConnectionManager()
+
+
+# ── Background notification loop ──────────────────────────────────────────────
+
+async def _notification_loop() -> None:
+    """Generate overdue-task and expiring-approval notifications every 60 seconds."""
+    from services.notifications.generator import generate_notifications
+
+    while True:
+        await asyncio.sleep(60)
+        try:
+            async for db in get_db():
+                new_notifs = await generate_notifications(db)
+                for notif in new_notifs:
+                    await notification_manager.push(
+                        str(notif.user_id),
+                        {
+                            "type": "notification",
+                            "id": str(notif.id),
+                            "title": notif.title,
+                            "notif_type": notif.type,
+                        },
+                    )
+        except Exception:
+            logger.exception("Notification loop error")
+
+
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -37,7 +97,13 @@ async def lifespan(app: FastAPI):
     # Verify DB connectivity at startup
     async with engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
+    bg_task = asyncio.create_task(_notification_loop())
     yield
+    bg_task.cancel()
+    try:
+        await bg_task
+    except asyncio.CancelledError:
+        pass
     await engine.dispose()
 
 
@@ -171,6 +237,55 @@ def create_app() -> FastAPI:
                 except Exception:
                     pass
             break  # exit the get_db() generator after one iteration
+
+    # ── WebSocket: real-time notification push ────────────────────────────────
+    @app.websocket("/ws/notifications")
+    async def ws_notifications(websocket: WebSocket) -> None:
+        """
+        WebSocket endpoint for real-time notification push.
+
+        Authentication: ?token=<jwt> query param (same as chat WS).
+        Server → client: {"type":"init","unread_count":<n>}
+                         {"type":"notification","id":"<uuid>","title":"<str>","notif_type":"<str>"}
+        """
+        from repositories.conversation_repo import NotificationRepository
+        from services.auth.service import AuthService
+
+        token = websocket.query_params.get("token", "")
+        if not token:
+            await websocket.close(code=4401, reason="Missing token")
+            return
+
+        async for db in get_db():
+            auth_svc = AuthService(db)
+            user = await auth_svc.get_user_from_access_token(token)
+            if user is None:
+                await websocket.close(code=4401, reason="Invalid token")
+                return
+
+            await websocket.accept()
+            user_id = str(user.id)
+            await notification_manager.connect(user_id, websocket)
+            logger.info("Notifications WS connected: user=%s", user_id)
+
+            # Send unread count on connect
+            notif_repo = NotificationRepository(db)
+            unread = await notif_repo.list_for_user(user.id, unread_only=True, limit=50)
+            await websocket.send_text(
+                json.dumps({"type": "init", "unread_count": len(unread)})
+            )
+
+            try:
+                while True:
+                    # Keep alive — ignore any client messages (ping frames handled by WS protocol)
+                    await websocket.receive_text()
+            except WebSocketDisconnect:
+                logger.info("Notifications WS disconnected: user=%s", user_id)
+            except Exception as exc:
+                logger.debug("Notifications WS error: %s", exc)
+            finally:
+                notification_manager.disconnect(user_id, websocket)
+            break
 
     return app
 
