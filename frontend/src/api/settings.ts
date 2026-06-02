@@ -60,3 +60,18 @@ export async function updateMyProfile(body: ProfileUpdate): Promise<User> {
   const resp = await apiClient.put<User>("/settings/me", body);
   return resp.data;
 }
+
+export interface HealthCheckResult {
+  status: string;
+  timestamp: string;
+  checks: {
+    database?: { status: string; detail?: string };
+    ollama?: { status: string; detail?: string };
+    disk?: { status: string; free_gb?: number; detail?: string };
+  };
+}
+
+export async function getSystemHealth(): Promise<HealthCheckResult> {
+  const resp = await apiClient.get<HealthCheckResult>("/health");
+  return resp.data;
+}

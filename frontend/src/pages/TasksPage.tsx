@@ -255,10 +255,12 @@ function KanbanCard({
   task,
   onOpen,
   subtaskCount,
+  onDragStart,
 }: {
   task: Task;
   onOpen: () => void;
   subtaskCount: number;
+  onDragStart: (id: string) => void;
 }) {
   const isOverdue =
     task.due_date &&
@@ -268,9 +270,15 @@ function KanbanCard({
 
   return (
     <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", task.id);
+        onDragStart(task.id);
+      }}
       onClick={onOpen}
       className={cn(
-        "rounded-lg border bg-card px-3 py-2.5 shadow-sm cursor-pointer hover:shadow-md hover:bg-accent/30 transition-all space-y-1.5",
+        "rounded-lg border bg-card px-3 py-2.5 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md hover:bg-accent/30 transition-all space-y-1.5",
         task.status === "done" && "opacity-60"
       )}
     >
@@ -332,6 +340,8 @@ function KanbanBoard({
   onOpen: (task: Task) => void;
 }) {
   const qc = useQueryClient();
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: TaskStatus }) =>
@@ -339,16 +349,38 @@ function KanbanBoard({
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
+  function handleDrop(colStatus: TaskStatus) {
+    if (!draggingId) return;
+    const task = tasks.find((t) => t.id === draggingId);
+    if (task && task.status !== colStatus) {
+      statusMutation.mutate({ id: draggingId, status: colStatus });
+    }
+    setDraggingId(null);
+    setDragOverCol(null);
+  }
+
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1">
+    <div
+      className="flex gap-3 overflow-x-auto pb-4 -mx-1 px-1"
+      onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
+    >
       {KANBAN_COLUMNS.map((col) => {
         const colTasks = tasks.filter((t) => t.status === col.status);
+        const isOver = dragOverCol === col.status;
         return (
           <div
             key={col.status}
+            onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.status); }}
+            onDragLeave={(e) => {
+              if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as HTMLElement)) {
+                setDragOverCol(null);
+              }
+            }}
+            onDrop={(e) => { e.preventDefault(); handleDrop(col.status); }}
             className={cn(
-              "flex flex-col gap-2 rounded-xl border-t-2 bg-muted/30 p-3 min-w-[220px] w-[220px] shrink-0",
-              COLUMN_COLORS[col.status]
+              "flex flex-col gap-2 rounded-xl border-t-2 bg-muted/30 p-3 min-w-[220px] w-[220px] shrink-0 transition-colors",
+              COLUMN_COLORS[col.status],
+              isOver && "bg-primary/10 ring-2 ring-primary/30"
             )}
           >
             {/* Column header */}
@@ -368,12 +400,16 @@ function KanbanBoard({
                 task={task}
                 onOpen={() => onOpen(task)}
                 subtaskCount={allTasks.filter((t) => t.parent_task_id === task.id).length}
+                onDragStart={setDraggingId}
               />
             ))}
 
             {colTasks.length === 0 && (
-              <p className="rounded-lg border border-dashed py-6 text-center text-[11px] text-muted-foreground/50">
-                Empty
+              <p className={cn(
+                "rounded-lg border border-dashed py-6 text-center text-[11px] text-muted-foreground/50",
+                isOver && "border-primary/40 text-primary/50"
+              )}>
+                {isOver ? "Drop here" : "Empty"}
               </p>
             )}
           </div>

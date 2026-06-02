@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -22,6 +24,11 @@ from models.schemas.regulatory import (
     RiskItemUpdate,
 )
 from repositories.regulatory_repo import CAPARepository, RegulatoryDocRepository, RiskItemRepository
+from repositories.document_repo import DocumentChunkRepository, DocumentRepository
+from services.embeddings.service import EmbeddingService, get_embedding_service
+from services.llm.router import get_llm_client
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/regulatory", tags=["regulatory"])
 capa_router = APIRouter(prefix="/capas", tags=["capa"])
@@ -93,6 +100,80 @@ async def delete_reg_doc(
     if not deleted:
         raise HTTPException(status_code=404, detail="Regulatory document not found.")
     await db.commit()
+
+
+# ── AI Content Drafting ───────────────────────────────────────────────────────
+
+class AIDraftOut(BaseModel):
+    doc_id: str
+    content: str
+
+
+@router.post("/{doc_id}/ai-draft", response_model=AIDraftOut)
+async def ai_draft_content(
+    doc_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service),
+) -> AIDraftOut:
+    """Generate AI-drafted content for a regulatory document using KB context."""
+    repo = RegulatoryDocRepository(db)
+    doc = await repo.get(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Regulatory document not found.")
+
+    # Search KB for relevant context
+    kb_context = ""
+    try:
+        query_embedding = await embedding_svc.embed(
+            f"{doc.doc_type} {doc.title} {' '.join(doc.related_standards or [])}"
+        )
+        chunk_repo = DocumentChunkRepository(db)
+        results = await chunk_repo.vector_search(query_embedding, top_k=5)
+        if results:
+            excerpts = [f"[{i+1}] {chunk.content[:500]}" for i, (chunk, _) in enumerate(results)]
+            kb_context = "\n\n".join(excerpts)
+    except Exception as exc:
+        logger.warning("KB search for AI draft failed: %s", exc)
+
+    standards_str = ", ".join(doc.related_standards) if doc.related_standards else "none specified"
+    context_block = f"\n\nRelevant Knowledge Base Context:\n{kb_context}" if kb_context else ""
+
+    prompt = (
+        "You are a regulatory affairs specialist at Precisian Medical Instruments (PMI), "
+        "a medical device startup developing VACTOR — a hyper-compact, battery-powered suction device "
+        "for emergency, military, and EMS applications.\n\n"
+        f"Document Type: {doc.doc_type}\n"
+        f"Document Number: {doc.doc_number or 'TBD'}\n"
+        f"Title: {doc.title}\n"
+        f"Revision: {doc.revision}\n"
+        f"Related Standards: {standards_str}\n"
+        f"{context_block}\n\n"
+        "Draft professional content for this regulatory document. "
+        "Structure the content with clear sections using ## headings. "
+        "Be specific to VACTOR and PMI's regulatory context. "
+        "Include scope, purpose, responsibilities, and relevant procedure steps where applicable. "
+        "Output ONLY the document content — no meta-commentary."
+    )
+
+    try:
+        client = await get_llm_client(db)
+        response = await client.chat(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        content = response.content.strip()
+    except Exception as exc:
+        logger.warning("LLM regulatory draft failed: %s", exc)
+        content = (
+            f"# {doc.title}\n\n"
+            f"**Document Type:** {doc.doc_type}\n"
+            f"**Doc Number:** {doc.doc_number or 'TBD'}\n"
+            f"**Revision:** {doc.revision}\n\n"
+            "AI generation is currently unavailable. Please draft this document manually."
+        )
+
+    return AIDraftOut(doc_id=str(doc_id), content=content)
 
 
 # ── Risk Items ────────────────────────────────────────────────────────────────

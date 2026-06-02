@@ -241,6 +241,54 @@ async def summarize_meeting(
     return MeetingNoteOut.model_validate(meeting)
 
 
+# ── Extract action items (structured, user-driven) ────────────────────────────
+
+class ExtractedAction(BaseModel):
+    index: int
+    title: str
+
+
+@router.post("/{meeting_id}/extract-actions", response_model=list[ExtractedAction])
+async def extract_actions(
+    meeting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[ExtractedAction]:
+    """Return structured action items from a meeting (uses existing action_items or re-extracts via LLM)."""
+    result = await db.execute(select(MeetingNote).where(MeetingNote.id == meeting_id))
+    meeting = result.scalar_one_or_none()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    if meeting.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    # If action_items text is already stored, parse it directly
+    if meeting.action_items:
+        lines = _extract_action_lines(meeting.action_items)
+        return [ExtractedAction(index=i, title=line) for i, line in enumerate(lines)]
+
+    # Otherwise ask the LLM to extract from transcript
+    prompt = (
+        "You are an executive assistant at Precisian Medical Instruments (PMI).\n"
+        f"Meeting: {meeting.title}\n\n"
+        f"Transcript:\n{meeting.raw_transcript[:5000]}\n\n"
+        "List ONLY the action items from this meeting, one per line, each starting with '- '.\n"
+        "Do NOT include any other text."
+    )
+    try:
+        client = await get_llm_client(db)
+        response = await client.chat(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        lines = _extract_action_lines(response.content)
+    except Exception as exc:
+        logger.warning("LLM action extraction failed: %s", exc)
+        lines = []
+
+    return [ExtractedAction(index=i, title=line) for i, line in enumerate(lines)]
+
+
 @router.delete("/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_meeting(
     meeting_id: uuid.UUID,

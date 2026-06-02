@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import {
@@ -9,6 +9,7 @@ import {
   testConnection,
   getMyProfile,
   updateMyProfile,
+  getSystemHealth,
   type AppSettings,
   type SettingsUpdate,
   type ProfileUpdate,
@@ -464,7 +465,99 @@ function NotificationsSection({
     </Section>
   );
 }
+// ── System Health section ──────────────────────────────────────────────
 
+function StatusPill({ status, detail }: { status?: string; detail?: string }) {
+  const ok = status === "ok";
+  const warn = status === "warn";
+  return (
+    <span
+      title={detail}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+        ok ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+          : warn ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+      )}
+    >
+      {ok ? <CheckCircle2 className="h-3 w-3" /> : warn ? <Activity className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+      {status ?? "unknown"}
+    </span>
+  );
+}
+
+function SystemHealthSection() {
+  const { data: health, isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ["system-health"],
+    queryFn: getSystemHealth,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const checks = health?.checks ?? {};
+
+  const rows: { label: string; icon: React.ElementType; key: keyof typeof checks }[] = [
+    { label: "Database (PostgreSQL)", icon: Database, key: "database" },
+    { label: "AI Engine (Ollama)", icon: Wifi, key: "ollama" },
+    { label: "Disk Space", icon: HardDrive, key: "disk" },
+  ];
+
+  return (
+    <Section
+      icon={Activity}
+      title="System Health"
+      description="Live status of backend services"
+    >
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs text-muted-foreground">
+          Overall:{" "}
+          <span className={cn(
+            "font-semibold",
+            health?.status === "ok" ? "text-green-600" : "text-yellow-600"
+          )}>
+            {health?.status ?? (…)}
+          </span>
+        </p>
+        <button
+          onClick={() => refetch()}
+          disabled={isLoading || isRefetching}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+        >
+          <RefreshCw className={cn("h-3 w-3", (isLoading || isRefetching) && "animate-spin")} />
+          Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground">Checking services…</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map(({ label, icon: Icon, key }) => {
+            const check = checks[key];
+            return (
+              <div key={key} className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-sm">
+                  <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                  {label}
+                  {key === "disk" && check?.free_gb != null && (
+                    <span className="text-xs text-muted-foreground">({check.free_gb} GB free)</span>
+                  )}
+                </span>
+                <StatusPill status={check?.status} detail={check?.detail} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {health?.timestamp && (
+        <p className="text-[11px] text-muted-foreground/60 pt-1">
+          Last checked: {new Date(health.timestamp).toLocaleTimeString()}
+        </p>
+      )}
+    </Section>
+  );
+}
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
@@ -535,6 +628,7 @@ export function SettingsPage() {
           <LLMSection settings={mergedSettings} onChange={handleChange} />
           <AppearanceSection settings={mergedSettings} onChange={handleChange} />
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />
+          <SystemHealthSection />
 
           {hasChanges && (
             <div className="flex justify-end">

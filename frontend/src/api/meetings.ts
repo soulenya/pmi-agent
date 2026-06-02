@@ -3,6 +3,7 @@ import type {
   MeetingNote,
   MeetingNoteCreate,
   SummarizeRequest,
+  ExtractedAction,
   EmailDraft,
   EmailDraftCreate,
   EmailDraftUpdate,
@@ -35,6 +36,11 @@ export async function summarizeMeeting(
 
 export async function deleteMeeting(id: string): Promise<void> {
   await apiClient.delete(`/meetings/${id}`);
+}
+
+export async function extractMeetingActions(id: string): Promise<ExtractedAction[]> {
+  const resp = await apiClient.post<ExtractedAction[]>(`/meetings/${id}/extract-actions`, {});
+  return resp.data;
 }
 
 // ── Email Drafts ──────────────────────────────────────────────────────────────

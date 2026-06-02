@@ -12,6 +12,8 @@ import {
   Users,
   Calendar,
   Tag,
+  ListChecks,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -19,8 +21,120 @@ import {
   createMeeting,
   summarizeMeeting,
   deleteMeeting,
+  extractMeetingActions,
 } from "@/api/meetings";
-import type { MeetingNote } from "@/types/meetings";
+import { createTask } from "@/api/tasks";
+import type { MeetingNote, ExtractedAction } from "@/types/meetings";
+
+// ── Action Extract Modal ──────────────────────────────────────────────────────
+
+function ActionExtractModal({
+  meetingTitle,
+  actions,
+  onClose,
+}: {
+  meetingTitle: string;
+  actions: ExtractedAction[];
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [selected, setSelected] = useState<Set<number>>(new Set(actions.map((a) => a.index)));
+  const [creating, setCreating] = useState(false);
+  const [done, setDone] = useState(false);
+
+  function toggle(index: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  }
+
+  async function handleCreate() {
+    const toCreate = actions.filter((a) => selected.has(a.index));
+    if (!toCreate.length) return;
+    setCreating(true);
+    try {
+      await Promise.all(
+        toCreate.map((a) =>
+          createTask({
+            title: a.title.slice(0, 255),
+            description: `Action item from meeting: ${meetingTitle}`,
+            priority: "medium",
+          })
+        )
+      );
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      setDone(true);
+      setTimeout(onClose, 1000);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+            <ListChecks className="h-4 w-4 text-primary" />
+            Extract Action Items
+          </h3>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-accent">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {actions.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+            No action items found in this meeting.
+          </p>
+        ) : (
+          <>
+            <p className="px-5 pt-3 pb-1 text-xs text-muted-foreground">
+              Select the items to create as tasks:
+            </p>
+            <ul className="px-5 pb-4 space-y-2 max-h-72 overflow-y-auto">
+              {actions.map((a) => (
+                <li key={a.index} className="flex items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    id={`action-${a.index}`}
+                    checked={selected.has(a.index)}
+                    onChange={() => toggle(a.index)}
+                    className="mt-0.5 h-4 w-4 accent-primary cursor-pointer"
+                  />
+                  <label
+                    htmlFor={`action-${a.index}`}
+                    className="text-sm cursor-pointer leading-snug"
+                  >
+                    {a.title}
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <div className="flex items-center justify-between px-5 py-3 border-t bg-muted/30">
+              <span className="text-xs text-muted-foreground">{selected.size} selected</span>
+              <button
+                onClick={handleCreate}
+                disabled={creating || selected.size === 0 || done}
+                className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {done ? (
+                  <><CheckSquare className="h-3.5 w-3.5" /> Created!</>
+                ) : creating ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Creating…</>
+                ) : (
+                  <><ListChecks className="h-3.5 w-3.5" /> Create {selected.size} Task{selected.size !== 1 ? "s" : ""}</>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -167,10 +281,16 @@ function NewMeetingForm({ onClose }: { onClose: () => void }) {
 function MeetingCard({ note }: { note: MeetingNote }) {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState(false);
+  const [extractedActions, setExtractedActions] = useState<ExtractedAction[] | null>(null);
 
   const summarizeMutation = useMutation({
     mutationFn: () => summarizeMeeting(note.id, { create_tasks: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["meetings"] }),
+  });
+
+  const extractMutation = useMutation({
+    mutationFn: () => extractMeetingActions(note.id),
+    onSuccess: (data) => setExtractedActions(data),
   });
 
   const deleteMutation = useMutation({
@@ -221,6 +341,21 @@ function MeetingCard({ note }: { note: MeetingNote }) {
                 <Sparkles className="h-3 w-3" />
               )}
               Summarize
+            </button>
+          )}
+          {note.summary && (
+            <button
+              onClick={() => extractMutation.mutate()}
+              disabled={extractMutation.isPending}
+              title="Extract action items as tasks"
+              className="flex items-center gap-1.5 rounded-md bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-400 hover:bg-green-500/20 disabled:opacity-50"
+            >
+              {extractMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <ListChecks className="h-3 w-3" />
+              )}
+              Extract Actions
             </button>
           )}
           <button
@@ -301,6 +436,15 @@ function MeetingCard({ note }: { note: MeetingNote }) {
             </pre>
           </div>
         </div>
+      )}
+
+      {/* Action extraction modal */}
+      {extractedActions !== null && (
+        <ActionExtractModal
+          meetingTitle={note.title}
+          actions={extractedActions}
+          onClose={() => setExtractedActions(null)}
+        />
       )}
     </div>
   );

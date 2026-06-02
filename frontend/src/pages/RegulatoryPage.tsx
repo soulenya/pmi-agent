@@ -3,12 +3,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, FileText, ShieldAlert, Trash2, Pencil, X,
   AlertTriangle, TrendingDown, CheckCircle2, Activity,
+  Sparkles, Copy, Check, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   listRegDocs, createRegDoc, updateRegDoc,
   listCapas, createCapa, updateCapa,
   listRiskItems, createRiskItem, updateRiskItem, deleteRiskItem,
+  draftRegDocContent,
 } from "@/api/regulatory";
 import type {
   RegDoc, RegDocCreate,
@@ -149,56 +151,137 @@ function NewCAPAForm({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── AI Draft Modal ────────────────────────────────────────────────────────────
+
+function AIDraftModal({
+  docTitle,
+  content,
+  onClose,
+}: {
+  docTitle: string;
+  content: string;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex flex-col w-full max-w-2xl max-h-[85vh] rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
+          <h3 className="font-semibold text-sm flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" />
+            AI Draft — {docTitle}
+          </h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium bg-muted hover:bg-accent"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? "Copied!" : "Copy"}
+            </button>
+            <button onClick={onClose} className="rounded-md p-1 hover:bg-accent">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed">{content}</pre>
+        </div>
+        <div className="px-5 py-3 border-t bg-muted/30 text-xs text-muted-foreground shrink-0">
+          AI-generated content for review only. Verify before use in official documents.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Reg Doc Row ────────────────────────────────────────────────────────────────
 
 function RegDocRow({ doc }: { doc: RegDoc }) {
   const qc = useQueryClient();
+  const [draftContent, setDraftContent] = useState<string | null>(null);
 
   const statusMutation = useMutation({
     mutationFn: (newStatus: string) => updateRegDoc(doc.id, { status: newStatus }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["reg-docs"] }),
   });
 
+  const draftMutation = useMutation({
+    mutationFn: () => draftRegDocContent(doc.id),
+    onSuccess: (data) => setDraftContent(data.content),
+  });
+
   return (
-    <div className="group flex items-center gap-4 rounded-md border bg-card px-4 py-3 hover:bg-accent/30 transition-colors">
-      <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          {doc.doc_number && (
-            <span className="text-xs font-mono text-muted-foreground">{doc.doc_number}</span>
-          )}
-          <span className="text-sm font-medium truncate">{doc.title}</span>
+    <>
+      <div className="group flex items-center gap-4 rounded-md border bg-card px-4 py-3 hover:bg-accent/30 transition-colors">
+        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {doc.doc_number && (
+              <span className="text-xs font-mono text-muted-foreground">{doc.doc_number}</span>
+            )}
+            <span className="text-sm font-medium truncate">{doc.title}</span>
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-xs text-muted-foreground">{doc.doc_type}</span>
+            <span className="text-xs text-muted-foreground">Rev {doc.revision}</span>
+            {doc.related_standards.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {doc.related_standards.slice(0, 2).join(", ")}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-xs text-muted-foreground">{doc.doc_type}</span>
-          <span className="text-xs text-muted-foreground">Rev {doc.revision}</span>
-          {doc.related_standards.length > 0 && (
-            <span className="text-xs text-muted-foreground">
-              {doc.related_standards.slice(0, 2).join(", ")}
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => draftMutation.mutate()}
+            disabled={draftMutation.isPending}
+            title="Generate AI draft content"
+            className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+          >
+            {draftMutation.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Sparkles className="h-3 w-3" />
+            )}
+            AI Draft
+          </button>
+          <select
+            value={doc.status}
+            onChange={(e) => statusMutation.mutate(e.target.value)}
+            className={cn(
+              "text-xs rounded-full px-2.5 py-0.5 border-0 font-medium cursor-pointer",
+              DOC_STATUS_COLORS[doc.status] ?? "bg-gray-100 text-gray-600"
+            )}
+          >
+            {["draft", "in_review", "approved", "effective", "superseded"].map((s) => (
+              <option key={s} value={s}>{s.replace("_", " ")}</option>
+            ))}
+          </select>
+          {doc.effective_date && (
+            <span className="text-xs text-muted-foreground hidden group-hover:inline">
+              Effective: {new Date(doc.effective_date).toLocaleDateString()}
             </span>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-3 shrink-0">
-        <select
-          value={doc.status}
-          onChange={(e) => statusMutation.mutate(e.target.value)}
-          className={cn(
-            "text-xs rounded-full px-2.5 py-0.5 border-0 font-medium cursor-pointer",
-            DOC_STATUS_COLORS[doc.status] ?? "bg-gray-100 text-gray-600"
-          )}
-        >
-          {["draft", "in_review", "approved", "effective", "superseded"].map((s) => (
-            <option key={s} value={s}>{s.replace("_", " ")}</option>
-          ))}
-        </select>
-        {doc.effective_date && (
-          <span className="text-xs text-muted-foreground hidden group-hover:inline">
-            Effective: {new Date(doc.effective_date).toLocaleDateString()}
-          </span>
-        )}
-      </div>
-    </div>
+
+      {draftContent !== null && (
+        <AIDraftModal
+          docTitle={doc.title}
+          content={draftContent}
+          onClose={() => setDraftContent(null)}
+        />
+      )}
+    </>
   );
 }
 

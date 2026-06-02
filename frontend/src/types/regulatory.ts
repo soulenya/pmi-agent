@@ -39,6 +39,11 @@ export interface RegDocUpdate {
   next_review_date?: string | null;
 }
 
+export interface AIDraftResult {
+  doc_id: string;
+  content: string;
+}
+
 export interface RiskItem {
   id: string;
   regulatory_doc_id: string | null;

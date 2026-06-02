@@ -8,6 +8,7 @@ import type {
   RiskItem,
   RiskItemCreate,
   Briefing,
+  AIDraftResult,
 } from "@/types/regulatory";
 
 // ── Regulatory Documents ──────────────────────────────────────────────────────
@@ -32,6 +33,11 @@ export async function updateRegDoc(id: string, body: RegDocUpdate): Promise<RegD
 
 export async function deleteRegDoc(id: string): Promise<void> {
   await apiClient.delete(`/regulatory/${id}`);
+}
+
+export async function draftRegDocContent(id: string): Promise<AIDraftResult> {
+  const resp = await apiClient.post<AIDraftResult>(`/regulatory/${id}/ai-draft`, {});
+  return resp.data;
 }
 
 // ── CAPAs ──────────────────────────────────────────────────────────────────────

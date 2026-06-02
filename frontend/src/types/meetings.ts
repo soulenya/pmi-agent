@@ -68,5 +68,10 @@ export interface EmailDraftUpdate {
   tags?: string[];
 }
 
+export interface ExtractedAction {
+  index: number;
+  title: string;
+}
+
 export const EMAIL_TONES = ["professional", "friendly", "formal", "concise", "empathetic", "persuasive"] as const;
 export type EmailTone = typeof EMAIL_TONES[number];
