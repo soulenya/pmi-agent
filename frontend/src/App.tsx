@@ -17,6 +17,7 @@ import { ProjectsPage } from "@/pages/ProjectsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { MeetingsPage } from "@/pages/MeetingsPage";
 import { EmailsPage } from "@/pages/EmailsPage";
+import { AuditPage } from "@/pages/AuditPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +51,7 @@ export default function App() {
               <Route path="settings" element={<SettingsPage />} />
               <Route path="meetings" element={<MeetingsPage />} />
               <Route path="emails" element={<EmailsPage />} />
+              <Route path="audit" element={<AuditPage />} />
             </Route>
           </Route>
         </Routes>

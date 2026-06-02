@@ -14,6 +14,7 @@ import {
   Search,
   Mic,
   Mail,
+  ScrollText,
 } from "lucide-react";
 import { listPendingApprovals, listNotifications } from "@/api/chat";
 
@@ -30,6 +31,7 @@ const navItems = [
   { to: "/regulatory", icon: ShieldCheck, label: "Regulatory" },
   { to: "/approvals", icon: ShieldCheck, label: "Approvals", badge: "approvals" as const },
   { to: "/notifications", icon: Bell, label: "Notifications", badge: "notifications" as const },
+  { to: "/audit", icon: ScrollText, label: "Audit Trail" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
