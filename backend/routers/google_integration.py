@@ -14,21 +14,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from dependencies import get_current_user
 from services import google_service as gs
 
 router = APIRouter(prefix="/api/google", tags=["google"])
-
-# Import the auth dependency used by the rest of the app.
-# Adjust this import if your project uses a different path.
-try:
-    from dependencies import get_current_user  # type: ignore[import]
-except ImportError:
-    try:
-        from auth import get_current_user  # type: ignore[import]
-    except ImportError:
-        # Fallback: no auth guard (should not happen in production)
-        async def get_current_user():  # type: ignore[misc]
-            return {"id": 0}
 
 
 # ── Auth status & OAuth flow ──────────────────────────────────────────────
