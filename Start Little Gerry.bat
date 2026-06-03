@@ -122,12 +122,27 @@ echo  [1/5] Docker is running.
 
 :: ── 2. PostgreSQL (Docker Compose) ────────────────────────
 echo  [2/5] Starting PostgreSQL...
-docker compose up -d --remove-orphans
+:: Check if pmi_postgres is already running - if so, skip compose
+docker inspect -f "{{.State.Running}}" pmi_postgres 2>nul | find "true" >nul
+if %ERRORLEVEL% equ 0 (
+    echo  [2/5] PostgreSQL already running.
+    goto postgres_ready
+)
+:: Try starting an existing stopped container first
+docker start pmi_postgres >nul 2>&1
+if %ERRORLEVEL% equ 0 (
+    echo  [2/5] PostgreSQL started.
+    goto postgres_ready
+)
+:: Container does not exist - remove any name conflict then create via compose
+docker rm -f pmi_postgres >nul 2>&1
+docker compose up -d
 if %ERRORLEVEL% neq 0 (
     echo  [ERROR] docker compose failed. Is Docker running?
     pause
     exit /b 1
 )
+:postgres_ready
 echo  [2/5] PostgreSQL ready.
 
 :: ── 3. Ollama (hidden background process) ───────────────────
@@ -165,7 +180,7 @@ echo  ====================================================
 echo   Little Gerry is running!
 echo.
 echo   Open  : http://localhost:5173
-echo   Login : admin@precisian.local / Admin1234!
+echo   Login : morganjkeane@precisianmedical.com
 echo.
 echo   Two terminal windows (Backend + Frontend) are
 echo   running in the background - don't close them.
