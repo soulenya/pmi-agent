@@ -9,6 +9,7 @@ Little Gerry — silent launcher.
 from __future__ import annotations
 
 import datetime
+import json
 import os
 import subprocess
 import threading
@@ -31,15 +32,26 @@ _procs: list[subprocess.Popen] = []
 _status_text = "Initializing..."
 _status_step = 0
 _ready       = threading.Event()
+_win_ref     = None          # set to webview.Window once created
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def _set_status(text: str, step: int | None = None) -> None:
-    global _status_text, _status_step
+    global _status_text, _status_step, _win_ref
     _status_text = text
     if step is not None:
         _status_step = step
+    # Push update into the pywebview loading page
+    if _win_ref is not None:
+        try:
+            _win_ref.evaluate_js(
+                f"var s=document.getElementById('s'),f=document.getElementById('f');"
+                f"if(s)s.textContent={json.dumps(text)};"
+                f"if(f)f.style.width='{min(max(_status_step,0),7)/7*100:.0f}%';"
+            )
+        except Exception:
+            pass
 
 
 def _run(cmd: str, cwd: str | None = None) -> subprocess.CompletedProcess:
@@ -172,79 +184,6 @@ def _stop_all() -> None:
     _run('taskkill /f /im "ollama app.exe"')
 
 
-# ── splash screen (tkinter, runs on main thread) ──────────────────────────────
-
-def _show_splash() -> None:
-    import tkinter as tk
-    from tkinter import ttk
-
-    root = tk.Tk()
-    root.overrideredirect(True)       # no title bar / chrome
-    root.configure(bg="#000000")
-    root.attributes("-topmost", True)
-
-    W, H = 520, 300
-    sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-    root.geometry(f"{W}x{H}+{(sw - W) // 2}+{(sh - H) // 2}")
-
-    # Logo
-    try:
-        from PIL import Image, ImageTk
-        logo    = Image.open(LOGO_PATH).resize((170, 170), Image.LANCZOS)
-        photo   = ImageTk.PhotoImage(logo)
-        lbl     = tk.Label(root, image=photo, bg="#000000", bd=0)
-        lbl.image = photo
-        lbl.place(x=20, y=65)
-    except Exception:
-        pass
-
-    # Title
-    tk.Label(root, text="Little Gerry",
-             font=("Segoe UI", 30, "bold"), fg="#FFFFFF", bg="#000000"
-             ).place(x=210, y=68)
-
-    # Subtitle
-    tk.Label(root, text="PMI Agent",
-             font=("Segoe UI", 13), fg="#CC0000", bg="#000000"
-             ).place(x=213, y=118)
-
-    # Red divider
-    tk.Frame(root, bg="#CC0000", width=285, height=1).place(x=210, y=150)
-
-    # Status label
-    status_var = tk.StringVar(value="Initializing...")
-    tk.Label(root, textvariable=status_var,
-             font=("Segoe UI", 9), fg="#888888", bg="#000000"
-             ).place(x=213, y=162)
-
-    # Progress bar styled red
-    style = ttk.Style()
-    style.theme_use("clam")
-    style.configure("LG.Horizontal.TProgressbar",
-                    foreground="#CC0000", background="#CC0000",
-                    troughcolor="#1a1a1a", bordercolor="#000000",
-                    lightcolor="#CC0000", darkcolor="#CC0000")
-    pb = ttk.Progressbar(root, style="LG.Horizontal.TProgressbar",
-                         length=285, mode="determinate", maximum=7)
-    pb.place(x=210, y=195)
-
-    # Copyright
-    tk.Label(root, text="\u00a9 Precisian Medical Instruments",
-             font=("Segoe UI", 7), fg="#333333", bg="#000000"
-             ).place(x=213, y=272)
-
-    def poll() -> None:
-        status_var.set(_status_text)
-        pb["value"] = max(0, _status_step)
-        if _ready.is_set():
-            root.after(400, root.destroy)   # brief flash of "Ready!"
-        else:
-            root.after(200, poll)
-
-    root.after(200, poll)
-    root.mainloop()
-
-
 # ── system tray ──────────────────────────────────────────────────────────────
 
 def _make_tray(win=None):
@@ -289,29 +228,74 @@ def _make_tray(win=None):
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
+    global _win_ref
     import webview
 
-    threading.Thread(target=_start_services, daemon=True).start()
-    _show_splash()          # blocks until _ready fires
+    # Build loading-page HTML (inline — no external files needed)
+    logo_uri = LOGO_PATH.as_uri() if LOGO_PATH.exists() else ""
+    logo_tag = (
+        f'<img src="{logo_uri}" '
+        'style="width:150px;height:150px;object-fit:contain;display:block;" />'
+        if logo_uri else ""
+    )
+    loading_html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:#000;display:flex;align-items:center;justify-content:center;
+     height:100vh;font-family:'Segoe UI',system-ui,sans-serif;
+     overflow:hidden;user-select:none;-webkit-user-select:none}}
+.wrap{{display:flex;align-items:center;gap:32px}}
+.text{{color:#fff}}
+h1{{font-size:34px;font-weight:700;line-height:1}}
+.sub{{color:#CC0000;font-size:14px;margin-top:7px}}
+.div{{width:285px;height:1px;background:#CC0000;margin:14px 0 10px}}
+#s{{color:#666;font-size:10px;margin-bottom:9px}}
+.bar{{width:285px;height:3px;background:#1a1a1a;border-radius:2px;overflow:hidden}}
+#f{{height:100%;background:#CC0000;width:0%;transition:width .35s ease}}
+.copy{{position:fixed;bottom:14px;width:100%;text-align:center;color:#222;font-size:9px}}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="logo">{logo_tag}</div>
+  <div class="text">
+    <h1>Little Gerry</h1>
+    <div class="sub">PMI Agent</div>
+    <div class="div"></div>
+    <div id="s">Initializing...</div>
+    <div class="bar"><div id="f"></div></div>
+  </div>
+</div>
+<div class="copy">&copy; Precisian Medical Instruments</div>
+</body></html>"""
 
-    # Create the native app window (Edge WebView2)
     win = webview.create_window(
         "Little Gerry",
-        APP_URL,
+        html=loading_html,
         width=1440,
         height=900,
         min_size=(900, 600),
         background_color="#000000",
     )
+    _win_ref = win
 
-    # Start system tray in background (run_detached doesn't block)
+    def _after_start(w) -> None:
+        """Called by pywebview after the GUI is ready — start services in background."""
+        threading.Thread(target=_boot, args=(w,), daemon=True).start()
+
+    def _boot(w) -> None:
+        _start_services()        # updates splash via _set_status → evaluate_js
+        try:
+            w.load_url(APP_URL)  # navigate to the React app
+        except Exception:
+            _log_error()
+
     icon = _make_tray(win)
     icon.run_detached(setup=lambda i: setattr(i, "visible", True))
 
-    # Start pywebview — blocks on main thread until the window is closed
-    webview.start(gui="edgechromium", debug=False)
+    # gui="winforms" is the most stable Windows backend (WinForms + Edge WebView2)
+    webview.start(_after_start, win, gui="winforms", debug=False)
 
-    # Window closed — clean up everything
+    # Reached here only when the window is closed
     _stop_all()
     icon.stop()
     os._exit(0)
