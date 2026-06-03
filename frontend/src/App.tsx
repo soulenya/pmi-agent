@@ -22,6 +22,7 @@ import { AuditPage } from "@/pages/AuditPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
 import { CalendarPage } from "@/pages/CalendarPage";
+import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
 
@@ -66,6 +67,7 @@ function ThemedApp() {
             <Route path="audit" element={<ErrorBoundary><AuditPage /></ErrorBoundary>} />
             <Route path="users" element={<ErrorBoundary><UsersPage /></ErrorBoundary>} />
             <Route path="calendar" element={<ErrorBoundary><CalendarPage /></ErrorBoundary>} />
+            <Route path="google" element={<ErrorBoundary><GoogleIntegrationPage /></ErrorBoundary>} />
           </Route>
         </Route>
       </Routes>

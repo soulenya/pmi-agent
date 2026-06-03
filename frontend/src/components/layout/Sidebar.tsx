@@ -17,6 +17,7 @@ import {
   ScrollText,
   Users,
   CalendarDays,
+  Globe,
 } from "lucide-react";
 import { listPendingApprovals, listNotifications } from "@/api/chat";
 
@@ -36,6 +37,7 @@ const navItems = [
   { to: "/notifications", icon: Bell, label: "Notifications", badge: "notifications" as const },
   { to: "/audit", icon: ScrollText, label: "Audit Trail" },
   { to: "/users", icon: Users, label: "User Management" },
+  { to: "/google", icon: Globe, label: "Google Workspace" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
