@@ -20,6 +20,10 @@ if not exist "%~dp0backend\.venv\Scripts\activate.bat" (
     echo.
 
     echo  [Setup 1/5] Installing Python dependencies...
+    :: Remove stale/broken .venv if it exists but activate.bat is missing
+    if exist "%~dp0backend\.venv" (
+        rmdir /s /q "%~dp0backend\.venv" 2>nul
+    )
     cd /d "%~dp0backend"
     uv sync
     if %ERRORLEVEL% neq 0 (
