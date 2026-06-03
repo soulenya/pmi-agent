@@ -42,7 +42,7 @@ DisableProgramGroupPage=yes
 ; Output
 OutputDir=Output
 OutputBaseFilename=LittleGerry_Setup
-SetupIconFile=
+SetupIconFile=LittleGerry.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 InternalCompressLevel=ultra64
@@ -59,7 +59,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 ; Misc
 ShowLanguageDialog=no
 LanguageDetectionMethod=locale
-UninstallDisplayIcon={app}\installer\uninstall_icon.ico
+UninstallDisplayIcon={app}\installer\LittleGerry.ico
 CloseApplications=yes
 RestartIfNeededByRun=yes
 MinVersion=10.0
@@ -84,6 +84,9 @@ Source: "..\docker-compose.yml";        DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md";                 DestDir: "{app}"; Flags: ignoreversion
 Source: "..\.gitignore";               DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
+; Icon — used by installer .exe and all shortcuts
+Source: "LittleGerry.ico";             DestDir: "{app}\installer"; Flags: ignoreversion skipifsourcedoesntexist
+
 ; Backend
 Source: "..\backend\*"; DestDir: "{app}\backend"; \
     Excludes: "*.pyc,__pycache__,*.egg-info,.venv,*.log"; \
@@ -103,6 +106,7 @@ Source: "..\scripts\*"; DestDir: "{app}\scripts"; Flags: ignoreversion recursesu
 Name: "{autodesktop}\{#AppName}"; \
     Filename: "{app}\{#AppExeName}"; \
     WorkingDir: "{app}"; \
+    IconFilename: "{app}\installer\LittleGerry.ico"; \
     Comment: "{#AppDescription}"; \
     Tasks: desktopicon
 
@@ -110,6 +114,7 @@ Name: "{autodesktop}\{#AppName}"; \
 Name: "{autoprograms}\{#AppName}\{#AppName}"; \
     Filename: "{app}\{#AppExeName}"; \
     WorkingDir: "{app}"; \
+    IconFilename: "{app}\installer\LittleGerry.ico"; \
     Comment: "{#AppDescription}"; \
     Tasks: startmenuicon
 
@@ -127,6 +132,7 @@ Name: "{autoprograms}\{#AppName}\Uninstall {#AppName}"; \
 Name: "{autostartup}\{#AppName}"; \
     Filename: "{app}\{#AppExeName}"; \
     WorkingDir: "{app}"; \
+    IconFilename: "{app}\installer\LittleGerry.ico"; \
     Tasks: runonstartup
 
 ; ── Run setup script after install ──────────────────────────────────────────
