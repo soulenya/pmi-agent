@@ -1,6 +1,6 @@
-# Little Gerry — AI Executive Assistant for Precisian Medical Instruments
+# Little Gerry - AI Executive Assistant for Precisian Medical Instruments
 
-**Little Gerry** is a local-first, privacy-focused AI executive assistant built specifically for [Precisian Medical Instruments](https://www.precisianmedical.com) and the **VACTOR** device program. It runs entirely on your own hardware — no cloud dependencies, no data leaving your network.
+**Little Gerry** is a local-first, privacy-focused AI executive assistant built specifically for [Precisian Medical Instruments](https://www.precisianmedical.com) and the **VACTOR** device program. It runs entirely on your own hardware - no cloud dependencies, no data leaving your network.
 
 ---
 
@@ -9,19 +9,20 @@
 1. [Overview](#overview)
 2. [Features](#features)
 3. [Architecture](#architecture)
-4. [Prerequisites](#prerequisites)
-5. [Setup & Installation](#setup--installation)
-6. [Running the Application](#running-the-application)
-7. [Usage Guide](#usage-guide)
-8. [Default Credentials](#default-credentials)
-9. [Configuration](#configuration)
-10. [Development](#development)
+4. [Windows Installer (Recommended)](#windows-installer-recommended)
+5. [Prerequisites (Manual Setup)](#prerequisites-manual-setup)
+6. [Setup & Installation (Manual)](#setup--installation-manual)
+7. [Running the Application](#running-the-application)
+8. [Usage Guide](#usage-guide)
+9. [Default Credentials](#default-credentials)
+10. [Configuration](#configuration)
+11. [Development](#development)
 
 ---
 
 ## Overview
 
-Little Gerry combines a **Tauri desktop application** (React + TypeScript frontend) with a **FastAPI backend** powered by local AI models via **Ollama**. All conversation history, documents, and AI embeddings are stored in a local **PostgreSQL** database with vector search capabilities via **pgvector**.
+Little Gerry combines a **React + TypeScript frontend** (served via Vite) with a **FastAPI backend** powered by local AI models via **Ollama**. All conversation history, documents, and AI embeddings are stored in a local **PostgreSQL** database with vector search capabilities via **pgvector**.
 
 Key design principles:
 - **Local-first** — all AI inference and data storage happens on your machine
@@ -49,7 +50,7 @@ Key design principles:
 | **Notifications** | Real-time WebSocket push notifications with read/unread management |
 | **Audit Trail** | Immutable log of all system and AI actions with filtering and export |
 | **User Management** | Role-based access control (Admin / User), user creation and deactivation |
-| **Settings** | LLM model selection, appearance (light/dark/system), notification preferences, and live system health monitoring |
+| **Settings** | LLM model selection, appearance (light/dark/system), notification preferences, live system health monitoring (DB/Ollama/disk), and one-click in-app updates |
 
 ---
 
@@ -57,7 +58,7 @@ Key design principles:
 
 ```
 ┌─────────────────────────────────────────────┐
-│          Tauri Desktop App (Windows)         │
+│         Browser / Tauri Desktop App          │
 │  React 19 · TypeScript · Vite · TailwindCSS │
 │  Zustand · TanStack Query · React Router     │
 └─────────────────┬───────────────────────────┘
@@ -66,7 +67,7 @@ Key design principles:
 ┌─────────────────▼───────────────────────────┐
 │            FastAPI Backend                   │
 │  Python 3.14 · SQLAlchemy 2.0 async          │
-│  LangGraph · pgvector · JWT Auth             │
+│  pgvector · JWT Auth                         │
 └────────────┬────────────────┬───────────────┘
              │                │
 ┌────────────▼────┐  ┌────────▼────────────────┐
@@ -78,23 +79,72 @@ Key design principles:
 
 ---
 
-## Prerequisites
+## Windows Installer (Recommended)
 
-Ensure the following are installed before proceeding:
+The easiest way to install Little Gerry is with the one-click Windows installer. It automatically installs all prerequisites and configures everything.
+
+### Requirements
+- Windows 10 or 11 (64-bit)
+- Internet access (~3-5 GB download)
+- ~5 GB free disk space
+
+### Steps
+
+1. **Build the installer** (or use a pre-built `LittleGerry_Setup.exe`):
+   ```
+   Double-click: build-installer.bat
+   ```
+   Output: `installer\Output\LittleGerry_Setup.exe`
+
+2. **Run `LittleGerry_Setup.exe`** — follow the wizard. The installer will:
+   - Install Docker Desktop, Ollama, Python 3.14, and Node.js (via winget, if not already present)
+   - Start PostgreSQL in Docker
+   - Set up the Python virtual environment and run database migrations
+   - Install frontend dependencies
+   - Pull the `llama3.2` and `nomic-embed-text` AI models
+   - Create a desktop shortcut and Start Menu entry
+
+3. **Launch** by double-clicking the **Little Gerry** desktop shortcut or running `Start Little Gerry.bat` from the install folder.
+
+> **Install location:** `C:\Users\<you>\AppData\Local\Little Gerry`  
+> The app installs to your user profile (not Program Files) so it can write files without requiring admin on every run.
+
+### Utility Scripts
+
+| File | Purpose |
+|---|---|
+| `Start Little Gerry.bat` | Start all services (Docker, backend, frontend) and open the browser |
+| `Stop Little Gerry.bat` | Gracefully stop backend, frontend, and PostgreSQL |
+| `Update Little Gerry.bat` | Pull the latest version from GitHub and restart |
+| `Install Little Gerry.bat` | Re-run the full setup (useful after a clean clone) |
+| `build-installer.bat` | Compile `LittleGerry_Setup.exe` using Inno Setup 6 |
+
+### Updating
+
+Little Gerry has a built-in update checker. Go to **Settings → Updates** and click **Check for Updates**. If a new version is available, click **Install Update** — the app pulls from GitHub, runs migrations, and restarts automatically.
+
+You can also run `Update Little Gerry.bat` directly at any time.
+
+---
+
+## Prerequisites (Manual Setup)
+
+For manual / developer setup, ensure the following are installed:
 
 | Requirement | Version | Notes |
 |---|---|---|
 | **Windows 10/11** | 64-bit | Primary supported platform |
 | **Node.js** | v20+ | [nodejs.org](https://nodejs.org) |
 | **Python** | 3.12+ | [python.org](https://www.python.org) |
-| **uv** | latest | `pip install uv` — Python package manager |
-| **Rust** | 1.75+ stable | [rustup.rs](https://rustup.rs) — required for Tauri |
-| **Docker Desktop** | latest | [docker.com](https://www.docker.com/products/docker-desktop) — for PostgreSQL |
-| **Ollama** | latest | [ollama.com](https://ollama.com) — local LLM runtime |
+| **uv** | latest | `pip install uv` - Python package manager |
+| **Docker Desktop** | latest | [docker.com](https://www.docker.com/products/docker-desktop) - for PostgreSQL |
+| **Ollama** | latest | [ollama.com](https://ollama.com) - local LLM runtime |
+
+> Rust is only required if building the Tauri desktop app. For browser-based use it is not needed.
 
 ---
 
-## Setup & Installation
+## Setup & Installation (Manual)
 
 ### 1. Clone the repository
 
@@ -149,7 +199,7 @@ uv run alembic upgrade head
 Create the initial admin user:
 
 ```bash
-uv run python scripts/create_admin.py
+uv run python scripts/seed_admin.py
 ```
 
 ### 5. Set up the frontend
@@ -170,27 +220,29 @@ VITE_WS_BASE=ws://127.0.0.1:8000
 
 ## Running the Application
 
-You need **three processes** running simultaneously. Open three terminals:
+> **Using the installer?** Just double-click `Start Little Gerry.bat` (or the desktop shortcut). Skip this section.
 
-**Terminal 1 — Backend API**
+For manual / dev runs, open two terminals:
+
+**Terminal 1 - Backend API**
 ```bash
 cd backend
 uv run uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-**Terminal 2 — Frontend (dev mode)**
+**Terminal 2 - Frontend dev server**
 ```bash
 cd frontend
 npm run dev
 ```
 
-**Terminal 3 — Tauri desktop app** (optional — use browser at `http://localhost:5173` for quick dev)
+**Optional - Tauri desktop app**
 ```bash
 cd frontend
 npm run tauri dev
 ```
 
-The application opens at **http://localhost:5173** (browser) or as a native desktop window via Tauri.
+The application opens at **http://localhost:5173** in your browser (or as a native desktop window via Tauri).
 
 ---
 
@@ -292,11 +344,12 @@ Navigate to **Approvals** for the human-in-the-loop queue:
 
 Navigate to **Settings**:
 
-- **Profile** — update your name and email
-- **AI Engine** — select the Ollama model and configure the base URL
-- **Appearance** — switch between Light, Dark, and System theme
-- **Notifications** — configure notification preferences
-- **System Health** — live status of PostgreSQL, Ollama, and disk space; click **Refresh** to re-check
+- **Profile** - update your name and email
+- **AI Engine** - select the Ollama model and configure the base URL
+- **Appearance** - switch between Light, Dark, and System theme
+- **Notifications** - configure notification preferences
+- **System Health** - live status of PostgreSQL, Ollama, and disk space; click **Refresh** to re-check
+- **Updates** - click **Check for Updates** to compare your local version against GitHub; click **Install Update** to pull the latest code and restart automatically
 
 ---
 
@@ -368,6 +421,16 @@ npx tsc --noEmit
 cd backend
 uv run pytest
 ```
+
+### Build the Windows installer
+
+Requires [Inno Setup 6](https://jrsoftware.org/isdl.php) installed.
+
+```
+Double-click: build-installer.bat
+```
+
+Output: `installer\Output\LittleGerry_Setup.exe`
 
 ### Build the Tauri desktop app (production)
 
