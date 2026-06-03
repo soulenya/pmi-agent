@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench } from "lucide-react";
@@ -14,10 +14,10 @@ import { useAuthStore } from "@/stores/authStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
 import { cn } from "@/lib/utils";
 
-// WebSocket URL — connects to the backend WS endpoint
+// WebSocket URL â€” connects to the backend WS endpoint
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
 
-// ── Tool activity item ─────────────────────────────────────────────────────────
+// â”€â”€ Tool activity item â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ToolActivity {
   tool_name: string;
@@ -25,7 +25,7 @@ interface ToolActivity {
   label: string;
 }
 
-// ── ConversationItem — sidebar item with inline rename ─────────────────────────
+// â”€â”€ ConversationItem â€” sidebar item with inline rename â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ConversationItem({
   id,
@@ -126,7 +126,7 @@ function ConversationItem({
   );
 }
 
-// ── Tool activity strip ────────────────────────────────────────────────────────
+// â”€â”€ Tool activity strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ToolActivityStrip({ activities }: { activities: ToolActivity[] }) {
   if (activities.length === 0) return null;
@@ -153,20 +153,20 @@ export function ChatPage() {
   const [wsConnected, setWsConnected] = useState(false);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
 
-  // ── Conversation list ──────────────────────────────────────────────────────
+  // â”€â”€ Conversation list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: conversations = [] } = useQuery({
     queryKey: ["conversations"],
     queryFn: listConversations,
   });
 
-  // ── Messages for active conversation ──────────────────────────────────────
+  // â”€â”€ Messages for active conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: messages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ["messages", conversationId],
     queryFn: () => listMessages(conversationId!),
     enabled: !!conversationId,
   });
 
-  // ── Create conversation ────────────────────────────────────────────────────
+  // â”€â”€ Create conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const createConvMutation = useMutation({
     mutationFn: () => createConversation(),
     onSuccess: (conv) => {
@@ -175,7 +175,7 @@ export function ChatPage() {
     },
   });
 
-  // ── Rename conversation ────────────────────────────────────────────────────
+  // â”€â”€ Rename conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const renameMutation = useMutation({
     mutationFn: ({ id, title }: { id: string; title: string }) =>
       updateConversation(id, { title }),
@@ -184,7 +184,7 @@ export function ChatPage() {
     },
   });
 
-  // ── Archive conversation ───────────────────────────────────────────────────
+  // â”€â”€ Archive conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const archiveMutation = useMutation({
     mutationFn: (id: string) => updateConversation(id, { is_archived: true }),
     onSuccess: (_data, id) => {
@@ -194,7 +194,7 @@ export function ChatPage() {
     },
   });
 
-  // ── WebSocket connection for this conversation ─────────────────────────────
+  // â”€â”€ WebSocket connection for this conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!conversationId) return;
 
@@ -256,12 +256,12 @@ export function ChatPage() {
     };
   }, [conversationId, queryClient]);
 
-  // ── Auto-scroll to bottom ──────────────────────────────────────────────────
+  // â”€â”€ Auto-scroll to bottom â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingContent, toolActivities]);
 
-  // ── Send message ───────────────────────────────────────────────────────────
+  // â”€â”€ Send message â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const handleSend = useCallback(
     (content: string) => {
       if (!conversationId) {
@@ -296,7 +296,7 @@ export function ChatPage() {
 
   return (
     <div className="flex h-full gap-4">
-      {/* ── Conversation sidebar ─────────────────────────────────────────── */}
+      {/* â”€â”€ Conversation sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <aside className="flex w-56 flex-col gap-2 border-r pr-4">
         <button
           onClick={() => createConvMutation.mutate()}
@@ -322,7 +322,7 @@ export function ChatPage() {
         </div>
       </aside>
 
-      {/* ── Message thread ────────────────────────────────────────────────── */}
+      {/* â”€â”€ Message thread â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Status badge */}
         {conversationId && (
@@ -333,7 +333,7 @@ export function ChatPage() {
                 wsConnected ? "bg-green-500" : "bg-yellow-500",
               )}
             />
-            {wsConnected ? "Connected" : "Connecting…"}
+            {wsConnected ? "Connected" : "Connectingâ€¦"}
           </div>
         )}
 
@@ -395,226 +395,8 @@ export function ChatPage() {
           disabled={!conversationId && createConvMutation.isPending}
           placeholder={
             conversationId
-              ? "Message Little Gerry…"
-              : "Start typing to create a new conversation…"
-          }
-        />
-      </div>
-    </div>
-  );
-}
-
-
-// WebSocket URL — connects to the backend WS endpoint
-const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
-
-export function ChatPage() {
-  const { conversationId } = useParams<{ conversationId?: string }>();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-
-  const [streamingContent, setStreamingContent] = useState<string | null>(null);
-  const [wsConnected, setWsConnected] = useState(false);
-
-  // ── Conversation list ──────────────────────────────────────────────────────
-  const { data: conversations = [] } = useQuery({
-    queryKey: ["conversations"],
-    queryFn: listConversations,
-  });
-
-  // ── Messages for active conversation ──────────────────────────────────────
-  const { data: messages = [], isLoading: messagesLoading } = useQuery({
-    queryKey: ["messages", conversationId],
-    queryFn: () => listMessages(conversationId!),
-    enabled: !!conversationId,
-  });
-
-  // ── Create conversation ────────────────────────────────────────────────────
-  const createConvMutation = useMutation({
-    mutationFn: () => createConversation(),
-    onSuccess: (conv) => {
-      queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      navigate(`/chat/${conv.id}`);
-    },
-  });
-
-  // ── WebSocket connection for this conversation ─────────────────────────────
-  useEffect(() => {
-    if (!conversationId) return;
-
-    const token = useAuthStore.getState().accessToken;
-    const wsUrl = token
-      ? `${WS_BASE}/ws/chat/${conversationId}?token=${encodeURIComponent(token)}`
-      : `${WS_BASE}/ws/chat/${conversationId}`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => setWsConnected(true);
-    ws.onclose = () => setWsConnected(false);
-    ws.onerror = () => setWsConnected(false);
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data as string) as {
-          type: "token" | "done" | "error";
-          content?: string;
-        };
-
-        if (msg.type === "token" && msg.content) {
-          setStreamingContent((prev) => (prev ?? "") + msg.content);
-        } else if (msg.type === "done") {
-          // Flush streamed message into real message list
-          queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
-          setStreamingContent(null);
-        }
-      } catch {
-        // ignore malformed frames
-      }
-    };
-
-    return () => {
-      ws.close();
-      setStreamingContent(null);
-      setWsConnected(false);
-    };
-  }, [conversationId, queryClient]);
-
-  // ── Auto-scroll to bottom ──────────────────────────────────────────────────
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingContent]);
-
-  // ── Send message ───────────────────────────────────────────────────────────
-  const handleSend = useCallback(
-    (content: string) => {
-      if (!conversationId) {
-        // Create a conversation first, then send
-        createConvMutation.mutate();
-        return;
-      }
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(content);
-
-        // Optimistically add user message to the list
-        const optimistic: Message = {
-          id: crypto.randomUUID(),
-          conversation_id: conversationId,
-          role: "user",
-          content,
-          agent_type: null,
-          model_name: null,
-          cited_chunk_ids: [],
-          tool_calls: null,
-          tool_results: null,
-          created_at: new Date().toISOString(),
-        };
-        queryClient.setQueryData<Message[]>(
-          ["messages", conversationId],
-          (prev) => [...(prev ?? []), optimistic],
-        );
-      }
-    },
-    [conversationId, createConvMutation, queryClient],
-  );
-
-  return (
-    <div className="flex h-full gap-4">
-      {/* ── Conversation sidebar ─────────────────────────────────────────── */}
-      <aside className="flex w-56 flex-col gap-2 border-r pr-4">
-        <button
-          onClick={() => createConvMutation.mutate()}
-          disabled={createConvMutation.isPending}
-          className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
-        >
-          <PlusCircle className="h-4 w-4" />
-          New conversation
-        </button>
-
-        <div className="flex-1 space-y-1 overflow-y-auto">
-          {conversations.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => navigate(`/chat/${c.id}`)}
-              className={cn(
-                "w-full truncate rounded-md px-3 py-2 text-left text-sm transition-colors",
-                c.id === conversationId
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-              )}
-            >
-              {c.title ?? "Untitled conversation"}
-            </button>
-          ))}
-        </div>
-      </aside>
-
-      {/* ── Message thread ────────────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Status badge */}
-        {conversationId && (
-          <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span
-              className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                wsConnected ? "bg-green-500" : "bg-yellow-500",
-              )}
-            />
-            {wsConnected ? "Connected" : "Connecting…"}
-          </div>
-        )}
-
-        {/* Messages */}
-        <div className="flex-1 space-y-4 overflow-y-auto pb-2">
-          {!conversationId && (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-              <p className="text-lg font-medium">How can I help you today?</p>
-              <p className="text-sm">
-                Start a new conversation or select one from the sidebar.
-              </p>
-            </div>
-          )}
-
-          {messagesLoading && (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
-
-          {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
-          ))}
-
-          {/* Streaming token buffer */}
-          {streamingContent && (
-            <MessageBubble
-              message={{
-                id: "streaming",
-                conversation_id: conversationId ?? "",
-                role: "assistant",
-                content: streamingContent,
-                agent_type: null,
-                model_name: null,
-                cited_chunk_ids: [],
-                tool_calls: null,
-                tool_results: null,
-                created_at: new Date().toISOString(),
-              }}
-            />
-          )}
-
-          <div ref={bottomRef} />
-        </div>
-
-        {/* Input */}
-        <ChatInput
-          onSend={handleSend}
-          disabled={!conversationId && createConvMutation.isPending}
-          placeholder={
-            conversationId
-              ? "Message Little Gerry…"
-              : "Start typing to create a new conversation…"
+              ? "Message Little Gerryâ€¦"
+              : "Start typing to create a new conversationâ€¦"
           }
         />
       </div>

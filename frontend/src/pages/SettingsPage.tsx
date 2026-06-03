@@ -517,7 +517,7 @@ function SystemHealthSection() {
             "font-semibold",
             health?.status === "ok" ? "text-green-600" : "text-yellow-600"
           )}>
-            {health?.status ?? (…)}
+            {health?.status ?? "..."}
           </span>
         </p>
         <button
