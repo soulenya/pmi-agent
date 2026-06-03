@@ -16,27 +16,32 @@ echo   Little Gerry - Starting Services
 echo  ====================================================
 echo.
 
-:: ── 1. Docker Desktop ─────────────────────────────────────
+:: ── 1. Docker Engine (background service, no GUI) ───────────
 echo  [1/5] Checking Docker...
 docker info >nul 2>&1
 if %ERRORLEVEL% equ 0 goto docker_ready
 
-echo        Starting Docker Desktop...
-if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
-    start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
-) else if exist "%LOCALAPPDATA%\Docker\Docker Desktop.exe" (
-    start "" "%LOCALAPPDATA%\Docker\Docker Desktop.exe"
-) else (
-    echo  [ERROR] Docker Desktop not found. Please install it from https://docker.com
-    pause
-    exit /b 1
+echo        Starting Docker engine (background)...
+:: Try starting the Docker engine Windows service directly (no GUI)
+sc start com.docker.service >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    :: Fallback: start Docker Desktop minimised if service not available
+    if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
+        start "" /min "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+    ) else if exist "%LOCALAPPDATA%\Docker\Docker Desktop.exe" (
+        start "" /min "%LOCALAPPDATA%\Docker\Docker Desktop.exe"
+    ) else (
+        echo  [ERROR] Docker not found. Please install Docker Desktop.
+        pause
+        exit /b 1
+    )
 )
 echo        Waiting for Docker to be ready (up to 90s)...
 set DOCKER_WAIT=0
 :docker_wait
 set /a DOCKER_WAIT+=1
 if %DOCKER_WAIT% gtr 30 (
-    echo  [ERROR] Docker did not start in time. Please start Docker Desktop manually.
+    echo  [ERROR] Docker did not start in time.
     pause
     exit /b 1
 )
@@ -57,13 +62,13 @@ if %ERRORLEVEL% neq 0 (
 )
 echo  [2/5] PostgreSQL ready.
 
-:: ── 3. Ollama ─────────────────────────────────────────────
+:: ── 3. Ollama (hidden background process) ───────────────────
 echo  [3/5] Checking Ollama...
 tasklist /fi "imagename eq ollama.exe" 2>nul | find /i "ollama.exe" >nul
 if %ERRORLEVEL% neq 0 (
-    echo        Starting Ollama service...
-    start "" /min ollama serve
-    timeout /t 3 /nobreak >nul
+    echo        Starting Ollama in background...
+    powershell -WindowStyle Hidden -Command "Start-Process ollama -ArgumentList serve -WindowStyle Hidden" >nul 2>&1
+    timeout /t 4 /nobreak >nul
 )
 echo  [3/5] Ollama is running.
 
