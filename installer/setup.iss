@@ -68,8 +68,8 @@ MinVersion=10.0
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon";    Description: "Create a &desktop shortcut";      GroupDescription: "Additional icons:"; Flags: checked
-Name: "startmenuicon";  Description: "Create a &Start Menu entry";       GroupDescription: "Additional icons:"; Flags: checked
+Name: "desktopicon";    Description: "Create a &desktop shortcut";   GroupDescription: "Additional icons:"
+Name: "startmenuicon";  Description: "Create a &Start Menu entry";   GroupDescription: "Additional icons:"
 Name: "runonstartup";   Description: "Launch Little Gerry on &Windows startup"; GroupDescription: "Startup:"; Flags: unchecked
 
 ; ── Files to install ────────────────────────────────────────────────────────
