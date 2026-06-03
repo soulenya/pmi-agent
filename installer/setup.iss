@@ -33,8 +33,8 @@ AppUpdatesURL={#AppURL}/releases
 VersionInfoVersion={#AppVersion}
 VersionInfoDescription={#AppDescription}
 
-; Install directory — per-user to avoid UAC friction
-DefaultDirName={autopf}\{#AppName}
+; Install directory - user-writable so app can create .venv, node_modules, .env
+DefaultDirName={localappdata}\{#AppName}
 DefaultGroupName={#AppName}
 AllowNoIcons=yes
 DisableProgramGroupPage=yes
@@ -52,7 +52,7 @@ WizardStyle=modern
 WizardResizable=no
 WizardSizePercent=120
 
-; Privileges — request admin so Docker/winget installs work
+; Privileges - admin needed to run install.ps1 (winget/Docker), but app dir is user-writable
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 
