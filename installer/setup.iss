@@ -176,13 +176,13 @@ begin
   // Warn the user on the final confirmation page that the setup takes time
   if CurPageID = wpReady then begin
     if MsgBox(
-      'The installer will now download and configure:' + #13#10 +
-      '  - Docker Desktop (~500 MB)' + #13#10 +
-      '  - Ollama + AI models (~2.5 GB)' + #13#10 +
-      '  - Python, Node.js, and app dependencies (~500 MB)' + #13#10 +
-      #13#10 +
-      'Internet access is required. Estimated time: 10-30 minutes.' + #13#10 +
-      #13#10 +
+      'The installer will now download and configure:' + Chr(13)+Chr(10) +
+      '  - Docker Desktop (~500 MB)' + Chr(13)+Chr(10) +
+      '  - Ollama + AI models (~2.5 GB)' + Chr(13)+Chr(10) +
+      '  - Python, Node.js, and app dependencies (~500 MB)' + Chr(13)+Chr(10) +
+      Chr(13)+Chr(10) +
+      'Internet access is required. Estimated time: 10-30 minutes.' + Chr(13)+Chr(10) +
+      Chr(13)+Chr(10) +
       'Continue?',
       mbConfirmation, MB_YESNO) = IDNO
     then
