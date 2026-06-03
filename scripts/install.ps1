@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Little Gerry — Full automated setup for Windows.
+    Little Gerry - Full automated setup for Windows.
 
 .DESCRIPTION
     Installs and configures all dependencies for the Little Gerry AI Executive
@@ -86,7 +86,7 @@ function Install-WingetPackage {
     if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq -1978335189) {
         Write-OK "$Name installed"
     } else {
-        Write-Warn "$Name installation returned code $LASTEXITCODE — it may already be installed or require a reboot"
+        Write-Warn "$Name installation returned code $LASTEXITCODE - it may already be installed or require a reboot"
     }
 }
 
@@ -124,17 +124,17 @@ function Wait-TcpPort {
 
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Host ""
-Write-Host "╔══════════════════════════════════════════════════════════╗" -ForegroundColor Magenta
-Write-Host "║     Little Gerry — AI Executive Assistant Installer      ║" -ForegroundColor Magenta
-Write-Host "║         Precisian Medical Instruments / VACTOR            ║" -ForegroundColor Magenta
-Write-Host "╚══════════════════════════════════════════════════════════╝" -ForegroundColor Magenta
+Write-Host "================================================" -ForegroundColor Magenta
+Write-Host "  Little Gerry - AI Executive Assistant Installer" -ForegroundColor Magenta
+Write-Host "  Precisian Medical Instruments / VACTOR" -ForegroundColor Magenta
+Write-Host "================================================" -ForegroundColor Magenta
 Write-Host ""
 Write-Info "Project root : $ProjectRoot"
 Write-Info "Skip Tauri   : $SkipTauriBuild"
 Write-Host ""
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 1 of 9 — Installing prerequisites"
+Write-Step "Step 1 of 9 - Installing prerequisites"
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Check winget
@@ -149,7 +149,7 @@ Install-WingetPackage -Name "Ollama"           -Id "Ollama.Ollama"         -Test
 Install-WingetPackage -Name "Python 3.14"      -Id "Python.Python.3.14"    -TestCmd "python"
 Install-WingetPackage -Name "Node.js 20 LTS"   -Id "OpenJS.NodeJS.LTS"     -TestCmd "node"
 
-# uv — install via pip if not present
+# uv - install via pip if not present
 Update-SessionPath
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     Write-Info "Installing uv (Python package manager)..."
@@ -158,7 +158,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     if (Get-Command uv -ErrorAction SilentlyContinue) {
         Write-OK "uv installed"
     } else {
-        Write-Warn "uv not found in PATH — trying pip install with --user"
+        Write-Warn "uv not found in PATH - trying pip install with --user"
         & python -m pip install uv --user --quiet
         Update-SessionPath
     }
@@ -174,12 +174,12 @@ if (-not $SkipTauriBuild) {
 Update-SessionPath
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 2 of 9 — Starting Docker Desktop"
+Write-Step "Step 2 of 9 - Starting Docker Desktop"
 # ─────────────────────────────────────────────────────────────────────────────
 
 $dockerRunning = & docker info 2>&1 | Select-String "Server Version" -Quiet
 if (-not $dockerRunning) {
-    Write-Info "Docker Desktop is not running — starting it..."
+    Write-Info "Docker Desktop is not running - starting it..."
     $dockerExe = "${env:ProgramFiles}\Docker\Docker\Docker Desktop.exe"
     if (Test-Path $dockerExe) {
         Start-Process $dockerExe
@@ -205,7 +205,7 @@ if (-not $dockerRunning) {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 3 of 9 — Starting PostgreSQL (Docker Compose)"
+Write-Step "Step 3 of 9 - Starting PostgreSQL (Docker Compose)"
 # ─────────────────────────────────────────────────────────────────────────────
 
 Set-Location $ProjectRoot
@@ -223,7 +223,7 @@ if (-not $dbReady) {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 4 of 9 — Configuring backend environment"
+Write-Step "Step 4 of 9 - Configuring backend environment"
 # ─────────────────────────────────────────────────────────────────────────────
 
 $envFile = Join-Path $BackendDir ".env"
@@ -251,11 +251,11 @@ APPROVAL_EXPIRY_HOURS=48
         Write-OK ".env created with defaults"
     }
 } else {
-    Write-OK ".env already exists — skipping"
+    Write-OK ".env already exists - skipping"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 5 of 9 — Installing Python backend dependencies"
+Write-Step "Step 5 of 9 - Installing Python backend dependencies"
 # ─────────────────────────────────────────────────────────────────────────────
 
 Set-Location $BackendDir
@@ -267,7 +267,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-OK "Python dependencies installed"
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 6 of 9 — Running database migrations"
+Write-Step "Step 6 of 9 - Running database migrations"
 # ─────────────────────────────────────────────────────────────────────────────
 
 & uv run alembic upgrade head 2>&1 | ForEach-Object { Write-Info $_ }
@@ -283,7 +283,7 @@ Write-Info "Seeding admin user (admin@precisian.local / Admin1234!)..."
 Write-OK "Admin user ready"
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 7 of 9 — Installing frontend dependencies"
+Write-Step "Step 7 of 9 - Installing frontend dependencies"
 # ─────────────────────────────────────────────────────────────────────────────
 
 Set-Location $FrontendDir
@@ -304,11 +304,11 @@ VITE_WS_BASE=ws://127.0.0.1:8000
 "@ | Set-Content $feEnv
     Write-OK "frontend/.env created"
 } else {
-    Write-OK "frontend/.env already exists — skipping"
+    Write-OK "frontend/.env already exists - skipping"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 8 of 9 — Pulling Ollama AI models"
+Write-Step "Step 8 of 9 - Pulling Ollama AI models"
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Ensure Ollama service is running
@@ -321,11 +321,11 @@ if (-not $ollamaRunning) {
 
 $ollamaReady = Wait-TcpPort -Port 11434 -ServiceName "Ollama" -TimeoutSeconds 30
 if ($ollamaReady) {
-    Write-Info "Pulling llama3.2 (chat model — ~2 GB, this may take a while)..."
+    Write-Info "Pulling llama3.2 (chat model - ~2 GB, this may take a while)..."
     & ollama pull llama3.2
     Write-OK "llama3.2 ready"
 
-    Write-Info "Pulling nomic-embed-text (embedding model — ~274 MB)..."
+    Write-Info "Pulling nomic-embed-text (embedding model - ~274 MB)..."
     & ollama pull nomic-embed-text
     Write-OK "nomic-embed-text ready"
 } else {
@@ -335,7 +335,7 @@ if ($ollamaReady) {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 9 of 9 — Creating desktop shortcuts"
+Write-Step "Step 9 of 9 - Creating desktop shortcuts"
 # ─────────────────────────────────────────────────────────────────────────────
 
 $WshShell = New-Object -ComObject WScript.Shell
@@ -366,28 +366,28 @@ Write-OK "Start Menu entry created"
 # ─────────────────────────────────────────────────────────────────────────────
 
 if (-not $SkipTauriBuild) {
-    Write-Step "Optional — Building Tauri desktop app"
+    Write-Step "Optional - Building Tauri desktop app"
     Set-Location $FrontendDir
-    Write-Info "This compiles the native Windows .exe — may take 5-15 minutes..."
+    Write-Info "This compiles the native Windows .exe - may take 5-15 minutes..."
     & node node_modules\@tauri-apps\cli\tauri.js build 2>&1 | ForEach-Object { Write-Info $_ }
     if ($LASTEXITCODE -eq 0) {
         Write-OK "Tauri desktop app built"
         Write-Info "Installer: frontend\src-tauri\target\release\bundle\"
     } else {
-        Write-Warn "Tauri build failed — you can still use the browser at http://localhost:5173"
+        Write-Warn "Tauri build failed - you can still use the browser at http://localhost:5173"
     }
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Host ""
-Write-Host "╔══════════════════════════════════════════════════════════╗" -ForegroundColor Green
-Write-Host "║           Installation complete!                         ║" -ForegroundColor Green
-Write-Host "╠══════════════════════════════════════════════════════════╣" -ForegroundColor Green
-Write-Host "║  Double-click 'Start Little Gerry.bat' (or the desktop   ║" -ForegroundColor Green
-Write-Host "║  shortcut) to launch the application.                    ║" -ForegroundColor Green
-Write-Host "║                                                          ║" -ForegroundColor Green
-Write-Host "║  Default login:                                          ║" -ForegroundColor Green
-Write-Host "║    Email   : admin@precisian.local                       ║" -ForegroundColor Green
-Write-Host "║    Password: Admin1234!                                  ║" -ForegroundColor Green
-Write-Host "╚══════════════════════════════════════════════════════════╝" -ForegroundColor Green
+Write-Host "================================================" -ForegroundColor Green
+Write-Host "  Installation complete!" -ForegroundColor Green
+Write-Host "------------------------------------------------" -ForegroundColor Green
+Write-Host "  Double-click 'Start Little Gerry.bat'" -ForegroundColor Green
+Write-Host "  (or the desktop shortcut) to launch the app." -ForegroundColor Green
+Write-Host "" 
+Write-Host "  Default login:" -ForegroundColor Green
+Write-Host "    Email   : admin@precisian.local" -ForegroundColor Green
+Write-Host "    Password: Admin1234!" -ForegroundColor Green
+Write-Host "================================================" -ForegroundColor Green
 Write-Host ""
