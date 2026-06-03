@@ -9,7 +9,7 @@
 ::
 ::      installer\Output\LittleGerry_Setup.exe
 ::
-::  That single .exe is the full Windows installer — share it
+::  That single .exe is the full Windows installer - share it
 ::  with anyone who needs to install Little Gerry.
 :: ============================================================
 
@@ -54,7 +54,7 @@ if %ERRORLEVEL% neq 0 (
 
 echo.
 echo  ====================================================
-echo   SUCCESS — Installer created:
+echo   SUCCESS - Installer created:
 echo   installer\Output\LittleGerry_Setup.exe
 echo.
 echo   Share this file to install Little Gerry on any

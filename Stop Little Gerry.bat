@@ -1,11 +1,11 @@
 @echo off
 :: ============================================================
-::  Little Gerry — Stop All Services
+::  Little Gerry - Stop All Services
 ::  Gracefully shuts down backend, frontend, and PostgreSQL.
 :: ============================================================
 
 cd /d "%~dp0"
-title Little Gerry — Stopping...
+title Little Gerry - Stopping...
 
 echo.
 echo  Stopping Little Gerry services...
@@ -21,7 +21,7 @@ echo  [2/3] Stopping backend API...
 taskkill /fi "windowtitle eq Little Gerry -- Backend*" /f >nul 2>&1
 echo  [2/3] Done.
 
-:: Stop PostgreSQL container (leave Ollama running — it's lightweight)
+:: Stop PostgreSQL container (leave Ollama running - it's lightweight)
 echo  [3/3] Stopping PostgreSQL...
 docker compose stop >nul 2>&1
 echo  [3/3] Done.

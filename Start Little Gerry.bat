@@ -1,41 +1,50 @@
 @echo off
 :: ============================================================
-::  Little Gerry — Start All Services
+::  Little Gerry - Start All Services
 ::  Precisian Medical Instruments / VACTOR Program
 :: ============================================================
 
 cd /d "%~dp0"
-title Little Gerry — Starting...
+title Little Gerry - Starting...
 
 :: Refresh PATH so freshly-installed tools (docker, node, ollama) are found
 set "PATH=%PATH%;%ProgramFiles%\Docker\Docker\resources\bin;%ProgramFiles%\nodejs;%USERPROFILE%\AppData\Local\Programs\Python\Python314;%USERPROFILE%\AppData\Local\Programs\Python\Python314\Scripts;%USERPROFILE%\.local\bin"
 
 echo.
 echo  ====================================================
-echo   Little Gerry — Starting Services
+echo   Little Gerry - Starting Services
 echo  ====================================================
 echo.
 
 :: ── 1. Docker Desktop ─────────────────────────────────────
 echo  [1/5] Checking Docker...
 docker info >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo        Starting Docker Desktop...
-    if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
-        start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
-    ) else if exist "%LOCALAPPDATA%\Docker\Docker Desktop.exe" (
-        start "" "%LOCALAPPDATA%\Docker\Docker Desktop.exe"
-    ) else (
-        echo  [ERROR] Docker Desktop not found. Please install it from https://docker.com
-        pause
-        exit /b 1
-    )
-    echo        Waiting for Docker to be ready (up to 90s)...
-    :docker_wait
-    timeout /t 3 /nobreak >nul
-    docker info >nul 2>&1
-    if %ERRORLEVEL% neq 0 goto docker_wait
+if %ERRORLEVEL% equ 0 goto docker_ready
+
+echo        Starting Docker Desktop...
+if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" (
+    start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+) else if exist "%LOCALAPPDATA%\Docker\Docker Desktop.exe" (
+    start "" "%LOCALAPPDATA%\Docker\Docker Desktop.exe"
+) else (
+    echo  [ERROR] Docker Desktop not found. Please install it from https://docker.com
+    pause
+    exit /b 1
 )
+echo        Waiting for Docker to be ready (up to 90s)...
+set DOCKER_WAIT=0
+:docker_wait
+set /a DOCKER_WAIT+=1
+if %DOCKER_WAIT% gtr 30 (
+    echo  [ERROR] Docker did not start in time. Please start Docker Desktop manually.
+    pause
+    exit /b 1
+)
+timeout /t 3 /nobreak >nul
+docker info >nul 2>&1
+if %ERRORLEVEL% neq 0 goto docker_wait
+
+:docker_ready
 echo  [1/5] Docker is running.
 
 :: ── 2. PostgreSQL (Docker Compose) ────────────────────────
@@ -79,7 +88,7 @@ timeout /t 8 /nobreak >nul
 echo  Opening browser at http://localhost:5173 ...
 start "" "http://localhost:5173"
 
-title Little Gerry — Running
+title Little Gerry - Running
 echo.
 echo  ====================================================
 echo   Little Gerry is running!
@@ -88,7 +97,7 @@ echo   Open  : http://localhost:5173
 echo   Login : admin@precisian.local / Admin1234!
 echo.
 echo   Two terminal windows (Backend + Frontend) are
-echo   running in the background — don't close them.
+echo   running in the background - don't close them.
 echo   Run "Stop Little Gerry.bat" to shut down cleanly.
 echo  ====================================================
 echo.

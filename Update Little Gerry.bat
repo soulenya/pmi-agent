@@ -1,6 +1,6 @@
 @echo off
 :: ============================================================
-::  Little Gerry — Update
+::  Little Gerry - Update
 ::  Pulls the latest version from GitHub and restarts.
 ::
 ::  Double-click to update, or run silently:
@@ -8,11 +8,11 @@
 :: ============================================================
 
 cd /d "%~dp0"
-title Little Gerry — Updating...
+title Little Gerry - Updating...
 
 echo.
 echo  ====================================================
-echo   Little Gerry — Checking for updates...
+echo   Little Gerry - Checking for updates...
 echo  ====================================================
 echo.
 

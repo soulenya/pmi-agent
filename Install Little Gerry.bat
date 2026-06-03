@@ -1,6 +1,6 @@
 @echo off
 :: ============================================================
-::  Little Gerry — Install
+::  Little Gerry - Install
 ::  Precisian Medical Instruments / VACTOR Program
 ::
 ::  Double-click this file to set up the entire application.
@@ -18,11 +18,11 @@ if %ERRORLEVEL% neq 0 (
 )
 
 cd /d "%~dp0"
-title Little Gerry — Installer
+title Little Gerry - Installer
 
 echo.
 echo  ====================================================
-echo   Little Gerry AI Executive Assistant — Installer
+echo   Little Gerry AI Executive Assistant - Installer
 echo   Precisian Medical Instruments / VACTOR Program
 echo  ====================================================
 echo.
