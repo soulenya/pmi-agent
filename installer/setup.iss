@@ -144,13 +144,15 @@ Name: "{autostartup}\{#AppName}"; \
 
 ; ── Run setup script after install ──────────────────────────────────────────
 [Run]
-; Run the PowerShell install script to set up all dependencies
+; Install winget prerequisites (Docker, Ollama, Python, Node) via install.ps1
+; NOTE: uv sync / npm install / migrations run on first launch via Start bat
+;       because they need the user's PATH, not the elevated installer context.
 Filename: "powershell.exe"; \
     Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\install.ps1"" -ProjectRoot ""{app}"""; \
     WorkingDir: "{app}"; \
-    Flags: runhidden waituntilterminated; \
-    StatusMsg: "Installing dependencies and configuring Little Gerry (this may take 10-20 minutes)..."; \
-    Description: "Run setup (installs Docker, Ollama, Python deps, DB migrations, AI models)"
+    Flags: waituntilterminated; \
+    StatusMsg: "Installing prerequisites (Docker, Ollama, Python, Node.js)..."; \
+    Description: "Install prerequisites via winget"
 
 ; Offer to launch immediately after install
 Filename: "{app}\{#AppExeName}"; \
