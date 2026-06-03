@@ -75,3 +75,26 @@ export async function getSystemHealth(): Promise<HealthCheckResult> {
   const resp = await apiClient.get<HealthCheckResult>("/health");
   return resp.data;
 }
+
+export interface UpdateStatus {
+  current_sha: string;
+  latest_sha: string;
+  latest_message: string;
+  latest_date: string;
+  up_to_date: boolean;
+}
+
+export interface UpdateResult {
+  success: boolean;
+  message: string;
+}
+
+export async function checkForUpdate(): Promise<UpdateStatus> {
+  const resp = await apiClient.get<UpdateStatus>("/update/check");
+  return resp.data;
+}
+
+export async function applyUpdate(): Promise<UpdateResult> {
+  const resp = await apiClient.post<UpdateResult>("/update/apply");
+  return resp.data;
+}

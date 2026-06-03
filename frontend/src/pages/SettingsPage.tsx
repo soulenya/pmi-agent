@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi } from "lucide-react";
+import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import {
@@ -10,6 +10,8 @@ import {
   getMyProfile,
   updateMyProfile,
   getSystemHealth,
+  checkForUpdate,
+  applyUpdate,
   type AppSettings,
   type SettingsUpdate,
   type ProfileUpdate,
@@ -558,6 +560,97 @@ function SystemHealthSection() {
     </Section>
   );
 }
+// ── Software updates section ────────────────────────────────────────────────
+
+function UpdateSection() {
+  const [checked, setChecked] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [applyMessage, setApplyMessage] = useState<string | null>(null);
+
+  const { data: updateStatus, isFetching, refetch } = useQuery({
+    queryKey: ["update-status"],
+    queryFn: checkForUpdate,
+    enabled: false,   // only fetch on demand
+    retry: false,
+  });
+
+  async function handleCheck() {
+    setChecked(true);
+    await refetch();
+  }
+
+  async function handleApply() {
+    setApplying(true);
+    try {
+      const result = await applyUpdate();
+      setApplyMessage(result.message);
+    } catch {
+      setApplyMessage("Update failed — check the terminal for details.");
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  return (
+    <Section
+      icon={Download}
+      title="Software Updates"
+      description="Pull the latest features from GitHub"
+    >
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleCheck}
+          disabled={isFetching}
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+        >
+          {isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Check for Updates
+        </button>
+      </div>
+
+      {checked && updateStatus && (
+        <div className="mt-3 rounded-md border p-3 text-sm space-y-2">
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">Current:</span>
+            <code className="font-mono text-xs">{updateStatus.current_sha}</code>
+            {updateStatus.up_to_date && (
+              <span className="ml-auto inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Up to date
+              </span>
+            )}
+          </div>
+
+          {!updateStatus.up_to_date && (
+            <>
+              <div className="flex items-center gap-2">
+                <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-muted-foreground">Latest:</span>
+                <code className="font-mono text-xs">{updateStatus.latest_sha}</code>
+                <span className="text-xs text-muted-foreground truncate max-w-[240px]">{updateStatus.latest_message}</span>
+              </div>
+              <button
+                onClick={handleApply}
+                disabled={applying}
+                className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {applying ? "Updating…" : "Install Update"}
+              </button>
+              <p className="text-xs text-muted-foreground">
+                The app will restart automatically after updating.
+              </p>
+            </>
+          )}
+
+          {applyMessage && (
+            <p className="text-xs text-green-700 dark:text-green-400 font-medium">{applyMessage}</p>
+          )}
+        </div>
+      )}
+    </Section>
+  );
+}
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
@@ -629,6 +722,7 @@ export function SettingsPage() {
           <AppearanceSection settings={mergedSettings} onChange={handleChange} />
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />
           <SystemHealthSection />
+          <UpdateSection />
 
           {hasChanges && (
             <div className="flex justify-end">

@@ -80,6 +80,7 @@ Name: "runonstartup";   Description: "Launch Little Gerry on &Windows startup"; 
 Source: "..\Install Little Gerry.bat";  DestDir: "{app}"; Flags: ignoreversion
 Source: "..\Start Little Gerry.bat";    DestDir: "{app}"; Flags: ignoreversion
 Source: "..\Stop Little Gerry.bat";     DestDir: "{app}"; Flags: ignoreversion
+Source: "..\Update Little Gerry.bat";   DestDir: "{app}"; Flags: ignoreversion
 Source: "..\docker-compose.yml";        DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md";                 DestDir: "{app}"; Flags: ignoreversion
 Source: "..\.gitignore";               DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
@@ -122,6 +123,12 @@ Name: "{autoprograms}\{#AppName}\Stop {#AppName}"; \
     Filename: "{app}\Stop Little Gerry.bat"; \
     WorkingDir: "{app}"; \
     Comment: "Stop all Little Gerry services"; \
+    Tasks: startmenuicon
+
+Name: "{autoprograms}\{#AppName}\Update {#AppName}"; \
+    Filename: "{app}\Update Little Gerry.bat"; \
+    WorkingDir: "{app}"; \
+    Comment: "Pull latest version from GitHub"; \
     Tasks: startmenuicon
 
 Name: "{autoprograms}\{#AppName}\Uninstall {#AppName}"; \
