@@ -49,7 +49,7 @@ echo  [1/5] Docker is running.
 
 :: ── 2. PostgreSQL (Docker Compose) ────────────────────────
 echo  [2/5] Starting PostgreSQL...
-docker compose up -d
+docker compose up -d --remove-orphans
 if %ERRORLEVEL% neq 0 (
     echo  [ERROR] docker compose failed. Is Docker running?
     pause
