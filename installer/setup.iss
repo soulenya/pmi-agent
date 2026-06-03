@@ -77,13 +77,15 @@ Name: "runonstartup";   Description: "Launch Little Gerry on &Windows startup"; 
 ;       Adjust if you move the .iss or build from a different working directory.
 [Files]
 ; Root scripts and launchers
-Source: "..\Install Little Gerry.bat";  DestDir: "{app}"; Flags: ignoreversion
-Source: "..\Start Little Gerry.bat";    DestDir: "{app}"; Flags: ignoreversion
-Source: "..\Stop Little Gerry.bat";     DestDir: "{app}"; Flags: ignoreversion
-Source: "..\Update Little Gerry.bat";   DestDir: "{app}"; Flags: ignoreversion
-Source: "..\docker-compose.yml";        DestDir: "{app}"; Flags: ignoreversion
-Source: "..\README.md";                 DestDir: "{app}"; Flags: ignoreversion
-Source: "..\.gitignore";               DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\Install Little Gerry.bat";      DestDir: "{app}"; Flags: ignoreversion
+Source: "..\Start Little Gerry.bat";        DestDir: "{app}"; Flags: ignoreversion
+Source: "..\Stop Little Gerry.bat";         DestDir: "{app}"; Flags: ignoreversion
+Source: "..\Update Little Gerry.bat";       DestDir: "{app}"; Flags: ignoreversion
+Source: "..\docker-compose.yml";            DestDir: "{app}"; Flags: ignoreversion
+Source: "..\README.md";                     DestDir: "{app}"; Flags: ignoreversion
+Source: "..\launcher.py";                   DestDir: "{app}"; Flags: ignoreversion
+Source: "..\Spaceman on Black BG.png";      DestDir: "{app}"; Flags: ignoreversion
+Source: "..\.gitignore";                   DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; Icon — used by installer .exe and all shortcuts
 Source: "LittleGerry.ico";             DestDir: "{app}\installer"; Flags: ignoreversion skipifsourcedoesntexist
