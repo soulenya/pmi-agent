@@ -33,6 +33,7 @@ _status_text = "Initializing..."
 _status_step = 0
 _ready       = threading.Event()
 _win_ref     = None          # set to webview.Window once created
+_skip_close_confirm = False  # set True by tray "Stop" to skip second dialog
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -204,6 +205,8 @@ def _make_tray(win=None):
                 pass
 
     def on_stop(icon, _item) -> None:
+        global _skip_close_confirm
+        _skip_close_confirm = True   # bypass the close dialog — user already confirmed via tray
         if win:
             try:
                 win.destroy()
@@ -280,6 +283,27 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
         background_color="#000000",
     )
     _win_ref = win
+
+    def _on_closing() -> bool | None:
+        """Return False to cancel the close; return None to allow it."""
+        global _skip_close_confirm
+        if _skip_close_confirm:
+            return None  # tray already confirmed — allow
+        import ctypes
+        IDYES = 6
+        result = ctypes.windll.user32.MessageBoxW(
+            0,
+            "Shut down Little Gerry and stop all services?\n\n"
+            "This will close the backend, frontend, database, and Ollama.",
+            "Little Gerry — Confirm Exit",
+            0x24,  # MB_YESNO | MB_ICONQUESTION
+        )
+        if result != IDYES:
+            return False  # user chose No — cancel the close
+        _skip_close_confirm = True  # prevent re-entry if destroy fires closing again
+        return None  # allow close
+
+    win.events.closing += _on_closing
 
     def _after_start(w) -> None:
         """Called by pywebview after the GUI is ready — start services in background."""
