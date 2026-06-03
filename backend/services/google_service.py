@@ -78,9 +78,24 @@ def start_auth_flow() -> None:
     def _run() -> None:
         global _auth_status
         try:
+            import os as _os
+            import socket
             from google_auth_oauthlib.flow import InstalledAppFlow
+
+            # Pick a free port
+            with socket.socket() as s:
+                s.bind(("127.0.0.1", 0))
+                port = s.getsockname()[1]
+
             flow = InstalledAppFlow.from_client_secrets_file(str(CREDS_FILE), SCOPES)
-            creds = flow.run_local_server(port=0, open_browser=True)
+
+            # Build the auth URL and open it via os.startfile (works from pythonw.exe)
+            flow.redirect_uri = f"http://localhost:{port}"
+            auth_url, _ = flow.authorization_url(prompt="consent")
+            _os.startfile(auth_url)
+
+            # Now block waiting for the callback
+            creds = flow.run_local_server(port=port, open_browser=False)
             TOKEN_FILE.write_text(creds.to_json())
             with _auth_lock:
                 _auth_status = "connected"
