@@ -38,12 +38,17 @@ if not exist "%~dp0backend\.venv\Scripts\activate.bat" (
         )
     )
 
-    echo  [Setup 3/5] Running database migrations...
+    echo  [Setup 3/5] Starting database and running migrations...
+    sc start com.docker.service >nul 2>&1
+    cd /d "%~dp0"
+    docker compose up -d --remove-orphans
+    echo  Waiting for PostgreSQL to be ready...
+    timeout /t 8 /nobreak >nul
     call "%~dp0backend\.venv\Scripts\activate.bat"
     cd /d "%~dp0backend"
     alembic upgrade head
     if %ERRORLEVEL% neq 0 (
-        echo  [ERROR] Migrations failed. Is PostgreSQL running?
+        echo  [ERROR] Migrations failed. Is Docker running?
         pause & exit /b 1
     )
 
@@ -137,16 +142,14 @@ echo  [3/5] Ollama is running.
 
 :: ── 4. FastAPI Backend ─────────────────────────────────────
 echo  [4/5] Starting FastAPI backend (port 8000)...
-set BACKEND=%~dp0backend
-start "Little Gerry - Backend" cmd /k "cd /d "%BACKEND%" && call .venv\Scripts\activate.bat && uvicorn main:app --host 127.0.0.1 --port 8000"
+start "Little Gerry - Backend" /d "%~dp0backend" cmd /k "call .venv\Scripts\activate.bat && uvicorn main:app --host 127.0.0.1 --port 8000"
 
 :: Give the backend a moment to initialise
 timeout /t 5 /nobreak >nul
 
 :: ── 5. Frontend Dev Server ─────────────────────────────────
 echo  [5/5] Starting frontend dev server (port 5173)...
-set FRONTEND=%~dp0frontend
-start "Little Gerry - Frontend" cmd /k "cd /d "%FRONTEND%" && npm run dev"
+start "Little Gerry - Frontend" /d "%~dp0frontend" cmd /k "npm run dev"
 
 :: Wait for frontend then open browser
 echo.
