@@ -157,6 +157,7 @@ echo  [3/5] Ollama is running.
 
 :: ── 4. FastAPI Backend ─────────────────────────────────────
 echo  [4/5] Starting FastAPI backend (port 8000)...
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":8000 "') do taskkill /f /pid %%a >nul 2>&1
 start "Little Gerry - Backend" /d "%~dp0backend" cmd /k "call .venv\Scripts\activate.bat && uvicorn main:app --host 127.0.0.1 --port 8000"
 
 :: Give the backend a moment to initialise
@@ -164,6 +165,7 @@ timeout /t 5 /nobreak >nul
 
 :: ── 5. Frontend Dev Server ─────────────────────────────────
 echo  [5/5] Starting frontend dev server (port 5173)...
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":5173 "') do taskkill /f /pid %%a >nul 2>&1
 start "Little Gerry - Frontend" /d "%~dp0frontend" cmd /k "npm run dev"
 
 :: Wait for frontend then open browser
