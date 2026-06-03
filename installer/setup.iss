@@ -63,6 +63,10 @@ UninstallDisplayIcon={app}\installer\LittleGerry.ico
 CloseApplications=yes
 RestartIfNeededByRun=yes
 MinVersion=10.0
+; Wipe app dir on reinstall (preserves .venv and node_modules which are large)
+; but removes stale files that would otherwise cause MoveFile conflicts
+CreateUninstallRegKey=yes
+Uninstallable=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -178,6 +182,15 @@ Filename: "cmd.exe"; \
 [UninstallDelete]
 ; Remove the install directory entirely after uninstall
 Type: filesandordirs; Name: "{app}"
+
+; ── Pre-install cleanup (removes stale files before overwrite) ────────────────
+[InstallDelete]
+; Remove old scripts folder so installer can write fresh copies without conflict
+Type: filesandordirs; Name: "{app}\scripts"
+; Remove old root-level bat/py/yml files so they are replaced cleanly
+Type: files; Name: "{app}\*.bat"
+Type: files; Name: "{app}\*.py"
+Type: files; Name: "{app}\*.yml"
 
 ; ── Custom wizard pages ──────────────────────────────────────────────────────
 [Code]

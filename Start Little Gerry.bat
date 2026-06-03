@@ -20,12 +20,11 @@ if not exist "%~dp0backend\.venv\Scripts\activate.bat" (
     echo.
 
     echo  [Setup 1/5] Installing Python dependencies...
-    :: Remove stale/broken .venv if it exists but activate.bat is missing
-    if exist "%~dp0backend\.venv" (
-        rmdir /s /q "%~dp0backend\.venv" 2>nul
-    )
+    :: Force-delete .venv (even if empty/broken) using PowerShell for reliability
+    powershell -Command "if (Test-Path '%~dp0backend\.venv') { Remove-Item '%~dp0backend\.venv' -Recurse -Force }"
     cd /d "%~dp0backend"
-    uv sync
+    :: Explicitly point uv at the known Python 3.14 location
+    uv sync --python "%USERPROFILE%\AppData\Local\Programs\Python\Python314\python.exe"
     if %ERRORLEVEL% neq 0 (
         echo  [ERROR] uv sync failed. Is Python and uv installed?
         pause & exit /b 1
@@ -44,8 +43,8 @@ if not exist "%~dp0backend\.venv\Scripts\activate.bat" (
     docker compose up -d --remove-orphans
     echo  Waiting for PostgreSQL to be ready...
     timeout /t 8 /nobreak >nul
-    call "%~dp0backend\.venv\Scripts\activate.bat"
     cd /d "%~dp0backend"
+    call .venv\Scripts\activate.bat
     alembic upgrade head
     if %ERRORLEVEL% neq 0 (
         echo  [ERROR] Migrations failed. Is Docker running?
