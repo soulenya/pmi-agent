@@ -48,6 +48,9 @@ backend/migrations/versions/*.pyc
 # Tauri build output
 frontend/src-tauri/target/
 
+# Installer output (compiled .exe — distribute separately)
+installer/Output/
+
 # Tauri
 desktop/target/
 desktop/src-tauri/target/
