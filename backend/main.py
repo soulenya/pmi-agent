@@ -8,7 +8,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import logging.handlers
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -33,7 +36,41 @@ from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
-# ── Rate limiter ─────────────────────────────────────────────────────────────
+# ── Persistent file logging ───────────────────────────────────────────────────
+
+def _configure_logging() -> None:
+    log_dir = Path(__file__).parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "app.log"
+
+    fmt = logging.Formatter(
+        "%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # Rotate at 5 MB, keep 5 backups (~25 MB max)
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8"
+    )
+    file_handler.setFormatter(fmt)
+    file_handler.setLevel(logging.WARNING)
+
+    # Also send INFO+ to the console window (existing uvicorn behaviour)
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(fmt)
+    console_handler.setLevel(logging.INFO)
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    # Avoid adding duplicate handlers on reload
+    if not any(isinstance(h, logging.handlers.RotatingFileHandler) for h in root.handlers):
+        root.addHandler(file_handler)
+    if not any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.handlers.RotatingFileHandler) for h in root.handlers):
+        root.addHandler(console_handler)
+
+    logger.info("Logging to %s", log_file)
+
+_configure_logging()
 
 limiter = Limiter(key_func=get_remote_address)
 
