@@ -1,0 +1,291 @@
+"""
+Google Workspace integration service.
+
+Handles OAuth token lifecycle and provides read methods for
+Gmail, Drive, Calendar, and Contacts plus write methods
+(used only after explicit user approval via the proposals API).
+"""
+from __future__ import annotations
+
+import base64
+import email.mime.text
+import threading
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
+from typing import Any
+
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/contacts.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "openid",
+]
+
+_BACKEND = Path(__file__).parent.parent
+CREDS_FILE = _BACKEND / "google_credentials.json"
+TOKEN_FILE  = _BACKEND / "google_token.json"
+
+_auth_status: str = "disconnected"
+_auth_lock = threading.Lock()
+
+
+# ── credential helpers ────────────────────────────────────────────────────
+
+def get_credentials():
+    """Return valid Credentials or None."""
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+
+    if not TOKEN_FILE.exists():
+        return None
+    creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+    if creds and creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+            TOKEN_FILE.write_text(creds.to_json())
+        except Exception:
+            return None
+    return creds if (creds and creds.valid) else None
+
+
+def get_status() -> dict:
+    creds = get_credentials()
+    if creds:
+        # Try to read the stored email from token file
+        import json
+        token_data = json.loads(TOKEN_FILE.read_text())
+        return {
+            "connected": True,
+            "status": "connected",
+            "email": token_data.get("id_token", {}) if isinstance(token_data.get("id_token"), dict) else "",
+        }
+    with _auth_lock:
+        return {"connected": False, "status": _auth_status}
+
+
+def start_auth_flow() -> None:
+    """Kick off InstalledAppFlow in a background thread — opens browser automatically."""
+    global _auth_status
+    with _auth_lock:
+        if _auth_status == "pending":
+            return
+        _auth_status = "pending"
+
+    def _run() -> None:
+        global _auth_status
+        try:
+            from google_auth_oauthlib.flow import InstalledAppFlow
+            flow = InstalledAppFlow.from_client_secrets_file(str(CREDS_FILE), SCOPES)
+            creds = flow.run_local_server(port=0, open_browser=True)
+            TOKEN_FILE.write_text(creds.to_json())
+            with _auth_lock:
+                _auth_status = "connected"
+        except Exception as exc:
+            with _auth_lock:
+                _auth_status = f"error:{exc}"
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def revoke() -> None:
+    global _auth_status
+    if TOKEN_FILE.exists():
+        TOKEN_FILE.unlink()
+    with _auth_lock:
+        _auth_status = "disconnected"
+
+
+def _require_creds():
+    creds = get_credentials()
+    if not creds:
+        raise RuntimeError("Google account not connected. Please authenticate first.")
+    return creds
+
+
+def _build(service: str, version: str):
+    from googleapiclient.discovery import build
+    return build(service, version, credentials=_require_creds())
+
+
+# ── Gmail ─────────────────────────────────────────────────────────────────
+
+def gmail_search(query: str, max_results: int = 10) -> list[dict]:
+    svc = _build("gmail", "v1")
+    resp = svc.users().messages().list(userId="me", q=query, maxResults=max_results).execute()
+    msgs = resp.get("messages", [])
+    out = []
+    for m in msgs:
+        detail = svc.users().messages().get(
+            userId="me", id=m["id"], format="metadata",
+            metadataHeaders=["From", "To", "Subject", "Date"],
+        ).execute()
+        headers = {h["name"]: h["value"] for h in detail.get("payload", {}).get("headers", [])}
+        out.append({
+            "id": m["id"],
+            "from": headers.get("From", ""),
+            "to": headers.get("To", ""),
+            "subject": headers.get("Subject", ""),
+            "date": headers.get("Date", ""),
+            "snippet": detail.get("snippet", ""),
+        })
+    return out
+
+
+def gmail_get_message(message_id: str) -> dict:
+    svc = _build("gmail", "v1")
+    m = svc.users().messages().get(userId="me", id=message_id, format="full").execute()
+    headers = {h["name"]: h["value"] for h in m.get("payload", {}).get("headers", [])}
+    return {
+        "id": message_id,
+        "from": headers.get("From", ""),
+        "to": headers.get("To", ""),
+        "subject": headers.get("Subject", ""),
+        "date": headers.get("Date", ""),
+        "body": _extract_body(m.get("payload", {})),
+    }
+
+
+def _extract_body(payload: dict) -> str:
+    mime = payload.get("mimeType", "")
+    if mime == "text/plain":
+        data = payload.get("body", {}).get("data", "")
+        return base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="ignore")
+    if mime.startswith("multipart/"):
+        for part in payload.get("parts", []):
+            text = _extract_body(part)
+            if text:
+                return text
+    return payload.get("snippet", "")
+
+
+def gmail_send(to: str, subject: str, body: str) -> dict:
+    svc = _build("gmail", "v1")
+    msg = email.mime.text.MIMEText(body)
+    msg["to"] = to
+    msg["subject"] = subject
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    result = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+    return {"message_id": result["id"], "status": "sent"}
+
+
+# ── Drive ─────────────────────────────────────────────────────────────────
+
+def drive_search(query: str, max_results: int = 10) -> list[dict]:
+    svc = _build("drive", "v3")
+    resp = svc.files().list(
+        q=f"fullText contains '{query}' and trashed=false",
+        pageSize=max_results,
+        fields="files(id,name,mimeType,modifiedTime,webViewLink,owners)",
+    ).execute()
+    return [
+        {
+            "id": f["id"],
+            "name": f["name"],
+            "type": f.get("mimeType", ""),
+            "modified": f.get("modifiedTime", ""),
+            "url": f.get("webViewLink", ""),
+            "owner": (f.get("owners") or [{}])[0].get("displayName", ""),
+        }
+        for f in resp.get("files", [])
+    ]
+
+
+def drive_get_content(file_id: str) -> dict:
+    svc = _build("drive", "v3")
+    meta = svc.files().get(fileId=file_id, fields="id,name,mimeType,webViewLink").execute()
+    mime = meta.get("mimeType", "")
+    content = ""
+
+    export_map = {
+        "application/vnd.google-apps.document":     "text/plain",
+        "application/vnd.google-apps.spreadsheet":  "text/csv",
+        "application/vnd.google-apps.presentation": "text/plain",
+    }
+    if mime in export_map:
+        raw = svc.files().export(fileId=file_id, mimeType=export_map[mime]).execute()
+        content = raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw)
+    elif mime.startswith("text/"):
+        raw = svc.files().get_media(fileId=file_id).execute()
+        content = raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw)
+
+    return {
+        "id": file_id,
+        "name": meta.get("name", ""),
+        "type": mime,
+        "url": meta.get("webViewLink", ""),
+        "content": content[:10_000],
+    }
+
+
+# ── Calendar ──────────────────────────────────────────────────────────────
+
+def calendar_events(days_behind: int = 0, days_ahead: int = 7) -> list[dict]:
+    svc = _build("calendar", "v3")
+    now = datetime.now(timezone.utc)
+    resp = svc.events().list(
+        calendarId="primary",
+        timeMin=(now - timedelta(days=days_behind)).isoformat(),
+        timeMax=(now + timedelta(days=days_ahead)).isoformat(),
+        maxResults=50, singleEvents=True, orderBy="startTime",
+    ).execute()
+    out = []
+    for e in resp.get("items", []):
+        start = e.get("start", {})
+        end   = e.get("end", {})
+        out.append({
+            "id": e.get("id", ""),
+            "title": e.get("summary", "(No title)"),
+            "start": start.get("dateTime", start.get("date", "")),
+            "end":   end.get("dateTime", end.get("date", "")),
+            "location": e.get("location", ""),
+            "description": (e.get("description") or "")[:500],
+            "attendees": [a.get("email", "") for a in e.get("attendees", [])],
+            "url": e.get("htmlLink", ""),
+        })
+    return out
+
+
+def calendar_create_event(
+    title: str, start: str, end: str,
+    description: str = "", location: str = "", attendees: list[str] | None = None,
+) -> dict:
+    svc = _build("calendar", "v3")
+    body: dict[str, Any] = {
+        "summary": title,
+        "start": {"dateTime": start, "timeZone": "UTC"},
+        "end":   {"dateTime": end,   "timeZone": "UTC"},
+        "description": description,
+        "location": location,
+        "attendees": [{"email": e} for e in (attendees or [])],
+    }
+    event = svc.events().insert(calendarId="primary", body=body).execute()
+    return {"id": event["id"], "url": event.get("htmlLink", ""), "status": "created"}
+
+
+# ── Contacts ──────────────────────────────────────────────────────────────
+
+def contacts_search(query: str, max_results: int = 10) -> list[dict]:
+    svc = _build("people", "v1")
+    resp = svc.people().searchContacts(
+        query=query,
+        readMask="names,emailAddresses,phoneNumbers,organizations",
+        pageSize=max_results,
+    ).execute()
+    out = []
+    for r in resp.get("results", []):
+        p = r.get("person", {})
+        names  = p.get("names", [])
+        emails = p.get("emailAddresses", [])
+        phones = p.get("phoneNumbers", [])
+        orgs   = p.get("organizations", [])
+        out.append({
+            "name":    names[0].get("displayName", "")  if names  else "",
+            "email":   emails[0].get("value", "")       if emails else "",
+            "phone":   phones[0].get("value", "")       if phones else "",
+            "company": orgs[0].get("name", "")          if orgs   else "",
+        })
+    return out

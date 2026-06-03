@@ -14,7 +14,8 @@ param(
     [switch]$SkipRestart
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
+
 
 if (-not $ProjectRoot) {
     $ProjectRoot = Split-Path $PSScriptRoot -Parent
@@ -42,8 +43,8 @@ Write-Info "Current version : $before"
 
 # ── Pull latest code ──────────────────────────────────────────────────────────
 Write-Step "Step 1 of 4 - Pulling latest code from GitHub"
-& git fetch origin 2>&1 | ForEach-Object { Write-Info $_ }
-& git reset --hard origin/master 2>&1 | ForEach-Object { Write-Info $_ }
+$gitFetch = & git fetch origin 2>&1; $gitFetch | ForEach-Object { Write-Info $_ }
+$gitReset = & git reset --hard origin/master 2>&1; $gitReset | ForEach-Object { Write-Info $_ }
 if ($LASTEXITCODE -ne 0) {
     Write-Fail "git pull failed. Check your internet connection."
     exit 1
@@ -54,20 +55,21 @@ Write-OK "Updated : $before -> $after"
 # ── Update Python dependencies ────────────────────────────────────────────────
 Write-Step "Step 2 of 4 - Updating Python dependencies"
 Set-Location $BackendDir
-& uv sync 2>&1 | ForEach-Object { Write-Info $_ }
+$uvResult = & uv sync 2>&1
+$uvResult | ForEach-Object { Write-Info $_ }
 if ($LASTEXITCODE -ne 0) { Write-Fail "uv sync failed"; exit 1 }
 Write-OK "Python dependencies up to date"
 
 # ── Run database migrations ───────────────────────────────────────────────────
 Write-Step "Step 3 of 4 - Running database migrations"
-& uv run alembic upgrade head 2>&1 | ForEach-Object { Write-Info $_ }
+$alembicResult = & uv run alembic upgrade head 2>&1; $alembicResult | ForEach-Object { Write-Info $_ }
 if ($LASTEXITCODE -ne 0) { Write-Fail "Alembic migrations failed"; exit 1 }
 Write-OK "Database schema up to date"
 
 # ── Update frontend dependencies ──────────────────────────────────────────────
 Write-Step "Step 4 of 4 - Updating frontend dependencies"
 Set-Location $FrontendDir
-& npm install --silent 2>&1 | ForEach-Object { Write-Info $_ }
+$npmResult = & npm install --silent 2>&1; $npmResult | ForEach-Object { Write-Info $_ }
 if ($LASTEXITCODE -ne 0) { Write-Fail "npm install failed"; exit 1 }
 Write-OK "Frontend dependencies up to date"
 
