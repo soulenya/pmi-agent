@@ -232,12 +232,15 @@ def main() -> None:
     import webview
 
     # Build loading-page HTML (inline — no external files needed)
-    logo_uri = LOGO_PATH.as_uri() if LOGO_PATH.exists() else ""
-    logo_tag = (
-        f'<img src="{logo_uri}" '
-        'style="width:150px;height:150px;object-fit:contain;display:block;" />'
-        if logo_uri else ""
-    )
+    # Embed logo as base64 so it works inside inline HTML (file:// is blocked by WebView2)
+    logo_tag = ""
+    if LOGO_PATH.exists():
+        import base64
+        logo_b64 = base64.b64encode(LOGO_PATH.read_bytes()).decode()
+        logo_tag = (
+            f'<img src="data:image/png;base64,{logo_b64}" '
+            'style="width:150px;height:150px;object-fit:contain;display:block;" />'
+        )
     loading_html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
