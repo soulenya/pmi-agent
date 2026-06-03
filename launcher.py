@@ -15,7 +15,6 @@ import threading
 import time
 import traceback
 import urllib.request
-import webbrowser
 from pathlib import Path
 
 ROOT         = Path(__file__).parent
@@ -248,7 +247,7 @@ def _show_splash() -> None:
 
 # ── system tray ──────────────────────────────────────────────────────────────
 
-def _make_tray():
+def _make_tray(win=None):
     from PIL import Image, ImageDraw
     import pystray
 
@@ -259,9 +258,18 @@ def _make_tray():
         ImageDraw.Draw(icon_img).ellipse([8, 8, 56, 56], fill=(200, 200, 200))
 
     def on_open(_icon, _item) -> None:
-        webbrowser.open(APP_URL)
+        if win:
+            try:
+                win.show()
+            except Exception:
+                pass
 
     def on_stop(icon, _item) -> None:
+        if win:
+            try:
+                win.destroy()
+            except Exception:
+                pass
         _stop_all()
         icon.stop()
         os._exit(0)
@@ -281,10 +289,32 @@ def _make_tray():
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
+    import webview
+
     threading.Thread(target=_start_services, daemon=True).start()
     _show_splash()          # blocks until _ready fires
-    webbrowser.open(APP_URL)
-    _make_tray().run()      # blocks until "Stop All Services" clicked
+
+    # Create the native app window (Edge WebView2)
+    win = webview.create_window(
+        "Little Gerry",
+        APP_URL,
+        width=1440,
+        height=900,
+        min_size=(900, 600),
+        background_color="#000000",
+    )
+
+    # Start system tray in background (run_detached doesn't block)
+    icon = _make_tray(win)
+    icon.run_detached(setup=lambda i: setattr(i, "visible", True))
+
+    # Start pywebview — blocks on main thread until the window is closed
+    webview.start(gui="edgechromium", debug=False)
+
+    # Window closed — clean up everything
+    _stop_all()
+    icon.stop()
+    os._exit(0)
 
 
 if __name__ == "__main__":
