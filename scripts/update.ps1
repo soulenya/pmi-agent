@@ -62,6 +62,37 @@ Write-OK "Python dependencies up to date"
 
 # ── Run database migrations ───────────────────────────────────────────────────
 Write-Step "Step 3 of 4 - Running database migrations"
+
+# Ensure Docker service is running
+Write-Info "Ensuring Docker is running..."
+& sc.exe start com.docker.service 2>&1 | Out-Null
+$dockerReady = $false
+for ($i = 0; $i -lt 15; $i++) {
+    $di = & docker info 2>&1
+    if ($LASTEXITCODE -eq 0) { $dockerReady = $true; break }
+    Start-Sleep -Seconds 3
+}
+if (-not $dockerReady) { Write-Fail "Docker did not start in time"; exit 1 }
+
+# Ensure pmi_postgres container is running
+Write-Info "Ensuring PostgreSQL container is running..."
+$containerState = (& docker inspect --format "{{.State.Status}}" pmi_postgres 2>&1)
+if ($containerState -eq "running") {
+    Write-Info "PostgreSQL already running"
+} elseif ($containerState -eq "exited") {
+    & docker start pmi_postgres 2>&1 | Out-Null
+    Start-Sleep -Seconds 4
+} else {
+    Set-Location $ProjectRoot
+    & docker compose up -d --remove-orphans 2>&1 | Out-Null
+    Set-Location $BackendDir
+    Start-Sleep -Seconds 8
+}
+
+# Wait for PostgreSQL to accept connections
+Write-Info "Waiting for PostgreSQL to be ready..."
+Start-Sleep -Seconds 3
+
 $alembicResult = & uv run alembic upgrade head 2>&1; $alembicResult | ForEach-Object { Write-Info $_ }
 if ($LASTEXITCODE -ne 0) { Write-Fail "Alembic migrations failed"; exit 1 }
 Write-OK "Database schema up to date"
