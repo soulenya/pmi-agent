@@ -26,12 +26,14 @@ echo  [2/5] Done.
 
 :: Stop PostgreSQL container
 echo  [3/5] Stopping PostgreSQL...
+docker stop pmi_postgres >nul 2>&1
 docker compose stop >nul 2>&1
 echo  [3/5] Done.
 
 :: Stop Ollama
 echo  [4/5] Stopping Ollama...
 taskkill /f /im ollama.exe >nul 2>&1
+taskkill /f /im "ollama app.exe" >nul 2>&1
 echo  [4/5] Done.
 
 :: Stop Docker engine service
