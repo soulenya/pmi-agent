@@ -90,6 +90,7 @@ Source: "..\README.md";                     DestDir: "{app}"; Flags: ignoreversi
 Source: "..\launcher.py";                   DestDir: "{app}"; Flags: ignoreversion
 Source: "..\Spaceman on Black BG.png";      DestDir: "{app}"; Flags: ignoreversion
 Source: "..\.gitignore";                   DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\backend\google_credentials.json"; DestDir: "{app}\backend"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; Icon — used by installer .exe and all shortcuts
 Source: "LittleGerry.ico";             DestDir: "{app}\installer"; Flags: ignoreversion skipifsourcedoesntexist
