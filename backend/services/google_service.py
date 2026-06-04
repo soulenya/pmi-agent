@@ -149,7 +149,9 @@ def start_auth_flow() -> None:
 
             flow = InstalledAppFlow.from_client_secrets_file(str(CREDS_FILE), SCOPES)
             _log("Flow created, calling run_local_server...")
-            creds = flow.run_local_server(port=0, open_browser=True)
+            # prompt='consent' forces Google to show ALL scopes every time,
+            # bypassing the server-side consent cache from previous partial grants.
+            creds = flow.run_local_server(port=0, open_browser=True, prompt="consent")
             _log("run_local_server returned — writing token")
             TOKEN_FILE.write_text(creds.to_json())
             with _auth_lock:
