@@ -24,15 +24,17 @@ FRONTEND_DIR = ROOT / "frontend"
 LOGO_PATH    = ROOT / "Spaceman on Black BG.png"
 VENV_PYTHON  = BACKEND_DIR / ".venv" / "Scripts" / "python.exe"
 
-HEALTH_URL = "http://127.0.0.1:8000/health"
-APP_URL    = "http://localhost:5173"
-NO_WIN     = subprocess.CREATE_NO_WINDOW
+HEALTH_URL    = "http://127.0.0.1:8000/health"
+APP_URL       = "http://localhost:5173"
+NO_WIN        = subprocess.CREATE_NO_WINDOW
+CONTROL_FILE  = BACKEND_DIR / "logs" / "launcher_cmd.txt"
 
 _procs: list[subprocess.Popen] = []
 _status_text = "Initializing..."
 _status_step = 0
 _ready       = threading.Event()
 _win_ref     = None          # set to webview.Window once created
+_icon_ref    = None          # set to pystray.Icon once created
 _skip_close_confirm = False  # set True by tray "Stop" to skip second dialog
 
 
@@ -183,6 +185,49 @@ def _stop_all() -> None:
     _run("docker stop pmi_postgres")
     _run("taskkill /f /im ollama.exe")
     _run('taskkill /f /im "ollama app.exe"')
+
+
+# ── control-file command handler (called from poll thread) ──────────────────
+
+def _handle_control_cmd(cmd: str) -> None:
+    global _skip_close_confirm
+    if cmd == "restart":
+        threading.Thread(target=_restart_services, daemon=True).start()
+    elif cmd == "stop":
+        _skip_close_confirm = True
+        if _win_ref:
+            try:
+                _win_ref.destroy()
+            except Exception:
+                pass
+        _stop_all()
+        if _icon_ref:
+            try:
+                _icon_ref.stop()
+            except Exception:
+                pass
+        os._exit(0)
+    elif cmd == "update":
+        threading.Thread(target=_do_update, daemon=True).start()
+    elif cmd == "update_restart":
+        threading.Thread(target=_do_update_restart, daemon=True).start()
+
+
+def _poll_control_file() -> None:
+    """Background thread: watches for backend-written commands."""
+    while True:
+        time.sleep(1)
+        try:
+            if CONTROL_FILE.exists():
+                cmd = CONTROL_FILE.read_text(encoding="utf-8").strip()
+                try:
+                    CONTROL_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                if cmd:
+                    _handle_control_cmd(cmd)
+        except Exception:
+            _log_error()
 
 
 # ── restart / update helpers ─────────────────────────────────────────────────
@@ -382,6 +427,9 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
             _log_error()
 
     icon = _make_tray(win)
+    global _icon_ref
+    _icon_ref = icon
+    threading.Thread(target=_poll_control_file, daemon=True).start()
     icon.run_detached(setup=lambda i: setattr(i, "visible", True))
 
     # gui="winforms" is the most stable Windows backend (WinForms + Edge WebView2)

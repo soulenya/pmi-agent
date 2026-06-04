@@ -20,6 +20,7 @@ import {
   Globe,
 } from "lucide-react";
 import { listPendingApprovals, listNotifications } from "@/api/chat";
+import { ServiceMenu } from "@/components/ServiceMenu";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -66,9 +67,12 @@ export function Sidebar() {
   return (
     <nav className="flex w-56 flex-col border-r bg-card py-4">
       {/* Logo */}
-      <div className="px-4 pb-4">
-        <h1 className="text-lg font-bold tracking-tight text-primary">Little Gerry</h1>
-        <p className="text-xs text-muted-foreground">VACTOR Platform</p>
+      <div className="flex items-start justify-between px-4 pb-4">
+        <div>
+          <h1 className="text-lg font-bold tracking-tight text-primary">Little Gerry</h1>
+          <p className="text-xs text-muted-foreground">VACTOR Platform</p>
+        </div>
+        <ServiceMenu />
       </div>
 
       <div className="flex-1 space-y-1 px-2">
