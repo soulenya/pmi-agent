@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 12;
+export const BUILD_NUMBER = 13;
 export const BUILD_DATE = "2026-06-04";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 13,
+    date: "2026-06-04",
+    title: "First-Run Setup Fix",
+    changes: [
+      "First-run setup now waits for Docker Desktop to be fully ready (up to 90s) before starting the database",
+      "Setup now polls PostgreSQL with pg_isready before running migrations — no more timing failures",
+      "Launcher also improved: falls back to launching Docker Desktop.exe if the Windows service fails",
+      "Clear user-facing error messages if Docker doesn't start in time",
+    ],
+  },
   {
     build: 12,
     date: "2026-06-04",

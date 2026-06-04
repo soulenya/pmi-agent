@@ -40,11 +40,56 @@ if not exist "%~dp0backend\.env" (
 )
 
 echo  [Setup 3/5] Starting database and running migrations...
+:: Start Docker Desktop service then wait until the daemon is actually responsive
 sc start com.docker.service >nul 2>&1
+
+echo  Waiting for Docker Desktop to be ready (up to 90s)...
+set DOCKER_READY=0
+for /L %%i in (1,1,30) do (
+    if !DOCKER_READY! equ 0 (
+        docker info >nul 2>&1
+        if !ERRORLEVEL! equ 0 (
+            set DOCKER_READY=1
+            echo  Docker Desktop is ready.
+        ) else (
+            timeout /t 3 /nobreak >nul
+        )
+    )
+)
+if !DOCKER_READY! equ 0 (
+    echo.
+    echo  [ERROR] Docker Desktop did not start in time.
+    echo  Please open Docker Desktop manually, wait for it to show "Engine running",
+    echo  then run "Start Little Gerry.bat" again.
+    echo.
+    pause & exit /b 1
+)
+
 cd /d "%~dp0"
 docker compose up -d --remove-orphans
-echo  Waiting for PostgreSQL to be ready...
-timeout /t 8 /nobreak >nul
+if !ERRORLEVEL! neq 0 (
+    echo  [ERROR] docker compose up failed. Is Docker Desktop running?
+    pause & exit /b 1
+)
+
+echo  Waiting for PostgreSQL to accept connections (up to 60s)...
+set PG_READY=0
+for /L %%i in (1,1,20) do (
+    if !PG_READY! equ 0 (
+        docker exec pmi_postgres pg_isready -U pmi -d pmi_dev >nul 2>&1
+        if !ERRORLEVEL! equ 0 (
+            set PG_READY=1
+            echo  PostgreSQL is ready.
+        ) else (
+            timeout /t 3 /nobreak >nul
+        )
+    )
+)
+if !PG_READY! equ 0 (
+    echo  [ERROR] PostgreSQL did not become ready in time. Check Docker Desktop logs.
+    pause & exit /b 1
+)
+
 cd /d "%~dp0backend"
 call .venv\Scripts\activate.bat
 alembic upgrade head
