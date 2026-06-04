@@ -152,6 +152,7 @@ export function ChatPage() {
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
   // â”€â”€ Conversation list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: conversations = [] } = useQuery({
@@ -257,6 +258,33 @@ export function ChatPage() {
   }, [conversationId, queryClient]);
 
   // â”€â”€ Auto-scroll to bottom â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Fire pendingMessage once conversation + WebSocket are both ready
+  useEffect(() => {
+    if (!pendingMessage || !conversationId) return;
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+    const msg = pendingMessage;
+    setPendingMessage(null);
+    wsRef.current.send(JSON.stringify({ type: 'human', content: msg }));
+    queryClient.setQueryData<Message[]>(
+      ['messages', conversationId],
+      (prev) => [
+        ...(prev ?? []),
+        {
+          id: crypto.randomUUID(),
+          conversation_id: conversationId,
+          role: 'user',
+          content: msg,
+          agent_type: null,
+          model_name: null,
+          cited_chunk_ids: [],
+          tool_calls: null,
+          tool_results: null,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    );
+  }, [pendingMessage, conversationId, wsConnected, queryClient]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingContent, toolActivities]);
@@ -265,7 +293,7 @@ export function ChatPage() {
   const handleSend = useCallback(
     (content: string) => {
       if (!conversationId) {
-        // Create a conversation first, then send
+        // No conversation yet - stash message, then createConvMutation sends it
         createConvMutation.mutate();
         return;
       }
