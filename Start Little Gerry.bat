@@ -53,10 +53,14 @@ if !ERRORLEVEL! neq 0 (
     pause & exit /b 1
 )
 
-echo  [Setup 4/5] Seeding admin user...
-set PMI_ADMIN_EMAIL=admin@precisian.local
-set PMI_ADMIN_PASSWORD=Admin1234!
-set PMI_ADMIN_NAME=PMI Admin
+echo  [Setup 4/5] Creating your admin account...
+    echo.
+    echo  Enter your details for the Little Gerry login:
+    echo.
+    set /p PMI_ADMIN_EMAIL= "  Your company email: "
+    set /p PMI_ADMIN_NAME=  "  Your display name : "
+    set /p PMI_ADMIN_PASSWORD= "  Choose a password  : "
+    echo.
 python scripts\seed_admin.py
 
 echo  [Setup 5/5] Installing frontend dependencies...

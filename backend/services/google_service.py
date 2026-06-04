@@ -79,23 +79,18 @@ def start_auth_flow() -> None:
         global _auth_status
         try:
             import os as _os
-            import socket
+            import webbrowser
             from google_auth_oauthlib.flow import InstalledAppFlow
 
-            # Pick a free port
-            with socket.socket() as s:
-                s.bind(("127.0.0.1", 0))
-                port = s.getsockname()[1]
+            # Patch webbrowser.open to use os.startfile so it works from
+            # pythonw.exe (no console) on Windows — os.startfile always opens
+            # the default browser regardless of how the process was launched.
+            webbrowser.open = lambda url, *a, **kw: bool(_os.startfile(url)) or True
 
             flow = InstalledAppFlow.from_client_secrets_file(str(CREDS_FILE), SCOPES)
-
-            # Build the auth URL and open it via os.startfile (works from pythonw.exe)
-            flow.redirect_uri = f"http://localhost:{port}"
-            auth_url, _ = flow.authorization_url(prompt="consent")
-            _os.startfile(auth_url)
-
-            # Now block waiting for the callback
-            creds = flow.run_local_server(port=port, open_browser=False)
+            # Let run_local_server handle redirect_uri internally; our patched
+            # webbrowser.open will fire os.startfile when it tries to open the browser.
+            creds = flow.run_local_server(port=0, open_browser=True)
             TOKEN_FILE.write_text(creds.to_json())
             with _auth_lock:
                 _auth_status = "connected"
