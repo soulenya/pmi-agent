@@ -105,18 +105,15 @@ def _start_services() -> None:
                 if _run("docker info").returncode == 0:
                     break
 
-        # 2. PostgreSQL
+        # 2. PostgreSQL — always use compose so the container is recreated if deleted
         _set_status("Starting PostgreSQL...", 2)
-        r     = _run('docker inspect --format "{{.State.Status}}" pmi_postgres')
-        state = r.stdout.decode(errors="ignore").strip().strip('"')
-        if state == "running":
-            pass
-        elif state == "exited":
-            _run("docker start pmi_postgres")
+        _run("docker compose up -d", cwd=str(ROOT))
+        # Wait up to 30 s for postgres to accept connections
+        for _ in range(10):
+            chk = _run("docker exec pmi_postgres pg_isready -U pmi -d pmi_dev")
+            if chk.returncode == 0:
+                break
             time.sleep(3)
-        else:
-            _run("docker compose up -d --remove-orphans", cwd=str(ROOT))
-            time.sleep(8)
 
         # 3. Ollama
         _set_status("Starting Ollama...", 3)
@@ -132,12 +129,14 @@ def _start_services() -> None:
         _set_status("Starting backend...", 4)
         _kill_port(8000)
         time.sleep(0.5)
+        (BACKEND_DIR / "logs").mkdir(exist_ok=True)
+        _backend_log = open(BACKEND_DIR / "logs" / "backend_stderr.log", "w", encoding="utf-8")
         _procs.append(subprocess.Popen(
             [str(VENV_PYTHON), "-m", "uvicorn", "main:app",
              "--host", "127.0.0.1", "--port", "8000"],
             cwd=str(BACKEND_DIR),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=_backend_log,
+            stderr=_backend_log,
             creationflags=NO_WIN,
         ))
 
