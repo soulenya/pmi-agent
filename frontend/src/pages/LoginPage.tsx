@@ -4,12 +4,16 @@ import { login } from "@/api/auth";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 
+const SAVED_EMAIL_KEY = "pmi-remembered-email";
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { setTokens, setUser } = useAuthStore();
 
-  const [email, setEmail] = useState("");
+  const savedEmail = localStorage.getItem(SAVED_EMAIL_KEY) ?? "";
+  const [email, setEmail] = useState(savedEmail);
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(savedEmail !== "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -19,6 +23,11 @@ export function LoginPage() {
     setLoading(true);
     try {
       const data = await login(email, password);
+      if (remember) {
+        localStorage.setItem(SAVED_EMAIL_KEY, email);
+      } else {
+        localStorage.removeItem(SAVED_EMAIL_KEY);
+      }
       setTokens(data.access_token, data.refresh_token);
       setUser(data.user);
       navigate("/");
@@ -69,6 +78,19 @@ export function LoginPage() {
           {error && (
             <p className="text-sm text-destructive">{error}</p>
           )}
+
+          <div className="flex items-center gap-2">
+            <input
+              id="remember"
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="h-4 w-4 rounded border accent-primary"
+            />
+            <label htmlFor="remember" className="text-sm text-muted-foreground select-none cursor-pointer">
+              Remember my email
+            </label>
+          </div>
 
           <button
             type="submit"
