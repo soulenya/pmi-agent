@@ -60,6 +60,11 @@ export async function resolveApproval(
   return resp.data;
 }
 
+export async function clearExpiredApprovals(): Promise<{ deleted: number }> {
+  const resp = await apiClient.delete<{ deleted: number }>("/approvals/expired");
+  return resp.data;
+}
+
 // ── Notifications ─────────────────────────────────────────────────────────────
 
 export async function listNotifications(): Promise<Notification[]> {

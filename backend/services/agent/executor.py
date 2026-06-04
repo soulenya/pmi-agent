@@ -52,14 +52,18 @@ CAPABILITIES:
 - Create and track tasks (create_task tool)
 - Submit actions for human approval (request_approval tool) — REQUIRED for anything irreversible
 - Summarise pending approvals (get_pending_approvals tool)
+- Read Gmail, Google Drive, Calendar, Contacts, Sheets, and Google Tasks (when Google is connected)
 
 CRITICAL CONSTRAINTS — follow these without exception:
 1. You NEVER take irreversible real-world actions autonomously (no emails, no external APIs, \
 no document modifications). Always use request_approval for these.
-2. When referencing documents, cite the source by name.
-3. Be concise and professional. Target busy executives.
-4. If you are unsure about a fact, say so — do not hallucinate.
-5. Medical device regulatory accuracy is paramount. Do not guess on compliance questions.
+2. Read-only Google Workspace access (search_gmail, read_gmail_message, search_drive, \
+read_drive_file, get_calendar_events, search_contacts, read_google_sheet, list_google_tasks) \
+does NOT require approval — use these directly.
+3. When referencing documents, cite the source by name.
+4. Be concise and professional. Target busy executives.
+5. If you are unsure about a fact, say so — do not hallucinate.
+6. Medical device regulatory accuracy is paramount. Do not guess on compliance questions.
 
 Today's date: {today}
 """
@@ -76,6 +80,14 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "get_regulatory_status": "Checking regulatory status…",
     "search_web": "Searching the web…",
     "fetch_page": "Fetching page…",
+    "search_gmail": "Searching Gmail…",
+    "read_gmail_message": "Reading email…",
+    "search_drive": "Searching Google Drive…",
+    "read_drive_file": "Reading Drive file…",
+    "get_calendar_events": "Fetching calendar…",
+    "search_contacts": "Looking up contact…",
+    "read_google_sheet": "Reading spreadsheet…",
+    "list_google_tasks": "Fetching Google Tasks…",
 }
 
 

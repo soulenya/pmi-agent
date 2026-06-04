@@ -21,6 +21,9 @@ SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/contacts.readonly",
+    "https://www.googleapis.com/auth/spreadsheets.readonly",
+    "https://www.googleapis.com/auth/documents.readonly",
+    "https://www.googleapis.com/auth/tasks.readonly",
     "https://www.googleapis.com/auth/userinfo.email",
     "openid",
 ]
@@ -358,4 +361,65 @@ def contacts_search(query: str, max_results: int = 10) -> list[dict]:
             "phone":   phones[0].get("value", "")       if phones else "",
             "company": orgs[0].get("name", "")          if orgs   else "",
         })
+    return out
+
+
+# ── Sheets ────────────────────────────────────────────────────────────────
+
+def sheets_read(spreadsheet_id: str, range_: str = "Sheet1") -> dict:
+    """Read values from a Google Sheet range (e.g. 'Sheet1!A1:Z100')."""
+    svc = _build("sheets", "v4")
+    result = svc.spreadsheets().values().get(
+        spreadsheetId=spreadsheet_id,
+        range=range_,
+    ).execute()
+    rows = result.get("values", [])
+    return {
+        "spreadsheet_id": spreadsheet_id,
+        "range": result.get("range", range_),
+        "rows": rows,
+        "row_count": len(rows),
+    }
+
+
+def sheets_get_metadata(spreadsheet_id: str) -> dict:
+    """Get sheet names and basic metadata for a spreadsheet."""
+    svc = _build("sheets", "v4")
+    meta = svc.spreadsheets().get(
+        spreadsheetId=spreadsheet_id,
+        fields="spreadsheetId,properties.title,sheets.properties",
+    ).execute()
+    return {
+        "id": meta.get("spreadsheetId", ""),
+        "title": meta.get("properties", {}).get("title", ""),
+        "sheets": [
+            s["properties"]["title"]
+            for s in meta.get("sheets", [])
+        ],
+    }
+
+
+# ── Tasks ─────────────────────────────────────────────────────────────────
+
+def tasks_list(max_results: int = 25, show_completed: bool = False) -> list[dict]:
+    """List tasks across all Google Task lists (default: incomplete only)."""
+    svc = _build("tasks", "v1")
+    lists_resp = svc.tasklists().list(maxResults=10).execute()
+    out: list[dict] = []
+    for lst in lists_resp.get("items", []):
+        tasks_resp = svc.tasks().list(
+            tasklist=lst["id"],
+            maxResults=max_results,
+            showCompleted=show_completed,
+            showHidden=False,
+        ).execute()
+        for t in tasks_resp.get("items", []):
+            out.append({
+                "id": t["id"],
+                "title": t.get("title", ""),
+                "list": lst.get("title", ""),
+                "due": t.get("due", ""),
+                "notes": t.get("notes", ""),
+                "status": t.get("status", ""),
+            })
     return out

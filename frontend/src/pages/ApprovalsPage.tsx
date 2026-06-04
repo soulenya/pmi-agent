@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listPendingApprovals, resolveApproval } from "@/api/chat";
+import { listPendingApprovals, resolveApproval, clearExpiredApprovals } from "@/api/chat";
 import type { ApprovalIntent } from "@/types/chat";
-import { ShieldCheck, ShieldX, Clock } from "lucide-react";
+import { ShieldCheck, ShieldX, Clock, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -141,13 +141,36 @@ export function ApprovalsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["approvals"] }),
   });
 
+  const clearExpiredMutation = useMutation({
+    mutationFn: clearExpiredApprovals,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["approvals"] }),
+  });
+
+  const expiredCount = pending.filter(
+    (a) => a.expires_at && new Date(a.expires_at) < new Date()
+  ).length;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Pending Approvals</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Actions requested by the AI that require your explicit sign-off.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Pending Approvals</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Actions requested by the AI that require your explicit sign-off.
+          </p>
+        </div>
+        {expiredCount > 0 && (
+          <button
+            onClick={() => clearExpiredMutation.mutate()}
+            disabled={clearExpiredMutation.isPending}
+            className="flex shrink-0 items-center gap-1.5 rounded-md border border-destructive/40 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-50"
+          >
+            <Trash2 className="h-4 w-4" />
+            {clearExpiredMutation.isPending
+              ? "Clearing…"
+              : `Clear ${expiredCount} expired`}
+          </button>
+        )}
       </div>
 
       {isLoading && (
