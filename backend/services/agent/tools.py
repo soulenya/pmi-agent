@@ -49,9 +49,10 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "search_knowledge_base",
             "description": (
-                "Search the PMI knowledge base (uploaded documents) using semantic similarity. "
-                "Use this whenever the user asks about PMI documents, VACTOR specs, "
-                "regulatory submissions, protocols, or any internal knowledge."
+                "ONLY call this when the user explicitly asks about a specific PMI document, "
+                "VACTOR specification, regulatory submission, protocol, or internal company "
+                "knowledge that you cannot answer from general knowledge. "
+                "Do NOT call for general questions, greetings, or things you already know."
             ),
             "parameters": {
                 "type": "object",
@@ -214,8 +215,9 @@ TOOL_DEFINITIONS: list[dict] = [
             "name": "search_web",
             "description": (
                 "Search the internet using DuckDuckGo for current information, news, "
-                "regulatory guidance, competitor research, or any topic not found in the "
-                "internal knowledge base. Always cite the URLs you reference."
+                "ONLY call this when the user explicitly asks to search the internet or look up "
+                "current information online. Do NOT call for questions you can answer directly. "
+                "Always cite the URLs you reference."
             ),
             "parameters": {
                 "type": "object",
@@ -254,16 +256,15 @@ TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
-    # ── Google Workspace tools (read-only — no approval required) ────────────
+    # ── Google Workspace tools (read-only — only call when user explicitly asks) ─
     {
         "type": "function",
         "function": {
             "name": "search_gmail",
             "description": (
-                "Search Gmail inbox using Gmail search syntax "
-                "(e.g. 'from:alice subject:VACTOR is:unread'). "
-                "Returns matching email summaries. "
-                "Only available when Google account is connected."
+                "ONLY call this when the user explicitly asks to search, check, or find emails "
+                "in their Gmail inbox. Do NOT call for general conversation or greetings. "
+                "Uses Gmail search syntax (e.g. 'from:alice subject:VACTOR is:unread')."
             ),
             "parameters": {
                 "type": "object",
@@ -288,7 +289,7 @@ TOOL_DEFINITIONS: list[dict] = [
             "name": "read_gmail_message",
             "description": (
                 "Read the full body of a Gmail message by its ID. "
-                "Use after search_gmail to get the complete email text."
+                "Only call after search_gmail has returned results and the user wants to read a specific email."
             ),
             "parameters": {
                 "type": "object",
@@ -307,9 +308,8 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "search_drive",
             "description": (
-                "Search Google Drive for files by keyword. "
-                "Returns file names, types, modified dates, and links. "
-                "Only available when Google account is connected."
+                "ONLY call this when the user explicitly asks to find or search for files "
+                "in their Google Drive. Do NOT call for general conversation."
             ),
             "parameters": {
                 "type": "object",
@@ -334,9 +334,8 @@ TOOL_DEFINITIONS: list[dict] = [
             "name": "read_drive_file",
             "description": (
                 "Read the text content of a Google Drive file by its ID. "
-                "Works for Docs (exported as plain text), Sheets (exported as CSV), "
-                "Slides (exported as plain text), and plain text files. "
-                "Use after search_drive to retrieve full content."
+                "Only call when the user explicitly asks to open or read a specific Drive file. "
+                "Works for Docs, Sheets (as CSV), Slides, and plain text files."
             ),
             "parameters": {
                 "type": "object",
@@ -355,9 +354,9 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "get_calendar_events",
             "description": (
-                "Retrieve Google Calendar events for a date window. "
-                "Use to check schedule, upcoming meetings, or deadlines. "
-                "Only available when Google account is connected."
+                "ONLY call this when the user explicitly asks to check their calendar, "
+                "see upcoming meetings, or asks what is scheduled. "
+                "Do NOT call proactively or for general greetings."
             ),
             "parameters": {
                 "type": "object",
@@ -382,9 +381,8 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "search_contacts",
             "description": (
-                "Search Google Contacts by name, email, or company. "
-                "Returns contact details (name, email, phone, organization). "
-                "Only available when Google account is connected."
+                "ONLY call this when the user explicitly asks to look up a person's "
+                "contact details (email, phone, company) in Google Contacts."
             ),
             "parameters": {
                 "type": "object",
@@ -403,9 +401,9 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "read_google_sheet",
             "description": (
-                "Read data from a Google Sheets spreadsheet. "
-                "Provide the spreadsheet ID (from the URL) and optionally a range like 'Sheet1!A1:Z50'. "
-                "Only available when Google account is connected."
+                "ONLY call this when the user explicitly provides a spreadsheet ID or asks "
+                "to read data from a specific Google Sheet. "
+                "Requires a spreadsheet ID (found in the URL between /d/ and /edit)."
             ),
             "parameters": {
                 "type": "object",
@@ -429,9 +427,9 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "list_google_tasks",
             "description": (
-                "List incomplete tasks from Google Tasks. "
-                "Shows tasks across all task lists with due dates and notes. "
-                "Only available when Google account is connected."
+                "ONLY call this when the user explicitly asks to see their Google Tasks "
+                "or tasks from Google Workspace. Do NOT call for PMI internal tasks — "
+                "use get_tasks for those."
             ),
             "parameters": {
                 "type": "object",
