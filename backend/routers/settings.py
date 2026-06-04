@@ -225,6 +225,25 @@ async def test_connection(
     return TestConnectionResponse(ok=False, message="Unknown provider.")
 
 
+@router.get("/ollama-models")
+async def list_ollama_models(
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """Return the list of locally installed Ollama models."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get("http://localhost:11434/api/tags")
+            resp.raise_for_status()
+            data = resp.json()
+            names = [m["name"] for m in data.get("models", [])]
+            # Filter out embedding-only models from the chat model list
+            chat_models = [n for n in names if "embed" not in n.lower()]
+            return {"models": chat_models}
+    except Exception:
+        return {"models": []}
+
+
 @router.get("/me", response_model=UserOut)
 async def get_my_profile(
     current_user: User = Depends(get_current_user),

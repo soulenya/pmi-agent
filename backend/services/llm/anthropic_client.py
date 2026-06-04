@@ -15,7 +15,7 @@ from services.llm.ollama import StreamChunk
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "claude-3-5-haiku-latest"
+DEFAULT_MODEL = "claude-sonnet-4-5"
 MAX_TOKENS = 4096
 
 

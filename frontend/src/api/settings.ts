@@ -98,3 +98,8 @@ export async function applyUpdate(): Promise<UpdateResult> {
   const resp = await apiClient.post<UpdateResult>("/update/apply");
   return resp.data;
 }
+
+export async function getOllamaModels(): Promise<string[]> {
+  const resp = await apiClient.get<{ models: string[] }>("/settings/ollama-models");
+  return resp.data.models;
+}
