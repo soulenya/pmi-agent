@@ -185,6 +185,55 @@ def _stop_all() -> None:
     _run('taskkill /f /im "ollama app.exe"')
 
 
+# ── restart / update helpers ─────────────────────────────────────────────────
+
+def _restart_services() -> None:
+    """Stop everything (except the window) and bring services back up."""
+    _set_status("Restarting — stopping services...", 0)
+    for p in _procs:
+        try:
+            p.terminate()
+        except Exception:
+            pass
+    _procs.clear()
+    _kill_port(8000)
+    _kill_port(5173)
+    _run("docker stop pmi_postgres")
+    time.sleep(1)
+    _start_services()
+
+
+def _do_update() -> None:
+    """Pull latest code from GitHub. Does not restart services."""
+    _set_status("Updating — pulling latest code...", 0)
+    try:
+        result = _run("git pull --ff-only", cwd=str(ROOT))
+        msg = result.stdout.decode(errors="ignore").strip() or "Already up to date."
+        _set_status(f"Update complete: {msg[:60]}", 0)
+    except Exception:
+        _log_error()
+        _set_status("Update failed — see logs/launcher.log", -1)
+    time.sleep(3)
+    # Clear the splash text (app is still running)
+    _set_status("", 0)
+
+
+def _do_update_restart() -> None:
+    """Pull latest code then restart all services."""
+    _set_status("Updating — pulling latest code...", 0)
+    try:
+        result = _run("git pull --ff-only", cwd=str(ROOT))
+        msg = result.stdout.decode(errors="ignore").strip() or "Already up to date."
+        _set_status(f"Update pulled: {msg[:60]}", 0)
+        time.sleep(1)
+    except Exception:
+        _log_error()
+        _set_status("Update failed — see logs/launcher.log", -1)
+        time.sleep(3)
+        return
+    _restart_services()
+
+
 # ── system tray ──────────────────────────────────────────────────────────────
 
 def _make_tray(win=None):
@@ -216,12 +265,28 @@ def _make_tray(win=None):
         icon.stop()
         os._exit(0)
 
+    def on_restart(_icon, _item) -> None:
+        """Stop all services, then restart them without closing the window."""
+        threading.Thread(target=_restart_services, daemon=True).start()
+
+    def on_update(_icon, _item) -> None:
+        """Pull latest code from GitHub (no restart)."""
+        threading.Thread(target=_do_update, daemon=True).start()
+
+    def on_update_restart(_icon, _item) -> None:
+        """Pull latest code then restart all services."""
+        threading.Thread(target=_do_update_restart, daemon=True).start()
+
     return pystray.Icon(
         "LittleGerry", icon_img, "Little Gerry",
         pystray.Menu(
             pystray.MenuItem("Little Gerry", None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Open App", on_open, default=True),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Restart Services", on_restart),
+            pystray.MenuItem("Update", on_update),
+            pystray.MenuItem("Update & Restart", on_update_restart),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Stop All Services", on_stop),
         ),
