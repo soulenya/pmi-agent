@@ -143,8 +143,10 @@ class OllamaClient:
                 "parameters": {"type": "object", "properties": {}, "required": []},
             }}],
         }
+        # Limit to 1 token so the probe returns in < 1s regardless of model size
+        payload["options"] = {"num_predict": 1}
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(15.0)) as client:
                 resp = await client.post(f"{self._base_url}/api/chat", json=payload)
                 supported = resp.status_code == 200
         except Exception:
@@ -207,31 +209,31 @@ class OllamaClient:
                     eval_count = data.get("eval_count", 0)
 
                     if use_prompt_tools:
-                        # Accumulate content; parse tool tags only on done
+                        # Accumulate content for tool-call parsing
                         full_content += content
-                        if done:
-                            clean, parsed_calls = _parse_text_tool_calls(full_content)
-                            if parsed_calls:
-                                # Yield clean content first (if any), then tool calls
-                                if clean:
-                                    yield StreamChunk(content=clean, model=data.get("model", self._model))
-                                yield StreamChunk(
-                                    tool_calls=parsed_calls,
-                                    done=True,
-                                    model=data.get("model", self._model),
-                                    input_tokens=prompt_eval,
-                                    output_tokens=eval_count,
-                                )
-                            else:
-                                yield StreamChunk(
-                                    content=full_content,
-                                    done=True,
-                                    model=data.get("model", self._model),
-                                    input_tokens=prompt_eval,
-                                    output_tokens=eval_count,
-                                )
-                        # Don't stream tokens when waiting for tool-call parse
-                        continue
+                        if not done:
+                            # Stream tokens immediately so the frontend stays alive
+                            if content:
+                                yield StreamChunk(content=content, model=data.get("model", self._model))
+                            continue
+                        # done=True: parse the full response for tool calls
+                        clean, parsed_calls = _parse_text_tool_calls(full_content)
+                        if parsed_calls:
+                            yield StreamChunk(
+                                tool_calls=parsed_calls,
+                                done=True,
+                                model=data.get("model", self._model),
+                                input_tokens=prompt_eval,
+                                output_tokens=eval_count,
+                            )
+                        else:
+                            yield StreamChunk(
+                                done=True,
+                                model=data.get("model", self._model),
+                                input_tokens=prompt_eval,
+                                output_tokens=eval_count,
+                            )
+                        break
 
                     yield StreamChunk(
                         content=content,
