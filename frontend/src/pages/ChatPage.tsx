@@ -270,7 +270,7 @@ export function ChatPage() {
         return;
       }
       if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(content);
+        wsRef.current.send(JSON.stringify({ type: "human", content }));
 
         // Optimistically add user message to the list
         const optimistic: Message = {
