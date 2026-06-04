@@ -30,7 +30,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # ── Google SSO ────────────────────────────────────────────────────────────────
 
 _ALLOWED_DOMAINS = {"pmi-llc.com", "precisianmedical.com"}
-_SSO_SCOPES = ["openid", "email", "profile"]
+_SSO_SCOPES = [
+    "openid",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+]
 _CREDS_FILE = Path(__file__).parent.parent / "google_credentials.json"
 
 # In-memory store keyed by auth_id (UUID string):

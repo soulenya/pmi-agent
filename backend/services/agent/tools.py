@@ -308,8 +308,9 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "search_drive",
             "description": (
-                "ONLY call this when the user explicitly asks to find or search for files "
-                "in their Google Drive. Do NOT call for general conversation."
+                "Search for files in Google Drive by keyword. Use this when the user wants to "
+                "find a specific file or search across file content. "
+                "To list or browse folders, use list_drive_folder instead."
             ),
             "parameters": {
                 "type": "object",
@@ -325,6 +326,34 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_drive_folder",
+            "description": (
+                "List the contents (files and sub-folders) of a Google Drive folder. "
+                "Use this when the user asks to list, browse, or see what is in a Drive folder. "
+                "Call with no folder_id (or folder_id='root') to list the top-level My Drive. "
+                "Use a folder ID from a previous list_drive_folder result to browse deeper."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Drive folder ID to list. Use 'root' for the top level. Default is 'root'.",
+                        "default": "root",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Max items to return (1–50). Default 50.",
+                        "default": 50,
+                    },
+                },
+                "required": [],
             },
         },
     },
@@ -774,6 +803,28 @@ async def execute_search_drive(ctx: ToolContext, args: dict[str, Any]) -> str:
     return "\n\n".join(lines)
 
 
+async def execute_list_drive_folder(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import drive_list_folder, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    folder_id = str(args.get("folder_id", "root")).strip() or "root"
+    max_results = min(int(args.get("max_results", 50)), 50)
+    try:
+        items = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_list_folder(folder_id, max_results)
+        )
+    except Exception as exc:
+        return f"Drive folder listing failed: {exc}"
+    if not items:
+        return f"Folder '{folder_id}' is empty or does not exist."
+    lines = [f"Contents of Drive folder '{folder_id}' ({len(items)} items):\n"]
+    for item in items:
+        kind = "[FOLDER]" if item["type"] == "folder" else "[FILE]"
+        lines.append(f"{kind} {item['name']}\n  ID: {item['id']}\n  URL: {item['url']}")
+    return "\n\n".join(lines)
+
+
 async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
     from services.google_service import drive_get_content, get_credentials
@@ -915,6 +966,7 @@ TOOL_EXECUTORS = {
     "search_gmail": execute_search_gmail,
     "read_gmail_message": execute_read_gmail_message,
     "search_drive": execute_search_drive,
+    "list_drive_folder": execute_list_drive_folder,
     "read_drive_file": execute_read_drive_file,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,

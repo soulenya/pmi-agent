@@ -269,6 +269,29 @@ def drive_search(query: str, max_results: int = 10) -> list[dict]:
     ]
 
 
+def drive_list_folder(folder_id: str = "root", max_results: int = 50) -> list[dict]:
+    """List the direct children (files and folders) of a Drive folder."""
+    svc = _build("drive", "v3")
+    resp = svc.files().list(
+        q=f"'{folder_id}' in parents and trashed=false",
+        pageSize=max_results,
+        orderBy="folder,name",
+        fields="files(id,name,mimeType,modifiedTime,webViewLink)",
+    ).execute()
+    items = []
+    for f in resp.get("files", []):
+        mime = f.get("mimeType", "")
+        is_folder = mime == "application/vnd.google-apps.folder"
+        items.append({
+            "id": f["id"],
+            "name": f["name"],
+            "type": "folder" if is_folder else mime,
+            "modified": f.get("modifiedTime", ""),
+            "url": f.get("webViewLink", ""),
+        })
+    return items
+
+
 def drive_get_content(file_id: str) -> dict:
     svc = _build("drive", "v3")
     meta = svc.files().get(fileId=file_id, fields="id,name,mimeType,webViewLink").execute()
