@@ -139,7 +139,6 @@ async def _notification_loop() -> None:
 async def lifespan(app: FastAPI):
     # Verify DB connectivity at startup — retry for up to 30 s so the backend
     # survives a slow Docker/PostgreSQL start after a restart or update.
-    import time as _time
     for _attempt in range(10):
         try:
             async with engine.begin() as conn:
