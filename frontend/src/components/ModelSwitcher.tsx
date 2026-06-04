@@ -9,33 +9,18 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BrainCircuit, ChevronDown, Check, KeyRound, Loader2, AlertCircle } from "lucide-react";
-import { getSettings, updateSettings } from "@/api/settings";
+import { getSettings, updateSettings, getOllamaModels, getAnthropicModels } from "@/api/settings";
 import type { AppSettings } from "@/api/settings";
 import { cn } from "@/lib/utils";
 
-// ── Model catalogue ───────────────────────────────────────────────────────────
+// ── Static OpenAI list (no unauthenticated listing endpoint) ─────────────────
 
-const PROVIDER_MODELS: Record<string, { id: string; label: string; note?: string }[]> = {
-  openai: [
-    { id: "gpt-4o",            label: "GPT-4o",            note: "Most capable" },
-    { id: "gpt-4o-mini",       label: "GPT-4o mini",       note: "Fast & cheap" },
-    { id: "gpt-4-turbo",       label: "GPT-4 Turbo" },
-    { id: "o3-mini",           label: "o3-mini",            note: "Reasoning" },
-  ],
-  anthropic: [
-    { id: "claude-opus-4-5",              label: "Claude Opus 4.5",     note: "Most capable" },
-    { id: "claude-sonnet-4-5",            label: "Claude Sonnet 4.5",   note: "Balanced" },
-    { id: "claude-3-5-haiku-latest",      label: "Claude Haiku 3.5",    note: "Fast & cheap" },
-  ],
-  ollama: [
-    { id: "llama3.2",         label: "Llama 3.2",          note: "Default local" },
-    { id: "llama3.1",         label: "Llama 3.1" },
-    { id: "mistral",          label: "Mistral 7B" },
-    { id: "gemma3",           label: "Gemma 3" },
-    { id: "phi4",             label: "Phi-4" },
-    { id: "deepseek-r1",      label: "DeepSeek-R1",        note: "Reasoning" },
-  ],
-};
+const OPENAI_MODELS = [
+  { id: "gpt-4o",      label: "GPT-4o",       note: "Most capable" },
+  { id: "gpt-4o-mini", label: "GPT-4o mini",  note: "Fast & cheap" },
+  { id: "o3",          label: "o3",            note: "Reasoning" },
+  { id: "o4-mini",     label: "o4-mini",       note: "Fast reasoning" },
+];
 
 const PROVIDER_LABELS: Record<string, string> = {
   ollama: "Ollama",
@@ -47,9 +32,7 @@ const PROVIDER_ORDER = ["openai", "anthropic", "ollama"] as const;
 
 function providerLabel(provider: string, model: string): string {
   const short = PROVIDER_LABELS[provider] ?? provider;
-  const found = PROVIDER_MODELS[provider]?.find((m) => m.id === model);
-  const modelLabel = found?.label ?? model;
-  return `${short} · ${modelLabel}`;
+  return `${short} · ${model}`;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -67,6 +50,26 @@ export function ModelSwitcher() {
     queryFn: getSettings,
     staleTime: 30_000,
   });
+
+  const { data: ollamaModels = [] } = useQuery({
+    queryKey: ["ollama-models"],
+    queryFn: getOllamaModels,
+    enabled: open && activeTab === "ollama",
+    staleTime: 30_000,
+  });
+
+  const { data: anthropicModels = [] } = useQuery({
+    queryKey: ["anthropic-models"],
+    queryFn: getAnthropicModels,
+    enabled: open && activeTab === "anthropic",
+    staleTime: 60_000,
+  });
+
+  // Build the model list for the current tab
+  const tabModels: { id: string; label: string; note?: string }[] =
+    activeTab === "openai" ? OPENAI_MODELS :
+    activeTab === "anthropic" ? anthropicModels.map((id) => ({ id, label: id })) :
+    ollamaModels.map((id) => ({ id, label: id }));
 
   const mutation = useMutation({
     mutationFn: updateSettings,
@@ -220,7 +223,10 @@ export function ModelSwitcher() {
             )}
 
             {/* Model list */}
-            {(PROVIDER_MODELS[activeTab] ?? []).map((m) => {
+            {tabModels.length === 0 && activeTab === "ollama" && (
+              <p className="px-3 py-2 text-xs text-muted-foreground">No local models found. Pull one with: ollama pull &lt;model&gt;</p>
+            )}
+            {tabModels.map((m) => {
               const isActive = settings.llm_provider === activeTab && settings.llm_model === m.id;
               return (
                 <button
