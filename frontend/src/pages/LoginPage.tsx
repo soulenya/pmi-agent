@@ -1,10 +1,27 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { login } from "@/api/auth";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 
 const SAVED_EMAIL_KEY = "pmi-remembered-email";
+
+function classifyError(err: unknown): string {
+  if (!axios.isAxiosError(err)) return "Something went wrong — please try again.";
+  if (!err.response) {
+    // No response = backend not reachable (still starting up after restart/update)
+    return "Backend is not ready yet — please wait a moment and try again.";
+  }
+  const status = err.response.status;
+  if (status === 401 || status === 403 || status === 422) {
+    return "Invalid email or password.";
+  }
+  if (status >= 500) {
+    return "Server error — the backend may still be starting up. Please wait a moment and try again.";
+  }
+  return "Login failed — please try again.";
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -31,8 +48,8 @@ export function LoginPage() {
       setTokens(data.access_token, data.refresh_token);
       setUser(data.user);
       navigate("/");
-    } catch {
-      setError("Invalid email or password.");
+    } catch (err) {
+      setError(classifyError(err));
     } finally {
       setLoading(false);
     }
