@@ -40,8 +40,13 @@ if not exist "%~dp0backend\.env" (
 )
 
 echo  [Setup 3/5] Starting database and running migrations...
-:: Start Docker Desktop service then wait until the daemon is actually responsive
+:: Try to start Docker — first via the Windows service, then by launching Docker Desktop.exe directly
 sc start com.docker.service >nul 2>&1
+docker info >nul 2>&1
+if !ERRORLEVEL! neq 0 (
+    echo  Launching Docker Desktop...
+    start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+)
 
 echo  Waiting for Docker Desktop to be ready (up to 90s)...
 set DOCKER_READY=0

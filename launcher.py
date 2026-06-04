@@ -99,22 +99,15 @@ def _start_services() -> None:
         _set_status("Checking Docker...", 1)
         if _run("docker info").returncode != 0:
             _set_status("Starting Docker...", 1)
-            # Try the Windows service first, then fall back to launching Desktop.exe
+            # Try Windows service (harmless if it fails) and launch Desktop.exe simultaneously
             _run("sc start com.docker.service")
+            desktop_exe = r"C:\Program Files\Docker\Docker\Docker Desktop.exe"
+            if Path(desktop_exe).exists():
+                subprocess.Popen([desktop_exe], creationflags=NO_WIN)
             for _ in range(30):
                 time.sleep(3)
                 if _run("docker info").returncode == 0:
                     break
-            else:
-                # Service didn't work — try launching Docker Desktop directly
-                import shutil as _shutil
-                desktop_exe = r"C:\Program Files\Docker\Docker\Docker Desktop.exe"
-                if _shutil.which("Docker Desktop") or Path(desktop_exe).exists():
-                    subprocess.Popen([desktop_exe], creationflags=NO_WIN)
-                    for _ in range(30):
-                        time.sleep(3)
-                        if _run("docker info").returncode == 0:
-                            break
 
         # 2. PostgreSQL — always use compose so the container is recreated if deleted
         _set_status("Starting PostgreSQL...", 2)
