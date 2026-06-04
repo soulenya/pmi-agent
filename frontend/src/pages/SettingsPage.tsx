@@ -14,6 +14,7 @@ import {
   checkForUpdate,
   applyUpdate,
   getOllamaModels,
+  getAnthropicModels,
   type AppSettings,
   type SettingsUpdate,
   type ProfileUpdate,
@@ -222,9 +223,8 @@ function ProfileSection() {
 
 // ── LLM config section ────────────────────────────────────────────────────────
 
-// Static model lists for cloud providers
-const OPENAI_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o3", "o4-mini"];
-const ANTHROPIC_MODELS = ["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5"];
+// Static model list for OpenAI (doesn't have a public unauthenticated listing endpoint)
+const OPENAI_MODELS = ["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"];
 
 function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (s: SettingsUpdate) => void }) {
   const [openaiKey, setOpenaiKey] = useState("");
@@ -241,10 +241,17 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
     staleTime: 30_000,
   });
 
+  const { data: anthropicModels = [] } = useQuery({
+    queryKey: ["anthropic-models"],
+    queryFn: getAnthropicModels,
+    enabled: provider === "anthropic",
+    staleTime: 60_000,
+  });
+
   const modelOptions =
     provider === "ollama" ? ollamaModels :
     provider === "openai" ? OPENAI_MODELS :
-    ANTHROPIC_MODELS;
+    anthropicModels;
 
   const handleTest = async () => {
     setTesting(true);
