@@ -293,7 +293,8 @@ export function ChatPage() {
   const handleSend = useCallback(
     (content: string) => {
       if (!conversationId) {
-        // No conversation yet - stash message, then createConvMutation sends it
+        // No conversation yet — stash the text then create the conversation
+        setPendingMessage(content);
         createConvMutation.mutate();
         return;
       }
