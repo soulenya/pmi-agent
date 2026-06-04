@@ -1,20 +1,15 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/api/client";
 
-const API = "http://127.0.0.1:8000/api/google";
+const GOOGLE_PREFIX = "/api/google";
 
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function apiFetch(path: string, options?: RequestInit) {
-  const res = await fetch(`${API}${path}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...options?.headers },
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+async function apiFetch(path: string, options?: { method?: string; body?: unknown }) {
+  const method = options?.method ?? "GET";
+  const res = method === "GET" || method === "DELETE"
+    ? await apiClient[method.toLowerCase() as "get" | "delete"](`${GOOGLE_PREFIX}${path}`)
+    : await apiClient.post(`${GOOGLE_PREFIX}${path}`, options?.body ?? {});
+  return res.data;
 }
 
 // ── Status types ──────────────────────────────────────────────────────────
