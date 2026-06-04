@@ -137,9 +137,19 @@ async def _notification_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Verify DB connectivity at startup
-    async with engine.begin() as conn:
-        await conn.execute(text("SELECT 1"))
+    # Verify DB connectivity at startup — retry for up to 30 s so the backend
+    # survives a slow Docker/PostgreSQL start after a restart or update.
+    import time as _time
+    for _attempt in range(10):
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(text("SELECT 1"))
+            break
+        except Exception as exc:
+            if _attempt == 9:
+                raise
+            logger.warning("DB not ready yet (attempt %d/10): %s — retrying in 3 s", _attempt + 1, exc)
+            await asyncio.sleep(3)
     bg_task = asyncio.create_task(_notification_loop())
     yield
     bg_task.cancel()
