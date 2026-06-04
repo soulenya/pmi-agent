@@ -57,7 +57,8 @@ apiClient.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      const resp = await axios.post("/api/auth/refresh", {
+      const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
+      const resp = await axios.post(`${API_BASE}/api/auth/refresh`, {
         refresh_token: refreshToken,
       });
       const newAccessToken: string = resp.data.access_token;
