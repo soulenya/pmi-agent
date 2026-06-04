@@ -123,3 +123,47 @@ async def apply_update(_=Depends(require_admin)) -> UpdateResult:
         success=True,
         message="Update started. The application will restart in a few minutes.",
     )
+
+
+# ── Service control (restart / stop / pull) ───────────────────────────────────
+# These endpoints write a command to a control file that the launcher polls.
+
+_CONTROL_FILE = _PROJECT_ROOT / "backend" / "logs" / "launcher_cmd.txt"
+
+
+def _write_launcher_cmd(cmd: str) -> None:
+    _CONTROL_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _CONTROL_FILE.write_text(cmd, encoding="utf-8")
+
+
+class ServiceResult(BaseModel):
+    success: bool
+    message: str
+
+
+@router.post("/restart", response_model=ServiceResult)
+async def restart_services(_=Depends(require_admin)) -> ServiceResult:
+    """Tell the launcher to restart all services without closing the window."""
+    _write_launcher_cmd("restart")
+    return ServiceResult(success=True, message="Restart command sent. Services will be back shortly.")
+
+
+@router.post("/stop", response_model=ServiceResult)
+async def stop_services(_=Depends(require_admin)) -> ServiceResult:
+    """Tell the launcher to stop all services and exit."""
+    _write_launcher_cmd("stop")
+    return ServiceResult(success=True, message="Stop command sent.")
+
+
+@router.post("/pull", response_model=ServiceResult)
+async def pull_update(_=Depends(require_admin)) -> ServiceResult:
+    """Pull the latest code from GitHub without restarting services."""
+    _write_launcher_cmd("update")
+    return ServiceResult(success=True, message="Update pull started. Check the status bar for progress.")
+
+
+@router.post("/pull-restart", response_model=ServiceResult)
+async def pull_and_restart(_=Depends(require_admin)) -> ServiceResult:
+    """Pull the latest code from GitHub then restart all services."""
+    _write_launcher_cmd("update_restart")
+    return ServiceResult(success=True, message="Update & restart started. Services will be back shortly.")
