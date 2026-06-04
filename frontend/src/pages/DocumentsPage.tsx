@@ -39,12 +39,12 @@ const STATUS_ICON: Record<Document["status"], React.ReactNode> = {
 
 const STATUS_LABEL: Record<Document["status"], string> = {
   ready: "Ready",
-  processing: "Processingâ€¦",
+  processing: "Processing…",
   failed: "Failed",
 };
 
 function formatBytes(bytes: number | null) {
-  if (!bytes) return "â€”";
+  if (!bytes) return "—";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -120,7 +120,7 @@ function UploadModal({
           ) : (
             <span className="text-sm">Drop a file here or click to browse</span>
           )}
-          <span className="text-xs">PDF, DOCX, TXT, MD, CSV â€” max 50 MB</span>
+          <span className="text-xs">PDF, DOCX, TXT, MD, CSV — max 50 MB</span>
           <input
             ref={inputRef}
             type="file"
@@ -236,7 +236,7 @@ function EditModal({
             onChange={(e) => setCategoryId(e.target.value)}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           >
-            <option value="">â€” None â€”</option>
+            <option value="">— None —</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -374,8 +374,8 @@ function DocumentRow({
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {doc.file_extension?.toUpperCase().replace(".", "") ?? "â€”"} Â·{" "}
-            {formatBytes(doc.file_size_bytes)} Â· {doc.chunk_count} chunks Â·{" "}
+            {doc.file_extension?.toUpperCase().replace(".", "") ?? "—"} ·{" "}
+            {formatBytes(doc.file_size_bytes)} · {doc.chunk_count} chunks ·{" "}
             uploaded {timeAgo(doc.created_at)}
           </p>
         </div>
@@ -516,7 +516,7 @@ export function DocumentsPage() {
                 disabled={deleteMutation.isPending}
                 className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground disabled:opacity-50"
               >
-                {deleteMutation.isPending ? "Deletingâ€¦" : "Delete"}
+                {deleteMutation.isPending ? "Deleting…" : "Delete"}
               </button>
               <button
                 onClick={() => setConfirmDelete(null)}
