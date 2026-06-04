@@ -563,11 +563,18 @@ function SystemHealthSection() {
 // ── Software updates section ────────────────────────────────────────────────
 
 function UpdateSection() {
-  const [checked, setChecked] = useState(false);
-  const [applying, setApplying] = useState(false);
+  const [everChecked, setEverChecked] = useState(false);
   const [applyMessage, setApplyMessage] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  const [applying, setApplying] = useState(false);
 
-  const { data: updateStatus, isFetching, refetch } = useQuery({
+  const {
+    data: updateStatus,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ["update-status"],
     queryFn: checkForUpdate,
     enabled: false,   // only fetch on demand
@@ -575,21 +582,30 @@ function UpdateSection() {
   });
 
   async function handleCheck() {
-    setChecked(true);
+    setEverChecked(true);
+    setApplyMessage(null);
+    setApplyError(null);
     await refetch();
   }
 
   async function handleApply() {
     setApplying(true);
+    setApplyMessage(null);
+    setApplyError(null);
     try {
       const result = await applyUpdate();
       setApplyMessage(result.message);
-    } catch {
-      setApplyMessage("Update failed — check the terminal for details.");
+    } catch (e: unknown) {
+      setApplyError(e instanceof Error ? e.message : "Update failed — check the terminal for details.");
     } finally {
       setApplying(false);
     }
   }
+
+  // Derive a human-readable error
+  const checkErrorMsg = isError
+    ? (error instanceof Error ? error.message : "Could not reach the update server.")
+    : null;
 
   return (
     <Section
@@ -597,54 +613,104 @@ function UpdateSection() {
       title="Software Updates"
       description="Pull the latest features from GitHub"
     >
-      <div className="flex items-center gap-2">
+      {/* Action row */}
+      <div className="flex items-center gap-3">
         <button
           onClick={handleCheck}
-          disabled={isFetching}
+          disabled={isFetching || applying}
           className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
         >
-          {isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          Check for Updates
+          {isFetching
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <RefreshCw className="h-3.5 w-3.5" />}
+          {isFetching ? "Checking…" : "Check for Updates"}
         </button>
+        {isFetching && (
+          <span className="text-xs text-muted-foreground animate-pulse">
+            Contacting GitHub…
+          </span>
+        )}
       </div>
 
-      {checked && updateStatus && (
+      {/* Checking in progress — prominent status */}
+      {isFetching && (
+        <div className="mt-3 flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2.5 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+          Checking for updates — comparing local version with GitHub…
+        </div>
+      )}
+
+      {/* Error state */}
+      {!isFetching && everChecked && checkErrorMsg && (
+        <div className="mt-3 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+          <XCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            <p className="font-medium">Update check failed</p>
+            <p className="text-xs mt-0.5 opacity-80">{checkErrorMsg}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Result panel */}
+      {!isFetching && !checkErrorMsg && everChecked && updateStatus && (
         <div className="mt-3 rounded-md border p-3 text-sm space-y-2">
-          <div className="flex items-center gap-2">
-            <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-muted-foreground">Current:</span>
+          {/* Current version row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <GitBranch className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground">Installed:</span>
             <code className="font-mono text-xs">{updateStatus.current_sha}</code>
-            {updateStatus.up_to_date && (
-              <span className="ml-auto inline-flex items-center gap-1 text-xs text-green-600 font-medium">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Up to date
-              </span>
-            )}
           </div>
 
+          {/* Up to date */}
+          {updateStatus.up_to_date && (
+            <div className="flex items-center gap-2 rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-400">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Already up to date</span>
+              <span className="text-xs opacity-70 ml-1">— you have the latest version.</span>
+            </div>
+          )}
+
+          {/* Update available */}
           {!updateStatus.up_to_date && (
             <>
-              <div className="flex items-center gap-2">
-                <GitBranch className="h-3.5 w-3.5 text-muted-foreground" />
+              <div className="flex items-center gap-2 flex-wrap">
+                <GitBranch className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                 <span className="text-muted-foreground">Latest:</span>
                 <code className="font-mono text-xs">{updateStatus.latest_sha}</code>
-                <span className="text-xs text-muted-foreground truncate max-w-[240px]">{updateStatus.latest_message}</span>
+                <span className="text-xs text-muted-foreground truncate max-w-[240px]">
+                  {updateStatus.latest_message}
+                </span>
+              </div>
+              <div className="rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+                A new version is available. Click <strong>Install Update</strong> to pull it and restart services.
               </div>
               <button
                 onClick={handleApply}
                 disabled={applying}
                 className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
               >
-                {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                {applying ? "Updating…" : "Install Update"}
+                {applying
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Download className="h-3.5 w-3.5" />}
+                {applying ? "Installing…" : "Install Update"}
               </button>
-              <p className="text-xs text-muted-foreground">
-                The app will restart automatically after updating.
-              </p>
             </>
           )}
 
+          {/* Apply success */}
           {applyMessage && (
-            <p className="text-xs text-green-700 dark:text-green-400 font-medium">{applyMessage}</p>
+            <div className="flex items-start gap-2 rounded-md bg-green-500/10 px-3 py-2 text-xs text-green-700 dark:text-green-400">
+              <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>{applyMessage}</span>
+            </div>
+          )}
+
+          {/* Apply error */}
+          {applyError && (
+            <div className="flex items-start gap-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <XCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>{applyError}</span>
+            </div>
           )}
         </div>
       )}
