@@ -1,31 +1,62 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { login } from "@/api/auth";
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 const SAVED_EMAIL_KEY = "pmi-remembered-email";
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
+
+type BackendStatus = "checking" | "ready" | "down";
 
 function classifyError(err: unknown): string {
   if (!axios.isAxiosError(err)) return "Something went wrong — please try again.";
   if (!err.response) {
-    // No response = backend not reachable (still starting up after restart/update)
-    return "Backend is not ready yet — please wait a moment and try again.";
+    return "Could not reach the backend. Check the service status below.";
   }
   const status = err.response.status;
   if (status === 401 || status === 403 || status === 422) {
     return "Invalid email or password.";
   }
   if (status >= 500) {
-    return "Server error — the backend may still be starting up. Please wait a moment and try again.";
+    const detail = (err.response.data as { detail?: string })?.detail;
+    return detail
+      ? `Server error: ${detail}`
+      : "Server error — try again in a moment.";
   }
   return "Login failed — please try again.";
+}
+
+/** Poll /health every 3 s, resolve immediately once the backend is up. */
+function useBackendStatus(): BackendStatus {
+  const [status, setStatus] = useState<BackendStatus>("checking");
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  async function check() {
+    try {
+      await axios.get(`${API_BASE}/health`, { timeout: 4000 });
+      setStatus("ready");
+      if (timerRef.current) clearInterval(timerRef.current);
+    } catch {
+      setStatus("down");
+    }
+  }
+
+  useEffect(() => {
+    check();
+    timerRef.current = setInterval(check, 3000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return status;
 }
 
 export function LoginPage() {
   const navigate = useNavigate();
   const { setTokens, setUser } = useAuthStore();
+  const backendStatus = useBackendStatus();
 
   const savedEmail = localStorage.getItem(SAVED_EMAIL_KEY) ?? "";
   const [email, setEmail] = useState(savedEmail);
@@ -34,8 +65,11 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const formDisabled = loading || backendStatus !== "ready";
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (backendStatus !== "ready") return;
     setError(null);
     setLoading(true);
     try {
@@ -61,6 +95,21 @@ export function LoginPage() {
         <h1 className="mb-1 text-2xl font-bold">Little Gerry</h1>
         <p className="mb-6 text-sm text-muted-foreground">Sign in to your account</p>
 
+        {/* Backend status indicator */}
+        <div className={cn(
+          "mb-4 flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium",
+          backendStatus === "ready"  && "bg-green-500/10 text-green-700 dark:text-green-400",
+          backendStatus === "down"   && "bg-destructive/10 text-destructive",
+          backendStatus === "checking" && "bg-muted text-muted-foreground",
+        )}>
+          {backendStatus === "checking" && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
+          {backendStatus === "ready"    && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
+          {backendStatus === "down"     && <XCircle className="h-3.5 w-3.5 shrink-0" />}
+          {backendStatus === "checking" && "Connecting to backend…"}
+          {backendStatus === "ready"    && "Backend connected"}
+          {backendStatus === "down"     && "Backend not reachable — retrying…"}
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium" htmlFor="email">
@@ -71,9 +120,10 @@ export function LoginPage() {
               type="email"
               autoComplete="email"
               required
+              disabled={formDisabled}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -86,9 +136,10 @@ export function LoginPage() {
               type="password"
               autoComplete="current-password"
               required
+              disabled={formDisabled}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
             />
           </div>
 
@@ -111,16 +162,20 @@ export function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={formDisabled}
             className={cn(
               "w-full rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity",
-              loading && "opacity-60 cursor-not-allowed",
+              formDisabled && "opacity-60 cursor-not-allowed",
             )}
           >
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? "Signing in…"
+              : backendStatus === "checking" ? "Waiting for backend…"
+              : backendStatus === "down" ? "Backend not ready"
+              : "Sign in"}
           </button>
         </form>
       </div>
     </div>
   );
 }
+
