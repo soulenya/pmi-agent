@@ -254,6 +254,198 @@ TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+    # ── Google Workspace tools (read-only — no approval required) ────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "search_gmail",
+            "description": (
+                "Search Gmail inbox using Gmail search syntax "
+                "(e.g. 'from:alice subject:VACTOR is:unread'). "
+                "Returns matching email summaries. "
+                "Only available when Google account is connected."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Gmail search query string.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Max emails to return (1–20). Default 10.",
+                        "default": 10,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_gmail_message",
+            "description": (
+                "Read the full body of a Gmail message by its ID. "
+                "Use after search_gmail to get the complete email text."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "string",
+                        "description": "The Gmail message ID (from search_gmail results).",
+                    },
+                },
+                "required": ["message_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_drive",
+            "description": (
+                "Search Google Drive for files by keyword. "
+                "Returns file names, types, modified dates, and links. "
+                "Only available when Google account is connected."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Text to search for across file names and content.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Max files to return (1–20). Default 10.",
+                        "default": 10,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_drive_file",
+            "description": (
+                "Read the text content of a Google Drive file by its ID. "
+                "Works for Docs (exported as plain text), Sheets (exported as CSV), "
+                "Slides (exported as plain text), and plain text files. "
+                "Use after search_drive to retrieve full content."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_id": {
+                        "type": "string",
+                        "description": "The Google Drive file ID (from search_drive results).",
+                    },
+                },
+                "required": ["file_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_calendar_events",
+            "description": (
+                "Retrieve Google Calendar events for a date window. "
+                "Use to check schedule, upcoming meetings, or deadlines. "
+                "Only available when Google account is connected."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days_behind": {
+                        "type": "integer",
+                        "description": "Days before today to include (default 0).",
+                        "default": 0,
+                    },
+                    "days_ahead": {
+                        "type": "integer",
+                        "description": "Days ahead to include (default 7).",
+                        "default": 7,
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_contacts",
+            "description": (
+                "Search Google Contacts by name, email, or company. "
+                "Returns contact details (name, email, phone, organization). "
+                "Only available when Google account is connected."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Name, email address, or company to search for.",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_google_sheet",
+            "description": (
+                "Read data from a Google Sheets spreadsheet. "
+                "Provide the spreadsheet ID (from the URL) and optionally a range like 'Sheet1!A1:Z50'. "
+                "Only available when Google account is connected."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "spreadsheet_id": {
+                        "type": "string",
+                        "description": "The Google Sheets spreadsheet ID (from the URL between /d/ and /edit).",
+                    },
+                    "range": {
+                        "type": "string",
+                        "description": "Cell range to read, e.g. 'Sheet1' or 'Sheet1!A1:Z100'. Default 'Sheet1'.",
+                        "default": "Sheet1",
+                    },
+                },
+                "required": ["spreadsheet_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_google_tasks",
+            "description": (
+                "List incomplete tasks from Google Tasks. "
+                "Shows tasks across all task lists with due dates and notes. "
+                "Only available when Google account is connected."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Max tasks to return per list (default 25).",
+                        "default": 25,
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
 ]
 
 
@@ -500,6 +692,216 @@ async def execute_fetch_page(ctx: ToolContext, args: dict[str, Any]) -> str:
     return f"Content from {url}:\n\n{text}"
 
 
+# ── Google Workspace tool executors ───────────────────────────────────────────
+
+def _google_not_connected() -> str:
+    return (
+        "Google account is not connected. "
+        "Ask the user to connect Google via Settings → Google Integration."
+    )
+
+
+async def execute_search_gmail(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import gmail_search, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return "Error: query must not be empty."
+    max_results = min(int(args.get("max_results", 10)), 20)
+    try:
+        msgs = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: gmail_search(query, max_results)
+        )
+    except Exception as exc:
+        return f"Gmail search failed: {exc}"
+    if not msgs:
+        return f"No emails found matching: {query}"
+    lines = [f"Gmail results for '{query}' ({len(msgs)} found):\n"]
+    for m in msgs:
+        lines.append(
+            f"ID: {m['id']}\n"
+            f"From: {m['from']}\nTo: {m['to']}\n"
+            f"Subject: {m['subject']}\nDate: {m['date']}\n"
+            f"Snippet: {m['snippet']}"
+        )
+    return "\n\n".join(lines)
+
+
+async def execute_read_gmail_message(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import gmail_get_message, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    message_id = str(args.get("message_id", "")).strip()
+    if not message_id:
+        return "Error: message_id is required."
+    try:
+        msg = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: gmail_get_message(message_id)
+        )
+    except Exception as exc:
+        return f"Failed to read email: {exc}"
+    return (
+        f"From: {msg['from']}\nTo: {msg['to']}\n"
+        f"Subject: {msg['subject']}\nDate: {msg['date']}\n\n"
+        f"{msg['body'][:6000]}"
+    )
+
+
+async def execute_search_drive(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import drive_search, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return "Error: query must not be empty."
+    max_results = min(int(args.get("max_results", 10)), 20)
+    try:
+        files = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_search(query, max_results)
+        )
+    except Exception as exc:
+        return f"Drive search failed: {exc}"
+    if not files:
+        return f"No Drive files found for: {query}"
+    lines = [f"Drive files for '{query}' ({len(files)} found):\n"]
+    for f in files:
+        lines.append(
+            f"ID: {f['id']}\nName: {f['name']}\nType: {f['type']}\n"
+            f"Modified: {f['modified']}\nURL: {f['url']}"
+        )
+    return "\n\n".join(lines)
+
+
+async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import drive_get_content, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    file_id = str(args.get("file_id", "")).strip()
+    if not file_id:
+        return "Error: file_id is required."
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_get_content(file_id)
+        )
+    except Exception as exc:
+        return f"Failed to read Drive file: {exc}"
+    content = result.get("content", "")
+    if not content:
+        return f"File '{result.get('name', file_id)}' has no readable text content."
+    return (
+        f"File: {result['name']}\nType: {result['type']}\nURL: {result['url']}\n\n"
+        f"{content[:8000]}"
+    )
+
+
+async def execute_get_calendar_events(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import calendar_events, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    days_behind = int(args.get("days_behind", 0))
+    days_ahead = int(args.get("days_ahead", 7))
+    try:
+        events = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: calendar_events(days_behind, days_ahead)
+        )
+    except Exception as exc:
+        return f"Calendar fetch failed: {exc}"
+    if not events:
+        return f"No calendar events in the next {days_ahead} day(s)."
+    lines = [f"Calendar events ({len(events)} found):\n"]
+    for e in events:
+        attendee_str = ", ".join(e["attendees"]) if e["attendees"] else ""
+        lines.append(
+            f"• {e['title']}\n"
+            f"  Start: {e['start']}  End: {e['end']}\n"
+            + (f"  Location: {e['location']}\n" if e["location"] else "")
+            + (f"  Attendees: {attendee_str}\n" if attendee_str else "")
+            + (f"  {e['description']}\n" if e["description"] else "")
+            + f"  URL: {e['url']}"
+        )
+    return "\n\n".join(lines)
+
+
+async def execute_search_contacts(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import contacts_search, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return "Error: query must not be empty."
+    try:
+        contacts = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: contacts_search(query, 10)
+        )
+    except Exception as exc:
+        return f"Contacts search failed: {exc}"
+    if not contacts:
+        return f"No contacts found for: {query}"
+    lines = [f"Contacts matching '{query}':\n"]
+    for c in contacts:
+        lines.append(
+            f"Name: {c['name']}\nEmail: {c['email']}\n"
+            f"Phone: {c['phone']}\nCompany: {c['company']}"
+        )
+    return "\n\n".join(lines)
+
+
+async def execute_read_google_sheet(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import sheets_read, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    spreadsheet_id = str(args.get("spreadsheet_id", "")).strip()
+    if not spreadsheet_id:
+        return "Error: spreadsheet_id is required."
+    range_ = str(args.get("range", "Sheet1")).strip() or "Sheet1"
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: sheets_read(spreadsheet_id, range_)
+        )
+    except Exception as exc:
+        return f"Failed to read spreadsheet: {exc}"
+    rows = result.get("rows", [])
+    if not rows:
+        return f"Spreadsheet range '{range_}' is empty."
+    # Format as a simple table
+    lines = [f"Sheet data ({result['row_count']} rows, range: {result['range']}):\n"]
+    for row in rows[:100]:  # cap at 100 rows
+        lines.append("\t".join(str(cell) for cell in row))
+    if result["row_count"] > 100:
+        lines.append(f"... ({result['row_count'] - 100} more rows)")
+    return "\n".join(lines)
+
+
+async def execute_list_google_tasks(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import tasks_list, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    max_results = min(int(args.get("max_results", 25)), 50)
+    try:
+        tasks = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: tasks_list(max_results)
+        )
+    except Exception as exc:
+        return f"Failed to fetch Google Tasks: {exc}"
+    if not tasks:
+        return "No incomplete Google Tasks found."
+    lines = [f"Google Tasks ({len(tasks)} incomplete):\n"]
+    for t in tasks:
+        due_str = f", due {t['due'][:10]}" if t.get("due") else ""
+        notes_str = f"\n  Notes: {t['notes']}" if t.get("notes") else ""
+        lines.append(f"• [{t['list']}] {t['title']}{due_str}{notes_str}")
+    return "\n".join(lines)
+
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 TOOL_EXECUTORS = {
@@ -511,6 +913,15 @@ TOOL_EXECUTORS = {
     "get_regulatory_status": execute_get_regulatory_status,
     "search_web": execute_search_web,
     "fetch_page": execute_fetch_page,
+    # Google Workspace (read-only)
+    "search_gmail": execute_search_gmail,
+    "read_gmail_message": execute_read_gmail_message,
+    "search_drive": execute_search_drive,
+    "read_drive_file": execute_read_drive_file,
+    "get_calendar_events": execute_get_calendar_events,
+    "search_contacts": execute_search_contacts,
+    "read_google_sheet": execute_read_google_sheet,
+    "list_google_tasks": execute_list_google_tasks,
 }
 
 

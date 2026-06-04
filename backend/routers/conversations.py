@@ -162,6 +162,18 @@ async def resolve_approval(
     return intent
 
 
+@approvals_router.delete("/expired", response_model=dict)
+async def clear_expired_approvals(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete all expired (and still 'pending') approval requests for the current user."""
+    repo = ApprovalRepository(db)
+    count = await repo.delete_expired(current_user.id)
+    await db.commit()
+    return {"deleted": count}
+
+
 # ── Notifications ─────────────────────────────────────────────────────────────
 
 @notifications_router.get("", response_model=list[NotificationOut])

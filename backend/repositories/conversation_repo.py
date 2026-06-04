@@ -195,6 +195,22 @@ class ApprovalRepository:
         )
         return result.scalar_one()
 
+    async def delete_expired(self, user_id: uuid.UUID) -> int:
+        """Delete all expired pending approval intents for a user. Returns count deleted."""
+        now = datetime.now(timezone.utc)
+        result = await self.db.execute(
+            select(ApprovalIntent).where(
+                ApprovalIntent.user_id == user_id,
+                ApprovalIntent.status == ApprovalStatus.PENDING,
+                ApprovalIntent.expires_at <= now,
+            )
+        )
+        expired = list(result.scalars())
+        for intent in expired:
+            await self.db.delete(intent)
+        await self.db.flush()
+        return len(expired)
+
 
 class NotificationRepository:
     def __init__(self, db: AsyncSession) -> None:
