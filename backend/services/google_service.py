@@ -55,7 +55,6 @@ def get_credentials():
 def get_status() -> dict:
     creds = get_credentials()
     if creds:
-        # Try to read the stored email from token file
         import json
         token_data = json.loads(TOKEN_FILE.read_text())
         return {
@@ -64,7 +63,11 @@ def get_status() -> dict:
             "email": token_data.get("id_token", {}) if isinstance(token_data.get("id_token"), dict) else "",
         }
     with _auth_lock:
-        return {"connected": False, "status": _auth_status}
+        status = _auth_status
+    result: dict = {"connected": False, "status": status}
+    if status.startswith("error:"):
+        result["error"] = status[6:]
+    return result
 
 
 def start_auth_flow() -> None:
@@ -75,28 +78,85 @@ def start_auth_flow() -> None:
             return
         _auth_status = "pending"
 
+    _LOG_FILE = _BACKEND / "logs" / "google_auth.log"
+
+    def _log(msg: str) -> None:
+        try:
+            _LOG_FILE.parent.mkdir(exist_ok=True)
+            import datetime as _dt
+            with open(_LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(f"{_dt.datetime.now()}: {msg}\n")
+        except Exception:
+            pass
+
+    def _open_url(url: str, *a, **kw) -> bool:
+        """Open a URL from pythonw.exe (no console) using multiple fallbacks."""
+        _log(f"Opening URL (first 80 chars): {url[:80]}")
+        # 1. os.startfile — passes URL to Windows shell (default browser handler)
+        try:
+            import os as _os2
+            _os2.startfile(url)
+            _log("Browser opened via os.startfile")
+            return True
+        except Exception as e:
+            _log(f"os.startfile failed: {e}")
+        # 2. cmd /c start — explicit shell command, always works on Windows
+        try:
+            import subprocess as _sp
+            _sp.Popen(
+                ["cmd", "/c", "start", "", url],
+                creationflags=_sp.CREATE_NO_WINDOW,
+                shell=False,
+            )
+            _log("Browser opened via cmd /c start")
+            return True
+        except Exception as e:
+            _log(f"cmd /c start failed: {e}")
+        # 3. rundll32 — last resort
+        try:
+            import subprocess as _sp
+            _sp.Popen(
+                ["rundll32", "url.dll,FileProtocolHandler", url],
+                creationflags=_sp.CREATE_NO_WINDOW,
+            )
+            _log("Browser opened via rundll32")
+            return True
+        except Exception as e:
+            _log(f"rundll32 failed: {e}")
+        _log("All browser-open attempts failed")
+        return False
+
     def _run() -> None:
         global _auth_status
+        import traceback as _tb
         try:
-            import os as _os
+            _log("Auth thread started")
             import webbrowser
             from google_auth_oauthlib.flow import InstalledAppFlow
 
-            # Patch webbrowser.open to use os.startfile so it works from
-            # pythonw.exe (no console) on Windows — os.startfile always opens
-            # the default browser regardless of how the process was launched.
-            webbrowser.open = lambda url, *a, **kw: bool(_os.startfile(url)) or True
+            # Patch all webbrowser open variants so run_local_server uses our
+            # reliable opener regardless of which method it calls internally.
+            webbrowser.open = _open_url
+            webbrowser.open_new = _open_url
+            webbrowser.open_new_tab = _open_url
+            _log("webbrowser patched")
+
+            if not CREDS_FILE.exists():
+                raise FileNotFoundError(f"google_credentials.json not found at {CREDS_FILE}")
 
             flow = InstalledAppFlow.from_client_secrets_file(str(CREDS_FILE), SCOPES)
-            # Let run_local_server handle redirect_uri internally; our patched
-            # webbrowser.open will fire os.startfile when it tries to open the browser.
+            _log("Flow created, calling run_local_server...")
             creds = flow.run_local_server(port=0, open_browser=True)
+            _log("run_local_server returned — writing token")
             TOKEN_FILE.write_text(creds.to_json())
             with _auth_lock:
                 _auth_status = "connected"
+            _log("Auth complete — status = connected")
         except Exception as exc:
+            err = str(exc)
+            _log(f"EXCEPTION: {err}\n{_tb.format_exc()}")
             with _auth_lock:
-                _auth_status = f"error:{exc}"
+                _auth_status = f"error:{err}"
 
     threading.Thread(target=_run, daemon=True).start()
 
