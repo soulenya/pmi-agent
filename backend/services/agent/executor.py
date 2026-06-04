@@ -229,10 +229,12 @@ class AgentExecutor:
 
             # ── No tool calls → final answer ──────────────────────────────────
             if not tool_calls_this_round:
+                import re as _re
+                clean_content = _re.sub(r"<tool_call>.*?</tool_call>", "", accumulated_content, flags=_re.DOTALL).strip()
                 assistant_msg = await msg_repo.create(
                     conversation_id=self.conversation_id,
                     role=MessageRole.ASSISTANT,
-                    content=accumulated_content,
+                    content=clean_content,
                     model_name=final_model,
                     cited_chunk_ids=cited_chunk_ids,
                 )

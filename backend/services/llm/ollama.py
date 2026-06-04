@@ -212,9 +212,10 @@ class OllamaClient:
                         # Accumulate content for tool-call parsing
                         full_content += content
                         if not done:
-                            # Stream tokens immediately so the frontend stays alive
-                            if content:
-                                yield StreamChunk(content=content, model=data.get("model", self._model))
+                            # Stream only the clean part (before any <tool_call> tag)
+                            if "<tool_call>" not in full_content:
+                                if content:
+                                    yield StreamChunk(content=content, model=data.get("model", self._model))
                             continue
                         # done=True: parse the full response for tool calls
                         clean, parsed_calls = _parse_text_tool_calls(full_content)
@@ -227,6 +228,7 @@ class OllamaClient:
                                 output_tokens=eval_count,
                             )
                         else:
+                            # No tool calls — yield anything not yet streamed
                             yield StreamChunk(
                                 done=True,
                                 model=data.get("model", self._model),
