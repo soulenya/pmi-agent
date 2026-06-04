@@ -13,6 +13,7 @@ import {
   getSystemHealth,
   checkForUpdate,
   applyUpdate,
+  getOllamaModels,
   type AppSettings,
   type SettingsUpdate,
   type ProfileUpdate,
@@ -221,6 +222,10 @@ function ProfileSection() {
 
 // ── LLM config section ────────────────────────────────────────────────────────
 
+// Static model lists for cloud providers
+const OPENAI_MODELS = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o3", "o4-mini"];
+const ANTHROPIC_MODELS = ["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5"];
+
 function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (s: SettingsUpdate) => void }) {
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
@@ -228,6 +233,18 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
   const [testing, setTesting] = useState(false);
 
   const provider = settings.llm_provider ?? "ollama";
+
+  const { data: ollamaModels = [] } = useQuery({
+    queryKey: ["ollama-models"],
+    queryFn: getOllamaModels,
+    enabled: provider === "ollama",
+    staleTime: 30_000,
+  });
+
+  const modelOptions =
+    provider === "ollama" ? ollamaModels :
+    provider === "openai" ? OPENAI_MODELS :
+    ANTHROPIC_MODELS;
 
   const handleTest = async () => {
     setTesting(true);
@@ -242,7 +259,6 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
     }
   };
 
-  // Include API keys in the settings update when the user saves
   const handleKeyApply = () => {
     const patch: SettingsUpdate = {};
     if (openaiKey) patch.openai_api_key = openaiKey;
@@ -271,26 +287,29 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
         </select>
       </Field>
 
-      {/* Model name */}
+      {/* Model dropdown */}
       <Field
         label="Chat Model"
         hint={
           provider === "ollama"
-            ? "Ollama model name. Must be pulled locally (e.g. llama3.2)."
+            ? "Locally installed Ollama models. Pull more with: ollama pull <model>"
             : provider === "openai"
-            ? "OpenAI model ID (e.g. gpt-4o, gpt-4o-mini)."
-            : "Anthropic model ID (e.g. claude-3-5-haiku-latest)."
+            ? "OpenAI model to use for chat."
+            : "Anthropic Claude model to use for chat."
         }
       >
-        <input
+        <select
           value={settings.llm_model}
           onChange={(e) => onChange({ llm_model: e.target.value })}
-          placeholder={
-            provider === "openai" ? "gpt-4o-mini" :
-            provider === "anthropic" ? "claude-3-5-haiku-latest" : "llama3.2"
-          }
           className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-        />
+        >
+          {modelOptions.length === 0 && (
+            <option value={settings.llm_model}>{settings.llm_model || "No models found"}</option>
+          )}
+          {modelOptions.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
       </Field>
 
       {/* Ollama-only fields */}

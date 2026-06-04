@@ -42,7 +42,7 @@ class Settings(BaseSettings):
 
     # ── Ollama ───────────────────────────────────────────────────────────────
     ollama_base_url: str = "http://localhost:11434"
-    default_llm_model: str = "llama3.2"
+    default_llm_model: str = "gemma3:27b"
     default_embedding_model: str = "nomic-embed-text"
 
     # ── RAG ──────────────────────────────────────────────────────────────────
