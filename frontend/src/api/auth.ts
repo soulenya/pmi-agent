@@ -26,3 +26,18 @@ export async function getHealth(): Promise<HealthCheck> {
   const resp = await apiClient.get<HealthCheck>("/health");
   return resp.data;
 }
+
+export async function googleInitiate(): Promise<{ auth_id: string }> {
+  const resp = await apiClient.post<{ auth_id: string }>("/auth/google/initiate");
+  return resp.data;
+}
+
+export type GooglePollResult =
+  | { status: "pending" }
+  | { status: "error"; message: string }
+  | { status: "success"; access_token: string; refresh_token: string; expires_in: number; user: User };
+
+export async function googlePoll(authId: string): Promise<GooglePollResult> {
+  const resp = await apiClient.get<GooglePollResult>(`/auth/google/poll/${authId}`);
+  return resp.data;
+}
