@@ -311,8 +311,31 @@ class AgentExecutor:
         )
 
         today = datetime.now(timezone.utc).strftime("%B %d, %Y")
+
+        # Inject live Google auth state so the model cannot hallucinate Drive/Gmail data
+        try:
+            from services.google_service import get_credentials
+            google_connected = get_credentials() is not None
+        except Exception:
+            google_connected = False
+
+        if google_connected:
+            google_note = (
+                "\nGOOGLE STATUS: Connected. "
+                "You may call Google tools (search_drive, search_gmail, etc.) "
+                "when the user explicitly requests it."
+            )
+        else:
+            google_note = (
+                "\nGOOGLE STATUS: NOT CONNECTED. "
+                "You have NO access to Google Drive, Gmail, Calendar, or any Google service. "
+                "Do NOT list, guess, or fabricate any file names, emails, events, or folder names. "
+                "If the user asks about their files, emails, or calendar, "
+                "tell them to connect Google via Settings → Google Integration."
+            )
+
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT.format(today=today)}
+            {"role": "system", "content": SYSTEM_PROMPT.format(today=today) + google_note}
         ]
 
         for msg in history:

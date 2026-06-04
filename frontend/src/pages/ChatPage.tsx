@@ -333,7 +333,7 @@ export function ChatPage() {
                 wsConnected ? "bg-green-500" : "bg-yellow-500",
               )}
             />
-            {wsConnected ? "Connected" : "Connectingâ€¦"}
+            {wsConnected ? "Connected" : "Connecting…"}
           </div>
         )}
 
@@ -395,8 +395,8 @@ export function ChatPage() {
           disabled={!conversationId && createConvMutation.isPending}
           placeholder={
             conversationId
-              ? "Message Little Gerryâ€¦"
-              : "Start typing to create a new conversationâ€¦"
+              ? "Message Little Gerry…"
+              : "Start typing to create a new conversation…"
           }
         />
       </div>
