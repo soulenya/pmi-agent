@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { listPendingApprovals, listNotifications } from "@/api/chat";
 import { ServiceMenu } from "@/components/ServiceMenu";
+import { BUILD_NUMBER, BUILD_DATE } from "@/version";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -102,6 +103,20 @@ export function Sidebar() {
             </NavLink>
           );
         })}
+      </div>
+
+      {/* Version badge */}
+      <div className="px-4 pt-3 border-t">
+        <NavLink
+          to="/settings"
+          className="flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors"
+          title={`Build ${BUILD_NUMBER} — ${BUILD_DATE}. Click to see What's New.`}
+        >
+          <span>Little Gerry</span>
+          <span className="rounded-full bg-accent px-2 py-0.5 font-mono">
+            b{BUILD_NUMBER}
+          </span>
+        </NavLink>
       </div>
     </nav>
   );

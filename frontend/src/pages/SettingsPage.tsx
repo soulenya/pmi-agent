@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch } from "lucide-react";
+import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
+import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
 import {
   getSettings,
   updateSettings,
@@ -716,6 +717,40 @@ function UpdateSection() {
       )}
     </Section>
   );
+}function ChangelogSection() {
+  const [expanded, setExpanded] = useState<number | null>(CHANGELOG[0]?.build ?? null);
+  return (
+    <Section icon={BookOpen} title="What's New" description={`Build ${BUILD_NUMBER} · ${BUILD_DATE}`}>
+      <div className="space-y-2">
+        {CHANGELOG.map((entry) => (
+          <div key={entry.build} className="rounded-lg border overflow-hidden">
+            <button
+              onClick={() => setExpanded(expanded === entry.build ? null : entry.build)}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-accent/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                  b{entry.build}
+                </span>
+                <span className="text-sm font-medium">{entry.title}</span>
+              </div>
+              <span className="text-xs text-muted-foreground shrink-0 ml-2">{entry.date}</span>
+            </button>
+            {expanded === entry.build && (
+              <ul className="px-4 pb-3 pt-1 space-y-1 border-t bg-muted/30">
+                {entry.changes.map((c, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                    <span className="mt-0.5 shrink-0 text-primary">•</span>
+                    <span>{c}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
 }
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -789,6 +824,7 @@ export function SettingsPage() {
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />
           <SystemHealthSection />
           <UpdateSection />
+          <ChangelogSection />
 
           {hasChanges && (
             <div className="flex justify-end">
