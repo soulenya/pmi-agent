@@ -39,9 +39,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "pmi-auth",
-      // Only persist refresh token and user; access token is short-lived
+      // Persist all auth state; access token is short-lived but needed on restart
+      // to avoid a broken-auth loop before the refresh can fire.
       partialize: (state) => ({
         user: state.user,
+        accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
