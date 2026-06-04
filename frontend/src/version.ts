@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 13;
+export const BUILD_NUMBER = 14;
 export const BUILD_DATE = "2026-06-04";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 14,
+    date: "2026-06-04",
+    title: "Google Workspace SSO Login",
+    changes: [
+      "Login now uses Google Sign-In — no more email/password form",
+      "Only @pmi-llc.com and @precisianmedical.com accounts are accepted",
+      "A browser window opens for Google consent; app waits and logs you in automatically",
+      "Unknown accounts are rejected with a clear error message",
+    ],
+  },
   {
     build: 13,
     date: "2026-06-04",
@@ -67,7 +78,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-06-04",
     title: "Character Encoding & Google Hallucination Fix",
     changes: [
-      "Fixed mojibake characters (â€¦ → …, â€" → —) in chat and documents UI",
+      "Fixed garbled characters in chat and documents UI (encoding fix)",
       "AI now told explicitly when Google is not connected — stops fabricating file lists",
     ],
   },
@@ -95,7 +106,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-06-03",
     title: "Update Checker UX",
     changes: [
-      "Settings → Update section shows real states: checking, up-to-date, update available",
+      "Settings > Update section shows real states: checking, up-to-date, update available",
       "Install button and error detail now visible instead of silent failures",
     ],
   },
