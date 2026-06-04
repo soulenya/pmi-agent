@@ -2,6 +2,7 @@ import { LogOut, User, Search } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { logout as apiLogout } from "@/api/auth";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
+import { ModelSwitcher } from "@/components/ModelSwitcher";
 
 interface HeaderProps {
   onOpenPalette: () => void;
@@ -37,6 +38,9 @@ export function Header({ onOpenPalette }: HeaderProps) {
       </button>
 
       <div className="flex items-center gap-3">
+        {/* Model switcher */}
+        <ModelSwitcher />
+
         {/* Notifications */}
         <NotificationDropdown />
 
