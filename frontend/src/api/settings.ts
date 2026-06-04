@@ -103,3 +103,8 @@ export async function getOllamaModels(): Promise<string[]> {
   const resp = await apiClient.get<{ models: string[] }>("/settings/ollama-models");
   return resp.data.models;
 }
+
+export async function getAnthropicModels(): Promise<string[]> {
+  const resp = await apiClient.get<{ models: string[] }>("/settings/anthropic-models");
+  return resp.data.models;
+}

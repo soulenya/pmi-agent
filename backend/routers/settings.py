@@ -237,11 +237,42 @@ async def list_ollama_models(
             resp.raise_for_status()
             data = resp.json()
             names = [m["name"] for m in data.get("models", [])]
-            # Filter out embedding-only models from the chat model list
             chat_models = [n for n in names if "embed" not in n.lower()]
             return {"models": chat_models}
     except Exception:
         return {"models": []}
+
+
+_ANTHROPIC_FALLBACK = [
+    "claude-opus-4-8",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+]
+
+
+@router.get("/anthropic-models")
+async def list_anthropic_models(
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """Return available Anthropic models, fetched live if an API key is set."""
+    import httpx
+    api_key = app_settings.get_api_key("anthropic")
+    if not api_key:
+        return {"models": _ANTHROPIC_FALLBACK}
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(
+                "https://api.anthropic.com/v1/models",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            names = [m["id"] for m in data.get("data", [])]
+            # Only return Claude chat models (exclude legacy / fine-tuned)
+            chat = [n for n in names if n.startswith("claude-")]
+            return {"models": chat if chat else _ANTHROPIC_FALLBACK}
+    except Exception:
+        return {"models": _ANTHROPIC_FALLBACK}
 
 
 @router.get("/me", response_model=UserOut)
