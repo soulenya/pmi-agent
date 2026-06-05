@@ -28,6 +28,13 @@ type OllamaMessage = dict[str, Any]  # {"role": str, "content": str, "tool_calls
 type ToolDefinition = dict[str, Any]  # Ollama tool schema
 
 _TOOL_CALL_RE = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
+# Also match raw JSON tool calls: {"name": "...", "arguments": {...}}
+_RAW_TOOL_CALL_RE = re.compile(r'\{\s*"name"\s*:\s*"([^"]+)"\s*,\s*"arguments"\s*:\s*(\{[^}]*\})\s*\}', re.DOTALL)
+
+
+def _looks_like_tool_call(text: str) -> bool:
+    """Return True if the text appears to contain a tool call (tagged or raw JSON)."""
+    return "<tool_call>" in text or bool(_RAW_TOOL_CALL_RE.search(text))
 
 # Module-level cache: model_name -> supports native tool calling
 _tools_support_cache: dict[str, bool] = {}
@@ -95,11 +102,14 @@ def _inject_tools_into_messages(
 
 def _parse_text_tool_calls(text: str) -> tuple[str, list[dict]]:
     """
-    Extract <tool_call>...</tool_call> tags from model output.
-    Returns (clean_text, tool_calls_list) where tool_calls_list matches
-    the native Ollama tool_calls structure.
+    Extract tool calls from model output — handles both tagged and raw JSON formats:
+      <tool_call>{"name": "...", "arguments": {...}}</tool_call>
+      {"name": "...", "arguments": {...}}
+    Returns (clean_text, tool_calls_list).
     """
     tool_calls = []
+
+    # Try tagged format first
     for match in _TOOL_CALL_RE.finditer(text):
         try:
             data = json.loads(match.group(1).strip())
@@ -109,8 +119,27 @@ def _parse_text_tool_calls(text: str) -> tuple[str, list[dict]]:
                 tool_calls.append({"function": {"name": name, "arguments": arguments}})
         except (json.JSONDecodeError, AttributeError):
             pass
-    clean = _TOOL_CALL_RE.sub("", text).strip()
-    return clean, tool_calls
+
+    if tool_calls:
+        clean = _TOOL_CALL_RE.sub("", text).strip()
+        return clean, tool_calls
+
+    # Fallback: raw JSON tool calls
+    for match in _RAW_TOOL_CALL_RE.finditer(text):
+        try:
+            full = json.loads(match.group(0))
+            name = full.get("name", "")
+            arguments = full.get("arguments", {})
+            if name:
+                tool_calls.append({"function": {"name": name, "arguments": arguments}})
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+    if tool_calls:
+        clean = _RAW_TOOL_CALL_RE.sub("", text).strip()
+        return clean, tool_calls
+
+    return text, []
 
 
 # ── Client ────────────────────────────────────────────────────────────────────
@@ -213,9 +242,8 @@ class OllamaClient:
                         full_content += content
                         if not done:
                             # Stream only the clean part (before any <tool_call> tag)
-                            if "<tool_call>" not in full_content:
-                                if content:
-                                    yield StreamChunk(content=content, model=data.get("model", self._model))
+                            if not _looks_like_tool_call(full_content) and content:
+                                yield StreamChunk(content=content, model=data.get("model", self._model))
                             continue
                         # done=True: parse the full response for tool calls
                         clean, parsed_calls = _parse_text_tool_calls(full_content)
