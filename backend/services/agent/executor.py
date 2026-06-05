@@ -253,8 +253,21 @@ class AgentExecutor:
                 return
 
             # ── Execute tool calls ────────────────────────────────────────────
+            # Determine whether we're in prompt-based tool mode (no native tool support)
+            from services.llm.ollama import OllamaClient, _tools_support_cache
+            _use_prompt_tools = (
+                isinstance(self.ollama, OllamaClient)
+                and not _tools_support_cache.get(self.ollama._model, True)
+            )
+
             # Add the assistant's (partial) message to history
-            messages.append({"role": "assistant", "content": content_this_round, "tool_calls": tool_calls_this_round})
+            if _use_prompt_tools:
+                # In prompt-tools mode, strip any <tool_call> tags from the message
+                import re as _re
+                clean_round = _re.sub(r"<tool_call>.*?</tool_call>", "", content_this_round, flags=_re.DOTALL).strip()
+                messages.append({"role": "assistant", "content": clean_round})
+            else:
+                messages.append({"role": "assistant", "content": content_this_round, "tool_calls": tool_calls_this_round})
 
             for tc in tool_calls_this_round:
                 fn = tc.get("function", {})
@@ -283,7 +296,11 @@ class AgentExecutor:
                     conversation_id=str(self.conversation_id),
                 ).model_dump_json()
 
-                messages.append({"role": "tool", "content": result})
+                if _use_prompt_tools:
+                    # Inject result as a user message so the model can read it
+                    messages.append({"role": "user", "content": f"[Tool result for {tool_name}]:\n{result}\n\nNow answer the user's original question using this data. Do NOT make up any information."})
+                else:
+                    messages.append({"role": "tool", "content": result})
 
         # Exceeded MAX_TOOL_ROUNDS — return what we have
         if accumulated_content:
