@@ -49,30 +49,8 @@ if ($svc) {
     Write-Host "  No ollama service found." -ForegroundColor Gray
 }
 
-# ── Step 3: Back up model files ───────────────────────────────────────────────
-Write-Host "[3/6] Backing up model files..." -ForegroundColor Cyan
-$modelPaths = @(
-    "$env:USERPROFILE\.ollama\models",
-    "$env:LOCALAPPDATA\Ollama\models"
-)
-$backupRoot = "$env:USERPROFILE\Desktop\OllamaModels_Backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
-
-$backedUp = $false
-foreach ($mp in $modelPaths) {
-    if (Test-Path $mp) {
-        Write-Host "  Found models at: $mp"
-        Write-Host "  Copying to: $backupRoot"
-        Copy-Item -Path $mp -Destination $backupRoot -Recurse -Force
-        $backedUp = $true
-        Write-Host "  Backup complete." -ForegroundColor Green
-    }
-}
-if (-not $backedUp) {
-    Write-Host "  No model files found to back up." -ForegroundColor Gray
-}
-
-# ── Step 4: Uninstall Ollama via winget / uninstaller ─────────────────────────
-Write-Host "[4/6] Uninstalling Ollama..." -ForegroundColor Cyan
+# ── Step 3: Uninstall Ollama via winget / uninstaller ─────────────────────────
+Write-Host "[3/5] Uninstalling Ollama..." -ForegroundColor Cyan
 
 # Try winget first
 $wingetAvailable = Get-Command winget -ErrorAction SilentlyContinue
@@ -118,8 +96,8 @@ if (Test-Path $dotOllama) {
     Write-Host "  Removed: $dotOllama" -ForegroundColor Green
 }
 
-# ── Step 5: Remove environment variables ──────────────────────────────────────
-Write-Host "[5/6] Removing OLLAMA_* environment variables..." -ForegroundColor Cyan
+# ── Step 4: Remove environment variables ──────────────────────────────────────
+Write-Host "[4/5] Removing OLLAMA_* environment variables..." -ForegroundColor Cyan
 $ollamaVars = @("OLLAMA_HOST", "OLLAMA_BASE_URL", "OLLAMA_MODELS", "OLLAMA_HOME")
 foreach ($var in $ollamaVars) {
     [System.Environment]::SetEnvironmentVariable($var, $null, "Machine")
@@ -139,8 +117,8 @@ foreach ($scope in @("Machine", "User")) {
     }
 }
 
-# ── Step 6: Remove Ollama firewall rules ──────────────────────────────────────
-Write-Host "[6/6] Removing Ollama firewall rules..." -ForegroundColor Cyan
+# ── Step 5: Remove Ollama firewall rules ──────────────────────────────────────
+Write-Host "[5/5] Removing Ollama firewall rules..." -ForegroundColor Cyan
 $fwRules = Get-NetFirewallRule -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match "ollama" -or $_.DisplayName -match "Ollama" }
 if ($fwRules) {
     $fwRules | Remove-NetFirewallRule
@@ -152,13 +130,10 @@ if ($fwRules) {
 # ── Done ──────────────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "=== Cleanup complete! ===" -ForegroundColor Green
-if ($backedUp) {
-    Write-Host "Model backup saved to: $backupRoot" -ForegroundColor Yellow
-    Write-Host "Copy this folder to your LLM server before deleting it."
-}
 Write-Host ""
 Write-Host "Next steps:"
-Write-Host "  1. Copy the backup folder to your LLM server"
-Write-Host "  2. Run scripts\setup-llm-server.ps1 on the server"
-Write-Host "  3. Update OLLAMA_BASE_URL in Little Gerry Settings"
+Write-Host "  1. Run scripts\setup-llm-server.ps1 on the dedicated server"
+Write-Host "     (it will pull the model fresh — no copy needed)"
+Write-Host "  2. Run scripts\test-llm-server.ps1 <server-ip> to verify"
+Write-Host "  3. Update Ollama Server URL in Little Gerry Settings"
 Write-Host ""
