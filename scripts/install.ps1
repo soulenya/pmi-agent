@@ -8,28 +8,22 @@
     Assistant (Precisian Medical Instruments / VACTOR program).
 
     Prerequisites installed automatically via winget:
-      - Docker Desktop
-      - Ollama
+      - Docker Desktop (runs PostgreSQL database)
       - Python 3.14+
       - Node.js 20 LTS
       - uv (Python package manager)
-      - Rust toolchain (for Tauri desktop build, optional)
+
+    Note: Ollama (local LLM) is NOT installed here.
+    It runs on a separate dedicated server. Configure the server URL
+    in Little Gerry Settings → Ollama after first launch.
 
     Run from the project root:
         .\scripts\install.ps1
-
-    Or to skip the Tauri desktop build:
-        .\scripts\install.ps1 -SkipTauriBuild
-
-.PARAMETER SkipTauriBuild
-    Skip compiling the Tauri desktop .exe (saves ~10 minutes; you can use
-    the browser at http://localhost:5173 instead).
 
 .PARAMETER ProjectRoot
     Path to the project root. Defaults to the parent of this script's directory.
 #>
 param(
-    [switch]$SkipTauriBuild,
     [string]$ProjectRoot = ""
 )
 
@@ -130,11 +124,10 @@ Write-Host "  Precisian Medical Instruments / VACTOR" -ForegroundColor Magenta
 Write-Host "================================================" -ForegroundColor Magenta
 Write-Host ""
 Write-Info "Project root : $ProjectRoot"
-Write-Info "Skip Tauri   : $SkipTauriBuild"
 Write-Host ""
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 1 of 9 - Installing prerequisites"
+Write-Step "Step 1 of 7 - Installing prerequisites"
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Check winget
@@ -145,7 +138,6 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
 }
 
 Install-WingetPackage -Name "Docker Desktop"  -Id "Docker.DockerDesktop"  -TestCmd "docker"
-Install-WingetPackage -Name "Ollama"           -Id "Ollama.Ollama"         -TestCmd "ollama"
 Install-WingetPackage -Name "Python 3.14"      -Id "Python.Python.3.14"    -TestCmd "python"
 Install-WingetPackage -Name "Node.js 20 LTS"   -Id "OpenJS.NodeJS.LTS"     -TestCmd "node"
 
@@ -205,7 +197,7 @@ if (-not $dockerRunning) {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 3 of 9 - Starting PostgreSQL (Docker Compose)"
+Write-Step "Step 3 of 7 - Starting PostgreSQL (Docker Compose)"
 # ─────────────────────────────────────────────────────────────────────────────
 
 Set-Location $ProjectRoot
@@ -223,7 +215,7 @@ if (-not $dbReady) {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 4 of 9 - Configuring backend environment"
+Write-Step "Step 4 of 7 - Configuring backend environment"
 # ─────────────────────────────────────────────────────────────────────────────
 
 $envFile = Join-Path $BackendDir ".env"
@@ -240,8 +232,7 @@ DATABASE_URL_SYNC=postgresql://pmi:pmi_dev_password@localhost:5432/pmi_dev
 HOST=127.0.0.1
 PORT=8000
 DEBUG=false
-OLLAMA_BASE_URL=http://localhost:11434
-DEFAULT_LLM_MODEL=llama3.2
+OLLAMA_BASE_URL=
 DEFAULT_EMBEDDING_MODEL=nomic-embed-text
 CHUNK_SIZE_TOKENS=512
 CHUNK_OVERLAP_TOKENS=64
@@ -255,7 +246,7 @@ APPROVAL_EXPIRY_HOURS=48
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 5 of 9 - Installing Python backend dependencies"
+Write-Step "Step 5 of 7 - Installing Python backend dependencies"
 # ─────────────────────────────────────────────────────────────────────────────
 
 Set-Location $BackendDir
@@ -267,7 +258,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-OK "Python dependencies installed"
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 6 of 9 - Running database migrations"
+Write-Step "Step 6 of 7 - Running database migrations"
 # ─────────────────────────────────────────────────────────────────────────────
 
 & uv run alembic upgrade head 2>&1 | ForEach-Object { Write-Info $_ }
@@ -283,7 +274,7 @@ Write-Info "Seeding admin user (admin@precisian.local / Admin1234!)..."
 Write-OK "Admin user ready"
 
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 7 of 9 - Installing frontend dependencies"
+Write-Step "Step 7 of 7 - Installing frontend dependencies"
 # ─────────────────────────────────────────────────────────────────────────────
 
 Set-Location $FrontendDir
@@ -307,35 +298,9 @@ VITE_WS_BASE=ws://127.0.0.1:8000
     Write-OK "frontend/.env already exists - skipping"
 }
 
+# Creating desktop shortcuts is the next step — skip Ollama model pull and Tauri build
 # ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 8 of 9 - Pulling Ollama AI models"
-# ─────────────────────────────────────────────────────────────────────────────
-
-# Ensure Ollama service is running
-$ollamaRunning = Get-Process "ollama" -ErrorAction SilentlyContinue
-if (-not $ollamaRunning) {
-    Write-Info "Starting Ollama service..."
-    Start-Process "ollama" -ArgumentList "serve" -WindowStyle Hidden
-    Start-Sleep -Seconds 4
-}
-
-$ollamaReady = Wait-TcpPort -Port 11434 -ServiceName "Ollama" -TimeoutSeconds 30
-if ($ollamaReady) {
-    Write-Info "Pulling llama3.2 (chat model - ~2 GB, this may take a while)..."
-    & ollama pull llama3.2
-    Write-OK "llama3.2 ready"
-
-    Write-Info "Pulling nomic-embed-text (embedding model - ~274 MB)..."
-    & ollama pull nomic-embed-text
-    Write-OK "nomic-embed-text ready"
-} else {
-    Write-Warn "Ollama is not reachable. Models were not pulled."
-    Write-Warn "After starting Ollama, run:  ollama pull llama3.2"
-    Write-Warn "                             ollama pull nomic-embed-text"
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-Write-Step "Step 9 of 9 - Creating desktop shortcuts"
+Write-Step "Step 8 (Final) - Creating desktop shortcuts"
 # ─────────────────────────────────────────────────────────────────────────────
 
 $WshShell = New-Object -ComObject WScript.Shell
@@ -362,32 +327,16 @@ $sm.Save()
 Write-OK "Start Menu entry created"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Optional: Tauri desktop build
-# ─────────────────────────────────────────────────────────────────────────────
-
-if (-not $SkipTauriBuild) {
-    Write-Step "Optional - Building Tauri desktop app"
-    Set-Location $FrontendDir
-    Write-Info "This compiles the native Windows .exe - may take 5-15 minutes..."
-    & node node_modules\@tauri-apps\cli\tauri.js build 2>&1 | ForEach-Object { Write-Info $_ }
-    if ($LASTEXITCODE -eq 0) {
-        Write-OK "Tauri desktop app built"
-        Write-Info "Installer: frontend\src-tauri\target\release\bundle\"
-    } else {
-        Write-Warn "Tauri build failed - you can still use the browser at http://localhost:5173"
-    }
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Green
 Write-Host "  Installation complete!" -ForegroundColor Green
 Write-Host "------------------------------------------------" -ForegroundColor Green
 Write-Host "  Double-click 'Start Little Gerry.bat'" -ForegroundColor Green
 Write-Host "  (or the desktop shortcut) to launch the app." -ForegroundColor Green
-Write-Host "" 
-Write-Host "  Default login:" -ForegroundColor Green
-Write-Host "    Email   : admin@precisian.local" -ForegroundColor Green
-Write-Host "    Password: Admin1234!" -ForegroundColor Green
+Write-Host ""
+Write-Host "  IMPORTANT: Ollama runs on a separate server." -ForegroundColor Yellow
+Write-Host "  After first launch, go to Settings → Ollama" -ForegroundColor Yellow
+Write-Host "  and set the server URL." -ForegroundColor Yellow
+Write-Host "  Until then, use Anthropic or OpenAI instead." -ForegroundColor Yellow
 Write-Host "================================================" -ForegroundColor Green
 Write-Host ""

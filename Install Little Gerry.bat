@@ -28,14 +28,17 @@ echo  ====================================================
 echo.
 echo  This will install all required components:
 echo    - Docker Desktop (PostgreSQL database)
-echo    - Ollama (local AI engine)
 echo    - Python 3.14 + uv
 echo    - Node.js 20 LTS
 echo    - All application dependencies
-echo    - AI models (llama3.2 + nomic-embed-text)
 echo.
-echo  Estimated time: 10-20 minutes (depending on internet speed)
-echo  Disk space required: ~5 GB
+echo  NOTE: Ollama (local LLM) is NOT installed here.
+echo  It runs on a separate dedicated server.
+echo  Configure the server URL in Settings after first launch.
+echo  Until then, use Anthropic or OpenAI (API key required).
+echo.
+echo  Estimated time: 5-10 minutes
+echo  Disk space required: ~1 GB
 echo.
 set /p CONFIRM="Press ENTER to begin installation, or Ctrl+C to cancel... "
 

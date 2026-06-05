@@ -8,7 +8,7 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 title Little Gerry - Starting...
 
-:: Refresh PATH so freshly-installed tools (docker, node, ollama) are found
+:: Refresh PATH so freshly-installed tools (docker, node) are found
 set "PATH=%PATH%;%ProgramFiles%\Docker\Docker\resources\bin;%ProgramFiles%\nodejs;%USERPROFILE%\AppData\Local\Programs\Python\Python314;%USERPROFILE%\AppData\Local\Programs\Python\Python314\Scripts;%USERPROFILE%\.local\bin"
 
 :: ── First-run setup (runs if .venv is missing) ─────────────
@@ -103,17 +103,7 @@ if !ERRORLEVEL! neq 0 (
     pause & exit /b 1
 )
 
-echo  [Setup 4/5] Creating your admin account...
-    echo.
-    echo  Enter your details for the Little Gerry login:
-    echo.
-    set /p PMI_ADMIN_EMAIL= "  Your company email: "
-    set /p PMI_ADMIN_NAME=  "  Your display name : "
-    set /p PMI_ADMIN_PASSWORD= "  Choose a password  : "
-    echo.
-python scripts\seed_admin.py
-
-echo  [Setup 5/5] Installing frontend dependencies...
+echo  [Setup 4/5] Installing frontend dependencies...
 cd /d "%~dp0frontend"
 npm install
 if !ERRORLEVEL! neq 0 (
