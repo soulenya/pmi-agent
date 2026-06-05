@@ -51,7 +51,7 @@ def _set_status(text: str, step: int | None = None) -> None:
             _win_ref.evaluate_js(
                 f"var s=document.getElementById('s'),f=document.getElementById('f');"
                 f"if(s)s.textContent={json.dumps(text)};"
-                f"if(f)f.style.width='{min(max(_status_step,0),7)/7*100:.0f}%';"
+                f"if(f)f.style.width='{min(max(_status_step,0),6)/6*100:.0f}%';"
             )
         except Exception:
             pass
@@ -119,18 +119,8 @@ def _start_services() -> None:
                 break
             time.sleep(3)
 
-        # 3. Ollama
-        _set_status("Starting Ollama...", 3)
-        if "ollama.exe" not in _run("tasklist").stdout.decode(errors="ignore").lower():
-            subprocess.Popen(
-                ["powershell", "-WindowStyle", "Hidden", "-Command",
-                 "Start-Process ollama -ArgumentList serve -WindowStyle Hidden"],
-                creationflags=NO_WIN,
-            )
-            time.sleep(2)
-
-        # 4. Backend
-        _set_status("Starting backend...", 4)
+        # 3. Backend
+        _set_status("Starting backend...", 3)
         _kill_port(8000)
         time.sleep(0.5)
         (BACKEND_DIR / "logs").mkdir(exist_ok=True)
@@ -144,8 +134,8 @@ def _start_services() -> None:
             creationflags=NO_WIN,
         ))
 
-        # 5. Frontend
-        _set_status("Starting frontend...", 5)
+        # 4. Frontend
+        _set_status("Starting frontend...", 4)
         _kill_port(5173)
         time.sleep(0.5)
         _procs.append(subprocess.Popen(
@@ -158,13 +148,13 @@ def _start_services() -> None:
         ))
 
         # Wait for backend health-check
-        _set_status("Waiting for app...", 6)
+        _set_status("Waiting for app...", 5)
         for _ in range(40):
             if _health_ok():
                 break
             time.sleep(1)
 
-        _set_status("Ready!", 7)
+        _set_status("Ready!", 6)
         time.sleep(0.5)
 
     except Exception:
@@ -186,8 +176,6 @@ def _stop_all() -> None:
     _kill_port(8000)
     _kill_port(5173)
     _run("docker stop pmi_postgres")
-    _run("taskkill /f /im ollama.exe")
-    _run('taskkill /f /im "ollama app.exe"')
 
 
 # ── control-file command handler (called from poll thread) ──────────────────
