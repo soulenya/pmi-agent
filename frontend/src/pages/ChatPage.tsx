@@ -243,6 +243,29 @@ export function ChatPage() {
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
           setStreamingContent(null);
           setToolActivities([]);
+        } else if (msg.type === "error") {
+          const detail = (msg as unknown as { detail?: string }).detail ?? "An error occurred.";
+          setStreamingContent(null);
+          setToolActivities([]);
+          // Inject a synthetic error message into the message list so it's visible in the chat bubble
+          queryClient.setQueryData<Message[]>(
+            ["messages", conversationId],
+            (prev) => [
+              ...(prev ?? []),
+              {
+                id: crypto.randomUUID(),
+                conversation_id: conversationId ?? "",
+                role: "assistant",
+                content: `⚠️ ${detail}`,
+                agent_type: null,
+                model_name: null,
+                cited_chunk_ids: [],
+                tool_calls: null,
+                tool_results: null,
+                created_at: new Date().toISOString(),
+              },
+            ],
+          );
         }
       } catch {
         // ignore malformed frames
