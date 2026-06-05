@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 16;
+export const BUILD_NUMBER = 17;
 export const BUILD_DATE = "2026-06-05";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 17,
+    date: "2026-06-05",
+    title: "First-Run Setup Wizard",
+    changes: [
+      "After first Google login, a setup wizard appears to configure the AI model",
+      "Choose Anthropic, OpenAI, or Ollama; enter API key or server URL",
+      "Model list loads live from the selected provider",
+      "Connection is tested before proceeding — won't let you in with a broken config",
+    ],
+  },
   {
     build: 16,
     date: "2026-06-05",

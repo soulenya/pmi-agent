@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { googleInitiate, googlePoll } from "@/api/auth";
 import { useAuthStore } from "@/stores/authStore";
+import { getSettings } from "@/api/settings";
+import { FirstRunSetup } from "@/components/FirstRunSetup";
 import { cn } from "@/lib/utils";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 
@@ -42,6 +44,7 @@ export function LoginPage() {
 
   const [ssoState, setSsoState] = useState<SsoState>("idle");
   const [ssoError, setSsoError] = useState<string | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const authIdRef = useRef<string | null>(null);
 
@@ -84,6 +87,21 @@ export function LoginPage() {
           // success
           setTokens(result.access_token, result.refresh_token);
           setUser(result.user);
+
+          // Check if this is first login (no LLM configured yet)
+          try {
+            const s = await getSettings();
+            const needsSetup =
+              !s.llm_provider ||
+              (!s.openai_key_set && !s.anthropic_key_set && !s.ollama_url);
+            if (needsSetup) {
+              setShowSetup(true);
+              return; // don't navigate yet
+            }
+          } catch {
+            // If settings check fails, just proceed normally
+          }
+
           navigate("/");
         } catch {
           stopPolling();
@@ -111,7 +129,9 @@ export function LoginPage() {
   const buttonDisabled = ssoState === "waiting" || backendStatus !== "ready";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
+    <>
+      {showSetup && <FirstRunSetup onComplete={() => navigate("/")} />}
+      <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm rounded-lg border bg-card p-8 shadow-md">
         <h1 className="mb-1 text-2xl font-bold">Little Gerry</h1>
         <p className="mb-6 text-sm text-muted-foreground">Sign in with your company account</p>
@@ -178,6 +198,7 @@ export function LoginPage() {
         )}
       </div>
     </div>
+    </>
   );
 }
 
