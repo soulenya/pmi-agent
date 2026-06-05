@@ -225,10 +225,17 @@ class AgentExecutor:
                 yield err.model_dump_json()
                 return
 
-            accumulated_content += content_this_round
-
             # ── No tool calls → final answer ──────────────────────────────────
+            # Determine whether we're in prompt-based tool mode
+            from services.llm.ollama import OllamaClient, _tools_support_cache
+            _use_prompt_tools = (
+                isinstance(self.ollama, OllamaClient)
+                and not _tools_support_cache.get(self.ollama._model, True)
+            )
+
             if not tool_calls_this_round:
+                accumulated_content += content_this_round
+                # Save the final clean answer
                 import re as _re
                 clean_content = _re.sub(r"<tool_call>.*?</tool_call>", "", accumulated_content, flags=_re.DOTALL).strip()
                 assistant_msg = await msg_repo.create(
@@ -253,13 +260,6 @@ class AgentExecutor:
                 return
 
             # ── Execute tool calls ────────────────────────────────────────────
-            # Determine whether we're in prompt-based tool mode (no native tool support)
-            from services.llm.ollama import OllamaClient, _tools_support_cache
-            _use_prompt_tools = (
-                isinstance(self.ollama, OllamaClient)
-                and not _tools_support_cache.get(self.ollama._model, True)
-            )
-
             # Add the assistant's (partial) message to history
             if _use_prompt_tools:
                 # In prompt-tools mode, strip any <tool_call> tags from the message

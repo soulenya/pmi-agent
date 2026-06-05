@@ -238,14 +238,14 @@ class OllamaClient:
                     eval_count = data.get("eval_count", 0)
 
                     if use_prompt_tools:
-                        # Accumulate content for tool-call parsing
+                        # Buffer the entire response — never stream tokens.
+                        # We can't know until the full response arrives whether it's
+                        # a tool call or plain text (the JSON regex needs the closing }
+                        # before it can match, by which point partial tokens already leaked).
                         full_content += content
                         if not done:
-                            # Stream only the clean part (before any <tool_call> tag)
-                            if not _looks_like_tool_call(full_content) and content:
-                                yield StreamChunk(content=content, model=data.get("model", self._model))
                             continue
-                        # done=True: parse the full response for tool calls
+                        # done=True: parse the full buffered response
                         clean, parsed_calls = _parse_text_tool_calls(full_content)
                         if parsed_calls:
                             yield StreamChunk(
@@ -256,8 +256,9 @@ class OllamaClient:
                                 output_tokens=eval_count,
                             )
                         else:
-                            # No tool calls — yield anything not yet streamed
+                            # Plain text — emit the full clean content in one chunk
                             yield StreamChunk(
+                                content=clean,
                                 done=True,
                                 model=data.get("model", self._model),
                                 input_tokens=prompt_eval,
