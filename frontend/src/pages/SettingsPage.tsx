@@ -333,7 +333,7 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
               className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
           </Field>
-          <Field label="Ollama URL" hint="Local Ollama server address.">
+          <Field label="Ollama Server URL" hint="Address of the Ollama server — localhost or a network IP (e.g. http://192.168.1.50:11434).">
             <input
               value={settings.ollama_url}
               onChange={(e) => onChange({ ollama_url: e.target.value })}
