@@ -267,13 +267,22 @@ class AgentExecutor:
                 clean_round = _re.sub(r"<tool_call>.*?</tool_call>", "", content_this_round, flags=_re.DOTALL).strip()
                 messages.append({"role": "assistant", "content": clean_round})
             else:
-                messages.append({"role": "assistant", "content": content_this_round, "tool_calls": tool_calls_this_round})
+                # Pass tool_calls WITH ids so provider clients can reconstruct
+                # the correct API format (OpenAI needs id+string args, Anthropic
+                # needs tool_use content blocks — both clients handle this in
+                # _convert_messages / _split_messages)
+                messages.append({
+                    "role": "assistant",
+                    "content": content_this_round,
+                    "tool_calls": tool_calls_this_round,
+                })
 
             for tc in tool_calls_this_round:
                 fn = tc.get("function", {})
                 tool_name = fn.get("name", "")
                 raw_args = fn.get("arguments", {})
                 args: dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
+                tc_id = tc.get("id", "")
 
                 # Emit "running" status so the UI can show a live indicator
                 running_label = _tool_running_label(tool_name, args)
@@ -300,7 +309,9 @@ class AgentExecutor:
                     # Inject result as a user message so the model can read it
                     messages.append({"role": "user", "content": f"[Tool result for {tool_name}]:\n{result}\n\nNow answer the user's original question using this data. Do NOT make up any information."})
                 else:
-                    messages.append({"role": "tool", "content": result})
+                    # Use the client's provider-correct format (OpenAI needs tool_call_id,
+                    # Anthropic needs tool_use_id in a content block, Ollama just uses role=tool)
+                    messages.append(self.ollama.build_tool_result_message(tc_id, tool_name, result))
 
         # Exceeded MAX_TOOL_ROUNDS — return what we have
         if accumulated_content:
