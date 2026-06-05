@@ -27,8 +27,38 @@ class OpenAIClient:
         self._model = model or DEFAULT_MODEL
 
     def _convert_messages(self, messages: list[dict]) -> list[dict]:
-        """Pass messages through — OpenAI format matches our internal format."""
-        return messages
+        """Convert internal message format to OpenAI API format."""
+        import json as _json
+        result = []
+        for m in messages:
+            role = m.get("role", "")
+            if role == "assistant" and m.get("tool_calls"):
+                # Re-encode arguments as JSON string; restore OpenAI tool call shape
+                oa_calls = []
+                for tc in m["tool_calls"]:
+                    fn = tc.get("function", {})
+                    args = fn.get("arguments", {})
+                    oa_calls.append({
+                        "id": tc.get("id", f"call_{fn.get('name', 'fn')}"),
+                        "type": "function",
+                        "function": {
+                            "name": fn.get("name", ""),
+                            "arguments": _json.dumps(args) if isinstance(args, dict) else str(args),
+                        },
+                    })
+                result.append({
+                    "role": "assistant",
+                    "content": m.get("content") or None,
+                    "tool_calls": oa_calls,
+                })
+            else:
+                result.append(m)
+        return result
+
+    @staticmethod
+    def build_tool_result_message(tc_id: str, tool_name: str, result: str) -> dict:
+        """Return a properly formatted tool result message for OpenAI."""
+        return {"role": "tool", "tool_call_id": tc_id or f"call_{tool_name}", "content": result}
 
     async def chat_stream(
         self,
@@ -143,7 +173,7 @@ def _to_openai_tool(ollama_tool: dict) -> dict:
 
 
 def _convert_openai_tool_calls(raw_calls: list[dict]) -> list[dict]:
-    """Convert OpenAI tool call dicts to Ollama-compatible format."""
+    """Convert OpenAI tool call dicts to Ollama-compatible format, preserving id."""
     import json
     result = []
     for tc in raw_calls:
@@ -152,6 +182,7 @@ def _convert_openai_tool_calls(raw_calls: list[dict]) -> list[dict]:
         except (json.JSONDecodeError, KeyError):
             args = {}
         result.append({
+            "id": tc.get("id", ""),
             "function": {
                 "name": tc["function"]["name"],
                 "arguments": args,

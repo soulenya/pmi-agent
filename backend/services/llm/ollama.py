@@ -334,6 +334,11 @@ class OllamaClient:
         except Exception:
             return False
 
+    @staticmethod
+    def build_tool_result_message(tc_id: str, tool_name: str, result: str) -> dict:
+        """Return a properly formatted tool result message for Ollama."""
+        return {"role": "tool", "content": result}
+
 
 class OllamaError(RuntimeError):
     """Raised when the Ollama server returns an error."""

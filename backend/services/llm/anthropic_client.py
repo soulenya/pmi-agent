@@ -29,15 +29,49 @@ class AnthropicClient:
     def _split_messages(self, messages: list[dict]) -> tuple[str | None, list[dict]]:
         """
         Anthropic requires system prompt separate from messages array.
+        Also converts tool-result and assistant-with-tool-calls messages to
+        the Anthropic content-block format.
         Returns (system_prompt, user_assistant_messages).
         """
         system: str | None = None
         filtered: list[dict] = []
         for m in messages:
-            if m.get("role") == "system":
+            role = m.get("role", "")
+            if role == "system":
                 system = (system or "") + m.get("content", "")
+
+            elif role == "tool":
+                # Convert OpenAI-style tool result to Anthropic tool_result block
+                # (executor uses role=tool for non-prompt-tools providers)
+                # We use tc_id stored in the message; fall back to empty string
+                tc_id = m.get("tool_use_id") or m.get("tool_call_id") or ""
+                filtered.append({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": tc_id,
+                        "content": m.get("content", ""),
+                    }],
+                })
+
+            elif role == "assistant" and m.get("tool_calls"):
+                # Convert internal tool_calls list to Anthropic content blocks
+                content_blocks: list[dict] = []
+                text = m.get("content") or ""
+                if text:
+                    content_blocks.append({"type": "text", "text": text})
+                for tc in m["tool_calls"]:
+                    fn = tc.get("function", {})
+                    content_blocks.append({
+                        "type": "tool_use",
+                        "id": tc.get("id", f"toolu_{fn.get('name', 'fn')}"),
+                        "name": fn.get("name", ""),
+                        "input": fn.get("arguments", {}),
+                    })
+                filtered.append({"role": "assistant", "content": content_blocks})
+
             else:
-                filtered.append({"role": m["role"], "content": m.get("content", "")})
+                filtered.append({"role": role, "content": m.get("content", "")})
         return system, filtered
 
     def _convert_tools(self, tools: list[dict]) -> list[dict]:
@@ -103,6 +137,7 @@ class AnthropicClient:
                     for block in final.content:
                         if block.type == "tool_use":
                             tool_calls.append({
+                                "id": block.id,
                                 "function": {
                                     "name": block.name,
                                     "arguments": block.input,
@@ -146,6 +181,7 @@ class AnthropicClient:
                 content += block.text
             elif block.type == "tool_use":
                 tool_calls.append({
+                    "id": block.id,
                     "function": {
                         "name": block.name,
                         "arguments": block.input,
@@ -167,3 +203,15 @@ class AnthropicClient:
             return True
         except Exception:
             return False
+
+    @staticmethod
+    def build_tool_result_message(tc_id: str, tool_name: str, result: str) -> dict:
+        """Return a properly formatted tool result message for Anthropic."""
+        return {
+            "role": "user",
+            "content": [{
+                "type": "tool_result",
+                "tool_use_id": tc_id or f"toolu_{tool_name}",
+                "content": result,
+            }],
+        }
