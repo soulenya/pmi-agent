@@ -227,13 +227,15 @@ async def test_connection(
 
 @router.get("/ollama-models")
 async def list_ollama_models(
+    db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ) -> dict:
-    """Return the list of locally installed Ollama models."""
+    """Return the list of models installed on the configured Ollama server."""
     import httpx
+    ollama_url = str(await _get_setting(db, "llm.ollama_url"))
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            resp = await client.get("http://localhost:11434/api/tags")
+            resp = await client.get(f"{ollama_url}/api/tags")
             resp.raise_for_status()
             data = resp.json()
             names = [m["name"] for m in data.get("models", [])]

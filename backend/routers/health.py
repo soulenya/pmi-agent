@@ -12,8 +12,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from database import get_db
+from models.db.settings import SystemSetting
+from sqlalchemy import select
 
 router = APIRouter(prefix="/health", tags=["health"])
+
+
+async def _get_ollama_url(db: AsyncSession) -> str:
+    """Read ollama URL from DB, falling back to env-var default."""
+    row = (await db.execute(select(SystemSetting).where(SystemSetting.key == "llm.ollama_url"))).scalar_one_or_none()
+    return str(row.value) if row and row.value else settings.ollama_base_url
 
 
 @router.get("")
@@ -35,8 +43,9 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> dict:
 
     # ── Ollama ────────────────────────────────────────────────────────────────
     try:
+        ollama_url = await _get_ollama_url(db)
         async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"{settings.ollama_base_url}/api/tags")
+            resp = await client.get(f"{ollama_url}/api/tags")
             resp.raise_for_status()
         status_info["checks"]["ollama"] = {"status": "ok"}
     except Exception as exc:

@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 14;
-export const BUILD_DATE = "2026-06-04";
+export const BUILD_NUMBER = 15;
+export const BUILD_DATE = "2026-06-05";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 15,
+    date: "2026-06-05",
+    title: "Remote Ollama Server Support",
+    changes: [
+      "Ollama server URL is now fully configurable — point to any machine on the network",
+      "Settings → Ollama shows 'Ollama Server URL' field (e.g. http://192.168.1.50:11434)",
+      "Health check and model list both use the configured URL (no longer hardcoded to localhost)",
+      "Includes server setup and cleanup PowerShell scripts (scripts/ folder)",
+    ],
+  },
   {
     build: 14,
     date: "2026-06-04",
