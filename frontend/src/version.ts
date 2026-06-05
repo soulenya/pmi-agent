@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 15;
+export const BUILD_NUMBER = 16;
 export const BUILD_DATE = "2026-06-05";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 16,
+    date: "2026-06-05",
+    title: "Migration Preparation",
+    changes: [
+      "LLM error frames now show in the chat bubble instead of being silently dropped",
+      "Added backup-ollama-models.ps1 to back up model files before server migration",
+      "Added migrate-to-server.ps1 — guided migration day runbook with verification",
+    ],
+  },
   {
     build: 15,
     date: "2026-06-05",
