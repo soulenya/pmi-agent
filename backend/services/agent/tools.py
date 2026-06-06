@@ -52,10 +52,11 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "search_knowledge_base",
             "description": (
-                "ONLY call this when the user explicitly asks about a specific PMI document, "
-                "VACTOR specification, regulatory submission, protocol, or internal company "
-                "knowledge that you cannot answer from general knowledge. "
-                "Do NOT call for general questions, greetings, or things you already know."
+                "Search the local Knowledge Base of *imported* documents. "
+                "ONLY call this for PMI documents, VACTOR specifications, regulatory submissions, "
+                "protocols, or internal knowledge that has been explicitly uploaded to the KB. "
+                "For documents still on Google Drive that have NOT been imported, use search_drive_content instead. "
+                "Do NOT call for general questions or things you already know."
             ),
             "parameters": {
                 "type": "object",
@@ -357,6 +358,34 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                 },
                 "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_drive_content",
+            "description": (
+                "Search Google Drive files by keyword and read their full text content. "
+                "Use this to answer questions about documents stored on Google Drive that have NOT "
+                "been imported into the Knowledge Base. Searches across file names and content, "
+                "then automatically reads the text of matching files. "
+                "Use search_knowledge_base for already-imported documents instead."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Keywords or phrase to search for across Drive file names and content.",
+                    },
+                    "max_files": {
+                        "type": "integer",
+                        "description": "How many matching files to read (1–5). Default 3.",
+                        "default": 3,
+                    },
+                },
+                "required": ["query"],
             },
         },
     },
@@ -854,6 +883,69 @@ async def execute_list_drive_folder(ctx: ToolContext, args: dict[str, Any]) -> s
     return "\n\n".join(lines)
 
 
+async def execute_search_drive_content(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Search Drive and read the content of top matching files."""
+    import asyncio
+    from services.google_service import drive_search, drive_get_content, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return "Error: query must not be empty."
+    max_files = min(int(args.get("max_files", 3)), 5)
+
+    # Step 1: search for matching files
+    try:
+        files = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_search(query, max_files * 2)  # fetch extra, filter folders
+        )
+    except Exception as exc:
+        return f"Drive search failed: {exc}"
+
+    # Filter out folders and non-text types
+    FOLDER_MIME = "application/vnd.google-apps.folder"
+    READABLE = {
+        "application/vnd.google-apps.document",
+        "application/vnd.google-apps.spreadsheet",
+        "application/vnd.google-apps.presentation",
+        "text/plain", "text/csv", "text/markdown",
+        "application/pdf",
+    }
+    readable_files = [
+        f for f in files
+        if f["type"] != FOLDER_MIME and (
+            f["type"] in READABLE or f["type"].startswith("text/")
+        )
+    ][:max_files]
+
+    if not readable_files:
+        return f"No readable Drive files found for: {query}"
+
+    # Step 2: read each file's content
+    lines = [f"Drive content search for '{query}' ({len(readable_files)} file(s) read):\n"]
+    for f in readable_files:
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, lambda fid=f["id"]: drive_get_content(fid)
+            )
+            content = result.get("content", "").strip()
+            if not content:
+                lines.append(f"--- {f['name']} (no readable text) ---")
+            else:
+                # Cap each file at 4000 chars to avoid context overflow
+                truncated = content[:4000]
+                suffix = "..." if len(content) > 4000 else ""
+                lines.append(
+                    f"--- {result['name']} ({result['type']}) ---\n"
+                    f"URL: {result['url']}\n\n"
+                    f"{truncated}{suffix}"
+                )
+        except Exception as exc:
+            lines.append(f"--- {f['name']} (read failed: {exc}) ---")
+
+    return "\n\n".join(lines)
+
+
 async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
     from services.google_service import drive_get_content, get_credentials
@@ -1017,6 +1109,7 @@ TOOL_EXECUTORS = {
     "search_gmail": execute_search_gmail,
     "read_gmail_message": execute_read_gmail_message,
     "search_drive": execute_search_drive,
+    "search_drive_content": execute_search_drive_content,
     "list_drive_folder": execute_list_drive_folder,
     "read_drive_file": execute_read_drive_file,
     "get_calendar_events": execute_get_calendar_events,
