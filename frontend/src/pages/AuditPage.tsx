@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useTimezone } from "@/contexts/AppContext";
+import { formatDate, formatTime } from "@/lib/formatDate";
 import {
   ShieldCheck,
   ShieldX,
@@ -64,13 +66,14 @@ function PayloadViewer({ payload }: { payload: Record<string, unknown> | null })
 // ── Event row ──────────────────────────────────────────────────────────────────
 
 function EventRow({ event }: { event: AuditEvent }) {
+  const timezone = useTimezone();
   const ts = new Date(event.created_at);
-  const formattedDate = ts.toLocaleDateString("en-US", {
+  const formattedDate = formatDate(ts, timezone, {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
-  const formattedTime = ts.toLocaleTimeString("en-US", {
+  const formattedTime = formatTime(ts, timezone, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",

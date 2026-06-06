@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
 import { ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTimezone } from "@/contexts/AppContext";
 import { listTasks } from "@/api/tasks";
 import { listMeetings } from "@/api/meetings";
 import { getGoogleStatus, listGoogleCalendarEvents } from "@/api/google";
@@ -53,11 +54,12 @@ function DayPanel({
   gcalEvents: GoogleCalendarEvent[];
   onClose: () => void;
 }) {
+  const timezone = useTimezone();
   return (
     <div className="w-72 shrink-0 rounded-xl border bg-card flex flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <h3 className="font-semibold text-sm">
-          {date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          {date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: timezone })}
         </h3>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
@@ -138,8 +140,8 @@ function DayPanel({
                     <p className="text-sm truncate">{ev.title}</p>
                     {ev.start && (
                       <p className="text-[10px] text-muted-foreground">
-                        {new Date(ev.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        {ev.end && ` – ${new Date(ev.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                    {new Date(ev.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: timezone })}
+                        {ev.end && ` \u2013 ${new Date(ev.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: timezone })}`}
                       </p>
                     )}
                   </div>

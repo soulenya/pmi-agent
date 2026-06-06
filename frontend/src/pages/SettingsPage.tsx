@@ -428,6 +428,26 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
   );
 }
 
+// All IANA timezones, built from Intl API with a static fallback
+const IANA_TIMEZONES: string[] = (() => {
+  try {
+    return (Intl as unknown as { supportedValuesOf(k: string): string[] }).supportedValuesOf("timeZone");
+  } catch {
+    return [
+      "UTC",
+      "America/New_York", "America/Chicago", "America/Denver",
+      "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu",
+      "America/Sao_Paulo", "America/Toronto", "America/Vancouver",
+      "Europe/London", "Europe/Paris", "Europe/Berlin",
+      "Europe/Amsterdam", "Europe/Rome", "Europe/Madrid",
+      "Europe/Moscow", "Africa/Johannesburg",
+      "Asia/Dubai", "Asia/Kolkata", "Asia/Bangkok",
+      "Asia/Shanghai", "Asia/Tokyo", "Asia/Seoul",
+      "Australia/Sydney", "Australia/Melbourne", "Pacific/Auckland",
+    ];
+  }
+})();
+
 // ── Appearance section ─────────────────────────────────────────────────────────
 
 function AppearanceSection({
@@ -439,7 +459,7 @@ function AppearanceSection({
 }) {
   return (
     <Section icon={Palette} title="Appearance">
-      <Field label="Theme">
+      <Field label="Theme" hint="Changes take effect immediately and persist across restarts.">
         <select
           value={settings.theme}
           onChange={(e) => {
@@ -449,18 +469,28 @@ function AppearanceSection({
           }}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
         >
-          <option value="system">System</option>
+          <option value="system">System (follows OS)</option>
           <option value="light">Light</option>
           <option value="dark">Dark</option>
         </select>
       </Field>
-      <Field label="Timezone">
+      <Field
+        label="Timezone"
+        hint={`Type to search — e.g. "New_York" or "London". Used for all dates and times across the app.`}
+      >
         <input
+          list="tz-options"
           value={settings.timezone}
           onChange={(e) => onChange({ timezone: e.target.value })}
           placeholder="UTC"
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          spellCheck={false}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
         />
+        <datalist id="tz-options">
+          {IANA_TIMEZONES.map((tz) => (
+            <option key={tz} value={tz} />
+          ))}
+        </datalist>
       </Field>
     </Section>
   );
@@ -525,11 +555,14 @@ function SystemHealthSection() {
 
   const checks = health?.checks ?? {};
 
-  const rows: { label: string; icon: React.ElementType; key: keyof typeof checks }[] = [
-    { label: "Database (PostgreSQL)", icon: Database, key: "database" },
-    { label: "AI Engine (Ollama)", icon: Wifi, key: "ollama" },
-    { label: "Disk Space", icon: HardDrive, key: "disk" },
-  ];
+  // AI Engine label: use the active provider from the llm check
+  const llmCheck = (checks.llm ?? checks.ollama) as { status?: string; provider?: string; detail?: string } | undefined;
+  const providerLabels: Record<string, string> = {
+    ollama: "AI Engine (Ollama)",
+    openai: "AI Engine (OpenAI)",
+    anthropic: "AI Engine (Anthropic)",
+  };
+  const llmLabel = providerLabels[llmCheck?.provider ?? ""] ?? "AI Engine";
 
   return (
     <Section
@@ -561,21 +594,35 @@ function SystemHealthSection() {
         <p className="text-xs text-muted-foreground">Checking services…</p>
       ) : (
         <div className="space-y-2">
-          {rows.map(({ label, icon: Icon, key }) => {
-            const check = checks[key];
-            return (
-              <div key={key} className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-sm">
-                  <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                  {label}
-                  {key === "disk" && (check as { free_gb?: number })?.free_gb != null && (
-                    <span className="text-xs text-muted-foreground">({(check as { free_gb?: number }).free_gb} GB free)</span>
-                  )}
-                </span>
-                <StatusPill status={check?.status} detail={check?.detail} />
-              </div>
-            );
-          })}
+          {/* Database */}
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-sm">
+              <Database className="h-3.5 w-3.5 text-muted-foreground" />
+              Database (PostgreSQL)
+            </span>
+            <StatusPill status={checks.database?.status} detail={checks.database?.detail} />
+          </div>
+
+          {/* Active LLM provider */}
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-sm">
+              <Wifi className="h-3.5 w-3.5 text-muted-foreground" />
+              {llmLabel}
+            </span>
+            <StatusPill status={llmCheck?.status} detail={llmCheck?.detail} />
+          </div>
+
+          {/* Disk */}
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-sm">
+              <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
+              Disk Space
+              {checks.disk?.free_gb != null && (
+                <span className="text-xs text-muted-foreground">({checks.disk.free_gb} GB free)</span>
+              )}
+            </span>
+            <StatusPill status={checks.disk?.status} detail={checks.disk?.detail} />
+          </div>
         </div>
       )}
 

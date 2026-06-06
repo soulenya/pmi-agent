@@ -66,6 +66,9 @@ export interface HealthCheckResult {
   timestamp: string;
   checks: {
     database?: { status: string; detail?: string };
+    /** Active LLM provider health (replaces legacy "ollama" key). */
+    llm?: { status: string; provider?: string; detail?: string };
+    /** Legacy key kept for backward-compat — prefer `llm`. */
     ollama?: { status: string; detail?: string };
     disk?: { status: string; free_gb?: number; detail?: string };
   };
