@@ -142,7 +142,7 @@ function RunResearchForm({ onClose }: { onClose: () => void }) {
 
       {mutation.isError && (
         <p className="text-xs text-destructive">
-          Research failed. Check that the backend and Ollama are running.
+          Research failed. Check that the backend is running.
         </p>
       )}
     </form>

@@ -125,7 +125,11 @@ async def drive_import(
     mime = drive_file_data.get("type", "text/plain")
 
     if not content.strip():
-        raise HTTPException(422, "File has no extractable text content.")
+        raise HTTPException(
+            422,
+            f"Could not extract text from '{name}' ({mime}). "
+            "Supported types: Google Docs/Sheets/Slides, PDFs, Word documents, and plain text files.",
+        )
 
     ext_map = {
         "application/vnd.google-apps.document":     ".txt",

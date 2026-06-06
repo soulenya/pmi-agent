@@ -75,6 +75,7 @@ async def _llm_draft_email(
     purpose: str,
     tone: str,
     key_points: str | None,
+    db: AsyncSession,
 ) -> str:
     """Call Ollama to write an email draft. Returns the draft body text."""
     recipient_line = f"Recipient: {recipient_name}" if recipient_name else "Recipient: (not specified)"
@@ -142,6 +143,7 @@ async def create_and_draft(
         purpose=body.purpose,
         tone=body.tone,
         key_points=body.key_points,
+        db=db,
     )
     draft = EmailDraft(
         id=uuid.uuid4(),
