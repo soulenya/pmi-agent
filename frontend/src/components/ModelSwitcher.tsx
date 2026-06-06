@@ -10,7 +10,6 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BrainCircuit, ChevronDown, Check, KeyRound, Loader2, AlertCircle } from "lucide-react";
 import { getSettings, updateSettings, getOllamaModels, getAnthropicModels } from "@/api/settings";
-import type { AppSettings } from "@/api/settings";
 import { cn } from "@/lib/utils";
 
 // ── Static OpenAI list (no unauthenticated listing endpoint) ─────────────────
@@ -124,7 +123,7 @@ export function ModelSwitcher() {
 
   function handleKeyAndSelect(provider: string, modelId: string) {
     const isCloud = provider === "openai" || provider === "anthropic";
-    const keySet = provider === "openai" ? settings.openai_key_set : settings.anthropic_key_set;
+    const keySet = provider === "openai" ? settings?.openai_key_set : settings?.anthropic_key_set;
     if (isCloud && !keySet && !apiKeyInput.trim()) {
       setKeyError("Paste your API key above first.");
       return;
