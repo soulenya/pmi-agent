@@ -17,9 +17,12 @@ Tools receive a ToolContext rather than direct DB sessions so the caller
 
 from __future__ import annotations
 
+import os
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -470,6 +473,32 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                 },
                 "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_file",
+            "description": (
+                "Generate a downloadable file and save it to the server. "
+                "Use this when the user asks you to create a report, export data, "
+                "write a document, or produce any output they can download. "
+                "Returns a download URL the user can click."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "Filename with extension, e.g. 'report.md' or 'tasks.csv'. Allowed: .txt .md .csv .json",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Full text content to write into the file.",
+                    },
+                },
+                "required": ["filename", "content"],
             },
         },
     },
@@ -951,6 +980,27 @@ async def execute_list_google_tasks(ctx: ToolContext, args: dict[str, Any]) -> s
     return "\n".join(lines)
 
 
+_GENERATED_FILES_DIR = Path(__file__).resolve().parent.parent.parent / "generated_files"
+
+
+async def execute_generate_file(ctx: ToolContext, args: dict[str, Any]) -> str:
+    filename = str(args.get("filename", "output.txt")).strip()
+    content  = str(args.get("content", ""))
+
+    # Sanitize filename
+    filename = re.sub(r"[^\w.\-]", "_", filename)
+    allowed = {".txt", ".md", ".csv", ".json"}
+    suffix = Path(filename).suffix.lower()
+    if suffix not in allowed:
+        filename = Path(filename).stem + ".txt"
+
+    _GENERATED_FILES_DIR.mkdir(exist_ok=True)
+    uid_prefix = uuid.uuid4().hex[:8]
+    safe_name = f"{uid_prefix}_{filename}"
+    (_GENERATED_FILES_DIR / safe_name).write_text(content, encoding="utf-8")
+    return f"File created: /api/files/{safe_name}"
+
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 TOOL_EXECUTORS = {
@@ -962,6 +1012,7 @@ TOOL_EXECUTORS = {
     "get_regulatory_status": execute_get_regulatory_status,
     "search_web": execute_search_web,
     "fetch_page": execute_fetch_page,
+    "generate_file": execute_generate_file,
     # Google Workspace (read-only)
     "search_gmail": execute_search_gmail,
     "read_gmail_message": execute_read_gmail_message,

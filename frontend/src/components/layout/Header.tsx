@@ -3,6 +3,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { logout as apiLogout } from "@/api/auth";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 import { ModelSwitcher } from "@/components/ModelSwitcher";
+import { ChatSidebarToggle } from "./ChatSidebar";
 
 interface HeaderProps {
   onOpenPalette: () => void;
@@ -40,6 +41,9 @@ export function Header({ onOpenPalette }: HeaderProps) {
       <div className="flex items-center gap-3">
         {/* Model switcher */}
         <ModelSwitcher />
+
+        {/* Chat sidebar toggle */}
+        <ChatSidebarToggle />
 
         {/* Notifications */}
         <NotificationDropdown />

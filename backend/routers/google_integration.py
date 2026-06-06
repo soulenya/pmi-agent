@@ -1,10 +1,5 @@
 """
 Google Workspace integration router.
-
-All write actions go through a proposals system:
-  POST /api/google/actions/propose  → creates a pending proposal
-  POST /api/google/actions/{id}/approve → executes it (user must explicitly call this)
-  DELETE /api/google/actions/{id}   → cancel
 """
 from __future__ import annotations
 
@@ -13,9 +8,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from database import get_db
 from dependencies import get_current_user
+from models.db.user import User
 from services import google_service as gs
+from services.embeddings.service import EmbeddingService, get_embedding_service
 
 router = APIRouter(prefix="/api/google", tags=["google"])
 
@@ -78,6 +77,156 @@ async def drive_file(file_id: str, _user=Depends(get_current_user)):
         return gs.drive_get_content(file_id)
     except RuntimeError as e:
         raise HTTPException(401, str(e))
+
+
+@router.get("/drive/shared-drives")
+async def drive_shared_drives(_user=Depends(get_current_user)):
+    try:
+        return {"drives": gs.drive_list_shared_drives()}
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+
+
+@router.get("/drive/list")
+async def drive_list(folder_id: str = "root", _user=Depends(get_current_user)):
+    try:
+        return {"items": gs.drive_list_folder(folder_id)}
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+
+
+class DriveImportRequest(BaseModel):
+    file_id: str
+    title: str
+    category_id: str | None = None
+    is_regulated: bool = False
+
+
+@router.post("/drive/import")
+async def drive_import(
+    req: DriveImportRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service),
+):
+    """Fetch a Google Drive file and ingest it into the Knowledge Base."""
+    from services.documents.ingestion import DocumentIngestionService
+    from uuid import UUID as _UUID
+
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+    try:
+        drive_file_data = gs.drive_get_content(req.file_id)
+    except Exception as exc:
+        raise HTTPException(400, f"Could not read Drive file: {exc}")
+
+    content = drive_file_data.get("content", "")
+    name = drive_file_data.get("name", "drive_file.txt")
+    mime = drive_file_data.get("type", "text/plain")
+
+    if not content.strip():
+        raise HTTPException(422, "File has no extractable text content.")
+
+    ext_map = {
+        "application/vnd.google-apps.document":     ".txt",
+        "application/vnd.google-apps.spreadsheet":  ".csv",
+        "application/vnd.google-apps.presentation": ".txt",
+        "text/plain": ".txt", "text/csv": ".csv",
+        "text/markdown": ".md", "application/json": ".json",
+    }
+    ext = ext_map.get(mime, ".txt")
+    filename = name if "." in name else name + ext
+    raw_bytes = content.encode("utf-8")
+    cat_id = _UUID(req.category_id) if req.category_id else None
+
+    svc = DocumentIngestionService(db=db, embedding_svc=embedding_svc)
+    try:
+        doc = await svc.ingest(
+            filename=filename, raw_bytes=raw_bytes,
+            title=req.title or name, category_id=cat_id,
+            is_regulated=req.is_regulated, created_by_id=current_user.id,
+        )
+    except Exception as exc:
+        raise HTTPException(500, f"Ingestion failed: {exc}")
+
+    return {
+        "id": str(doc.id), "title": doc.title, "filename": doc.filename,
+        "status": doc.status, "drive_file_id": req.file_id,
+        "drive_url": drive_file_data.get("url", ""),
+    }
+
+
+# ── Google Tasks ──────────────────────────────────────────────────────────
+
+@router.get("/tasks")
+async def google_tasks_list(
+    max_results: int = 50,
+    show_completed: bool = False,
+    _user=Depends(get_current_user),
+):
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+    try:
+        import asyncio
+        tasks = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: gs.tasks_list(max_results, show_completed)
+        )
+        return {"tasks": tasks}
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+
+
+class GoogleTaskImportRequest(BaseModel):
+    task_ids: list[str]
+
+
+@router.post("/tasks/import")
+async def google_tasks_import(
+    req: GoogleTaskImportRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    import asyncio
+    import uuid as _uuid
+    from models.db.task import Task as DBTask
+    from models.db.enums import TaskPriority, TaskStatus
+
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+
+    all_tasks = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: gs.tasks_list(200, False)
+    )
+    by_id = {t["id"]: t for t in all_tasks}
+    imported_ids = []
+
+    for tid in req.task_ids:
+        gt = by_id.get(tid)
+        if not gt:
+            continue
+        due = None
+        if gt.get("due"):
+            try:
+                from datetime import date
+                due = date.fromisoformat(gt["due"][:10])
+            except Exception:
+                pass
+        task = DBTask(
+            id=_uuid.uuid4(),
+            title=gt.get("title", "(No title)"),
+            description=gt.get("notes") or None,
+            status=TaskStatus.todo,
+            priority=TaskPriority.medium,
+            due_date=due,
+            created_by_id=current_user.id,
+            tags=["google-tasks"],
+            attachments=[],
+        )
+        db.add(task)
+        imported_ids.append(str(task.id))
+
+    await db.commit()
+    return {"imported": len(imported_ids), "task_ids": imported_ids}
 
 
 # ── Calendar ──────────────────────────────────────────────────────────────

@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen, LayoutList, Columns2, ListChecks, Trash2, MoveRight } from "lucide-react";
+import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen, LayoutList, Columns2, ListChecks, Trash2, MoveRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listTasks, createTask, updateTask, deleteTask, listProjects } from "@/api/tasks";
+import { getGoogleStatus, listGoogleTasks, importGoogleTasks } from "@/api/google";
 import type { Task, TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
+import type { GoogleTask } from "@/api/google";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 
 const STATUS_ICONS: Record<TaskStatus, React.ReactNode> = {
@@ -419,9 +421,103 @@ function KanbanBoard({
   );
 }
 
+// ── Google Tasks Import Modal ────────────────────────────────────────────────
+
+function GoogleTasksImportModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const { data: googleTasks = [], isLoading } = useQuery({
+    queryKey: ["google-tasks-list"],
+    queryFn: () => listGoogleTasks(50, false),
+  });
+
+  const importMutation = useMutation({
+    mutationFn: () => importGoogleTasks(Array.from(selectedIds)),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      onClose();
+      console.info(`Imported ${result.imported} tasks from Google Tasks`);
+    },
+  });
+
+  function toggleTask(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="flex flex-col w-[520px] max-h-[70vh] bg-background rounded-xl border shadow-2xl">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <h2 className="font-semibold">Import from Google Tasks</h2>
+          <button onClick={onClose} className="rounded p-1 hover:bg-muted">
+            <AlertCircle className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex justify-center py-10">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : googleTasks.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-10">No tasks found.</p>
+          ) : (
+            <div className="divide-y">
+              {googleTasks.map((task: GoogleTask) => (
+                <label key={task.id} className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(task.id)}
+                    onChange={() => toggleTask(task.id)}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm">{task.title}</p>
+                    {task.due && (
+                      <p className="text-xs text-muted-foreground">
+                        Due: {new Date(task.due).toLocaleDateString()}
+                      </p>
+                    )}
+                    {task.notes && (
+                      <p className="text-xs text-muted-foreground truncate">{task.notes}</p>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-between border-t px-4 py-3">
+          <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent">
+              Cancel
+            </button>
+            <button
+              onClick={() => importMutation.mutate()}
+              disabled={selectedIds.size === 0 || importMutation.isPending}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {importMutation.isPending ? "Importing…" : `Import ${selectedIds.size > 0 ? selectedIds.size : ""}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showNewTask, setShowNewTask] = useState(false);
+  const [showGoogleImport, setShowGoogleImport] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("active");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -453,6 +549,12 @@ export function TasksPage() {
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: () => listProjects(),
+    staleTime: 60_000,
+  });
+
+  const { data: googleStatus } = useQuery({
+    queryKey: ["google-status"],
+    queryFn: getGoogleStatus,
     staleTime: 60_000,
   });
 
@@ -549,6 +651,11 @@ export function TasksPage() {
         />
       )}
 
+      {/* Google Tasks Import modal */}
+      {showGoogleImport && (
+        <GoogleTasksImportModal onClose={() => setShowGoogleImport(false)} />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -593,6 +700,14 @@ export function TasksPage() {
               <Columns2 className="h-4 w-4" />
             </button>
           </div>
+          {googleStatus?.connected && (
+            <button
+              onClick={() => setShowGoogleImport(true)}
+              className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
+            >
+              Import from Google Tasks
+            </button>
+          )}
           <button
             onClick={() => setShowNewTask(true)}
             className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"

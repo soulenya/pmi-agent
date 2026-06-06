@@ -79,6 +79,7 @@ class TaskOut(BaseModel):
     due_date: datetime | None
     completed_at: datetime | None
     tags: list[str]
+    attachments: list[dict] = []
     source_conversation_id: uuid.UUID | None
     created_by: uuid.UUID | None
     created_at: datetime

@@ -5,8 +5,10 @@ import { ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Users, X } from "
 import { cn } from "@/lib/utils";
 import { listTasks } from "@/api/tasks";
 import { listMeetings } from "@/api/meetings";
+import { getGoogleStatus, listGoogleCalendarEvents } from "@/api/google";
 import type { Task } from "@/types/tasks";
 import type { MeetingNote } from "@/types/meetings";
+import type { GoogleCalendarEvent } from "@/api/google";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -16,12 +18,6 @@ function isSameDay(a: Date, b: Date) {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
   );
-}
-
-function toDateOnly(iso: string): Date {
-  // Parse YYYY-MM-DD as local time (not UTC)
-  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
-  return new Date(y, m - 1, d);
 }
 
 function monthGrid(year: number, month: number): (Date | null)[] {
@@ -48,11 +44,13 @@ function DayPanel({
   date,
   tasks,
   meetings,
+  gcalEvents,
   onClose,
 }: {
   date: Date;
   tasks: Task[];
   meetings: MeetingNote[];
+  gcalEvents: GoogleCalendarEvent[];
   onClose: () => void;
 }) {
   return (
@@ -66,7 +64,7 @@ function DayPanel({
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {tasks.length === 0 && meetings.length === 0 && (
+        {tasks.length === 0 && meetings.length === 0 && gcalEvents.length === 0 && (
           <p className="text-xs text-muted-foreground py-4 text-center">Nothing scheduled.</p>
         )}
         {tasks.length > 0 && (
@@ -127,6 +125,29 @@ function DayPanel({
             </div>
           </div>
         )}
+        {gcalEvents.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+              Google Calendar
+            </p>
+            <div className="space-y-1">
+              {gcalEvents.map((ev) => (
+                <div key={ev.id} className="flex items-start gap-2 rounded-md px-2 py-1.5 bg-purple-50 dark:bg-purple-950/30">
+                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-purple-500" />
+                  <div className="min-w-0">
+                    <p className="text-sm truncate">{ev.title}</p>
+                    {ev.start && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {new Date(ev.start).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {ev.end && ` – ${new Date(ev.end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -139,6 +160,7 @@ export function CalendarPage() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [showGCalEvents, setShowGCalEvents] = useState(true);
 
   const { data: tasks = [] } = useQuery({
     queryKey: ["tasks"],
@@ -150,6 +172,19 @@ export function CalendarPage() {
     queryKey: ["meetings"],
     queryFn: listMeetings,
     staleTime: 60_000,
+  });
+
+  const { data: googleStatus } = useQuery({
+    queryKey: ["google-status"],
+    queryFn: getGoogleStatus,
+    staleTime: 60_000,
+  });
+
+  const { data: gcalEvents = [] } = useQuery({
+    queryKey: ["gcal-events"],
+    queryFn: () => listGoogleCalendarEvents(30, 60),
+    enabled: googleStatus?.connected === true && showGCalEvents,
+    staleTime: 300_000,
   });
 
   // Build lookup maps: date string (YYYY-MM-DD) → items
@@ -168,6 +203,15 @@ export function CalendarPage() {
       const key = m.meeting_date.slice(0, 10);
       if (!meetingsByDate.has(key)) meetingsByDate.set(key, []);
       meetingsByDate.get(key)!.push(m);
+    }
+  }
+
+  const gcalByDate = new Map<string, GoogleCalendarEvent[]>();
+  for (const ev of gcalEvents) {
+    const key = (ev.start ?? "").slice(0, 10);
+    if (key) {
+      if (!gcalByDate.has(key)) gcalByDate.set(key, []);
+      gcalByDate.get(key)!.push(ev);
     }
   }
 
@@ -191,6 +235,12 @@ export function CalendarPage() {
 
   const panelMeetings = selectedDate
     ? (meetingsByDate.get(
+        `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`
+      ) ?? [])
+    : [];
+
+  const panelGcal = selectedDate
+    ? (gcalByDate.get(
         `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, "0")}-${String(selectedDate.getDate()).padStart(2, "0")}`
       ) ?? [])
     : [];
@@ -236,6 +286,14 @@ export function CalendarPage() {
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Task due</span>
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-destructive" /> Overdue task</span>
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-green-500" /> Meeting</span>
+        {googleStatus?.connected && (
+          <button
+            onClick={() => setShowGCalEvents((v) => !v)}
+            className={cn("flex items-center gap-1.5 transition-opacity", !showGCalEvents && "opacity-40")}
+          >
+            <span className="h-2 w-2 rounded-full bg-purple-500" /> Google Calendar
+          </button>
+        )}
       </div>
 
       <div className="flex gap-4">
@@ -260,9 +318,10 @@ export function CalendarPage() {
               const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
               const dayTasks = tasksByDate.get(dateKey) ?? [];
               const dayMeetings = meetingsByDate.get(dateKey) ?? [];
+              const dayGcal = gcalByDate.get(dateKey) ?? [];
               const isToday = isSameDay(date, today);
               const isSelected = selectedDate ? isSameDay(date, selectedDate) : false;
-              const hasItems = dayTasks.length > 0 || dayMeetings.length > 0;
+              const hasItems = dayTasks.length > 0 || dayMeetings.length > 0 || dayGcal.length > 0;
               const overdueTasks = dayTasks.filter(t => t.status !== "done" && date < today);
 
               return (
@@ -301,6 +360,9 @@ export function CalendarPage() {
                     {dayMeetings.slice(0, 3).map((m) => (
                       <span key={m.id} className="h-1.5 w-1.5 rounded-full bg-green-500" title={m.title} />
                     ))}
+                    {dayGcal.slice(0, 3).map((ev) => (
+                      <span key={ev.id} className="h-1.5 w-1.5 rounded-full bg-purple-500" title={ev.title} />
+                    ))}
                   </div>
                   {/* Mini labels for visible items */}
                   <div className="space-y-0.5 mt-0.5">
@@ -314,9 +376,14 @@ export function CalendarPage() {
                         {m.title}
                       </p>
                     ))}
-                    {(dayTasks.length + dayMeetings.length) > 2 && (
+                    {dayGcal.slice(0, 1).map((ev) => (
+                      <p key={ev.id} className="text-[9px] leading-tight truncate text-purple-600 dark:text-purple-400">
+                        {ev.title}
+                      </p>
+                    ))}
+                    {(dayTasks.length + dayMeetings.length + dayGcal.length) > 2 && (
                       <p className="text-[9px] text-muted-foreground/60">
-                        +{dayTasks.length + dayMeetings.length - 2} more
+                        +{dayTasks.length + dayMeetings.length + dayGcal.length - 2} more
                       </p>
                     )}
                   </div>
@@ -332,6 +399,7 @@ export function CalendarPage() {
             date={selectedDate}
             tasks={panelTasks}
             meetings={panelMeetings}
+            gcalEvents={panelGcal}
             onClose={() => setSelectedDate(null)}
           />
         )}

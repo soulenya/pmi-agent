@@ -11,6 +11,9 @@ import {
 } from "@/api/documents";
 import type { Document, DocumentChunk } from "@/types/documents";
 import { DocumentViewer } from "@/components/DocumentViewer";
+import { DriveBrowser } from "@/components/google/DriveBrowser";
+import { getGoogleStatus, driveImportToKnowledgeBase } from "@/api/google";
+import type { DriveItem } from "@/api/google";
 import {
   Upload,
   Trash2,
@@ -423,6 +426,8 @@ function DocumentRow({
 export function DocumentsPage() {
   const queryClient = useQueryClient();
   const [showUpload, setShowUpload] = useState(false);
+  const [showDriveBrowser, setShowDriveBrowser] = useState(false);
+  const [driveImportStatus, setDriveImportStatus] = useState<string | null>(null);
   const [activeCategoryId, setActiveCategoryId] = useState<string | undefined>();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [editDoc, setEditDoc] = useState<Document | null>(null);
@@ -479,6 +484,27 @@ export function DocumentsPage() {
     mutationFn: (id: string) => reembed(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+  });
+
+  const { data: googleStatus } = useQuery({
+    queryKey: ["google-status"],
+    queryFn: getGoogleStatus,
+    staleTime: 60_000,
+  });
+
+  const driveImportMutation = useMutation({
+    mutationFn: (item: DriveItem) =>
+      driveImportToKnowledgeBase(item.id, item.name, undefined, false),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      setShowDriveBrowser(false);
+      setDriveImportStatus(`Imported: ${result.title}`);
+      setTimeout(() => setDriveImportStatus(null), 4000);
+    },
+    onError: (e: Error) => {
+      setDriveImportStatus(`Import failed: ${e.message}`);
+      setTimeout(() => setDriveImportStatus(null), 4000);
     },
   });
 
@@ -577,14 +603,39 @@ export function DocumentsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Knowledge Base</h1>
-          <button
-            onClick={() => setShowUpload(true)}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-          >
-            <Upload className="h-4 w-4" />
-            Upload
-          </button>
+          <div className="flex items-center gap-2">
+            {googleStatus?.connected && (
+              <button
+                onClick={() => setShowDriveBrowser(true)}
+                className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+              >
+                Import from Drive
+              </button>
+            )}
+            <button
+              onClick={() => setShowUpload(true)}
+              className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            >
+              <Upload className="h-4 w-4" />
+              Upload
+            </button>
+          </div>
         </div>
+
+        {/* Drive import status toast */}
+        {driveImportStatus && (
+          <div className="rounded-md border bg-card px-4 py-2 text-sm text-muted-foreground">
+            {driveImportStatus}
+          </div>
+        )}
+
+        {/* Drive browser modal */}
+        {showDriveBrowser && (
+          <DriveBrowser
+            onClose={() => setShowDriveBrowser(false)}
+            onSelect={(item) => driveImportMutation.mutate(item)}
+          />
+        )}
 
         {/* Stats bar */}
         {!isLoading && allDocs.length > 0 && (
