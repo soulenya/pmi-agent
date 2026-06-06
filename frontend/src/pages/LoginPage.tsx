@@ -13,24 +13,29 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 type BackendStatus = "checking" | "ready" | "down";
 type SsoState = "idle" | "waiting" | "error";
 
-/** Poll /health every 3 s until the backend is up. */
+/** Poll /health until the backend is up — with inflight guard to avoid overlapping requests. */
 function useBackendStatus(): BackendStatus {
   const [status, setStatus] = useState<BackendStatus>("checking");
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inflightRef = useRef(false);
 
   async function check() {
+    if (inflightRef.current) return;   // skip if a request is already in-flight
+    inflightRef.current = true;
     try {
-      await axios.get(`${API_BASE}/health`, { timeout: 4000 });
+      await axios.get(`${API_BASE}/health`, { timeout: 6000 });
       setStatus("ready");
       if (timerRef.current) clearInterval(timerRef.current);
     } catch {
       setStatus("down");
+    } finally {
+      inflightRef.current = false;
     }
   }
 
   useEffect(() => {
     check();
-    timerRef.current = setInterval(check, 3000);
+    timerRef.current = setInterval(check, 5000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
