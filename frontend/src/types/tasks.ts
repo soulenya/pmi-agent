@@ -3,6 +3,14 @@
 export type TaskStatus = "backlog" | "todo" | "in_progress" | "in_review" | "done" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "critical";
 
+export interface TaskAttachment {
+  id: string;
+  name: string;
+  url: string;
+  source: "upload" | "drive";
+  drive_file_id?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -46,6 +54,7 @@ export interface Task {
   due_date: string | null;
   completed_at: string | null;
   tags: string[];
+  attachments: TaskAttachment[];
   source_conversation_id: string | null;
   created_by: string | null;
   created_at: string;

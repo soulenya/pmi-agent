@@ -59,6 +59,10 @@ desktop/src-tauri/target/
 *.log
 logs/
 
+# AI-generated files — keep directory but not contents
+backend/generated_files/*
+!backend/generated_files/.gitkeep
+
 # Database dumps
 *.sql.gz
 *.dump

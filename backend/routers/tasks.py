@@ -182,3 +182,63 @@ async def add_comment(
     comment = await task_repo.add_comment(task_id, current_user.id, body.content)
     await db.commit()
     return TaskCommentOut.model_validate(comment)
+
+
+# ── Attachments ───────────────────────────────────────────────────────────────
+
+from pydantic import BaseModel as _BaseModel
+
+
+class AttachmentAdd(_BaseModel):
+    name: str
+    url: str
+    source: str = "upload"   # "upload" | "drive"
+    drive_file_id: str | None = None
+
+
+@router.post("/{task_id}/attachments", response_model=TaskOut)
+async def add_attachment(
+    task_id: uuid.UUID,
+    body: AttachmentAdd,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TaskOut:
+    from sqlalchemy import select
+    from models.db.task import Task
+    task = (await db.execute(select(Task).where(Task.id == task_id))).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(404, "Task not found.")
+    att = {
+        "id": str(uuid.uuid4()),
+        "name": body.name,
+        "url": body.url,
+        "source": body.source,
+    }
+    if body.drive_file_id:
+        att["drive_file_id"] = body.drive_file_id
+    task.attachments = (task.attachments or []) + [att]
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(task, "attachments")
+    await db.commit()
+    await db.refresh(task)
+    return TaskOut.model_validate(task)
+
+
+@router.delete("/{task_id}/attachments/{attachment_id}", response_model=TaskOut)
+async def remove_attachment(
+    task_id: uuid.UUID,
+    attachment_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TaskOut:
+    from sqlalchemy import select
+    from models.db.task import Task
+    task = (await db.execute(select(Task).where(Task.id == task_id))).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(404, "Task not found.")
+    task.attachments = [a for a in (task.attachments or []) if a.get("id") != attachment_id]
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(task, "attachments")
+    await db.commit()
+    await db.refresh(task)
+    return TaskOut.model_validate(task)

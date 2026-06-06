@@ -71,3 +71,19 @@ export async function addTaskComment(
   });
   return resp.data;
 }
+
+export async function addTaskAttachment(
+  taskId: string,
+  body: { name: string; url: string; source?: "upload" | "drive"; drive_file_id?: string }
+): Promise<Task> {
+  const resp = await apiClient.post<Task>(`/tasks/${taskId}/attachments`, body);
+  return resp.data;
+}
+
+export async function removeTaskAttachment(
+  taskId: string,
+  attachmentId: string
+): Promise<Task> {
+  const resp = await apiClient.delete<Task>(`/tasks/${taskId}/attachments/${attachmentId}`);
+  return resp.data;
+}

@@ -40,6 +40,7 @@ const navItems = [
   { to: "/audit", icon: ScrollText, label: "Audit Trail" },
   { to: "/users", icon: Users, label: "User Management" },
   { to: "/google", icon: Globe, label: "Google Workspace" },
+  { to: "/files", icon: FileText, label: "Generated Files" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.db.base import Base
@@ -72,6 +72,7 @@ class Task(Base):
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
+    attachments: Mapped[list[dict]] = mapped_column(JSONB, nullable=False, default=list)
 
     # Tracks which agent run or conversation created this task
     source_agent_run_id: Mapped[uuid.UUID | None] = mapped_column(

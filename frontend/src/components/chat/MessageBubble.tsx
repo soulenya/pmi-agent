@@ -4,13 +4,44 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/chat";
-import { Bot, User, ChevronDown, ChevronRight, Wrench } from "lucide-react";
+import { Bot, User, ChevronDown, ChevronRight, Wrench, Download } from "lucide-react";
+import { getFileDownloadUrl } from "@/api/files";
 
 // Import a highlight.js theme (dark-compatible)
 import "highlight.js/styles/github-dark.css";
 
 interface Props {
   message: Message;
+  compact?: boolean;
+}
+
+// Extract /api/files/<name> links from message content
+const FILE_LINK_RE = /\/api\/files\/(\S+\.[a-z]{2,6})/gi;
+
+function extractFileLinks(content: string): string[] {
+  const matches: string[] = [];
+  let m: RegExpExecArray | null;
+  FILE_LINK_RE.lastIndex = 0;
+  while ((m = FILE_LINK_RE.exec(content)) !== null) {
+    if (!matches.includes(m[1])) matches.push(m[1]);
+  }
+  return matches;
+}
+
+function FileDownloadCard({ filename }: { filename: string }) {
+  const displayName = filename.replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[-_]/, "");
+  return (
+    <a
+      href={getFileDownloadUrl(filename)}
+      download
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-2 flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs hover:bg-white/20 transition-colors"
+    >
+      <Download className="h-3.5 w-3.5 shrink-0" />
+      <span className="flex-1 truncate">{displayName}</span>
+    </a>
+  );
 }
 
 function ToolCallsSection({ toolCalls }: { toolCalls: unknown[] }) {
@@ -46,35 +77,41 @@ function ToolCallsSection({ toolCalls }: { toolCalls: unknown[] }) {
   );
 }
 
-export function MessageBubble({ message }: Props) {
+export function MessageBubble({ message, compact = false }: Props) {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
 
   if (!isUser && !isAssistant) return null;
+
+  const fileLinks = isAssistant ? extractFileLinks(message.content ?? "") : [];
 
   return (
     <div
       className={cn(
         "flex gap-3",
         isUser ? "flex-row-reverse" : "flex-row",
+        compact && "gap-1.5",
       )}
     >
-      {/* Avatar */}
-      <div
-        className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-          isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-secondary text-secondary-foreground",
-        )}
-      >
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-      </div>
+      {/* Avatar — hidden in compact mode */}
+      {!compact && (
+        <div
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+            isUser
+              ? "bg-primary text-primary-foreground"
+              : "bg-secondary text-secondary-foreground",
+          )}
+        >
+          {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+        </div>
+      )}
 
       {/* Bubble */}
       <div
         className={cn(
           "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+          compact && "px-3 py-1.5 text-xs max-w-[90%]",
           isUser
             ? "rounded-tr-sm bg-primary text-primary-foreground"
             : "rounded-tl-sm bg-secondary text-secondary-foreground",
@@ -92,6 +129,9 @@ export function MessageBubble({ message }: Props) {
         ) : (
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         )}
+
+        {/* File download cards */}
+        {fileLinks.map((f) => <FileDownloadCard key={f} filename={f} />)}
 
         {/* Tool calls (persisted) */}
         {isAssistant && message.tool_calls && message.tool_calls.length > 0 && (

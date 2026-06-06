@@ -270,13 +270,15 @@ def drive_search(query: str, max_results: int = 10) -> list[dict]:
 
 
 def drive_list_folder(folder_id: str = "root", max_results: int = 50) -> list[dict]:
-    """List the direct children (files and folders) of a Drive folder."""
+    """List the direct children (files and folders) of a Drive folder, including shared drives."""
     svc = _build("drive", "v3")
     resp = svc.files().list(
         q=f"'{folder_id}' in parents and trashed=false",
         pageSize=max_results,
         orderBy="folder,name",
         fields="files(id,name,mimeType,modifiedTime,webViewLink)",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
     ).execute()
     items = []
     for f in resp.get("files", []):
@@ -292,9 +294,26 @@ def drive_list_folder(folder_id: str = "root", max_results: int = 50) -> list[di
     return items
 
 
+def drive_list_shared_drives(max_results: int = 20) -> list[dict]:
+    """List all shared/team drives the user has access to."""
+    svc = _build("drive", "v3")
+    resp = svc.drives().list(
+        pageSize=max_results,
+        fields="drives(id,name)",
+    ).execute()
+    return [
+        {"id": d["id"], "name": d["name"], "type": "shared_drive"}
+        for d in resp.get("drives", [])
+    ]
+
+
 def drive_get_content(file_id: str) -> dict:
     svc = _build("drive", "v3")
-    meta = svc.files().get(fileId=file_id, fields="id,name,mimeType,webViewLink").execute()
+    meta = svc.files().get(
+        fileId=file_id,
+        fields="id,name,mimeType,webViewLink",
+        supportsAllDrives=True,
+    ).execute()
     mime = meta.get("mimeType", "")
     content = ""
 

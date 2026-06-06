@@ -13,6 +13,7 @@ import {
   Send,
   ListChecks,
   Plus,
+  Paperclip,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -23,8 +24,13 @@ import {
   addTaskComment,
   listProjects,
   listTasks,
+  addTaskAttachment,
+  removeTaskAttachment,
 } from "@/api/tasks";
-import type { Task, TaskCreate, TaskStatus, TaskPriority, TaskUpdate } from "@/types/tasks";
+import { getGoogleStatus } from "@/api/google";
+import { DriveBrowser } from "@/components/google/DriveBrowser";
+import type { DriveItem } from "@/api/google";
+import type { Task, TaskCreate, TaskStatus, TaskPriority, TaskUpdate, TaskAttachment } from "@/types/tasks";
 
 // ── Shared constants ───────────────────────────────────────────────────────────
 
@@ -287,6 +293,101 @@ function SubtasksSection({ parentTask }: { parentTask: Task }) {
   );
 }
 
+// ── Attachments section ─────────────────────────────────────────────────────
+
+function AttachmentsSection({ task }: { task: Task }) {
+  const qc = useQueryClient();
+  const [showDriveBrowser, setShowDriveBrowser] = useState(false);
+
+  const { data: googleStatus } = useQuery({
+    queryKey: ["google-status"],
+    queryFn: getGoogleStatus,
+    staleTime: 60_000,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: (body: { name: string; url: string; source: "drive"; drive_file_id: string }) =>
+      addTaskAttachment(task.id, body),
+    onSuccess: (updated) => {
+      qc.setQueryData(["tasks"], (prev: Task[] | undefined) =>
+        prev?.map((t) => (t.id === updated.id ? updated : t)) ?? []
+      );
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (attachmentId: string) => removeTaskAttachment(task.id, attachmentId),
+    onSuccess: (updated) => {
+      qc.setQueryData(["tasks"], (prev: Task[] | undefined) =>
+        prev?.map((t) => (t.id === updated.id ? updated : t)) ?? []
+      );
+    },
+  });
+
+  const attachments: TaskAttachment[] = task.attachments ?? [];
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <Paperclip className="h-3.5 w-3.5" />
+          Attachments ({attachments.length})
+        </h3>
+        {googleStatus?.connected && (
+          <button
+            onClick={() => setShowDriveBrowser(true)}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            + from Drive
+          </button>
+        )}
+      </div>
+
+      {attachments.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic">No attachments.</p>
+      ) : (
+        <div className="space-y-1">
+          {attachments.map((a) => (
+            <div key={a.id} className="flex items-center gap-2 rounded-md border px-2.5 py-1.5">
+              <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <a
+                href={a.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 text-xs truncate hover:underline"
+              >
+                {a.name}
+              </a>
+              <button
+                onClick={() => removeMutation.mutate(a.id)}
+                disabled={removeMutation.isPending}
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showDriveBrowser && (
+        <DriveBrowser
+          onClose={() => setShowDriveBrowser(false)}
+          onSelect={(item: DriveItem) => {
+            addMutation.mutate({
+              name: item.name,
+              url: `https://drive.google.com/file/d/${item.id}/view`,
+              source: "drive",
+              drive_file_id: item.id,
+            });
+            setShowDriveBrowser(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Main drawer ────────────────────────────────────────────────────────────────
 
 interface TaskDrawerProps {
@@ -527,6 +628,12 @@ export function TaskDrawer({ task, onClose, onDeleted }: TaskDrawerProps) {
               }}
             />
           </div>
+
+          {/* Divider */}
+          <div className="border-t" />
+
+          {/* Attachments */}
+          <AttachmentsSection task={task} />
 
           {/* Divider */}
           <div className="border-t" />
