@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 20;
+export const BUILD_NUMBER = 21;
 export const BUILD_DATE = "2026-06-06";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 21,
+    date: "2026-06-06",
+    title: "Cloud Embeddings (OpenAI) — Ollama No Longer Required",
+    changes: [
+      "New 'Embedding Provider' setting: choose Ollama (local) or OpenAI (cloud)",
+      "OpenAI text-embedding-3-small at 768 dims — matches the existing KB schema, no database migration needed",
+      "Anthropic users without Ollama can now use Knowledge Base and Semantic Search via OpenAI embeddings",
+      "Settings page now shows the embedding section clearly, with guidance when Ollama is not available",
+      "OpenAI API key entry shown automatically when OpenAI embeddings are selected with Anthropic as LLM",
+    ],
+  },
   {
     build: 20,
     date: "2026-06-06",

@@ -34,6 +34,7 @@ EXPOSED_KEYS = {
     "llm.model",
     "llm.ollama_url",
     "llm.embedding_model",
+    "llm.embedding_provider",
     "app.theme",
     "app.timezone",
     "notifications.email_enabled",
@@ -44,6 +45,7 @@ DEFAULTS: dict[str, object] = {
     "llm.model": "llama3.2",
     "llm.ollama_url": "http://localhost:11434",
     "llm.embedding_model": "nomic-embed-text",
+    "llm.embedding_provider": "ollama",
     "app.theme": "system",
     "app.timezone": "UTC",
     "notifications.email_enabled": False,
@@ -77,6 +79,7 @@ class SettingsOut(BaseModel):
     llm_model: str
     ollama_url: str
     embedding_model: str
+    embedding_provider: str
     theme: str
     timezone: str
     notifications_email_enabled: bool
@@ -90,6 +93,7 @@ class SettingsUpdate(BaseModel):
     llm_model: str | None = Field(None, min_length=1, max_length=100)
     ollama_url: str | None = Field(None, min_length=1, max_length=255)
     embedding_model: str | None = Field(None, min_length=1, max_length=100)
+    embedding_provider: str | None = Field(None, pattern="^(ollama|openai)$")
     theme: str | None = Field(None, pattern="^(light|dark|system)$")
     timezone: str | None = Field(None, max_length=64)
     notifications_email_enabled: bool | None = None
@@ -116,6 +120,7 @@ async def get_settings(
         llm_model=str(await _get_setting(db, "llm.model")),
         ollama_url=str(await _get_setting(db, "llm.ollama_url")),
         embedding_model=str(await _get_setting(db, "llm.embedding_model")),
+        embedding_provider=str(await _get_setting(db, "llm.embedding_provider")),
         theme=str(await _get_setting(db, "app.theme")),
         timezone=str(await _get_setting(db, "app.timezone")),
         notifications_email_enabled=bool(await _get_setting(db, "notifications.email_enabled")),
@@ -135,6 +140,7 @@ async def update_settings(
         "llm.model": body.llm_model,
         "llm.ollama_url": body.ollama_url,
         "llm.embedding_model": body.embedding_model,
+        "llm.embedding_provider": body.embedding_provider,
         "app.theme": body.theme,
         "app.timezone": body.timezone,
         "notifications.email_enabled": body.notifications_email_enabled,

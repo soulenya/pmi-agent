@@ -319,32 +319,57 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
         </select>
       </Field>
 
-      {/* Ollama Server URL — always shown because embeddings always use Ollama */}
-      <Field label="Ollama Server URL" hint="Used for all document embeddings and semantic search, regardless of LLM provider. Set to your network Ollama IP if not running locally (e.g. http://192.168.1.50:11434).">
-        <input
-          value={settings.ollama_url}
-          onChange={(e) => onChange({ ollama_url: e.target.value })}
-          placeholder="http://localhost:11434"
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
-        />
-      </Field>
-
-      {/* Ollama-only fields */}
-      {provider === "ollama" && (
-        <>
-          <Field
-            label="Embedding Model"
-            hint="Ollama model used for document chunking and semantic search."
+      {/* ── Embedding provider ──────────────────────────────────────────── */}
+      <div className="border-t pt-4 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Document Embeddings</p>
+        <p className="text-xs text-muted-foreground">
+          Embeddings power Knowledge Base import and Semantic Search — separate from your LLM choice.
+          Anthropic has no embedding API; select OpenAI embeddings if Ollama is not available.
+        </p>
+        <Field label="Embedding Provider">
+          <select
+            value={settings.embedding_provider ?? "ollama"}
+            onChange={(e) => onChange({ embedding_provider: e.target.value })}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           >
-            <input
-              value={settings.embedding_model}
-              onChange={(e) => onChange({ embedding_model: e.target.value })}
-              placeholder="nomic-embed-text"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-          </Field>
-        </>
-      )}
+            <option value="ollama">Ollama (local — nomic-embed-text)</option>
+            <option value="openai">OpenAI (cloud — text-embedding-3-small)</option>
+          </select>
+        </Field>
+
+        {(settings.embedding_provider ?? "ollama") === "ollama" && (
+          <>
+            <Field label="Ollama Server URL" hint="Address of the Ollama server running nomic-embed-text (e.g. http://192.168.1.50:11434).">
+              <input
+                value={settings.ollama_url}
+                onChange={(e) => onChange({ ollama_url: e.target.value })}
+                placeholder="http://localhost:11434"
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+              />
+            </Field>
+            {provider === "ollama" && (
+              <Field label="Embedding Model" hint="Ollama model name for embeddings. Must output exactly 768 dimensions.">
+                <input
+                  value={settings.embedding_model}
+                  onChange={(e) => onChange({ embedding_model: e.target.value })}
+                  placeholder="nomic-embed-text"
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </Field>
+            )}
+          </>
+        )}
+
+        {(settings.embedding_provider ?? "ollama") === "openai" && (
+          <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3 text-xs text-blue-800 dark:text-blue-200">
+            <p className="font-semibold mb-1">OpenAI API key required for embeddings</p>
+            <p>Uses <code>text-embedding-3-small</code> at 768 dimensions — no database changes needed.{" "}
+            {settings.openai_key_set
+              ? "✓ OpenAI API key is configured."
+              : "Add your OpenAI key below and save."}</p>
+          </div>
+        )}
+      </div>
 
       {/* Cloud API keys */}
       {provider === "openai" && (
@@ -375,6 +400,40 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
               Stage key (save with main Save button)
             </button>
           )}
+        </div>
+      )}
+
+      {/* OpenAI key entry when LLM is not OpenAI but embeddings use OpenAI */}
+      {provider !== "openai" && (settings.embedding_provider ?? "ollama") === "openai" && (
+        <div className="border-t pt-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+            <KeyRound className="h-3.5 w-3.5" />
+            OpenAI API Key <span className="font-normal text-muted-foreground/70">(for embeddings)</span>
+          </p>
+          {settings.openai_key_set
+            ? <p className="flex items-center gap-1.5 text-xs text-green-600"><CheckCircle2 className="h-3.5 w-3.5" /> API key configured</p>
+            : (
+              <>
+                <Field label="API Key" hint="Stored securely in the OS keychain — never saved to disk.">
+                  <input
+                    type="password"
+                    value={openaiKey}
+                    onChange={(e) => setOpenaiKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </Field>
+                {openaiKey && (
+                  <button
+                    onClick={handleKeyApply}
+                    className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
+                  >
+                    Stage key (save with main Save button)
+                  </button>
+                )}
+              </>
+            )
+          }
         </div>
       )}
 
