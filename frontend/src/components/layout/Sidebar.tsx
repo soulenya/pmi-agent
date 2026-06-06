@@ -25,7 +25,7 @@ import { BUILD_NUMBER, BUILD_DATE } from "@/version";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/chat", icon: MessageSquare, label: "AI Assistant" },
+  { to: "/chat", icon: MessageSquare, label: "Little Gerry" },
   { to: "/projects", icon: FolderOpen, label: "Projects" },
   { to: "/tasks", icon: FolderKanban, label: "Tasks" },
   { to: "/calendar", icon: CalendarDays, label: "Calendar" },

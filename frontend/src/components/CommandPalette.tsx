@@ -33,7 +33,7 @@ interface PaletteItem {
 const ALL_ITEMS: PaletteItem[] = [
   // Navigation
   { id: "nav-dashboard", label: "Dashboard", group: "Navigation", icon: <LayoutDashboard className="h-4 w-4" />, action: (nav) => nav("/") },
-  { id: "nav-chat", label: "AI Assistant", group: "Navigation", icon: <MessageSquare className="h-4 w-4" />, action: (nav) => nav("/chat") },
+  { id: "nav-chat", label: "Little Gerry", group: "Navigation", icon: <MessageSquare className="h-4 w-4" />, action: (nav) => nav("/chat") },
   { id: "nav-projects", label: "Projects", group: "Navigation", icon: <FolderOpen className="h-4 w-4" />, action: (nav) => nav("/projects") },
   { id: "nav-tasks", label: "Tasks", group: "Navigation", icon: <FolderKanban className="h-4 w-4" />, action: (nav) => nav("/tasks") },
   { id: "nav-documents", label: "Knowledge Base", group: "Navigation", icon: <FileText className="h-4 w-4" />, action: (nav) => nav("/documents") },

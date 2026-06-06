@@ -14,7 +14,7 @@ from database import get_db
 from dependencies import get_current_user
 from models.db.user import User
 from services import google_service as gs
-from services.embeddings.service import EmbeddingService, get_embedding_service
+from services.embeddings.service import EmbeddingService, get_embedding_service_db
 
 router = APIRouter(prefix="/api/google", tags=["google"])
 
@@ -107,7 +107,7 @@ async def drive_import(
     req: DriveImportRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    embedding_svc: EmbeddingService = Depends(get_embedding_service),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
 ):
     """Fetch a Google Drive file and ingest it into the Knowledge Base."""
     from services.documents.ingestion import DocumentIngestionService
