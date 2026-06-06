@@ -222,6 +222,7 @@ async def regenerate_draft(
         purpose=draft.purpose,
         tone=draft.tone,
         key_points=draft.key_points,
+        db=db,
     )
     draft.status = "draft"
     await db.commit()

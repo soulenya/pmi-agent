@@ -113,11 +113,11 @@ async def upload_document(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
-    except Exception:
+    except Exception as exc:
         logger.exception("Document ingestion failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ingestion failed — check server logs",
+            detail=f"Ingestion failed: {exc}",
         )
 
     return ApiResponse.ok(_doc_out(doc))

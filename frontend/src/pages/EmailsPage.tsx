@@ -67,6 +67,10 @@ function NewDraftForm({ onClose }: { onClose: () => void }) {
       qc.invalidateQueries({ queryKey: ["email-drafts"] });
       onClose();
     },
+    onError: (err: Error) => {
+      // error shown below the submit button
+      console.error("Email draft creation failed:", err);
+    },
   });
 
   return (
@@ -170,6 +174,12 @@ function NewDraftForm({ onClose }: { onClose: () => void }) {
           Cancel
         </button>
       </div>
+
+      {mutation.isError && (
+        <p className="text-xs text-destructive">
+          Failed to generate draft: {(mutation.error as Error)?.message ?? "Unknown error"}
+        </p>
+      )}
     </div>
   );
 }
