@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 19;
-export const BUILD_DATE = "2026-06-07";
+export const BUILD_NUMBER = 20;
+export const BUILD_DATE = "2026-06-06";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 20,
+    date: "2026-06-06",
+    title: "Bug Fixes — Research, KB, Search, Calendar, Emails",
+    changes: [
+      "Research agent now returns results — ddgs package was missing from the venv and has been installed",
+      "Knowledge Base import and Semantic Search now work — Ollama Server URL field is always visible in Settings regardless of LLM provider (embeddings always use Ollama)",
+      "Document ingestion errors now show the actual failure reason instead of a generic message",
+      "Google Calendar: added Sync button with spinner; shows error banner if sync fails",
+      "Email Drafts: fixed regenerate crashing silently (missing db parameter); errors now shown in the form",
+    ],
+  },
   {
     build: 19,
     date: "2026-06-07",
