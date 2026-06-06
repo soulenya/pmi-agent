@@ -6,6 +6,7 @@ export interface AppSettings {
   llm_model: string;
   ollama_url: string;
   embedding_model: string;
+  embedding_provider: string;
   theme: string;
   timezone: string;
   notifications_email_enabled: boolean;
@@ -18,6 +19,7 @@ export interface SettingsUpdate {
   llm_model?: string;
   ollama_url?: string;
   embedding_model?: string;
+  embedding_provider?: string;
   theme?: string;
   timezone?: string;
   notifications_email_enabled?: boolean;

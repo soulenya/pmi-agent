@@ -1,10 +1,11 @@
 """
-Embeddings service — wraps the Ollama /api/embeddings endpoint.
-Model: nomic-embed-text (768 dimensions).
+Embeddings service — supports Ollama (local) and OpenAI (cloud).
 
-The Ollama base URL is read from the DB settings table (llm.ollama_url) at
-request time so changes made in Settings take effect immediately without a
-server restart. Falls back to the env-var default if no DB row exists.
+Provider is determined by the 'llm.embedding_provider' DB setting:
+  - "ollama"  → nomic-embed-text via Ollama HTTP API (768 dims)
+  - "openai"  → text-embedding-3-small via OpenAI API (truncated to 768 dims)
+
+Defaults to "ollama" for backward compatibility.
 """
 
 from __future__ import annotations
@@ -25,21 +26,27 @@ EMBEDDING_MODEL = "nomic-embed-text"
 EMBEDDING_DIM = 768
 
 
-async def _read_ollama_url(db: AsyncSession) -> str:
-    """Read llm.ollama_url from the DB, falling back to env-var config."""
+async def _read_setting(db: AsyncSession, key: str, default: str = "") -> str:
+    """Read a single system_setting key from DB, falling back to default."""
     try:
         from sqlalchemy import select
         from models.db.settings import SystemSetting
         row = (
             await db.execute(
-                select(SystemSetting).where(SystemSetting.key == "llm.ollama_url")
+                select(SystemSetting).where(SystemSetting.key == key)
             )
         ).scalar_one_or_none()
         if row and row.value:
-            return str(row.value).rstrip("/")
+            return str(row.value).strip()
     except Exception:
         pass
-    return settings.ollama_base_url.rstrip("/")
+    return default
+
+
+async def _read_ollama_url(db: AsyncSession) -> str:
+    """Read llm.ollama_url from the DB, falling back to env-var config."""
+    url = await _read_setting(db, "llm.ollama_url")
+    return (url or settings.ollama_base_url).rstrip("/")
 
 
 class EmbeddingService:
@@ -69,6 +76,42 @@ class EmbeddingService:
         return [await self.embed(t) for t in texts]
 
 
+class OpenAIEmbeddingService:
+    """
+    OpenAI text-embedding-3-small with dimensions=768.
+    Matches the existing pgvector schema exactly without any DB migration.
+    """
+
+    _MODEL = "text-embedding-3-small"
+
+    def __init__(self, api_key: str) -> None:
+        self._api_key = api_key
+
+    async def embed(self, text: str) -> list[float]:
+        import openai
+        client = openai.AsyncOpenAI(api_key=self._api_key)
+        resp = await client.embeddings.create(
+            model=self._MODEL,
+            input=text,
+            dimensions=EMBEDDING_DIM,
+        )
+        return resp.data[0].embedding
+
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        import openai
+        client = openai.AsyncOpenAI(api_key=self._api_key)
+        resp = await client.embeddings.create(
+            model=self._MODEL,
+            input=texts,
+            dimensions=EMBEDDING_DIM,
+        )
+        # Results must be returned in order
+        ordered = sorted(resp.data, key=lambda e: e.index)
+        return [e.embedding for e in ordered]
+
+
 # ── FastAPI dependencies ──────────────────────────────────────────────────────
 
 def get_embedding_service() -> EmbeddingService:
@@ -78,7 +121,24 @@ def get_embedding_service() -> EmbeddingService:
 
 async def get_embedding_service_db(
     db: AsyncSession = Depends(get_db),
-) -> AsyncGenerator[EmbeddingService, None]:
-    """DB-aware dependency — reads Ollama URL from settings table at request time."""
+) -> AsyncGenerator[EmbeddingService | OpenAIEmbeddingService, None]:
+    """
+    DB-aware dependency — resolves the correct embedding backend from settings:
+      llm.embedding_provider = "openai"  → OpenAIEmbeddingService
+      llm.embedding_provider = "ollama"  → EmbeddingService (Ollama)
+    """
+    embedding_provider = await _read_setting(db, "llm.embedding_provider", "ollama")
+
+    if embedding_provider == "openai":
+        api_key = settings.get_api_key("openai")
+        if not api_key:
+            raise RuntimeError(
+                "OpenAI embedding provider is selected but no OpenAI API key is configured. "
+                "Go to Settings → AI Engine and enter your OpenAI API key, then save."
+            )
+        yield OpenAIEmbeddingService(api_key=api_key)
+        return
+
+    # Default: Ollama
     url = await _read_ollama_url(db)
     yield EmbeddingService(base_url=url)
