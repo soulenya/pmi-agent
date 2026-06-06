@@ -568,8 +568,8 @@ function SystemHealthSection() {
                 <span className="flex items-center gap-1.5 text-sm">
                   <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                   {label}
-                  {key === "disk" && check?.free_gb != null && (
-                    <span className="text-xs text-muted-foreground">({check.free_gb} GB free)</span>
+                  {key === "disk" && (check as { free_gb?: number })?.free_gb != null && (
+                    <span className="text-xs text-muted-foreground">({(check as { free_gb?: number }).free_gb} GB free)</span>
                   )}
                 </span>
                 <StatusPill status={check?.status} detail={check?.detail} />

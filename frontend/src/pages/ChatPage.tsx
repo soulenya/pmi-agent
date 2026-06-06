@@ -228,10 +228,11 @@ export function ChatPage() {
           const frame = msg as unknown as WSToolStatusFrame;
           setToolActivities((prev) => {
             // Update existing entry for this tool_name or append
-            const idx = prev.findLastIndex((a) => a.tool_name === frame.tool_name);
-            if (idx >= 0 && prev[idx].status === "running") {
+            const idx = [...prev].reverse().findIndex((a: ToolActivity) => a.tool_name === frame.tool_name);
+            const trueIdx = idx >= 0 ? prev.length - 1 - idx : -1;
+            if (trueIdx >= 0 && prev[trueIdx].status === "running") {
               const next = [...prev];
-              next[idx] = { tool_name: frame.tool_name, status: frame.status, label: frame.label };
+              next[trueIdx] = { tool_name: frame.tool_name, status: frame.status, label: frame.label };
               return next;
             }
             return [...prev, { tool_name: frame.tool_name, status: frame.status, label: frame.label }];

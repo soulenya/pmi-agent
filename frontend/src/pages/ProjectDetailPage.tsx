@@ -420,7 +420,8 @@ export function ProjectDetailPage() {
         <TaskDrawer
           task={selectedTask}
           onClose={() => setSelectedTask(null)}
-          onUpdate={(updated) => setSelectedTask(updated)}
+          onDeleted={() => setSelectedTask(null)}
+
         />
       )}
     </div>

@@ -1,6 +1,6 @@
 import { apiClient } from "./client";
 import type { ApiResponse } from "@/types";
-import type { Document, DocumentCategory, SearchRequest, SearchResult } from "@/types/documents";
+import type { Document, DocumentCategory, DocumentChunk, SearchRequest, SearchResult } from "@/types/documents";
 
 // ── Categories ────────────────────────────────────────────────────────────────
 
