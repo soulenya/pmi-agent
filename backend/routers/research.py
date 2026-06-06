@@ -24,7 +24,7 @@ router = APIRouter(prefix="/research", tags=["research"])
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _summarise(query: str, sources: list[dict]) -> tuple[str, str]:
+async def _summarise(query: str, sources: list[dict], db: AsyncSession) -> tuple[str, str]:
     """
     Call the local LLM to produce a summary paragraph and full report markdown
     from DuckDuckGo results.  Returns (summary, full_report).
@@ -127,7 +127,7 @@ async def run_research(
             await repo.add_sources(report.id, results)
 
         # 4. LLM summarisation
-        summary, full_report = await _summarise(body.query, results)
+        summary, full_report = await _summarise(body.query, results, db)
 
         # 5. Update report with content
         report = await repo.update(

@@ -325,9 +325,30 @@ def drive_get_content(file_id: str) -> dict:
     if mime in export_map:
         raw = svc.files().export(fileId=file_id, mimeType=export_map[mime]).execute()
         content = raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw)
-    elif mime.startswith("text/"):
+    elif mime.startswith("text/") or mime in ("application/json",):
         raw = svc.files().get_media(fileId=file_id).execute()
         content = raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw)
+    elif mime == "application/pdf":
+        raw_bytes = svc.files().get_media(fileId=file_id).execute()
+        if isinstance(raw_bytes, bytes):
+            try:
+                import io
+                import pypdf
+                reader = pypdf.PdfReader(io.BytesIO(raw_bytes))
+                pages = [page.extract_text() or "" for page in reader.pages]
+                content = "\n\n".join(p for p in pages if p.strip())
+            except Exception:
+                content = ""
+    elif mime in (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+    ):
+        # For Word docs, export as plain text via Google's conversion
+        try:
+            raw = svc.files().export(fileId=file_id, mimeType="text/plain").execute()
+            content = raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw)
+        except Exception:
+            content = ""
 
     return {
         "id": file_id,

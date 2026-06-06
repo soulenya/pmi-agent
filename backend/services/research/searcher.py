@@ -80,7 +80,7 @@ async def web_search(query: str, max_results: int = 8) -> list[dict]:
     Falls back to empty list on any error so callers are never blocked.
     """
     try:
-        from duckduckgo_search import DDGS  # type: ignore[import]
+        from ddgs import DDGS  # type: ignore[import]
 
         with DDGS() as ddgs:
             raw = list(ddgs.text(query, max_results=max_results))
