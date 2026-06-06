@@ -428,6 +428,7 @@ export function DocumentsPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [showDriveBrowser, setShowDriveBrowser] = useState(false);
   const [driveImportStatus, setDriveImportStatus] = useState<string | null>(null);
+  const [driveImporting, setDriveImporting] = useState(false);
   const [activeCategoryId, setActiveCategoryId] = useState<string | undefined>();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [editDoc, setEditDoc] = useState<Document | null>(null);
@@ -493,20 +494,30 @@ export function DocumentsPage() {
     staleTime: 60_000,
   });
 
-  const driveImportMutation = useMutation({
-    mutationFn: (item: DriveItem) =>
-      driveImportToKnowledgeBase(item.id, item.name, undefined, false),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      setShowDriveBrowser(false);
-      setDriveImportStatus(`Imported: ${result.title}`);
-      setTimeout(() => setDriveImportStatus(null), 4000);
-    },
-    onError: (e: Error) => {
-      setDriveImportStatus(`Import failed: ${e.message}`);
-      setTimeout(() => setDriveImportStatus(null), 4000);
-    },
-  });
+  async function handleDriveImport(items: DriveItem[]) {
+    setDriveImporting(true);
+    setDriveImportStatus(`Importing 0 of ${items.length}…`);
+    let succeeded = 0;
+    let failed = 0;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      setDriveImportStatus(`Importing ${i + 1} of ${items.length}: ${item.name}`);
+      try {
+        await driveImportToKnowledgeBase(item.id, item.name, undefined, false);
+        succeeded++;
+      } catch {
+        failed++;
+      }
+    }
+    queryClient.invalidateQueries({ queryKey: ["documents"] });
+    setDriveImporting(false);
+    setShowDriveBrowser(false);
+    const msg = failed === 0
+      ? `Imported ${succeeded} file${succeeded > 1 ? "s" : ""} successfully.`
+      : `Imported ${succeeded}, failed ${failed}.`;
+    setDriveImportStatus(msg);
+    setTimeout(() => setDriveImportStatus(null), 5000);
+  }
 
   // â”€â”€ Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const allDocs = documents;
@@ -624,7 +635,8 @@ export function DocumentsPage() {
 
         {/* Drive import status toast */}
         {driveImportStatus && (
-          <div className="rounded-md border bg-card px-4 py-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-md border bg-card px-4 py-2 text-sm text-muted-foreground">
+            {driveImporting && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
             {driveImportStatus}
           </div>
         )}
@@ -632,8 +644,8 @@ export function DocumentsPage() {
         {/* Drive browser modal */}
         {showDriveBrowser && (
           <DriveBrowser
-            onClose={() => setShowDriveBrowser(false)}
-            onSelect={(item) => driveImportMutation.mutate(item)}
+            onClose={() => { if (!driveImporting) setShowDriveBrowser(false); }}
+            onSelect={handleDriveImport}
           />
         )}
 
