@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useTimezone } from "@/contexts/AppContext";
 import {
   MessageSquare,
   CheckSquare,
@@ -57,7 +58,8 @@ function daysFromNow(iso: string): number {
 }
 
 function formatShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const timezone = (() => { try { return localStorage.getItem("pmi-timezone") ?? "UTC"; } catch { return "UTC"; } })();
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: timezone });
 }
 
 const DASH_STATUS_ICON: Record<string, React.ReactNode> = {
@@ -146,6 +148,7 @@ export function DashboardPage() {
   });
 
   const now = new Date();
+  const timezone = useTimezone();
   const activeTasks = tasks.filter((t) => t.status !== "done" && t.status !== "cancelled");
   const overdueTasks = activeTasks
     .filter((t) => t.due_date && new Date(t.due_date) < now)
@@ -171,7 +174,7 @@ export function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Good morning</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+            {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: timezone })}
             {agendaItems > 0 && (
               <span className="ml-2 text-primary font-medium">
                 &middot; {agendaItems} item{agendaItems !== 1 ? "s" : ""} on today&apos;s agenda

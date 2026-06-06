@@ -6,6 +6,7 @@ import { StatusBar } from "./StatusBar";
 import { ChatSidebar } from "./ChatSidebar";
 import { useNotificationWS } from "@/hooks/useNotificationWS";
 import { CommandPalette } from "@/components/CommandPalette";
+import { AppContextProvider } from "@/contexts/AppContext";
 
 export function AppShell() {
   useNotificationWS();
@@ -23,19 +24,21 @@ export function AppShell() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header onOpenPalette={() => setPaletteOpen(true)} />
-        <div className="flex flex-1 overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-6">
-            <Outlet />
-          </main>
-          <ChatSidebar />
+    <AppContextProvider>
+      <div className="flex h-screen overflow-hidden bg-background">
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+        <Sidebar />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Header onOpenPalette={() => setPaletteOpen(true)} />
+          <div className="flex flex-1 overflow-hidden">
+            <main className="flex-1 overflow-y-auto p-6">
+              <Outlet />
+            </main>
+            <ChatSidebar />
+          </div>
+          <StatusBar />
         </div>
-        <StatusBar />
       </div>
-    </div>
+    </AppContextProvider>
   );
 }
