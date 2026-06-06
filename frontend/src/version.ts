@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 17;
-export const BUILD_DATE = "2026-06-05";
+export const BUILD_NUMBER = 19;
+export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,31 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 19,
+    date: "2026-06-07",
+    title: "Google Workspace Integration",
+    changes: [
+      "Import Google Drive files directly into the Knowledge Base from the Documents page",
+      "Google Calendar events appear on the Calendar grid alongside local tasks and meetings",
+      "Import tasks from Google Tasks — select from a list and import in bulk to the Tasks board",
+      "Task attachments: attach Drive files or AI-generated files to any task from the task drawer",
+      "Drive browser now shows company Shared Drives alongside My Drive",
+    ],
+  },
+  {
+    build: 18,
+    date: "2026-06-06",
+    title: "Persistent Chat Sidebar + File Generation",
+    changes: [
+      "New persistent assistant panel — stays open while you navigate between tabs",
+      "Sidebar sends the current page name as context so the AI knows what you're viewing",
+      "AI can now generate files (TXT, Markdown, CSV, JSON) via the generate_file tool",
+      "Download buttons appear automatically in chat when a file is generated",
+      "New Generated Files page to browse and download all AI-created files",
+      "Status bar shows OpenAI, Anthropic, and Ollama connection states",
+    ],
+  },
   {
     build: 17,
     date: "2026-06-05",
