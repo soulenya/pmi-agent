@@ -373,12 +373,14 @@ function AttachmentsSection({ task }: { task: Task }) {
       {showDriveBrowser && (
         <DriveBrowser
           onClose={() => setShowDriveBrowser(false)}
-          onSelect={(item: DriveItem) => {
-            addMutation.mutate({
-              name: item.name,
-              url: `https://drive.google.com/file/d/${item.id}/view`,
-              source: "drive",
-              drive_file_id: item.id,
+          onSelect={(items: DriveItem[]) => {
+            items.forEach((item) => {
+              addMutation.mutate({
+                name: item.name,
+                url: `https://drive.google.com/file/d/${item.id}/view`,
+                source: "drive",
+                drive_file_id: item.id,
+              });
             });
             setShowDriveBrowser(false);
           }}

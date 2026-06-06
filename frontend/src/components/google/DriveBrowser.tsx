@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { driveListFolder, driveSearch, listSharedDrives, type DriveItem } from "@/api/google";
-import { ChevronRight, Folder, FileText, Search, Loader2, X, ArrowLeft, HardDrive } from "lucide-react";
+import { ChevronRight, Folder, FileText, Search, Loader2, X, ArrowLeft, HardDrive, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const GOOGLE_MIME_LABELS: Record<string, string> = {
@@ -29,7 +29,7 @@ function isImportable(mime: string) {
 }
 
 interface Props {
-  onSelect: (file: DriveItem) => void;
+  onSelect: (files: DriveItem[]) => void;
   onClose: () => void;
 }
 
@@ -38,8 +38,7 @@ export function DriveBrowser({ onSelect, onClose }: Props) {
     { id: "root", name: "My Drive" },
   ]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-
+  const [isSearching, setIsSearching] = useState(false);  const [selected, setSelected] = useState<Map<string, DriveItem>>(new Map());
   const currentFolder = folderStack[folderStack.length - 1];
 
   const { data: sharedDrives = [] } = useQuery({
@@ -70,6 +69,30 @@ export function DriveBrowser({ onSelect, onClose }: Props) {
   function openFolder(item: DriveItem) {
     setFolderStack((prev) => [...prev, { id: item.id, name: item.name }]);
     clearSearch();
+  }
+
+  function toggleSelect(item: DriveItem) {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (next.has(item.id)) next.delete(item.id);
+      else next.set(item.id, item);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    const importableItems = displayItems.filter(
+      (i) => isImportable(i.type)
+    );
+    setSelected((prev) => {
+      const next = new Map(prev);
+      importableItems.forEach((i) => next.set(i.id, i));
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Map());
   }
 
   function goBack() {
@@ -189,44 +212,90 @@ export function DriveBrowser({ onSelect, onClose }: Props) {
               </div>
             ) : (
               <div className="divide-y">
+                {/* Select all row */}
+                {displayItems.some((i) => isImportable(i.type)) && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-muted/30 text-xs text-muted-foreground">
+                    <button onClick={selectAll} className="hover:text-foreground underline">Select all</button>
+                    {selected.size > 0 && (
+                      <>
+                        <span>·</span>
+                        <button onClick={clearSelection} className="hover:text-foreground underline">Clear</button>
+                      </>
+                    )}
+                  </div>
+                )}
                 {displayItems.map((item) => {
                   const isFolder = item.type === "application/vnd.google-apps.folder" || item.type === "folder";
                   const importable = !isFolder && isImportable(item.type);
+                  const isChecked = selected.has(item.id);
                   return (
                     <div
                       key={item.id}
                       className={cn(
                         "flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors",
-                        isFolder && "cursor-pointer",
+                        isFolder ? "cursor-pointer" : "cursor-default",
+                        isChecked && "bg-primary/5",
                       )}
-                      onClick={isFolder ? () => openFolder(item) : undefined}
+                      onClick={isFolder ? () => openFolder(item) : (importable ? () => toggleSelect(item) : undefined)}
                     >
+                      {/* Checkbox for importable files */}
+                      {importable ? (
+                        <div
+                          className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+                            isChecked
+                              ? "bg-primary border-primary text-primary-foreground"
+                              : "border-muted-foreground/40 hover:border-primary"
+                          )}
+                          onClick={(e) => { e.stopPropagation(); toggleSelect(item); }}
+                        >
+                          {isChecked && <Check className="h-2.5 w-2.5" />}
+                        </div>
+                      ) : (
+                        <div className="w-4 shrink-0" />
+                      )}
                       {isFolder ? (
                         <Folder className="h-4 w-4 shrink-0 text-yellow-500" />
                       ) : (
-                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <FileText className={cn("h-4 w-4 shrink-0", isChecked ? "text-primary" : "text-muted-foreground")} />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm truncate">{item.name}</p>
+                        <p className={cn("text-sm truncate", isChecked && "font-medium")}>{item.name}</p>
                         <p className="text-xs text-muted-foreground">
                           {fileLabel(item.type)}
                           {item.modified && ` · ${new Date(item.modified).toLocaleDateString()}`}
                         </p>
                       </div>
                       {isFolder && <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-                      {importable && (
-                        <button
-                          onClick={() => onSelect(item)}
-                          className="shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium hover:bg-accent transition-colors"
-                        >
-                          Select
-                        </button>
-                      )}
                     </div>
                   );
                 })}
               </div>
             )}
+          </div>
+
+          {/* Footer — import button */}
+          <div className="border-t px-4 py-3 flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">
+              {selected.size > 0
+                ? `${selected.size} file${selected.size > 1 ? "s" : ""} selected`
+                : "Click files to select them"}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={onClose}
+                className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={selected.size === 0}
+                onClick={() => onSelect(Array.from(selected.values()))}
+                className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              >
+                Import {selected.size > 0 ? `${selected.size} file${selected.size > 1 ? "s" : ""}` : ""}
+              </button>
+            </div>
           </div>
         </div>
       </div>
