@@ -57,7 +57,7 @@ export function ChatSidebarToggle() {
   return (
     <button
       onClick={toggle}
-      title={open ? "Close assistant (Ctrl+/)" : "Open assistant (Ctrl+/)"}
+      title={open ? "Close Little Gerry (Ctrl+/)" : "Open Little Gerry (Ctrl+/)"}
       className={cn(
         "flex items-center justify-center rounded-md p-2 transition-colors",
         open ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent"
@@ -208,14 +208,14 @@ export function ChatSidebar() {
       <div
         onClick={toggle}
         className="flex w-8 shrink-0 cursor-pointer flex-col items-center justify-center gap-2 border-l bg-muted/30 hover:bg-muted/60 transition-colors"
-        title="Open assistant (Ctrl+/)"
+        title="Open Little Gerry (Ctrl+/)"
       >
         <Bot className="h-4 w-4 text-muted-foreground" />
         <span
           className="text-[9px] font-semibold tracking-widest text-muted-foreground uppercase"
           style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
         >
-          ASSISTANT
+          LITTLE GERRY
         </span>
         <ChevronRight className="h-3 w-3 text-muted-foreground" />
       </div>
@@ -229,7 +229,7 @@ export function ChatSidebar() {
       <div className="flex items-center justify-between border-b px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold">Assistant</span>
+          <span className="text-sm font-semibold">Little Gerry</span>
           {isConnecting && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
         </div>
         <div className="flex items-center gap-1">
@@ -292,7 +292,7 @@ export function ChatSidebar() {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message assistant… (Enter to send)"
+            placeholder="Message Little Gerry… (Enter to send)"
             rows={1}
             className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground max-h-28"
           />

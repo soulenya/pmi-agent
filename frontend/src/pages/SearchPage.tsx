@@ -250,7 +250,10 @@ export function SearchPage() {
       {/* Error */}
       {searchMutation.isError && (
         <p className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          Search failed — is Ollama running with nomic-embed-text?
+          Search failed —{" "}
+          {(searchMutation.error as Error)?.message?.includes("503") || (searchMutation.error as Error)?.message?.includes("Embedding")
+            ? "Embedding service unavailable. Check that Ollama is running with nomic-embed-text at the URL configured in Settings."
+            : ((searchMutation.error as Error)?.message ?? "Unknown error. Check that the backend is running.")}
         </p>
       )}
 

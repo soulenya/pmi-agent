@@ -16,7 +16,7 @@ from models.db.user import User
 from models.schemas.common import ApiResponse
 from models.schemas.documents import SearchRequest, SearchResult
 from repositories.document_repo import DocumentChunkRepository, DocumentRepository
-from services.embeddings.service import EmbeddingService, get_embedding_service
+from services.embeddings.service import EmbeddingService, get_embedding_service_db
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -26,7 +26,7 @@ async def semantic_search(
     body: SearchRequest,
     db: AsyncSession = Depends(get_db),
     _current_user: User = Depends(get_current_user),
-    embedding_svc: EmbeddingService = Depends(get_embedding_service),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
 ) -> ApiResponse[list[SearchResult]]:
     """
     Embed *query* with nomic-embed-text and run a cosine similarity search

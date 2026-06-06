@@ -31,7 +31,7 @@ from models.schemas.documents import (
 )
 from repositories.document_repo import DocumentCategoryRepository, DocumentRepository, DocumentChunkRepository
 from services.documents.ingestion import DocumentIngestionService
-from services.embeddings.service import EmbeddingService, get_embedding_service
+from services.embeddings.service import EmbeddingService, get_embedding_service_db
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ async def upload_document(
     is_regulated: bool = Form(False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    embedding_svc: EmbeddingService = Depends(get_embedding_service),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
 ) -> ApiResponse[DocumentOut]:
     raw = await file.read()
     if len(raw) > MAX_UPLOAD_BYTES:
@@ -187,7 +187,7 @@ async def reembed_document(
     doc_id: UUID,
     db: AsyncSession = Depends(get_db),
     _current_user: User = Depends(get_current_user),
-    embedding_svc: EmbeddingService = Depends(get_embedding_service),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
 ) -> ApiResponse[DocumentOut]:
     svc = DocumentIngestionService(db=db, embedding_svc=embedding_svc)
     try:

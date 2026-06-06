@@ -1,0 +1,178 @@
+PROJECT: Little Gerry — Debug & Fix Session
+APPLICATION: Little Gerry — Python/pywebview AI Executive Assistant for PMI (Precisian Medical Instruments)
+STACK: Python backend (FastAPI), pywebview frontend, PostgreSQL + pgvector, LangGraph agents
+LLM PROVIDERS: Anthropic (cloud), OpenAI (cloud), Ollama on local network (http://[SERVER_IP]:11434)
+OS: Windows 11, VS Code with Claude Sonnet 4.6
+
+RECENT ARCHITECTURE CHANGE:
+The application was recently migrated from a local-only LLM setup (Docker + Ollama on the same 
+machine) to a hybrid provider system supporting:
+  - Anthropic API (cloud)
+  - OpenAI API (cloud)
+  - Ollama on a separate dedicated machine over the home LAN
+
+This migration introduced or exposed the following bugs. Each one needs to be diagnosed and fixed.
+Do NOT skip issues. Address them in the order listed.
+
+════════════════════════════════════════════════════════════
+ISSUE 1 — RESEARCH AGENT: Produces no output, no search results
+════════════════════════════════════════════════════════════
+
+SYMPTOMS:
+- Clicking "Research" or triggering a research task returns nothing — no results, no error message 
+  shown to the user, no activity visible in the UI
+- Backend may be silently failing
+
+DIAGNOSIS TARGETS:
+1. Is the research agent receiving the correct LLM provider/client after the migration?
+   Check whether the agent was hardcoded to use the old local Ollama URL (localhost:11434)
+   and is now silently failing to connect.
+2. Is the web search tool (Tavily, SerpAPI, or whatever is wired in) still configured with a 
+   valid API key? Check environment variable loading.
+3. Is the LangGraph research agent returning a response but the frontend failing to render it?
+   Add a console/log output to confirm whether the agent is actually running.
+4. Check for unhandled exceptions in the research route — wrap the agent call in try/except and 
+   return a structured error to the frontend instead of swallowing it silently.
+
+FIX REQUIREMENTS:
+- Research must work with whichever LLM provider is currently selected (Anthropic, OpenAI, or 
+  network Ollama)
+- If the selected provider is unavailable (e.g. Ollama server offline), fallback gracefully with 
+  a visible error message in the UI, not a silent failure
+- Output must appear in the Research panel — include source citations
+
+════════════════════════════════════════════════════════════
+ISSUE 2 — KNOWLEDGE BASE: Import fails silently
+════════════════════════════════════════════════════════════
+
+SYMPTOMS:
+- Attempting to import a document (PDF, DOCX, TXT, or Markdown) into the knowledge base 
+  appears to do nothing, or shows success but the document does not appear in the knowledge base
+- Semantic search returns no results even for documents that should be indexed
+
+DIAGNOSIS TARGETS:
+1. Embedding model — after the migration, is the embedding model still correctly configured?
+   If the app was using a local Ollama embedding model (e.g. nomic-embed-text), this will now 
+   fail if Ollama is on the network and the endpoint has changed.
+   Check: what is the current embedding provider? Is it hitting the right URL?
+2. pgvector — is the vector database receiving any data? Query the embeddings table directly 
+   to check if rows are being inserted. If not, the pipeline is breaking before the DB write.
+3. File parsing — is the document parser (PyMuPDF, python-docx, etc.) throwing an error on 
+   the uploaded file type? Add error logging to the ingest pipeline.
+4. Check the chunking step — if the chunk size or overlap settings are misconfigured after the 
+   migration they could produce empty chunks that fail silently.
+
+FIX REQUIREMENTS:
+- Knowledge base import must complete and visibly confirm success (document appears in list)
+- Embedding must work regardless of which LLM provider is active — if using a cloud provider 
+  (Anthropic/OpenAI), use their embedding API; if using Ollama, use the Ollama embeddings endpoint
+- Add a clear error message if import fails, specifying what step failed
+
+════════════════════════════════════════════════════════════
+ISSUE 3 — SEMANTIC SEARCH: "Semantic Search Failed" error
+════════════════════════════════════════════════════════════
+
+SYMPTOMS:
+- Attempting to run semantic search returns "Semantic Search Failed" or similar error
+- Likely related to Issue 2 (no embeddings stored) but may also be a runtime query error
+
+DIAGNOSIS TARGETS:
+1. Is the query embedding step failing? The search requires embedding the search query using 
+   the same model used to embed documents. If those are now mismatched or the embedding client 
+   is misconfigured, the query will fail.
+2. Is the pgvector similarity query throwing a SQL error? Check for schema mismatches — if the 
+   embedding dimension changed (e.g. switched from a 768-dim local model to a 1536-dim OpenAI 
+   model), the vector column dimension will reject inserts/queries.
+3. Is the error being surfaced properly or swallowed? Add the raw exception to the error message 
+   shown in the UI so we can see the actual failure reason.
+
+FIX REQUIREMENTS:
+- Semantic search must use the same embedding provider that was used to index the documents
+- If the embedding dimension changed during migration, provide a migration path: either re-index 
+  all documents with the new model, or support multiple embedding dimensions
+- Error messages must be specific, not generic "failed" strings
+
+════════════════════════════════════════════════════════════
+ISSUE 4 — GOOGLE CALENDAR: Events not populating + missing Sync button
+════════════════════════════════════════════════════════════
+
+SYMPTOMS:
+- Calendar view is empty — Google Calendar events are not appearing
+- There is no manual "Sync" button — the calendar may be relying on auto-load that isn't firing
+
+DIAGNOSIS TARGETS:
+1. OAuth token — is the Google OAuth2 token still valid? After any environment change, tokens 
+   stored in a local file or environment variable may have expired or the path may have changed.
+   Check: does the OAuth flow complete? Does the token refresh automatically?
+2. Google Calendar API call — is the API call being made at all? Add logging to the calendar 
+   fetch route. If the call is made, is it returning events or an empty response?
+3. Date range — is the query fetching a reasonable time window (e.g. next 30 days)? A misconfigured 
+   start/end time could return an empty but valid result.
+4. Frontend rendering — is the data returning from the backend but the calendar component failing 
+   to render it? Check the browser console (pywebview devtools) for JS errors.
+
+FIX REQUIREMENTS:
+- Add a visible "Sync" button to the Calendar panel (and any other Google-connected panel: 
+  Gmail, Drive) that manually triggers a fresh API fetch
+- On app load, attempt an initial calendar sync automatically — show a loading indicator while 
+  it runs
+- If the OAuth token is missing or expired, show a clear "Reconnect Google Account" prompt, 
+  not a silent empty state
+- After sync, show the last-synced timestamp in the UI
+
+════════════════════════════════════════════════════════════
+ISSUE 5 — EMAIL DRAFTS: "Generate Email" produces no output
+════════════════════════════════════════════════════════════
+
+SYMPTOMS:
+- Clicking "Generate Email" in the Email Drafts panel produces no output — no draft appears,
+  no error shown, no loading state
+
+DIAGNOSIS TARGETS:
+1. LLM call — is the email generation function calling the correct LLM provider? After the 
+   migration, if it was hardcoded to the old local Ollama endpoint it will silently fail.
+   Check the email generation route — what provider/client is it using?
+2. Prompt — is the generation prompt being built correctly? If the prompt template requires 
+   context from the knowledge base or Gmail and those are failing (Issues 2 and 4), the email 
+   generator may receive an empty or malformed context and produce nothing.
+3. Response parsing — is the LLM returning a response but the parser failing to extract the 
+   draft from it? Log the raw LLM response before parsing.
+4. Frontend — is the response reaching the frontend but the UI component failing to display it?
+   Check for JS errors in the draft rendering component.
+
+FIX REQUIREMENTS:
+- Email generation must work with whichever LLM provider is currently selected
+- If no Gmail context is available (Issue 4), generate the email with whatever context IS 
+  available (user prompt only), rather than failing silently
+- Show a loading/spinner state while generation is running
+- Show a clear error if generation fails, including which step failed
+
+════════════════════════════════════════════════════════════
+CROSS-CUTTING REQUIREMENTS (apply to all fixes above)
+════════════════════════════════════════════════════════════
+
+PROVIDER ABSTRACTION:
+- All LLM calls must go through a single provider abstraction layer that reads the currently 
+  selected provider from config (Anthropic / OpenAI / Ollama-LAN)
+- No feature should be hardcoded to a specific provider or URL
+- If the provider config is missing or the provider is unreachable, every feature must fail 
+  visibly with a specific message — never silently
+
+ERROR VISIBILITY:
+- Every backend route involved in the above features must have try/except wrapping
+- Errors must be returned as structured JSON: {"success": false, "error": "...", "step": "..."}
+- The frontend must display these errors in the relevant panel — not just in the browser console
+
+GOOGLE SYNC PATTERN:
+- Add a reusable "Sync" button component that can be placed in Calendar, Gmail, and Drive panels
+- Each sync button should show: last sync time, loading spinner during sync, success/error result
+
+APPROACH — do this in order:
+1. First, ask me to share the relevant code files for each issue (route handlers, agent files, 
+   frontend components). Do not guess at the code.
+2. For each issue, identify the root cause before writing any fix.
+3. Propose the fix with explanation of what changed and why.
+4. Only then write the updated code.
+5. After all five issues are addressed, produce a summary of all changes made.
+
+Do not bundle all fixes into one large code dump. Fix one issue at a time.
