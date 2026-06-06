@@ -177,6 +177,8 @@ def create_app() -> FastAPI:
     # CORS — Tauri desktop shell + local dev server only
     app.add_middleware(
         CORSMiddleware,
+        # IMPORTANT: both localhost AND 127.0.0.1 variants are required —
+        # pywebview opens the frontend on 127.0.0.1:5173, not localhost:5173
         allow_origins=[
             "tauri://localhost",
             "https://tauri.localhost",
