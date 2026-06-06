@@ -166,7 +166,9 @@ async def run_research(
         raise HTTPException(status_code=500, detail=f"Research failed: {exc}") from exc
 
     await db.refresh(report)
-    return ResearchReportOut.model_validate(report)
+    # Reload with sources eagerly to avoid MissingGreenlet on relationship access
+    final_report = await repo.get(report.id)
+    return ResearchReportOut.model_validate(final_report)
 
 
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)

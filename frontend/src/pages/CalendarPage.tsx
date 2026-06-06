@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
-import { ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Users, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Users, X, RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimezone } from "@/contexts/AppContext";
 import { listTasks } from "@/api/tasks";
@@ -182,7 +182,7 @@ export function CalendarPage() {
     staleTime: 60_000,
   });
 
-  const { data: gcalEvents = [] } = useQuery({
+  const { data: gcalEvents = [], refetch: refetchGcal, isFetching: gcalFetching, error: gcalError } = useQuery({
     queryKey: ["gcal-events"],
     queryFn: () => listGoogleCalendarEvents(30, 60),
     enabled: googleStatus?.connected === true && showGCalEvents,
@@ -280,8 +280,27 @@ export function CalendarPage() {
           >
             Today
           </button>
+          {googleStatus?.connected && (
+            <button
+              onClick={() => refetchGcal()}
+              disabled={gcalFetching}
+              title="Sync Google Calendar"
+              className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", gcalFetching && "animate-spin")} />
+              Sync
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Google Calendar error */}
+      {gcalError && (
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          Google Calendar sync failed: {(gcalError as Error)?.message ?? "Unknown error"}
+        </div>
+      )}
 
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">

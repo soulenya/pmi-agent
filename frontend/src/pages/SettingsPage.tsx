@@ -319,6 +319,16 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
         </select>
       </Field>
 
+      {/* Ollama Server URL — always shown because embeddings always use Ollama */}
+      <Field label="Ollama Server URL" hint="Used for all document embeddings and semantic search, regardless of LLM provider. Set to your network Ollama IP if not running locally (e.g. http://192.168.1.50:11434).">
+        <input
+          value={settings.ollama_url}
+          onChange={(e) => onChange({ ollama_url: e.target.value })}
+          placeholder="http://localhost:11434"
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+        />
+      </Field>
+
       {/* Ollama-only fields */}
       {provider === "ollama" && (
         <>
@@ -331,14 +341,6 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
               onChange={(e) => onChange({ embedding_model: e.target.value })}
               placeholder="nomic-embed-text"
               className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-          </Field>
-          <Field label="Ollama Server URL" hint="Address of the Ollama server — localhost or a network IP (e.g. http://192.168.1.50:11434).">
-            <input
-              value={settings.ollama_url}
-              onChange={(e) => onChange({ ollama_url: e.target.value })}
-              placeholder="http://localhost:11434"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
             />
           </Field>
         </>
