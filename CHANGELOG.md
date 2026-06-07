@@ -4,6 +4,20 @@
 
 ## Changelog
 
+### Build 31 — 2026-06-07
+**Phase 5: Approval Workflow Completeness**
+- `POST /approvals/{id}/resolve` now executes the approved action immediately after human sign-off
+- `send_email` intent: calls `gmail_send()` from payload (`to`/`recipient_email`, `subject`, `body`/`draft_body`)
+- `create_calendar_event` intent: calls `calendar_create_event()` from payload fields
+- Email drafts with `draft_id` in payload are updated to `status="sent"` after successful send
+- All approval decisions (approved + rejected + execution result) are written to the hash-chained audit log with event types `approval.approved`, `approval.rejected`, `approval.action_executed`, `approval.action_failed`
+- Execution result (`status: executed|error|no_action`) returned in the resolve API response
+- Approvals UI: displays execution result inline after clicking Approve (green success / red error / grey no-action banner)
+- Approve/Reject buttons disabled and show loading state during submission
+- Execution failure never rolls back the human approval decision — approval record is always persisted first
+
+---
+
 ### Build 30 — 2026-06-07
 **Phase 4: Settings UI Completion**
 - Added `llm.provider` to `EXPOSED_KEYS` in `settings.py` so LLM provider is correctly persisted

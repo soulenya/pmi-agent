@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 30;
+export const BUILD_NUMBER = 31;
 export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,21 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 31,
+    date: "2026-06-07",
+    title: "Phase 5: Approval workflow — execute on approve, audit trail for all decisions",
+    changes: [
+      "POST /approvals/{id}/resolve now executes the approved action immediately after human sign-off",
+      "send_email intent: calls gmail_send() with payload fields (to/recipient_email, subject, body/draft_body)",
+      "create_calendar_event intent: calls calendar_create_event() with payload fields",
+      "Email drafts submitted for approval are marked 'sent' in the database once executed",
+      "All approval decisions (approved + rejected) are written to the immutable hash-chained audit log",
+      "Execution result (success/error/no_action) returned in resolve response and displayed in the Approvals UI",
+      "Approve/Reject buttons show loading state and are disabled during submission",
+      "Execution failure never rolls back the human approval decision",
+    ],
+  },
   {
     build: 30,
     date: "2026-06-07",

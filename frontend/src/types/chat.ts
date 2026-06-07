@@ -71,6 +71,7 @@ export interface ApprovalIntent {
   resolved_at: string | null;
   rejection_reason: string | null;
   created_at: string;
+  execution_result?: Record<string, unknown> | null;
 }
 
 export interface ResolveApprovalRequest {

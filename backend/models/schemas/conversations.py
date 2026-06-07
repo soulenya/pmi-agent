@@ -69,6 +69,8 @@ class ApprovalOut(BaseModel):
     resolved_at: datetime | None
     rejection_reason: str | None
     created_at: datetime
+    # Populated on approval execution — not stored in DB, set by resolve endpoint
+    execution_result: dict[str, Any] | None = None
 
     model_config = {"from_attributes": True}
 
