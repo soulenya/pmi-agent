@@ -37,6 +37,7 @@ export function DriveBrowser({ onSelect, onClose }: Props) {
   const [folderStack, setFolderStack] = useState<Array<{ id: string; name: string }>>([
     { id: "root", name: "My Drive" },
   ]);
+  const [activeDriveId, setActiveDriveId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);  const [selected, setSelected] = useState<Map<string, DriveItem>>(new Map());
   const currentFolder = folderStack[folderStack.length - 1];
@@ -48,8 +49,8 @@ export function DriveBrowser({ onSelect, onClose }: Props) {
   });
 
   const { data: folderItems = [], isLoading: folderLoading } = useQuery({
-    queryKey: ["drive-folder", currentFolder.id],
-    queryFn: () => driveListFolder(currentFolder.id),
+    queryKey: ["drive-folder", currentFolder.id, activeDriveId],
+    queryFn: () => driveListFolder(currentFolder.id, activeDriveId),
     enabled: !isSearching,
   });
 
@@ -112,7 +113,7 @@ export function DriveBrowser({ onSelect, onClose }: Props) {
             Locations
           </p>
           <button
-            onClick={() => { setFolderStack([{ id: "root", name: "My Drive" }]); clearSearch(); }}
+            onClick={() => { setFolderStack([{ id: "root", name: "My Drive" }]); setActiveDriveId(undefined); clearSearch(); }}
             className={cn(
               "flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left",
               folderStack[0].id === "root" && !isSearching ? "bg-accent font-medium" : ""
@@ -129,7 +130,7 @@ export function DriveBrowser({ onSelect, onClose }: Props) {
               {sharedDrives.map((drive) => (
                 <button
                   key={drive.id}
-                  onClick={() => { setFolderStack([{ id: drive.id, name: drive.name }]); clearSearch(); }}
+                  onClick={() => { setFolderStack([{ id: drive.id, name: drive.name }]); setActiveDriveId(drive.id); clearSearch(); }}
                   className={cn(
                     "flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left truncate",
                     folderStack[0].id === drive.id ? "bg-accent font-medium" : ""

@@ -255,6 +255,9 @@ def drive_search(query: str, max_results: int = 10) -> list[dict]:
         q=f"fullText contains '{query}' and trashed=false",
         pageSize=max_results,
         fields="files(id,name,mimeType,modifiedTime,webViewLink,owners)",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        corpora="allDrives",
     ).execute()
     return [
         {
@@ -269,17 +272,36 @@ def drive_search(query: str, max_results: int = 10) -> list[dict]:
     ]
 
 
-def drive_list_folder(folder_id: str = "root", max_results: int = 50) -> list[dict]:
-    """List the direct children (files and folders) of a Drive folder, including shared drives."""
+def drive_list_folder(folder_id: str = "root", max_results: int = 50, drive_id: str | None = None) -> list[dict]:
+    """List the direct children (files and folders) of a Drive folder, including shared drives.
+
+    When ``drive_id`` is supplied the caller is navigating the ROOT of a shared
+    drive.  The Google Drive API requires ``corpora='drive'`` + ``driveId`` in
+    that case; the regular ``'{id}' in parents`` query returns nothing.
+    """
     svc = _build("drive", "v3")
-    resp = svc.files().list(
-        q=f"'{folder_id}' in parents and trashed=false",
-        pageSize=max_results,
-        orderBy="folder,name",
-        fields="files(id,name,mimeType,modifiedTime,webViewLink)",
-        includeItemsFromAllDrives=True,
-        supportsAllDrives=True,
-    ).execute()
+
+    # Shared-drive root: use corpora='drive' mode
+    if drive_id:
+        resp = svc.files().list(
+            corpora="drive",
+            driveId=drive_id,
+            q=f"'{folder_id}' in parents and trashed=false",
+            pageSize=max_results,
+            orderBy="folder,name",
+            fields="files(id,name,mimeType,modifiedTime,webViewLink)",
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True,
+        ).execute()
+    else:
+        resp = svc.files().list(
+            q=f"'{folder_id}' in parents and trashed=false",
+            pageSize=max_results,
+            orderBy="folder,name",
+            fields="files(id,name,mimeType,modifiedTime,webViewLink)",
+            includeItemsFromAllDrives=True,
+            supportsAllDrives=True,
+        ).execute()
     items = []
     for f in resp.get("files", []):
         mime = f.get("mimeType", "")

@@ -88,9 +88,9 @@ async def drive_shared_drives(_user=Depends(get_current_user)):
 
 
 @router.get("/drive/list")
-async def drive_list(folder_id: str = "root", _user=Depends(get_current_user)):
+async def drive_list(folder_id: str = "root", drive_id: str | None = None, _user=Depends(get_current_user)):
     try:
-        return {"items": gs.drive_list_folder(folder_id)}
+        return {"items": gs.drive_list_folder(folder_id, drive_id=drive_id)}
     except RuntimeError as e:
         raise HTTPException(401, str(e))
 
