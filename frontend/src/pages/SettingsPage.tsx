@@ -932,6 +932,7 @@ function UpdateSection() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
+  const qc = useQueryClient();
   const [localSettings, setLocalSettings] = useState<SettingsUpdate>({});
   const [settingsSaved, setSettingsSaved] = useState(false);
 
@@ -943,6 +944,7 @@ export function SettingsPage() {
   const mutation = useMutation({
     mutationFn: (body: SettingsUpdate) => updateSettings(body),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["settings"] });
       setSettingsSaved(true);
       setLocalSettings({});
       setTimeout(() => setSettingsSaved(false), 2500);
@@ -960,11 +962,13 @@ export function SettingsPage() {
         llm_model: "llama3.2",
         ollama_url: "http://localhost:11434",
         embedding_model: "nomic-embed-text",
+        embedding_provider: "ollama",
         theme: "system",
         timezone: "UTC",
         notifications_email_enabled: false,
         openai_key_set: false,
         anthropic_key_set: false,
+        voyage_key_set: false,
         ...localSettings,
       };
 
