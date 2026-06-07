@@ -368,7 +368,7 @@ def calendar_events(days_behind: int = 0, days_ahead: int = 7) -> list[dict]:
         calendarId="primary",
         timeMin=(now - timedelta(days=days_behind)).isoformat(),
         timeMax=(now + timedelta(days=days_ahead)).isoformat(),
-        maxResults=50, singleEvents=True, orderBy="startTime",
+        maxResults=500, singleEvents=True, orderBy="startTime",
     ).execute()
     out = []
     for e in resp.get("items", []):
