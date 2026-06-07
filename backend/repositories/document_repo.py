@@ -90,6 +90,27 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         await self._session.flush()
         return result.rowcount
 
+    async def delete_all_chunks(self) -> int:
+        """Delete ALL document chunks across all documents. Used during re-index."""
+        from sqlalchemy import delete
+
+        result = await self._session.execute(delete(DocumentChunk))
+        await self._session.flush()
+        return result.rowcount
+
+    async def get_all_document_ids_ready(self) -> list[UUID]:
+        """
+        Return IDs of all active (non-deleted), ready documents.
+        Used by the re-index pipeline to enumerate documents to re-embed.
+        """
+        result = await self._session.execute(
+            select(Document.id).where(
+                Document.deleted_at.is_(None),
+                Document.status == "ready",
+            )
+        )
+        return list(result.scalars().all())
+
     async def vector_search(
         self,
         embedding: list[float],

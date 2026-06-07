@@ -35,6 +35,8 @@ EXPOSED_KEYS = {
     "llm.ollama_url",
     "llm.embedding_model",
     "llm.embedding_provider",
+    "llm.embedding_dimension",
+    "llm.kb_needs_reindex",
     "app.theme",
     "app.timezone",
     "notifications.email_enabled",
@@ -46,6 +48,8 @@ DEFAULTS: dict[str, object] = {
     "llm.ollama_url": "http://localhost:11434",
     "llm.embedding_model": "nomic-embed-text",
     "llm.embedding_provider": "ollama",
+    "llm.embedding_dimension": "768",
+    "llm.kb_needs_reindex": "false",
     "app.theme": "system",
     "app.timezone": "UTC",
     "notifications.email_enabled": False,
@@ -80,6 +84,8 @@ class SettingsOut(BaseModel):
     ollama_url: str
     embedding_model: str
     embedding_provider: str
+    embedding_dimension: int
+    reindex_required: bool
     theme: str
     timezone: str
     notifications_email_enabled: bool
@@ -97,8 +103,7 @@ class SettingsUpdate(BaseModel):
     embedding_provider: str | None = Field(None, pattern="^(ollama|openai|voyage)$")
     theme: str | None = Field(None, pattern="^(light|dark|system)$")
     timezone: str | None = Field(None, max_length=64)
-    notifications_email_enabled: bool | None = None
-    # API keys — stored in OS keyring, never in DB
+    notifications_email_enabled: bool | None = None    # API keys — stored in OS keyring, never in DB
     openai_api_key: str | None = Field(None, min_length=1, max_length=500)
     anthropic_api_key: str | None = Field(None, min_length=1, max_length=500)
     voyage_api_key: str | None = Field(None, min_length=1, max_length=500)
@@ -117,12 +122,22 @@ async def get_settings(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ) -> SettingsOut:
+    embedding_dim_raw = await _get_setting(db, "llm.embedding_dimension")
+    try:
+        embedding_dim = int(embedding_dim_raw) if embedding_dim_raw else 768
+    except (TypeError, ValueError):
+        embedding_dim = 768
+    reindex_raw = await _get_setting(db, "llm.kb_needs_reindex")
+    reindex_required = str(reindex_raw).lower() == "true" if reindex_raw else False
+
     return SettingsOut(
         llm_provider=str(await _get_setting(db, "llm.provider")),
         llm_model=str(await _get_setting(db, "llm.model")),
         ollama_url=str(await _get_setting(db, "llm.ollama_url")),
         embedding_model=str(await _get_setting(db, "llm.embedding_model")),
         embedding_provider=str(await _get_setting(db, "llm.embedding_provider")),
+        embedding_dimension=embedding_dim,
+        reindex_required=reindex_required,
         theme=str(await _get_setting(db, "app.theme")),
         timezone=str(await _get_setting(db, "app.timezone")),
         notifications_email_enabled=bool(await _get_setting(db, "notifications.email_enabled")),
@@ -138,6 +153,8 @@ async def update_settings(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> SettingsOut:
+    from services.embeddings.service import get_provider_dimension
+
     db_updates = {
         "llm.provider": body.llm_provider,
         "llm.model": body.llm_model,
@@ -151,6 +168,21 @@ async def update_settings(
     for key, val in db_updates.items():
         if val is not None:
             await _set_setting(db, key, val, current_user.id)
+
+    # ── Detect embedding dimension mismatch ──────────────────────────────────
+    if body.embedding_provider is not None or body.embedding_model is not None:
+        new_provider = body.embedding_provider or str(await _get_setting(db, "llm.embedding_provider"))
+        new_model = body.embedding_model or str(await _get_setting(db, "llm.embedding_model"))
+        new_dim = get_provider_dimension(new_provider, new_model)
+
+        current_dim_raw = await _get_setting(db, "llm.embedding_dimension")
+        try:
+            current_dim = int(current_dim_raw) if current_dim_raw else 768
+        except (TypeError, ValueError):
+            current_dim = 768
+
+        if new_dim != current_dim:
+            await _set_setting(db, "llm.kb_needs_reindex", "true", current_user.id)
 
     # Store API keys in OS keyring (never persisted to DB)
     if body.openai_api_key:
