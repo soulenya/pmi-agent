@@ -190,35 +190,19 @@ Current `GET /health`:
 
 ### Tasks
 
-- [ ] **3.1** Add live LLM ping to `routers/health.py`:
-  - Anthropic: call `client.messages.count_tokens(messages=[...], model=model)` (free, no tokens used)
-  - OpenAI: call `openai.models.retrieve(model)` or small `chat.completions.create` with `max_tokens=1`
-  - Ollama: existing `GET /api/tags` is fine
-  - Each ping has a 5-second timeout; failure returns `{"status": "error", "detail": "..."}`
+- [x] **3.1** Add live LLM ping to `routers/health.py`:
+  - Anthropic: `count_tokens` (free)
+  - OpenAI: `models.retrieve` (free metadata)
+  - Ollama: `GET /api/tags` (unchanged)
 
-- [ ] **3.2** Add embedding provider health check to `GET /health`:
-  - Read `llm.embedding_provider` from DB
-  - Voyage AI: call `voyageai.Client.embed(["ping"], model=model)` — catch exceptions
-  - OpenAI: call `openai.embeddings.create(input=["ping"], model=model, dimensions=1)` 
-  - Ollama: `POST {ollama_url}/api/embeddings {"model": model, "prompt": "ping"}`
-  - Return `checks.embedding: { status, provider, model }`
+- [x] **3.2** Add embedding provider health check to `GET /health`
 
-- [ ] **3.3** Add `reindex_required` and `embedding_dimension` to health response:
-  ```json
-  {
-    "checks": {
-      "llm": { "status": "ok", "provider": "anthropic", "model": "claude-sonnet-4-6" },
-      "embedding": { "status": "ok", "provider": "voyage", "model": "voyage-3", "dimension": 1024 },
-      "database": { "status": "ok" },
-      "kb_needs_reindex": false
-    }
-  }
-  ```
+- [x] **3.3** Add `reindex_required` and `embedding_dimension` to health response
 
-- [ ] **3.4** Add a dedicated `GET /settings/health` endpoint (lighter than full `/health`):
-  - Called by the Settings page on load for the AI Engine section status panel
-  - Returns only LLM + embedding status (no disk, no DB check)
-  - Response time target: < 3 seconds
+- [x] **3.4** Add a dedicated `GET /settings/health` endpoint:
+  - LLM + embedding pings only, concurrent via `asyncio.gather`
+  - No disk/DB checks
+  - Called by Settings page on load
 
 **Acceptance criteria:**
 - `/health` returns embedding check with actual API ping result
