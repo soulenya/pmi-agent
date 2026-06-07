@@ -4,6 +4,18 @@
 
 ## Changelog
 
+### Build 28 — 2026-06-07
+**Phase 2: Anthropic/Voyage as Defaults, No Silent Ollama Fallback**
+- Default LLM provider changed from Ollama to Anthropic (`claude-sonnet-4-6`)
+- Default embedding provider changed from Ollama to Voyage AI (`voyage-3`, 1024 dims)
+- LLM router no longer falls back silently to Ollama when a cloud API key is missing — raises `RuntimeError` with a clear Settings link instead
+- Removed `get_llm_client_no_db()` — it was never safe to build a client without DB context
+- `config.py` defaults updated: `default_llm_model=claude-sonnet-4-6`, `default_embedding_model=voyage-3`, `default_embedding_dimension=1024`
+- `DEFAULTS` dict in `settings.py` now defaults to `anthropic` / `voyage` / `voyage-3` / `1024`
+- `.env.example` rewritten with `DEFAULT_LLM_PROVIDER`, `DEFAULT_EMBEDDING_PROVIDER`, `DEFAULT_EMBEDDING_DIMENSION`
+
+---
+
 ### Build 27 — 2026-06-07
 **Phase 1: Native Embedding Dimensions**
 - Voyage AI now returns native 1024-dim vectors — previously forced to 768, losing retrieval quality

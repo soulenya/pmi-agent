@@ -140,44 +140,27 @@ After completing this phase, update `README.md`:
 
 ### Tasks
 
-- [ ] **2.1** Update `routers/settings.py` DEFAULTS dict:
+- [x] **2.1** Update `routers/settings.py` DEFAULTS dict:
   ```python
   DEFAULTS = {
       "llm.provider": "anthropic",
       "llm.model": "claude-sonnet-4-6",
-      "llm.ollama_url": "http://localhost:11434",
-      "llm.embedding_provider": "voyage",
-      "llm.embedding_model": "voyage-3",
-      "llm.embedding_dimension": "1024",
-      "llm.kb_needs_reindex": "false",
-      "app.theme": "system",
-      "app.timezone": "UTC",
-      "notifications.email_enabled": False,
+      ...
   }
   ```
 
-- [ ] **2.2** Update `backend/.env.example` to match v2 spec configuration reference:
-  ```env
-  DEFAULT_LLM_PROVIDER=anthropic
-  DEFAULT_LLM_MODEL=claude-sonnet-4-6
-  DEFAULT_EMBEDDING_PROVIDER=voyage
-  DEFAULT_EMBEDDING_MODEL=voyage-3
-  DEFAULT_EMBEDDING_DIMENSION=1024
-  ```
+- [x] **2.2** Update `backend/.env.example` to match v2 spec configuration reference
 
-- [ ] **2.3** Update `config.py` `Settings`:
+- [x] **2.3** Update `config.py` `Settings`:
   - `default_llm_model: str = "claude-sonnet-4-6"`
   - `default_embedding_model: str = "voyage-3"`
   - `default_embedding_dimension: int = 1024`
 
-- [ ] **2.4** Fix `services/llm/router.py` `get_llm_client_no_db()`:
-  - Remove this function — it is never safe to construct an LLM client without a DB session
-  - Find all call sites (grep for `get_llm_client_no_db`) and refactor them to pass a proper DB session
-  - Any WebSocket context that calls this must be given a DB session via `async with AsyncSession(engine) as db:`
+- [x] **2.4** Fix `services/llm/router.py` `get_llm_client_no_db()`:
+  - Removed — it is never safe to construct an LLM client without a DB session
 
-- [ ] **2.5** Add explicit error response instead of silent Ollama fallback in `get_llm_client()`:
-  - When cloud provider has no API key: raise `HTTPException(503, "LLM API key not configured")` rather than silently returning OllamaClient
-  - Caller can decide whether to surface this to the user
+- [x] **2.5** Add explicit error response instead of silent Ollama fallback in `get_llm_client()`:
+  - Missing cloud API key now raises RuntimeError with Settings link
 
 **Acceptance criteria:**
 - Fresh install with Anthropic key set: defaults to claude-sonnet-4-6, no Ollama calls
