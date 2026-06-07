@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 25;
+export const BUILD_NUMBER = 27;
 export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,32 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 27,
+    date: "2026-06-07",
+    title: "Phase 1: Native embedding dimensions (Voyage 1024, OpenAI 1536/3072)",
+    changes: [
+      "Voyage AI now returns native 1024-dim vectors (was forced to 768 — losing retrieval quality)",
+      "OpenAI text-embedding-3-small/large now return native 1536/3072-dim vectors",
+      "Added PROVIDER_DIMENSIONS lookup table for all supported providers and models",
+      "POST /documents/reindex SSE endpoint: ALTERs pgvector column, re-embeds all documents, streams progress",
+      "Settings PUT now detects embedding dimension mismatch and sets llm.kb_needs_reindex=true",
+      "SettingsOut now includes embedding_dimension (int) and reindex_required (bool)",
+      "Migration 002: adds document_chunks.embedding_dimension column + seeds system_settings keys",
+      "DocumentChunkRepository: added delete_all_chunks() and get_all_document_ids_ready() for re-index",
+    ],
+  },
+  {
+    build: 26,
+    date: "2026-06-07",
+    title: "Planning: v2 Roadmap & documentation suite",
+    changes: [
+      "Created ROADMAP.md — 7-phase implementation plan with gap analysis and README update directives per phase",
+      "Created CHANGELOG.md, USER_GUIDE.md, and DEVELOPER_GUIDE.md",
+      "Identified critical gap: all embedding providers forced to 768 dims; Voyage AI native is 1024",
+      "v2 spec (LittleGerry_ProjectPrompt_v2.md) accepted as authoritative — supersedes Ollama-first prompt",
+    ],
+  },
   {
     build: 25,
     date: "2026-06-07",

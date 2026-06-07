@@ -139,10 +139,14 @@ class DocumentChunk(Base):
     # 0 = document summary, 1 = section, 2 = paragraph
     chunk_level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # Embedding — nomic-embed-text produces 768-dim vectors
+    # Embedding — dimension depends on the active embedding provider
+    # (768 = Ollama nomic-embed-text, 1024 = Voyage AI voyage-3, etc.)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(768), nullable=True)
     embedding_model: Mapped[str] = mapped_column(
         String(100), nullable=False, default="nomic-embed-text"
+    )
+    embedding_dimension: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
     )
     embedding_created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
