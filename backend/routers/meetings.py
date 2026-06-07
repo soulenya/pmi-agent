@@ -57,9 +57,9 @@ class SummarizeRequest(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _llm_summarize(title: str, transcript: str) -> dict:
+async def _llm_summarize(title: str, transcript: str, db: AsyncSession) -> dict:
     """
-    Call Ollama to produce structured meeting notes.
+    Call the configured LLM to produce structured meeting notes.
     Returns dict with keys: summary, decisions, action_items, next_steps.
     Falls back to plain text if LLM unavailable.
     """
@@ -212,7 +212,7 @@ async def summarize_meeting(
         raise HTTPException(status_code=403, detail="Forbidden")
 
     # Run LLM summarization
-    sections = await _llm_summarize(meeting.title, meeting.raw_transcript)
+    sections = await _llm_summarize(meeting.title, meeting.raw_transcript, db)
     meeting.summary = sections["summary"]
     meeting.decisions = sections["decisions"]
     meeting.action_items = sections["action_items"]

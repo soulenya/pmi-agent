@@ -383,13 +383,13 @@ After completing this phase, update `README.md`:
 ## Phase 7 — Advanced Features
 **Priority: LOW — do not start until Phase 6 is stable**
 
-- [ ] **7.1** Meeting notes: extract action items → one-click create tasks
-- [ ] **7.2** Regulatory module: document registry (DHF, IFU, 510k), AI draft generation
-- [ ] **7.3** Dashboard: CEO Daily Brief AI generation
-- [ ] **7.4** Investor module: IR communications, pitch material context
-- [ ] **7.5** QMS module: CAPA tracking, SOP library
-- [ ] **7.6** Google Docs ingestion: ingest Drive files directly into KB
-- [ ] **7.7** In-app update: GitHub pull + alembic upgrade + restart workflow
+- [x] **7.1** Meeting notes: extract action items → one-click create tasks
+- [x] **7.2** Regulatory module: document registry (DHF, IFU, 510k), AI draft generation
+- [x] **7.3** Dashboard: CEO Daily Brief AI generation
+- [x] **7.4** Investor module: IR communications, pitch material context
+- [x] **7.5** QMS module: CAPA tracking, SOP library
+- [x] **7.6** Google Docs ingestion: ingest Drive files directly into KB
+- [x] **7.7** In-app update: GitHub pull + alembic upgrade + restart workflow
 
 ### README Update (Phase 7)
 After completing this phase, update `README.md`:

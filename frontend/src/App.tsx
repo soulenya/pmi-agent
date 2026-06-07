@@ -24,6 +24,7 @@ import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
 import { CalendarPage } from "@/pages/CalendarPage";
 import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
 import { GeneratedFilesPage } from "@/pages/GeneratedFilesPage";
+import InvestorPage from "@/pages/InvestorPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
 
@@ -70,6 +71,7 @@ function ThemedApp() {
             <Route path="calendar" element={<ErrorBoundary><CalendarPage /></ErrorBoundary>} />
             <Route path="google" element={<ErrorBoundary><GoogleIntegrationPage /></ErrorBoundary>} />
             <Route path="files" element={<ErrorBoundary><GeneratedFilesPage /></ErrorBoundary>} />
+            <Route path="investor" element={<ErrorBoundary><InvestorPage /></ErrorBoundary>} />
           </Route>
         </Route>
       </Routes>
