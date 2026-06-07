@@ -25,11 +25,11 @@
 
 Little Gerry runs as a **native Windows desktop application** — a branded splash screen launches all services in the background, then loads the full React app in a WebView2 window. A system tray icon provides quick access and graceful shutdown.
 
-The stack: **React 19 + TypeScript + Vite** frontend, **FastAPI** backend (Python 3.14), local AI via **Ollama**, and **PostgreSQL 16 + pgvector** for vector search — all on your machine.
+The stack: **React 19 + TypeScript + Vite** frontend, **FastAPI** backend (Python 3.14), **Anthropic Claude** for AI, **Voyage AI** for document embeddings, and **PostgreSQL 16 + pgvector** for vector search — all data stored locally on your machine.
 
 Key design principles:
 
-- **Local-first** — all AI inference and data storage happens on your machine
+- **Local-first data, cloud-flexible inference** — all documents, conversations, and tasks are stored on your machine; AI inference is provided by Anthropic (or OpenAI / Ollama optionally)
 - **Medical-grade context** — purpose-built prompts for FDA/ISO regulatory workflows, CAPA, and VACTOR device documentation
 - **Human-in-the-loop** — AI suggestions require explicit approval before executing consequential actions
 - **Full audit trail** — every AI action and document change is logged immutably
@@ -86,8 +86,15 @@ Key design principles:
                          ┌───────────▼──────────────────┐
                          │     Embedding Router          │
                          │  Voyage AI ← recommended     │
-                         │  OpenAI (optional)           │
-                         │  Ollama local (optional)     │
+                         │    voyage-3      → 1024 dims  │
+                         │    voyage-3-lite → 512 dims   │
+                         │  OpenAI (optional)            │
+                         │    text-embedding-3-large     │
+                         │                   → 3072 dims │
+                         │    text-embedding-3-small     │
+                         │                   → 1536 dims │
+                         │  Ollama local (optional)      │
+                         │    nomic-embed-text → 768 dims│
                          └──────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────┐
@@ -95,6 +102,8 @@ Key design principles:
 │  Gmail · Drive · Calendar · Contacts                │
 └─────────────────────────────────────────────────────┘
 ```
+
+> **Embedding dimensions are provider-native.** Each embedding provider returns its own vector size. Switching providers requires re-indexing the Knowledge Base (Settings → AI Engine → Re-index Now).
 
 ---
 
@@ -163,7 +172,9 @@ Closing the Little Gerry window shows a native confirmation dialog before shutti
 | **Python**         | 3.14    | [python.org](https://www.python.org)                         |
 | **uv**             | latest  | `pip install uv`                                        |
 | **Docker Desktop** | latest  | [docker.com](https://www.docker.com/products/docker-desktop) |
-| **Ollama**         | latest  | [ollama.com](https://ollama.com)                             |
+| **Anthropic API key** | —    | [console.anthropic.com](https://console.anthropic.com) — required for AI chat |
+| **Voyage AI API key** | —    | [dash.voyageai.com](https://dash.voyageai.com) — free tier, required for KB/search |
+| **Ollama** (optional) | latest | [ollama.com](https://ollama.com) — only needed if using Ollama as LLM or embedding provider |
 | **Inno Setup 6**   | 6.x     | Only needed to build the installer                        |
 
 ---
@@ -275,10 +286,12 @@ Generate a risk assessment section for the VACTOR IFU
 ### Knowledge Base & Search
 
 1. Navigate to **Knowledge Base** → **Upload Document** → select a PDF, DOCX, or TXT file and assign a category
-2. The document is automatically chunked, embedded (using your configured embedding provider — Voyage AI, OpenAI, or Ollama), and indexed
+2. The document is automatically chunked, embedded (using your configured embedding provider), and indexed
 3. Navigate to **Search** to query with natural language — results are ranked by semantic similarity
 
-> **Note:** Configure your embedding provider in Settings → AI Engine before importing documents.
+> **Embedding provider must be configured first.** Go to Settings → AI Engine and enter your Voyage AI API key (free at [dash.voyageai.com](https://dash.voyageai.com)) before importing documents. Voyage AI is the recommended provider and stores vectors at native 1024 dimensions for superior retrieval quality.
+
+> **Switching embedding providers after importing documents requires re-indexing.** Go to Settings → AI Engine — if the new provider uses a different vector dimension, a warning will appear and you must click **Re-index Now** before semantic search will work. The re-index re-embeds all documents through the new provider.
 
 ---
 
@@ -346,9 +359,9 @@ Navigate to **Approvals** for the human-in-the-loop queue. Pending approvals sho
 ### Settings
 
 - **Profile** — update display name and password
-- **AI Engine** — LLM provider, model, API keys, embedding provider and key
+- **AI Engine** — LLM provider + model + API key; Embedding provider + model + API key; Re-index Knowledge Base button (appears when switching providers that use a different vector dimension); live System Health panel showing LLM ● and Embedding ● status with actual API ping results
 - **Appearance** — Light, Dark, or System theme; Timezone
-- **System Health** — live status of PostgreSQL, active LLM, and disk space
+- **System Health** — live status of PostgreSQL, active LLM (with live ping), active embedding provider (with live ping), disk space, and re-index flag
 - **Updates** — check and install updates in-app
 
 ---
@@ -358,15 +371,41 @@ Navigate to **Approvals** for the human-in-the-loop queue. Pending approvals sho
 ### Backend — `backend/.env`
 
 ```env
-DATABASE_URL=postgresql+asyncpg://pmi:pmi_dev_password@localhost:5432/pmi_dev
-DATABASE_URL_SYNC=postgresql://pmi:pmi_dev_password@localhost:5432/pmi_dev
-OLLAMA_BASE_URL=http://localhost:11434
+DATABASE_URL=postgresql+asyncpg://pmi_app:pmi_dev_password@localhost:5432/pmi_dev
+DATABASE_URL_SYNC=postgresql://pmi_app:pmi_dev_password@localhost:5432/pmi_dev
+DEFAULT_LLM_PROVIDER=anthropic
 DEFAULT_LLM_MODEL=claude-sonnet-4-6
-DEFAULT_EMBEDDING_MODEL=nomic-embed-text
+DEFAULT_EMBEDDING_PROVIDER=voyage
+DEFAULT_EMBEDDING_MODEL=voyage-3
+DEFAULT_EMBEDDING_DIMENSION=1024
+OLLAMA_BASE_URL=http://localhost:11434
 DEBUG=false
 ```
 
-API keys (Anthropic, OpenAI, Voyage AI) are **not** stored in `.env` — they are entered in Settings → AI Engine and stored in the OS keychain (Windows Credential Manager).
+API keys (Anthropic, OpenAI, Voyage AI) are **never** stored in `.env` — they are entered in Settings → AI Engine and stored in the OS keychain (Windows Credential Manager).
+
+### System Health API
+
+Two health endpoints are available:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Full system check: database, LLM live ping, embedding live ping, disk space, re-index flag |
+| `GET /settings/health` | Lightweight AI-only check: LLM + embedding live pings only (< 3s), used by Settings page |
+
+Sample `GET /health` response:
+```json
+{
+  "status": "ok",
+  "checks": {
+    "database": {"status": "ok"},
+    "llm": {"status": "ok", "provider": "anthropic", "model": "claude-sonnet-4-6"},
+    "embedding": {"status": "ok", "provider": "voyage", "model": "voyage-3", "dimension": 1024},
+    "kb_needs_reindex": false,
+    "disk": {"status": "ok", "free_gb": 42.5}
+  }
+}
+```
 
 ### Frontend — `frontend/.env.development`
 
