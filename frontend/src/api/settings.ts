@@ -7,6 +7,8 @@ export interface AppSettings {
   ollama_url: string;
   embedding_model: string;
   embedding_provider: string;
+  embedding_dimension: number;
+  reindex_required: boolean;
   theme: string;
   timezone: string;
   notifications_email_enabled: boolean;
@@ -71,15 +73,39 @@ export interface HealthCheckResult {
   checks: {
     database?: { status: string; detail?: string };
     /** Active LLM provider health (replaces legacy "ollama" key). */
-    llm?: { status: string; provider?: string; detail?: string };
+    llm?: { status: string; provider?: string; model?: string; detail?: string };
+    /** Embedding provider health — added in Phase 3. */
+    embedding?: { status: string; provider?: string; model?: string; dimension?: number; detail?: string };
     /** Legacy key kept for backward-compat — prefer `llm`. */
     ollama?: { status: string; detail?: string };
     disk?: { status: string; free_gb?: number; detail?: string };
+    kb_needs_reindex?: boolean;
   };
+}
+
+export interface SettingsHealthResult {
+  llm: { status: string; provider: string; model: string; detail?: string };
+  embedding: { status: string; provider: string; model: string; dimension?: number; detail?: string };
+  kb_needs_reindex: boolean;
+}
+
+export interface AiOptions {
+  llm: Record<string, string[]>;
+  embedding: Record<string, string[]>;
 }
 
 export async function getSystemHealth(): Promise<HealthCheckResult> {
   const resp = await apiClient.get<HealthCheckResult>("/health");
+  return resp.data;
+}
+
+export async function getSettingsHealth(): Promise<SettingsHealthResult> {
+  const resp = await apiClient.get<SettingsHealthResult>("/settings/health");
+  return resp.data;
+}
+
+export async function getAiOptions(): Promise<AiOptions> {
+  const resp = await apiClient.get<AiOptions>("/settings/ai-options");
   return resp.data;
 }
 
