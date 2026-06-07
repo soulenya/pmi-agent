@@ -28,7 +28,7 @@ from models.db.enums import MessageRole
 from models.schemas.conversations import WSDone, WSError, WSToken, WSToolStatus
 from repositories.conversation_repo import ConversationRepository, MessageRepository
 from services.agent.tools import TOOL_DEFINITIONS, ToolContext, dispatch_tool
-from services.embeddings.service import get_embedding_service
+from services.embeddings.service import get_embedding_service_for_db
 from services.llm.ollama import OllamaClient, OllamaError, get_ollama_client
 from services.llm.router import get_llm_client
 
@@ -193,11 +193,12 @@ class AgentExecutor:
         messages = await self._build_history(user_text)
 
         # ── 3. Agentic loop ───────────────────────────────────────────────────
+        embedding_svc = await get_embedding_service_for_db(self.db)
         tool_ctx = ToolContext(
             db=self.db,
             user_id=self.user_id,
             conversation_id=self.conversation_id,
-            embedding_service=get_embedding_service(),
+            embedding_service=embedding_svc,
         )
 
         accumulated_content = ""
@@ -364,8 +365,12 @@ class AgentExecutor:
         if google_connected:
             google_note = (
                 "\nGOOGLE STATUS: Connected. "
-                "You may call Google tools (search_drive, search_gmail, etc.) "
-                "when the user explicitly requests it."
+                "ALWAYS call the appropriate Google tool immediately when the user mentions "
+                "Drive, Gmail, Calendar, contacts, or any Google Workspace content. "
+                "Do NOT describe what you are about to do — just call the tool and show the result. "
+                "Examples: 'can you see my drive' → call list_drive_folder immediately. "
+                "'any emails about X' → call search_gmail immediately. "
+                "'what's on my calendar' → call get_calendar_events immediately."
             )
         else:
             google_note = (
