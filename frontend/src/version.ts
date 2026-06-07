@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 24;
+export const BUILD_NUMBER = 25;
 export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 25,
+    date: "2026-06-07",
+    title: "Fix: Gerry tool calls — Anthropic streaming rewrite",
+    changes: [
+      "Root cause found: Anthropic streaming used Raw SSE event string matching which silently dropped tool_use blocks",
+      "Rewrote chat_stream to use stream.text_stream (SDK-documented API) + get_final_message() for tool extraction",
+      "Gerry now correctly calls Drive, Gmail, Calendar, and KB tools instead of saying 'Let me check'",
+      "Google is confirmed connected and valid — tool execution was blocked by streaming parser, now fixed",
+    ],
+  },
   {
     build: 24,
     date: "2026-06-07",
