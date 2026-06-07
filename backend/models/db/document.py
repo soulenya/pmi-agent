@@ -139,9 +139,10 @@ class DocumentChunk(Base):
     # 0 = document summary, 1 = section, 2 = paragraph
     chunk_level: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # Embedding — dimension depends on the active embedding provider
-    # (768 = Ollama nomic-embed-text, 1024 = Voyage AI voyage-3, etc.)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(768), nullable=True)
+    # Embedding — dimension is provider-dependent; Vector(None) lets PostgreSQL
+    # enforce the actual column dimension rather than hard-coding 768 here.
+    # The column is ALTERed at ingest/reindex time when the provider changes.
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(None), nullable=True)
     embedding_model: Mapped[str] = mapped_column(
         String(100), nullable=False, default="nomic-embed-text"
     )

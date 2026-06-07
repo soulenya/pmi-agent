@@ -143,6 +143,39 @@ def _delete_stored_file(doc_id: UUID, extension: str) -> None:
         path.unlink()
 
 
+async def _ensure_vector_dimension(db: AsyncSession, target_dim: int) -> None:
+    """
+    Check the current pgvector column dimension; ALTER it if it doesn't match
+    *target_dim*.  Mirrors the same logic in the reindex endpoint so a fresh
+    ingest after a provider switch doesn't fail with a dimension mismatch.
+    """
+    from sqlalchemy import text
+
+    row = (await db.execute(text(
+        "SELECT atttypmod FROM pg_attribute "
+        "JOIN pg_class ON attrelid = pg_class.oid "
+        "WHERE relname = 'document_chunks' AND attname = 'embedding'"
+    ))).fetchone()
+    current_dim = int(row[0]) if row and row[0] else 768
+
+    if current_dim == target_dim:
+        return
+
+    logger.info("Auto-altering embedding column: %d → %d dims", current_dim, target_dim)
+    await db.execute(text("DROP INDEX IF EXISTS ix_document_chunks_embedding"))
+    await db.execute(text(
+        f"ALTER TABLE document_chunks "
+        f"ALTER COLUMN embedding TYPE vector({target_dim}) USING NULL"
+    ))
+    # Update the dimension setting
+    await db.execute(text(
+        f"INSERT INTO system_settings (key, value) VALUES ('llm.embedding_dimension', '{target_dim}') "
+        f"ON CONFLICT (key) DO UPDATE SET value = '{target_dim}'"
+    ))
+    await db.commit()
+    logger.info("Column altered to vector(%d) and committed", target_dim)
+
+
 # ── Main service class ────────────────────────────────────────────────────────
 
 class DocumentIngestionService:
@@ -192,17 +225,17 @@ class DocumentIngestionService:
         doc = Document(
             category_id=category_id,
             title=title,
+            file_name=filename,
             source_type="upload",
-            file_extension=extension,
             mime_type=mime_type,
             file_size_bytes=len(raw_bytes),
             checksum_sha256=checksum,
             is_regulated=is_regulated,
             status="processing",
             chunk_count=0,
-            created_by_id=created_by_id,
+            created_by=created_by_id,
         )
-        doc = await self._doc_repo.create(doc)
+
         await self._db.flush()
 
         try:
@@ -219,20 +252,30 @@ class DocumentIngestionService:
             if not chunks:
                 chunks = [text] if text else ["(no content)"]
 
-            # 7. Embed + create chunk rows
-            for idx, chunk_text in enumerate(chunks):
-                embedding = await self._emb.embed(chunk_text)
+            # 7. Embed all chunks in one batch call (1 API request per document,
+            #    avoids rate-limit exhaustion on free-tier providers like Voyage).
+            #    Use the first embedding to detect dimension and auto-alter column.
+            all_embeddings = await self._emb.embed_batch(chunks)
+            actual_dim = len(all_embeddings[0])
+            await _ensure_vector_dimension(self._db, actual_dim)
+
+            emb_model = getattr(self._emb, "_model", "nomic-embed-text")
+
+            # 8. Create chunk rows
+            for idx, (chunk_text, embedding) in enumerate(zip(chunks, all_embeddings)):
                 chunk = DocumentChunk(
                     document_id=doc.id,
                     chunk_index=idx,
                     content=chunk_text,
+                    content_hash=hashlib.sha256(chunk_text.encode()).hexdigest(),
                     embedding=embedding,
-                    token_count=len(chunk_text.split()),
+                    embedding_model=emb_model,
+                    embedding_dimension=actual_dim,
                     page_number=None,
                 )
                 self._db.add(chunk)
 
-            # 8. Finalize
+            # 9. Finalize
             doc.chunk_count = len(chunks)
             doc.status = "ready"
             await self._db.flush()
@@ -250,7 +293,7 @@ class DocumentIngestionService:
         if doc is None:
             return False
 
-        extension = doc.file_extension or ".bin"
+        extension = Path(doc.file_name or "").suffix.lower() or ".bin"
         _delete_stored_file(doc_id, extension)
         await self._chunk_repo.delete_by_document(doc_id)
         await self._doc_repo.soft_delete(doc_id)
@@ -267,7 +310,7 @@ class DocumentIngestionService:
         if doc is None:
             raise LookupError(f"Document {doc_id} not found")
 
-        extension = doc.file_extension or ".bin"
+        extension = Path(doc.file_name or "").suffix.lower() or ".bin"
         raw_bytes = _decrypt_file(doc_id, extension)
 
         # Wipe old chunks
@@ -285,14 +328,21 @@ class DocumentIngestionService:
             if not chunks:
                 chunks = [text] if text else ["(no content)"]
 
-            for idx, chunk_text in enumerate(chunks):
-                embedding = await self._emb.embed(chunk_text)
+            # Embed all chunks in one batch call (1 API request per document)
+            all_embeddings = await self._emb.embed_batch(chunks)
+            actual_dim = len(all_embeddings[0])
+            await _ensure_vector_dimension(self._db, actual_dim)
+            emb_model = getattr(self._emb, "_model", "nomic-embed-text")
+
+            for idx, (chunk_text, embedding) in enumerate(zip(chunks, all_embeddings)):
                 chunk = DocumentChunk(
                     document_id=doc.id,
                     chunk_index=idx,
                     content=chunk_text,
+                    content_hash=hashlib.sha256(chunk_text.encode()).hexdigest(),
                     embedding=embedding,
-                    token_count=len(chunk_text.split()),
+                    embedding_model=emb_model,
+                    embedding_dimension=actual_dim,
                     page_number=None,
                 )
                 self._db.add(chunk)
