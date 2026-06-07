@@ -147,8 +147,8 @@ class VoyageEmbeddingService:
     No forced truncation. Use POST /documents/reindex when switching providers.
     """
 
-    _MAX_RETRIES = 5
-    _RETRY_BASE_WAIT = 25  # seconds — free tier allows 3 RPM → 1 req/20s
+    _MAX_RETRIES = 4
+    _RETRY_BASE_WAIT = 8  # seconds — short waits so interactive ops stay within 60s timeout
 
     def __init__(self, api_key: str, model: str = "voyage-3") -> None:
         self._api_key = api_key

@@ -32,14 +32,14 @@ class DocumentOut(BaseModel):
     title: str
     source_type: str
     source_uri: str | None
-    file_extension: str | None
+    file_name: str | None
     mime_type: str | None
     file_size_bytes: int | None
     checksum_sha256: str | None
     is_regulated: bool
     status: str
     chunk_count: int
-    created_by_id: UUID | None
+    created_by: UUID | None
     created_at: datetime
     updated_at: datetime
 
@@ -66,7 +66,6 @@ class DocumentChunkOut(BaseModel):
     document_id: UUID
     chunk_index: int
     content: str
-    token_count: int | None
     page_number: int | None
 
 

@@ -13,14 +13,14 @@ export interface Document {
   title: string;
   source_type: string;
   source_uri: string | null;
-  file_extension: string | null;
+  file_name: string | null;
   mime_type: string | null;
   file_size_bytes: number | null;
   checksum_sha256: string | null;
   is_regulated: boolean;
   status: "processing" | "ready" | "failed";
   chunk_count: number;
-  created_by_id: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,7 +30,6 @@ export interface DocumentChunk {
   document_id: string;
   chunk_index: number;
   content: string;
-  token_count: number | null;
   page_number: number | null;
 }
 

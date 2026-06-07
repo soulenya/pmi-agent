@@ -154,7 +154,7 @@ async def drive_import(
         raise HTTPException(500, f"Ingestion failed: {exc}")
 
     return {
-        "id": str(doc.id), "title": doc.title, "filename": doc.filename,
+        "id": str(doc.id), "title": doc.title, "filename": doc.file_name,
         "status": doc.status, "drive_file_id": req.file_id,
         "drive_url": drive_file_data.get("url", ""),
     }
