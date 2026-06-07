@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 23;
+export const BUILD_NUMBER = 24;
 export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 24,
+    date: "2026-06-07",
+    title: "Fix: Embedding service & Gerry tool-calling",
+    changes: [
+      "Agent executor now reads embedding provider from DB — no longer hardcoded to Ollama",
+      "KB import and semantic search now work with Voyage AI / OpenAI embedding providers",
+      "Gerry: strengthened Google tool-calling instruction — now calls Drive/Gmail immediately instead of saying 'I'll check'",
+      "Search error now shows the actual backend error message instead of a hardcoded Ollama hint",
+    ],
+  },
   {
     build: 23,
     date: "2026-06-07",

@@ -152,8 +152,39 @@ class VoyageEmbeddingService:
 # ── FastAPI dependencies ──────────────────────────────────────────────────────
 
 def get_embedding_service() -> EmbeddingService:
-    """Simple dependency — uses config URL. Use get_embedding_service_db for DB-aware URL."""
+    """Simple dependency — uses config URL. Use get_embedding_service_for_db for DB-aware URL."""
     return EmbeddingService()
+
+
+async def get_embedding_service_for_db(
+    db: AsyncSession,
+) -> "EmbeddingService | OpenAIEmbeddingService | VoyageEmbeddingService":
+    """
+    Awaitable (non-generator) version of get_embedding_service_db.
+    Use this from code that cannot use FastAPI dependency injection (e.g., the agent executor).
+    """
+    embedding_provider = await _read_setting(db, "llm.embedding_provider", "ollama")
+
+    if embedding_provider == "openai":
+        api_key = settings.get_api_key("openai")
+        if not api_key:
+            raise RuntimeError(
+                "OpenAI embedding provider selected but no API key configured."
+            )
+        return OpenAIEmbeddingService(api_key=api_key)
+
+    if embedding_provider == "voyage":
+        api_key = settings.get_api_key("voyage")
+        if not api_key:
+            raise RuntimeError(
+                "Voyage AI embedding provider selected but no Voyage API key configured. "
+                "Go to Settings → AI Engine and enter your Voyage API key."
+            )
+        return VoyageEmbeddingService(api_key=api_key)
+
+    # Default: Ollama
+    url = await _read_ollama_url(db)
+    return EmbeddingService(base_url=url)
 
 
 async def get_embedding_service_db(
