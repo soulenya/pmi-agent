@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 22;
+export const BUILD_NUMBER = 23;
 export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 23,
+    date: "2026-06-07",
+    title: "Fix: Embedding provider resets to Ollama after Save",
+    changes: [
+      "Settings page now invalidates the settings query after a successful save",
+      "Embedding provider selection now persists correctly — no longer reverts to Ollama",
+      "Added embedding_provider and voyage_key_set to loading state defaults",
+    ],
+  },
   {
     build: 22,
     date: "2026-06-07",
