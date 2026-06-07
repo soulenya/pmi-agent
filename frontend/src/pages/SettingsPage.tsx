@@ -229,6 +229,7 @@ const OPENAI_MODELS = ["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"];
 function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (s: SettingsUpdate) => void }) {
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
+  const [voyageKey, setVoyageKey] = useState("");
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
 
@@ -270,9 +271,11 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
     const patch: SettingsUpdate = {};
     if (openaiKey) patch.openai_api_key = openaiKey;
     if (anthropicKey) patch.anthropic_api_key = anthropicKey;
+    if (voyageKey) patch.voyage_api_key = voyageKey;
     onChange(patch);
     setOpenaiKey("");
     setAnthropicKey("");
+    setVoyageKey("");
   };
 
   return (
@@ -323,8 +326,8 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
       <div className="border-t pt-4 space-y-3">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Document Embeddings</p>
         <p className="text-xs text-muted-foreground">
-          Embeddings power Knowledge Base import and Semantic Search — separate from your LLM choice.
-          Anthropic has no embedding API; select OpenAI embeddings if Ollama is not available.
+          Embeddings power Knowledge Base import and Semantic Search — independent of your LLM choice.
+          Anthropic has no embedding API; use <strong>Voyage AI</strong> (Anthropic's partner) or OpenAI.
         </p>
         <Field label="Embedding Provider">
           <select
@@ -333,13 +336,14 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="ollama">Ollama (local — nomic-embed-text)</option>
+            <option value="voyage">Voyage AI (cloud — recommended for Anthropic users)</option>
             <option value="openai">OpenAI (cloud — text-embedding-3-small)</option>
           </select>
         </Field>
 
         {(settings.embedding_provider ?? "ollama") === "ollama" && (
           <>
-            <Field label="Ollama Server URL" hint="Address of the Ollama server running nomic-embed-text (e.g. http://192.168.1.50:11434).">
+            <Field label="Ollama Server URL" hint="Address of the Ollama server running nomic-embed-text.">
               <input
                 value={settings.ollama_url}
                 onChange={(e) => onChange({ ollama_url: e.target.value })}
@@ -348,7 +352,7 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
               />
             </Field>
             {provider === "ollama" && (
-              <Field label="Embedding Model" hint="Ollama model name for embeddings. Must output exactly 768 dimensions.">
+              <Field label="Embedding Model" hint="Ollama model name. Must output exactly 768 dimensions.">
                 <input
                   value={settings.embedding_model}
                   onChange={(e) => onChange({ embedding_model: e.target.value })}
@@ -360,16 +364,55 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
           </>
         )}
 
+        {(settings.embedding_provider ?? "ollama") === "voyage" && (
+          <div className="rounded-md border border-purple-200 bg-purple-50 dark:bg-purple-950/30 dark:border-purple-800 px-4 py-3 text-xs text-purple-800 dark:text-purple-200 space-y-1">
+            <p className="font-semibold">Voyage AI — Anthropic's recommended embedding partner</p>
+            <p>Uses <code>voyage-3</code> at 768 dims — no database changes needed.{" "}
+            {settings.voyage_key_set
+              ? "✓ Voyage API key is configured."
+              : <>Get a free key at <strong>dash.voyageai.com</strong> and enter it below.</>}</p>
+          </div>
+        )}
+
         {(settings.embedding_provider ?? "ollama") === "openai" && (
-          <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3 text-xs text-blue-800 dark:text-blue-200">
-            <p className="font-semibold mb-1">OpenAI API key required for embeddings</p>
-            <p>Uses <code>text-embedding-3-small</code> at 768 dimensions — no database changes needed.{" "}
-            {settings.openai_key_set
-              ? "✓ OpenAI API key is configured."
-              : "Add your OpenAI key below and save."}</p>
+          <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3 text-xs text-blue-800 dark:text-blue-200 space-y-1">
+            <p className="font-semibold">OpenAI — text-embedding-3-small at 768 dims</p>
+            <p>{settings.openai_key_set ? "✓ OpenAI API key is configured." : "Add your OpenAI key below and save."}</p>
           </div>
         )}
       </div>
+
+      {/* Voyage AI key */}
+      {(settings.embedding_provider ?? "ollama") === "voyage" && (
+        <div className="border-t pt-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+            <KeyRound className="h-3.5 w-3.5" />
+            Voyage AI API Key
+          </p>
+          {settings.voyage_key_set && (
+            <p className="flex items-center gap-1.5 text-xs text-green-600">
+              <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
+            </p>
+          )}
+          <Field label={settings.voyage_key_set ? "Replace API Key" : "API Key"} hint="Stored securely in the OS keychain — never saved to disk. Get yours at dash.voyageai.com">
+            <input
+              type="password"
+              value={voyageKey}
+              onChange={(e) => setVoyageKey(e.target.value)}
+              placeholder="pa-..."
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+            />
+          </Field>
+          {voyageKey && (
+            <button
+              onClick={handleKeyApply}
+              className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
+            >
+              Stage key (save with main Save button)
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Cloud API keys */}
       {provider === "openai" && (
@@ -403,7 +446,7 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
         </div>
       )}
 
-      {/* OpenAI key entry when LLM is not OpenAI but embeddings use OpenAI */}
+      {/* OpenAI key when LLM != openai but embedding = openai */}
       {provider !== "openai" && (settings.embedding_provider ?? "ollama") === "openai" && (
         <div className="border-t pt-4 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
