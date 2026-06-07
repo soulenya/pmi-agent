@@ -184,7 +184,7 @@ export function CalendarPage() {
 
   const { data: gcalEvents = [], refetch: refetchGcal, isFetching: gcalFetching, error: gcalError } = useQuery({
     queryKey: ["gcal-events"],
-    queryFn: () => listGoogleCalendarEvents(30, 60),
+    queryFn: () => listGoogleCalendarEvents(7, 90),
     enabled: googleStatus?.connected === true && showGCalEvents,
     staleTime: 300_000,
   });
