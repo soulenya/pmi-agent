@@ -4,6 +4,26 @@
 
 ## Changelog
 
+### Build 32 — 2026-06-08
+**Phase 6: LangGraph Multi-Agent System**
+- New `backend/services/agent/v2/` package with full LangGraph multi-agent architecture
+- **Supervisor** (`supervisor.py`): classifies every user message and routes to the correct specialist agent using an LLM call
+- **Seven specialist agents**, each with a tailored system prompt and curated tool subset:
+  - `ExecutiveAssistantAgent` — default handler; email, tasks, calendar, Drive, comms
+  - `ResearchAgent` — web research, literature, competitive analysis, cited reports
+  - `RegulatoryAgent` — FDA 510(k), DHF, IFU, ISO 13485/14971, IEC 60601-1 strategy
+  - `QMSAgent` — CAPA, SOPs, NCRs, document control, audit support
+  - `IRAgent` — pitch decks, investor updates, market sizing, data room prep
+  - `EngineeringAgent` — hardware/firmware specs, BOM, V&V, test protocols
+  - `OperationsAgent` — procurement, supply chain, production scheduling, vendor management
+- **`BaseAgent`** (`base_agent.py`): shared async streaming loop with tool-call dispatch; LangChain `bind_tools()` pattern
+- **`lc_tools.py`**: LangChain `@tool`-decorated wrappers that delegate to the existing `dispatch_tool()` — zero code duplication
+- **Feature flag** `llm.use_langgraph` (default `"false"`) in `system_settings` — set to `"true"` to activate v2 routing
+- **v1 AgentExecutor remains fully operational** — toggled off at WebSocket entry point in `main.py`; zero user-facing disruption
+- Added `llm.use_langgraph` to `EXPOSED_KEYS` and `DEFAULTS` in `settings.py`
+
+---
+
 ### Build 31 — 2026-06-07
 **Phase 5: Approval Workflow Completeness**
 - `POST /approvals/{id}/resolve` now executes the approved action immediately after human sign-off

@@ -31,9 +31,12 @@ dependencies = [
     # Document parsing (Sprint 3)
     "pymupdf>=1.25.0",
     "python-docx>=1.1.0",
-    # AI / LangGraph (Phase C)
+    # AI / LangGraph
     "langgraph>=0.3.0",
     "langchain-core>=0.3.0",
+    "langchain-anthropic>=0.3.0",
+    "langchain-openai>=0.3.0",
+    "langchain-ollama>=0.3.0",
     # Search (Phase G)
     # "tavily-python>=0.5.0",
     # Google (Phase E)
