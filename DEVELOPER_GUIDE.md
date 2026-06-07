@@ -1,7 +1,7 @@
 # Little Gerry — Developer Guide
 **AI Executive Assistant for Precisian Medical Instruments**
 
-Build 25 · June 2026
+Build 33 · June 2026
 
 ---
 
@@ -104,7 +104,7 @@ Build 25 · June 2026
 | Component | Details |
 |---|---|
 | PostgreSQL | 16 + pgvector, Docker container `pmi_postgres`, port 5432 |
-| Vector dimensions | **768** throughout — all embedding providers output 768-dim vectors |
+| Vector dimensions | **Provider-native** — Voyage AI: 1024, OpenAI large: 3072, OpenAI small: 1536, Ollama nomic-embed-text: 768. Switching providers requires re-indexing the KB. |
 | Desktop wrapper | pywebview + WinForms + WebView2 |
 | System tray | pystray |
 
@@ -134,8 +134,19 @@ pmi-agent/
 │   │   └── ...
 │   └── services/
 │       ├── agent/
-│       │   ├── executor.py        # Agentic loop (tool calls, streaming)
-│       │   └── tools.py           # Tool definitions + implementations
+│       │   ├── executor.py        # Agentic loop v1 (tool calls, streaming) — operational default
+│       │   ├── tools.py           # Tool definitions + dispatch_tool()
+│       │   └── v2/                # LangGraph multi-agent system (Build 32+)
+│       │       ├── supervisor.py  # LLM classifier → routes to specialist agent
+│       │       ├── base_agent.py  # Shared async streaming loop (bind_tools pattern)
+│       │       ├── lc_tools.py    # LangChain @tool wrappers over dispatch_tool()
+│       │       ├── executive_assistant.py
+│       │       ├── research_agent.py
+│       │       ├── regulatory_agent.py
+│       │       ├── qms_agent.py
+│       │       ├── ir_agent.py
+│       │       ├── engineering_agent.py
+│       │       └── operations_agent.py
 │       ├── llm/
 │       │   ├── router.py          # LLM provider router (Anthropic/OpenAI/Ollama)
 │       │   ├── anthropic_client.py # Anthropic streaming client
@@ -273,11 +284,11 @@ llm.provider = "openai"    → OpenAIClient(api_key, model)
 llm.provider = "ollama"    → OllamaClient(base_url, model)
 ```
 
-Falls back to `OllamaClient` with a warning if the cloud API key is missing.
+Raises `RuntimeError` if a cloud provider is selected but the API key is not configured — no silent fallback to Ollama.
 
 ### Anthropic Client — `backend/services/llm/anthropic_client.py`
 
-**Critical implementation note (Build 25):**
+**Critical implementation note:**
 
 The `chat_stream` method uses `stream.text_stream` + `get_final_message()`, NOT event-by-event iteration with `async for event in stream`. The old event-string-matching approach silently dropped `tool_use` blocks.
 
@@ -326,12 +337,12 @@ Two dependency forms:
 Both read `llm.embedding_provider` from `system_settings` and route to:
 
 ```
-"voyage"  → VoyageEmbeddingService(api_key)   — voyage-3, output_dimension=768
-"openai"  → OpenAIEmbeddingService(api_key)   — text-embedding-3-small, dimensions=768
-"ollama"  → EmbeddingService(base_url)         — nomic-embed-text via Ollama HTTP API
+"voyage"  → VoyageEmbeddingService(api_key)   — voyage-3, native 1024 dims
+"openai"  → OpenAIEmbeddingService(api_key)   — text-embedding-3-large/small, native 3072/1536 dims
+"ollama"  → EmbeddingService(base_url)         — nomic-embed-text via Ollama HTTP API, 768 dims
 ```
 
-All providers output exactly **768-dimensional vectors** to match the existing pgvector schema.
+Each provider outputs its native vector dimension. The `document_chunks.embedding` column is recreated at the correct dimension on re-index. Switching providers requires running **Re-index Now** from Settings → AI Engine.
 
 ### Document Ingestion Pipeline — `backend/services/documents/ingestion.py`
 
@@ -390,6 +401,30 @@ Available tools:
 - `generate_file`
 - `get_regulatory_status`
 
+### LangGraph Multi-Agent System (v2) — `backend/services/agent/v2/`
+
+Activated by setting `llm.use_langgraph = "true"` in `system_settings` (default: `"false"`). The v1 `AgentExecutor` remains the default and is fully operational.
+
+**Supervisor** (`supervisor.py`) — sends the user message to the LLM with a routing prompt listing all specialist agents, receives an agent name, instantiates that agent, and forwards all streaming frames to the WebSocket caller. Emits `{"type": "agent_selected", "agent": "..."}` before the specialist runs.
+
+**Specialist agents:**
+
+| Agent | File | Primary domain |
+|---|---|---|
+| `executive_assistant` | `executive_assistant.py` | Default — email, tasks, calendar, Drive, general |
+| `research` | `research_agent.py` | Web research, cited reports, competitive analysis |
+| `regulatory` | `regulatory_agent.py` | FDA 510(k), DHF, ISO 13485/14971, IEC 60601-1 |
+| `qms` | `qms_agent.py` | CAPA, SOPs, document control, audit |
+| `ir` | `ir_agent.py` | Pitch decks, investor updates, grant research |
+| `engineering` | `engineering_agent.py` | BOM, V&V, design FMEA, test protocols |
+| `operations` | `operations_agent.py` | Procurement, supply chain, scheduling |
+
+**`BaseAgent`** (`base_agent.py`) — shared async streaming loop: calls `llm.bind_tools()` with the agent’s allowed subset, runs up to 5 tool-call rounds, yields `token` / `tool_running` / `tool_done` / `done` frames.
+
+**`lc_tools.py`** — `make_lc_tools(ctx)` returns LangChain `@tool`-decorated callables, each delegating to the existing `dispatch_tool()`. Zero code duplication with v1.
+
+**Adding a new specialist:** subclass `BaseAgent`, define `AGENT_NAME`, `SYSTEM_PROMPT`, and `TOOLS`, then register the class in `supervisor.py`’s `_AGENT_DESCRIPTIONS` dict and `_build_agent()`.
+
 ---
 
 ## WebSocket Chat Protocol
@@ -403,6 +438,9 @@ Authentication: JWT access token as query param (browsers cannot set Authorizati
 All frames are JSON strings:
 
 ```typescript
+// Agent selection (v2 LangGraph supervisor only)
+{ "type": "agent_selected", "agent": "executive_assistant" }
+
 // Streaming token
 { "type": "token", "content": "...", "conversation_id": "..." }
 
@@ -444,7 +482,7 @@ All frames are JSON strings:
 | `conversations` | Chat conversation metadata |
 | `messages` | Individual chat messages with role, content, cited chunk IDs |
 | `documents` | Uploaded document metadata |
-| `document_chunks` | Chunked text with 768-dim pgvector embedding column |
+| `document_chunks` | Chunked text with provider-native pgvector embedding column |
 | `tasks` | Task records (Kanban) |
 | `projects` | Project groupings |
 | `approval_intents` | Human-in-the-loop approval queue |
@@ -459,11 +497,14 @@ All frames are JSON strings:
 
 | Key | Default | Description |
 |---|---|---|
-| `llm.provider` | `"ollama"` | Active LLM provider |
-| `llm.model` | `"llama3.2"` | Active chat model name |
+| `llm.provider` | `"anthropic"` | Active LLM provider |
+| `llm.model` | `"claude-sonnet-4-6"` | Active chat model name |
 | `llm.ollama_url` | `"http://localhost:11434"` | Ollama server URL |
-| `llm.embedding_provider` | `"ollama"` | Active embedding provider |
-| `llm.embedding_model` | `"nomic-embed-text"` | Embedding model (Ollama only) |
+| `llm.embedding_provider` | `"voyage"` | Active embedding provider |
+| `llm.embedding_model` | `"voyage-3"` | Embedding model name |
+| `llm.embedding_dimension` | `"1024"` | Vector dimension (provider-native; triggers re-index when changed) |
+| `llm.kb_needs_reindex` | `"false"` | Set to `"true"` when re-index is needed after provider/model change |
+| `llm.use_langgraph` | `"false"` | Enable LangGraph v2 multi-agent routing |
 | `app.theme` | `"system"` | UI theme |
 | `app.timezone` | `"UTC"` | User timezone |
 | `notifications.email_enabled` | `false` | Email notifications flag |
@@ -535,15 +576,18 @@ The executor checks `get_credentials() is not None` and injects a note into the 
 | Router | Prefix | Key endpoints |
 |---|---|---|
 | `auth.py` | `/api/auth` | `POST /login`, `POST /refresh`, `POST /logout` |
-| `settings.py` | `/settings` | `GET /`, `PUT /`, `POST /test-connection` |
+| `settings.py` | `/settings` | `GET /`, `PUT /`, `GET /health`, `GET /ai-options`, `POST /reindex` (SSE) |
 | `documents.py` | `/documents` | `POST /upload`, `GET /`, `DELETE /{id}`, `POST /{id}/reembed` |
 | `search.py` | `/search` | `POST /` (semantic search) |
 | `research.py` | `/research` | `POST /`, `GET /`, `GET /{id}` |
 | `emails.py` | `/emails` | `POST /`, `GET /`, `POST /{id}/regenerate` |
-| `conversations.py` | `/conversations` | `GET /`, `POST /`, `GET /{id}/messages` |
+| `conversations.py` | `/conversations` | `GET /`, `POST /`, `GET /{id}/messages`, `POST /{id}/resolve` (approvals) |
 | `tasks.py` | `/tasks` | full CRUD |
-| `google_integration.py` | `/google` | `GET /status`, `POST /connect`, `DELETE /disconnect` |
-| `health.py` | `/health` | `GET /` (system health check) |
+| `meetings.py` | `/meetings` | `POST /`, `GET /`, `POST /{id}/summarize`, `POST /{id}/extract-actions` |
+| `regulatory.py` | `/regulatory` | CRUD + `POST /{id}/ai-draft`; `/capas` CRUD; `/risks` CRUD |
+| `briefings.py` | `/briefings` | `GET /today` (AI-generated), `GET /` |
+| `google_integration.py` | `/google` | `GET /status`, `POST /connect`, `DELETE /disconnect`, `POST /drive/import` |
+| `health.py` | `/health` | `GET /` (full system check: DB, LLM, embedding, disk) |
 | `update.py` | `/update` | `GET /check`, `POST /apply` |
 
 ---
@@ -581,7 +625,7 @@ uv run alembic downgrade -1
 uv run alembic history
 ```
 
-Migration files live in `backend/migrations/versions/`. The vector column uses `Vector(768)` from `pgvector.sqlalchemy`.
+Migration files live in `backend/migrations/versions/`. The vector column uses `Vector(dim)` from `pgvector.sqlalchemy`, where `dim` is provider-native (1024 for Voyage AI, 3072/1536 for OpenAI, 768 for Ollama).
 
 ---
 
@@ -614,7 +658,7 @@ The installer script is `installer/setup.iss`. It:
 
 ```typescript
 // frontend/src/version.ts
-export const BUILD_NUMBER = 26;  // ← increment
+export const BUILD_NUMBER = 34;  // ← increment (current: 33)
 export const BUILD_DATE = "2026-06-07";
 
 export const CHANGELOG: ChangelogEntry[] = [
@@ -635,9 +679,9 @@ export const CHANGELOG: ChangelogEntry[] = [
 
 | # | Area | Description | Priority |
 |---|------|-------------|----------|
-| 1 | Re-embedding | No UI to re-embed all documents after changing embedding provider — user must delete and re-upload each document | Medium |
-| 2 | Installer | Installer still includes Ollama install step even though it's no longer required for Anthropic users | Low |
-| 3 | Ollama fallback | `get_llm_client` silently falls back to Ollama if a cloud key is missing — should surface an error instead | Medium |
+| 1 | Re-embedding | **Resolved (Build 30)** — Settings → AI Engine has a Re-index Now button with live SSE progress modal. | ✅ |
+| 2 | Installer | Installer still includes Ollama install step even though it’s no longer required for Anthropic users | Low |
+| 3 | Ollama fallback | **Resolved (Build 28)** — `get_llm_client` now raises `RuntimeError` if a cloud API key is missing. Error surfaces to the user. | ✅ |
 | 4 | Tests | Test coverage is minimal — `conftest.py` and two test files exist but most routers are untested | High |
 | 5 | Docker timeout | First-run setup can fail on slow machines where Docker takes >90s to start | Medium |
 | 6 | Linux/macOS | `launcher.py` and most scripts are Windows-only | Low |

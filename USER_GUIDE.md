@@ -1,7 +1,7 @@
 # Little Gerry — User Guide
 **AI Executive Assistant for Precisian Medical Instruments**
 
-Build 25 · June 2026
+Build 33 · June 2026
 
 ---
 
@@ -35,12 +35,13 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 11. [Email Drafts](#email-drafts)
 12. [Meeting Notes](#meeting-notes)
 13. [Regulatory Documents](#regulatory-documents)
-14. [Google Workspace](#google-workspace)
-15. [Approvals Queue](#approvals-queue)
-16. [Notifications](#notifications)
-17. [Settings](#settings)
-18. [Updating Little Gerry](#updating-little-gerry)
-19. [Tips & Example Prompts](#tips--example-prompts)
+14. [Investor Relations](#investor-relations)
+15. [Google Workspace](#google-workspace)
+16. [Approvals Queue](#approvals-queue)
+17. [Notifications](#notifications)
+18. [Settings](#settings)
+19. [Updating Little Gerry](#updating-little-gerry)
+20. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -108,7 +109,8 @@ Anthropic does not provide an embedding service. Voyage AI is their official par
 | **Email Drafts** | AI-drafted emails for regulatory, investor, and operational use |
 | **Meeting Notes** | Paste transcripts → AI generates summaries and action items |
 | **Regulatory** | Track DHF, IFU, 510(k), and ISO documents with AI drafting |
-| **Approvals** | Human-in-the-loop queue for any action requiring your sign-off |
+| **Investor Relations** | Company snapshot, regulatory proof-points, IR doc registry with AI drafting, and research feed |
+| **Approvals** | Human-in-the-loop queue — approve/reject with automatic action execution |
 | **Notifications** | Real-time alerts for tasks, approvals, and AI activity |
 | **Audit Trail** | Immutable log of every AI action and document change |
 | **Settings** | Configure AI providers, appearance, and Google integration |
@@ -264,6 +266,19 @@ Hover over any document row → click **AI Draft**. Little Gerry pulls relevant 
 
 ---
 
+## Investor Relations
+
+Navigate to **Investor Relations** in the sidebar.
+
+- **Company Snapshot** — key facts about PMI and VACTOR for quick investor reference (stage, TAM, regulatory path, IP status)
+- **Regulatory Document Registry** — shows your 510(k), DHF, and spec documents with one-click AI drafting to generate pitch-ready regulatory summaries
+- **Recent Research** — quick access to completed research reports relevant to investors
+- **Chat with IR Specialist** — opens a new conversation routed directly to the Investor Relations specialist agent, which has deep context on pitch materials, market sizing, and grant research
+
+> AI-generated pitch content is for internal reference only. Never share AI-drafted investor materials without qualified human review.
+
+---
+
 ## Google Workspace
 
 Navigate to **Settings → Google Integration**.
@@ -326,14 +341,15 @@ Update your display name and password.
 - **LLM Provider** — Anthropic (recommended), OpenAI, or Ollama (local)
 - **Chat Model** — select the specific model (e.g., `claude-sonnet-4-6`)
 - **API Key** — enter and save your Anthropic or OpenAI key
-- **Document Embeddings** — select Voyage AI, OpenAI, or Ollama; enter the key
-- **Test Connection** — verify the selected provider is reachable
+- **Document Embeddings** — select Voyage AI (recommended), OpenAI, or Ollama; enter the key
+- **Re-index Now** — appears when the embedding provider or model changes; re-embeds all Knowledge Base documents with live progress
+- **LLM ● / Embedding ●** — live API ping status indicators shown inline after saving
 
 ### Appearance
 Switch between Light, Dark, or System theme. Set your local timezone.
 
 ### System Health
-Live status of PostgreSQL, the active LLM, and disk space. Click **Refresh** to re-check.
+Live status of PostgreSQL, the active LLM (with API ping), active embedding provider (with API ping), disk space, and whether a Knowledge Base re-index is needed.
 
 ### Updates
 Click **Check for Updates** to compare your build against the latest on GitHub. Click **Install Update** to pull the latest version and restart automatically.
