@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listPendingApprovals, resolveApproval, clearExpiredApprovals } from "@/api/chat";
 import type { ApprovalIntent } from "@/types/chat";
-import { ShieldCheck, ShieldX, Clock, Trash2 } from "lucide-react";
+import { ShieldCheck, ShieldX, Clock, Trash2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -14,13 +14,28 @@ const RISK_STYLES: Record<string, string> = {
 
 function ApprovalCard({ intent, onResolve }: {
   intent: ApprovalIntent;
-  onResolve: (approved: boolean, reason?: string) => void;
+  onResolve: (approved: boolean, reason?: string) => Promise<ApprovalIntent>;
 }) {
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectBox, setShowRejectBox] = useState(false);
+  const [executionResult, setExecutionResult] = useState<Record<string, unknown> | null>(null);
+  const [resolving, setResolving] = useState(false);
 
   const expiresAt = intent.expires_at ? new Date(intent.expires_at) : null;
   const isExpired = expiresAt !== null && expiresAt < new Date();
+
+  const handleResolve = async (approved: boolean, reason?: string) => {
+    setResolving(true);
+    try {
+      const result = await onResolve(approved, reason);
+      if (result.execution_result) {
+        setExecutionResult(result.execution_result);
+      }
+    } finally {
+      setResolving(false);
+      setShowRejectBox(false);
+    }
+  };
 
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
@@ -64,7 +79,42 @@ function ApprovalCard({ intent, onResolve }: {
         </div>
       )}
 
-      {/* Actions */}
+      {/* Execution result (shown after approval) */}
+      {executionResult && (
+        <div className={cn(
+          "mb-4 rounded-md border px-3 py-2.5 text-xs space-y-1",
+          executionResult.status === "executed"
+            ? "border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-700"
+            : executionResult.status === "error"
+            ? "border-destructive/30 bg-destructive/10"
+            : "border-muted bg-muted/50"
+        )}>
+          <p className={cn(
+            "flex items-center gap-1.5 font-semibold",
+            executionResult.status === "executed" ? "text-green-700 dark:text-green-400"
+              : executionResult.status === "error" ? "text-destructive"
+              : "text-muted-foreground"
+          )}>
+            {executionResult.status === "executed"
+              ? <><CheckCircle2 className="h-3.5 w-3.5" /> Action executed successfully</>
+              : executionResult.status === "error"
+              ? <><XCircle className="h-3.5 w-3.5" /> Execution failed—action was still approved</>
+              : <><AlertCircle className="h-3.5 w-3.5" /> {String(executionResult.detail ?? "No automated action")}</>}
+          </p>
+          {executionResult.status === "error" && executionResult.detail && (
+            <p className="text-destructive/80 text-xs">{String(executionResult.detail)}</p>
+          )}
+          {executionResult.status === "executed" && executionResult.message_id && (
+            <p className="text-green-600/80">Message ID: {String(executionResult.message_id)}</p>
+          )}
+          {executionResult.status === "executed" && executionResult.url && (
+            <a href={String(executionResult.url)} target="_blank" rel="noopener noreferrer"
+               className="text-primary underline">Open in Google ↗</a>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}}
       {!isExpired && intent.status === "pending" && (
         <>
           {showRejectBox ? (
@@ -78,11 +128,9 @@ function ApprovalCard({ intent, onResolve }: {
               />
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    onResolve(false, rejectReason || undefined);
-                    setShowRejectBox(false);
-                  }}
-                  className="flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground"
+                  disabled={resolving}
+                  onClick={() => handleResolve(false, rejectReason || undefined)}
+                  className="flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground disabled:opacity-50"
                 >
                   <ShieldX className="h-4 w-4" />
                   Confirm reject
@@ -98,15 +146,17 @@ function ApprovalCard({ intent, onResolve }: {
           ) : (
             <div className="flex gap-2">
               <button
-                onClick={() => onResolve(true)}
-                className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+                disabled={resolving}
+                onClick={() => handleResolve(true)}
+                className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
                 <ShieldCheck className="h-4 w-4" />
-                Approve
+                {resolving ? "Approving…" : "Approve"}
               </button>
               <button
+                disabled={resolving}
                 onClick={() => setShowRejectBox(true)}
-                className="flex items-center gap-1.5 rounded-md border px-4 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10"
+                className="flex items-center gap-1.5 rounded-md border px-4 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
               >
                 <ShieldX className="h-4 w-4" />
                 Reject
@@ -140,6 +190,10 @@ export function ApprovalsPage() {
     }) => resolveApproval(id, { approved, rejection_reason: reason }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["approvals"] }),
   });
+
+  const resolveWithResult = async (id: string, approved: boolean, reason?: string) => {
+    return resolveMutation.mutateAsync({ id, approved, reason });
+  };
 
   const clearExpiredMutation = useMutation({
     mutationFn: clearExpiredApprovals,
@@ -189,7 +243,7 @@ export function ApprovalsPage() {
           key={intent.id}
           intent={intent}
           onResolve={(approved, reason) =>
-            resolveMutation.mutate({ id: intent.id, approved, reason })
+            resolveWithResult(intent.id, approved, reason)
           }
         />
       ))}

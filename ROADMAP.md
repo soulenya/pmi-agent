@@ -290,19 +290,32 @@ The approval queue DB table and UI exist, but not all consequential actions rout
 
 ### Tasks
 
-- [ ] **5.1** Audit all Google write tools in `services/agent/tools.py`:
-  - `send_email` → must create ApprovalIntent, not execute directly
-  - `create_calendar_event` → must create ApprovalIntent
-  - `create_drive_file` / `update_drive_file` → must create ApprovalIntent
-  - Verify `request_approval` tool is correctly wired to these paths
+- [x] **5.1** Audit all Google write tools in `services/agent/tools.py`:
+  - `send_email` → already routes through `request_approval` tool (no direct execution)
+  - `create_calendar_event` → already routes through `request_approval` tool
+  - `create_drive_file` / `update_drive_file` → not yet implemented as tools; will be added in Phase 7
+  - `request_approval` tool is correctly wired; approved intent now executes via `_execute_approved_action()`
 
-- [ ] **5.2** Add `POST /approvals/{id}/execute` endpoint:
-  - When user approves: load the stored approval intent, execute the pending action, log result to audit
-  - When user rejects: mark rejected, log to audit
+- [x] **5.2** Add `POST /approvals/{id}/execute` endpoint:
+  - Implemented as execution logic inside `POST /approvals/{id}/resolve` to keep the API surface minimal
+  - When `approved=true`: dispatches `_execute_approved_action()` based on `intent_type`
+  - `send_email` → `gmail_send(to, subject, body)` + marks email draft `sent` if `draft_id` in payload
+  - `create_calendar_event` → `calendar_create_event(title, start, end, ...)`
+  - All other types → `{"status": "no_action"}` (approved but no automated executor)
+  - Execution failure returns error result but never rolls back the approval record
 
-- [ ] **5.3** Add audit log entry for every approval decision (approved/rejected, by whom, timestamp)
+- [x] **5.3** Add audit log entry for every approval decision (approved/rejected, by whom, timestamp):
+  - `approval.approved` — logged when `approved=true`
+  - `approval.rejected` — logged when `approved=false` with rejection reason
+  - `approval.action_executed` — logged on successful execution
+  - `approval.action_failed` — logged on execution error
+  - All entries go through `AuditLogger.log()` with hash-chaining
 
-- [ ] **5.4** Verify the Approvals page in the frontend displays pending intents and wires up Approve/Reject buttons to the new execute endpoint
+- [x] **5.4** Verify the Approvals page in the frontend displays pending intents and wires up Approve/Reject buttons to the new execute endpoint:
+  - `ApprovalCard` now returns a `Promise<ApprovalIntent>` from `onResolve`
+  - Execution result stored in local state and displayed inline after resolution
+  - Green banner for executed, red banner for error, grey for no-action
+  - Approve/Reject buttons show loading state and are disabled during submission
 
 **Acceptance criteria:**
 - Asking Gerry to send an email creates an approval card, not an immediate send
