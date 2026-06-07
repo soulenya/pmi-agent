@@ -105,53 +105,45 @@ class AnthropicClient:
         if tools:
             kwargs["tools"] = self._convert_tools(tools)
 
-        accumulated_content = ""
         tool_calls: list[dict] = []
         input_tokens = 0
         output_tokens = 0
 
         async with self._client.messages.stream(**kwargs) as stream:
-            async for event in stream:
-                event_type = type(event).__name__
+            # stream.text_stream is the SDK's reliable way to get text tokens.
+            # It handles all the internal SSE events correctly regardless of SDK version.
+            async for text_chunk in stream.text_stream:
+                yield StreamChunk(
+                    content=text_chunk,
+                    done=False,
+                    model=self._model,
+                )
 
-                if event_type == "RawContentBlockDeltaEvent":
-                    delta = getattr(event, "delta", None)
-                    if delta and hasattr(delta, "text"):
-                        chunk_text = delta.text
-                        accumulated_content += chunk_text
-                        yield StreamChunk(
-                            content=chunk_text,
-                            done=False,
-                            model=self._model,
-                        )
-                    elif delta and hasattr(delta, "partial_json"):
-                        # Tool use input delta — accumulate silently
-                        pass
+            # get_final_message() waits for the stream to complete and returns
+            # the full Message object including all tool_use blocks.
+            final = await stream.get_final_message()
+            if final.usage:
+                input_tokens = final.usage.input_tokens
+                output_tokens = final.usage.output_tokens
 
-                elif event_type == "RawMessageStopEvent":
-                    final = await stream.get_final_message()
-                    if final.usage:
-                        input_tokens = final.usage.input_tokens
-                        output_tokens = final.usage.output_tokens
-                    # Extract any tool use blocks
-                    for block in final.content:
-                        if block.type == "tool_use":
-                            tool_calls.append({
-                                "id": block.id,
-                                "function": {
-                                    "name": block.name,
-                                    "arguments": block.input,
-                                }
-                            })
-                    yield StreamChunk(
-                        content="",
-                        tool_calls=tool_calls,
-                        done=True,
-                        model=self._model,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                    )
-                    return
+            for block in final.content:
+                if block.type == "tool_use":
+                    tool_calls.append({
+                        "id": block.id,
+                        "function": {
+                            "name": block.name,
+                            "arguments": block.input,  # already a dict
+                        }
+                    })
+
+        yield StreamChunk(
+            content="",
+            tool_calls=tool_calls,
+            done=True,
+            model=self._model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
 
     async def chat(
         self,
