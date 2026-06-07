@@ -182,9 +182,13 @@ export function CalendarPage() {
     staleTime: 60_000,
   });
 
+  // Compute fetch window that covers the entire displayed month
+  const gcalDaysBehind = Math.max(0, Math.floor((today.getTime() - new Date(year, month, 1).getTime()) / 86_400_000) + 1);
+  const gcalDaysAhead  = Math.max(1, Math.ceil((new Date(year, month + 1, 0).getTime() - today.getTime()) / 86_400_000) + 1);
+
   const { data: gcalEvents = [], refetch: refetchGcal, isFetching: gcalFetching, error: gcalError } = useQuery({
-    queryKey: ["gcal-events"],
-    queryFn: () => listGoogleCalendarEvents(7, 90),
+    queryKey: ["gcal-events", year, month],
+    queryFn: () => listGoogleCalendarEvents(gcalDaysBehind, gcalDaysAhead),
     enabled: googleStatus?.connected === true && showGCalEvents,
     staleTime: 300_000,
   });
