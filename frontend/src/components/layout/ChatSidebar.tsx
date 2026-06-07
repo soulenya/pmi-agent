@@ -79,6 +79,7 @@ export function ChatSidebar() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
+  const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
 
   const wsRef        = useRef<WebSocket | null>(null);
@@ -137,7 +138,7 @@ export function ChatSidebar() {
     (convId: string) => {
       if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
       if (!token) return;
-      const ws = new WebSocket(`${WS_BASE}/conversations/${convId}/ws?token=${token}`);
+      const ws = new WebSocket(`${WS_BASE}/ws/chat/${convId}?token=${encodeURIComponent(token)}`);
       wsRef.current = ws;
       setIsConnecting(true);
 
@@ -147,25 +148,50 @@ export function ChatSidebar() {
       ws.onmessage = (ev) => {
         try {
           const frame = JSON.parse(ev.data);
+          if (frame.type === "token" && frame.content) {
+            setStreamingContent((prev) => (prev ?? "") + frame.content);
+            setToolActivities([]);
+            return;
+          }
           if (frame.type === "tool_status") {
             const ts = frame as WSToolStatusFrame;
             setToolActivities((prev) => {
-              const next = prev.filter((a) => a.tool_name !== ts.tool_name);
-              if (ts.status === "done") return next;
-              return [...next, { tool_name: ts.tool_name, status: ts.status, label: ts.label ?? ts.tool_name }];
+              const idx = [...prev].reverse().findIndex((a) => a.tool_name === ts.tool_name);
+              const trueIdx = idx >= 0 ? prev.length - 1 - idx : -1;
+              if (trueIdx >= 0 && prev[trueIdx].status === "running") {
+                const next = [...prev];
+                next[trueIdx] = { tool_name: ts.tool_name, status: ts.status, label: ts.label ?? ts.tool_name };
+                return next;
+              }
+              return [...prev, { tool_name: ts.tool_name, status: ts.status, label: ts.label ?? ts.tool_name }];
             });
             return;
           }
-          if (frame.type === "message" || frame.id) {
-            setMessages((prev) => {
-              const idx = prev.findIndex((m) => m.id === frame.id);
-              if (idx >= 0) {
-                const next = [...prev];
-                next[idx] = frame;
-                return next;
-              }
-              return [...prev, frame];
-            });
+          if (frame.type === "done") {
+            // Reload persisted messages from DB
+            if (convId) listMessages(convId).then(setMessages).catch(() => {});
+            setStreamingContent(null);
+            setToolActivities([]);
+            return;
+          }
+          if (frame.type === "error") {
+            const detail = frame.detail ?? "An error occurred.";
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                conversation_id: convId,
+                role: "assistant" as const,
+                content: `⚠️ ${detail}`,
+                agent_type: null,
+                model_name: null,
+                cited_chunk_ids: [],
+                tool_calls: null,
+                tool_results: null,
+                created_at: new Date().toISOString(),
+              },
+            ]);
+            setStreamingContent(null);
             setToolActivities([]);
           }
         } catch { /* ignore */ }
@@ -179,6 +205,12 @@ export function ChatSidebar() {
     return () => { wsRef.current?.close(); wsRef.current = null; };
   }, [open, activeConversationId, connectWS]);
 
+  // Reset streaming state when conversation changes
+  useEffect(() => {
+    setStreamingContent(null);
+    setToolActivities([]);
+  }, [activeConversationId]);
+
   function sendMessage() {
     const text = inputText.trim();
     if (!text || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -190,7 +222,24 @@ export function ChatSidebar() {
       ? `[Context: I am currently viewing the "${label}" page]\n\n${text}`
       : text;
 
-    wsRef.current.send(JSON.stringify({ content: fullText }));
+    // Optimistically add user message
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        conversation_id: activeConversationId ?? "",
+        role: "user" as const,
+        content: text,
+        agent_type: null,
+        model_name: null,
+        cited_chunk_ids: [],
+        tool_calls: null,
+        tool_results: null,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+
+    wsRef.current.send(JSON.stringify({ type: "human", content: fullText }));
     setInputText("");
     textareaRef.current?.focus();
   }
@@ -275,6 +324,23 @@ export function ChatSidebar() {
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} compact />
         ))}
+        {streamingContent !== null && (
+          <MessageBubble
+            message={{
+              id: "__streaming__",
+              conversation_id: activeConversationId ?? "",
+              role: "assistant",
+              content: streamingContent,
+              agent_type: null,
+              model_name: null,
+              cited_chunk_ids: [],
+              tool_calls: null,
+              tool_results: null,
+              created_at: new Date().toISOString(),
+            }}
+            compact
+          />
+        )}
         {toolActivities.map((a) => (
           <div key={a.tool_name} className="flex items-center gap-2 text-xs text-muted-foreground px-2">
             <Wrench className="h-3 w-3 animate-pulse text-primary" />
