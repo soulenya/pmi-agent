@@ -18,6 +18,7 @@ import {
   Users,
   CalendarDays,
   Globe,
+  TrendingUp,
 } from "lucide-react";
 import { listPendingApprovals, listNotifications } from "@/api/chat";
 import { ServiceMenu } from "@/components/ServiceMenu";
@@ -35,6 +36,7 @@ const navItems = [
   { to: "/meetings", icon: Mic, label: "Meeting Notes" },
   { to: "/emails", icon: Mail, label: "Email Drafts" },
   { to: "/regulatory", icon: ShieldCheck, label: "Regulatory" },
+  { to: "/investor", icon: TrendingUp, label: "Investor Relations" },
   { to: "/approvals", icon: ShieldCheck, label: "Approvals", badge: "approvals" as const },
   { to: "/notifications", icon: Bell, label: "Notifications", badge: "notifications" as const },
   { to: "/audit", icon: ScrollText, label: "Audit Trail" },

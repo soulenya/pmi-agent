@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 32;
-export const BUILD_DATE = "2026-06-08";
+export const BUILD_NUMBER = 33;
+export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 33,
+    date: "2026-06-07",
+    title: "Phase 7: Advanced Features",
+    changes: [
+      "Fix meetings.py _llm_summarize bug: db session was not in scope (runtime crash on Summarize)",
+      "Investor Relations page (/investor): company snapshot, 510k/DHF doc registry, AI draft, recent research, IR chat shortcut",
+      "Investor Relations nav item added to sidebar (TrendingUp icon)",
+      "All Phase 7 features now operational: meetings, briefings, regulatory, QMS/CAPA, Drive KB ingestion, in-app update",
+    ],
+  },
   {
     build: 32,
     date: "2026-06-08",

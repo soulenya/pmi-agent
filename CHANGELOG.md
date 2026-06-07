@@ -4,6 +4,22 @@
 
 ## Changelog
 
+### Build 33 — 2026-06-07
+**Phase 7: Advanced Features**
+- **Bug fix** `meetings.py`: `_llm_summarize` called `get_llm_client(db)` but `db` was not in scope — passes `db` as explicit parameter now; `POST /meetings/{id}/summarize` no longer crashes at runtime
+- **7.4 Investor Relations page** (`/investor`): company snapshot metrics, investor-relevant regulatory doc registry (510k/DHF/spec), AI draft generation per doc, recent research report feed, and one-click "Chat with IR Specialist" shortcut
+- Investor Relations nav item added to sidebar (TrendingUp icon)
+- All Phase 7 capabilities now operational end-to-end:
+  - **7.1** Meeting notes — paste transcript, AI summarise, one-click extract action items → tasks
+  - **7.2** Regulatory module — doc registry (SOP/510k/DHF/IFU), AI draft, revision tracking, risk items
+  - **7.3** Dashboard — AI-generated CEO daily brief with overdue tasks, pending approvals, outlook
+  - **7.4** Investor Relations hub — IR doc registry, AI content, research feed, IR chat
+  - **7.5** QMS/CAPA — CAPA lifecycle (open/in-progress/closed), root cause, corrective/preventive actions
+  - **7.6** Google Docs ingestion — import Drive file directly into Knowledge Base (from Documents page)
+  - **7.7** In-app update — GitHub commit comparison + one-click PowerShell update (Settings → Software Update)
+
+---
+
 ### Build 32 — 2026-06-08
 **Phase 6: LangGraph Multi-Agent System**
 - New `backend/services/agent/v2/` package with full LangGraph multi-agent architecture
