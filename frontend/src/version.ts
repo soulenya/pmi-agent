@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 27;
+export const BUILD_NUMBER = 28;
 export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,20 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 28,
+    date: "2026-06-07",
+    title: "Phase 2: Anthropic/Voyage defaults, no silent Ollama fallback",
+    changes: [
+      "Default LLM provider changed from Ollama to Anthropic (claude-sonnet-4-6)",
+      "Default embedding provider changed from Ollama to Voyage AI (voyage-3, 1024 dims)",
+      "LLM router no longer falls back silently to Ollama when a cloud API key is missing",
+      "Missing API key now raises a RuntimeError with a clear Settings link instead of silently switching provider",
+      "Removed get_llm_client_no_db() — it was never safe to build a client without DB context",
+      "config.py defaults updated: default_llm_model=claude-sonnet-4-6, default_embedding_model=voyage-3",
+      ".env.example updated with DEFAULT_LLM_PROVIDER, DEFAULT_EMBEDDING_PROVIDER, DEFAULT_EMBEDDING_DIMENSION",
+    ],
+  },
   {
     build: 27,
     date: "2026-06-07",

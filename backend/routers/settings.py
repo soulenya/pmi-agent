@@ -43,12 +43,12 @@ EXPOSED_KEYS = {
 }
 
 DEFAULTS: dict[str, object] = {
-    "llm.provider": "ollama",
-    "llm.model": "llama3.2",
+    "llm.provider": "anthropic",
+    "llm.model": "claude-sonnet-4-6",
     "llm.ollama_url": "http://localhost:11434",
-    "llm.embedding_model": "nomic-embed-text",
-    "llm.embedding_provider": "ollama",
-    "llm.embedding_dimension": "768",
+    "llm.embedding_provider": "voyage",
+    "llm.embedding_model": "voyage-3",
+    "llm.embedding_dimension": "1024",
     "llm.kb_needs_reindex": "false",
     "app.theme": "system",
     "app.timezone": "UTC",

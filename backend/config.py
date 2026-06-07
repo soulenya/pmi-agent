@@ -40,10 +40,14 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 30
 
-    # ── Ollama ───────────────────────────────────────────────────────────────
+    # ── AI Providers ──────────────────────────────────────────────────────────
+    # Ollama is optional (third-tier local/LAN). Default provider is Anthropic.
     ollama_base_url: str = "http://localhost:11434"
-    default_llm_model: str = "gemma3:27b"
-    default_embedding_model: str = "nomic-embed-text"
+    default_llm_provider: str = "anthropic"
+    default_llm_model: str = "claude-sonnet-4-6"
+    default_embedding_provider: str = "voyage"
+    default_embedding_model: str = "voyage-3"
+    default_embedding_dimension: int = 1024
 
     # ── RAG ──────────────────────────────────────────────────────────────────
     chunk_size_tokens: int = 512
