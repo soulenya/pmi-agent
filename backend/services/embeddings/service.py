@@ -179,6 +179,25 @@ def get_embedding_service() -> EmbeddingService:
     return EmbeddingService()
 
 
+# Per-provider default embedding models
+_PROVIDER_DEFAULT_MODEL: dict[str, str] = {
+    "ollama": "nomic-embed-text",
+    "openai": "text-embedding-3-small",
+    "voyage": "voyage-3",
+}
+
+
+def _resolve_model(provider: str, stored_model: str) -> str:
+    """Return a valid model for the given provider.
+    If the stored model belongs to a different provider's namespace, fall back
+    to the provider's default (e.g. 'nomic-embed-text' when provider=voyage).
+    """
+    provider_models = set(PROVIDER_DIMENSIONS.get(provider, {}).keys())
+    if provider_models and stored_model not in provider_models:
+        return _PROVIDER_DEFAULT_MODEL.get(provider, stored_model)
+    return stored_model
+
+
 async def get_embedding_service_for_db(
     db: AsyncSession,
 ) -> "EmbeddingService | OpenAIEmbeddingService | VoyageEmbeddingService":
@@ -187,7 +206,8 @@ async def get_embedding_service_for_db(
     Use this from code that cannot use FastAPI dependency injection (e.g., the agent executor).
     """
     embedding_provider = await _read_setting(db, "llm.embedding_provider", "ollama")
-    embedding_model = await _read_setting(db, "llm.embedding_model", "nomic-embed-text")
+    stored_model = await _read_setting(db, "llm.embedding_model", "nomic-embed-text")
+    embedding_model = _resolve_model(embedding_provider, stored_model)
 
     if embedding_provider == "openai":
         api_key = settings.get_api_key("openai")
@@ -221,7 +241,8 @@ async def get_embedding_service_db(
       llm.embedding_provider = "ollama"  → EmbeddingService (Ollama, 768 dims)
     """
     embedding_provider = await _read_setting(db, "llm.embedding_provider", "ollama")
-    embedding_model = await _read_setting(db, "llm.embedding_model", "nomic-embed-text")
+    stored_model = await _read_setting(db, "llm.embedding_model", "nomic-embed-text")
+    embedding_model = _resolve_model(embedding_provider, stored_model)
 
     if embedding_provider == "openai":
         api_key = settings.get_api_key("openai")
