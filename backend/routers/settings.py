@@ -86,6 +86,7 @@ class SettingsOut(BaseModel):
     # API key presence (never expose actual keys)
     openai_key_set: bool
     anthropic_key_set: bool
+    voyage_key_set: bool
 
 
 class SettingsUpdate(BaseModel):
@@ -93,13 +94,14 @@ class SettingsUpdate(BaseModel):
     llm_model: str | None = Field(None, min_length=1, max_length=100)
     ollama_url: str | None = Field(None, min_length=1, max_length=255)
     embedding_model: str | None = Field(None, min_length=1, max_length=100)
-    embedding_provider: str | None = Field(None, pattern="^(ollama|openai)$")
+    embedding_provider: str | None = Field(None, pattern="^(ollama|openai|voyage)$")
     theme: str | None = Field(None, pattern="^(light|dark|system)$")
     timezone: str | None = Field(None, max_length=64)
     notifications_email_enabled: bool | None = None
     # API keys — stored in OS keyring, never in DB
     openai_api_key: str | None = Field(None, min_length=1, max_length=500)
     anthropic_api_key: str | None = Field(None, min_length=1, max_length=500)
+    voyage_api_key: str | None = Field(None, min_length=1, max_length=500)
 
 
 class ProfileUpdate(BaseModel):
@@ -126,6 +128,7 @@ async def get_settings(
         notifications_email_enabled=bool(await _get_setting(db, "notifications.email_enabled")),
         openai_key_set=app_settings.get_api_key("openai") is not None,
         anthropic_key_set=app_settings.get_api_key("anthropic") is not None,
+        voyage_key_set=app_settings.get_api_key("voyage") is not None,
     )
 
 
@@ -154,6 +157,8 @@ async def update_settings(
         app_settings.set_api_key("openai", body.openai_api_key)
     if body.anthropic_api_key:
         app_settings.set_api_key("anthropic", body.anthropic_api_key)
+    if body.voyage_api_key:
+        app_settings.set_api_key("voyage", body.voyage_api_key)
 
     await db.commit()
     return await get_settings(db, current_user)

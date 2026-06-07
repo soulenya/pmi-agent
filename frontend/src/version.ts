@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 21;
-export const BUILD_DATE = "2026-06-06";
+export const BUILD_NUMBER = 22;
+export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 22,
+    date: "2026-06-07",
+    title: "Voyage AI Embeddings — Full Anthropic-Only Support",
+    changes: [
+      "Added Voyage AI as a third embedding provider (Anthropic's official embedding partner)",
+      "Voyage AI uses voyage-3 at 768 dims — no database migration required",
+      "Settings now offers: Ollama (local), Voyage AI (cloud, Anthropic users), OpenAI (cloud)",
+      "Voyage AI API key stored securely in OS keychain; get a free key at dash.voyageai.com",
+      "Removed requirement for Ollama or OpenAI when using Anthropic as the LLM provider",
+    ],
+  },
   {
     build: 21,
     date: "2026-06-06",

@@ -12,6 +12,7 @@ export interface AppSettings {
   notifications_email_enabled: boolean;
   openai_key_set: boolean;
   anthropic_key_set: boolean;
+  voyage_key_set: boolean;
 }
 
 export interface SettingsUpdate {
@@ -25,6 +26,7 @@ export interface SettingsUpdate {
   notifications_email_enabled?: boolean;
   openai_api_key?: string;
   anthropic_api_key?: string;
+  voyage_api_key?: string;
 }
 
 export interface ProfileUpdate {

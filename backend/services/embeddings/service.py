@@ -1,9 +1,11 @@
 """
-Embeddings service — supports Ollama (local) and OpenAI (cloud).
+Embeddings service — supports Ollama (local), OpenAI, and Voyage AI (cloud).
 
 Provider is determined by the 'llm.embedding_provider' DB setting:
   - "ollama"  → nomic-embed-text via Ollama HTTP API (768 dims)
   - "openai"  → text-embedding-3-small via OpenAI API (truncated to 768 dims)
+  - "voyage"  → voyage-3 via Voyage AI API (truncated to 768 dims)
+                Voyage AI is Anthropic's recommended embedding partner.
 
 Defaults to "ollama" for backward compatibility.
 """
@@ -112,6 +114,41 @@ class OpenAIEmbeddingService:
         return [e.embedding for e in ordered]
 
 
+class VoyageEmbeddingService:
+    """
+    Voyage AI embeddings — Anthropic's recommended embedding partner.
+    Uses voyage-3 with output_dimension=768 to match the existing pgvector schema.
+    No database migration needed.
+    """
+
+    _MODEL = "voyage-3"
+
+    def __init__(self, api_key: str) -> None:
+        self._api_key = api_key
+
+    async def embed(self, text: str) -> list[float]:
+        import voyageai
+        client = voyageai.AsyncClient(api_key=self._api_key)
+        result = await client.embed(
+            [text],
+            model=self._MODEL,
+            output_dimension=EMBEDDING_DIM,
+        )
+        return result.embeddings[0]
+
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        import voyageai
+        client = voyageai.AsyncClient(api_key=self._api_key)
+        result = await client.embed(
+            texts,
+            model=self._MODEL,
+            output_dimension=EMBEDDING_DIM,
+        )
+        return result.embeddings
+
+
 # ── FastAPI dependencies ──────────────────────────────────────────────────────
 
 def get_embedding_service() -> EmbeddingService:
@@ -121,11 +158,12 @@ def get_embedding_service() -> EmbeddingService:
 
 async def get_embedding_service_db(
     db: AsyncSession = Depends(get_db),
-) -> AsyncGenerator[EmbeddingService | OpenAIEmbeddingService, None]:
+) -> AsyncGenerator[EmbeddingService | OpenAIEmbeddingService | VoyageEmbeddingService, None]:
     """
     DB-aware dependency — resolves the correct embedding backend from settings:
       llm.embedding_provider = "openai"  → OpenAIEmbeddingService
-      llm.embedding_provider = "ollama"  → EmbeddingService (Ollama)
+      llm.embedding_provider = "voyage"  → VoyageEmbeddingService (Anthropic partner)
+      llm.embedding_provider = "ollama"  → EmbeddingService (Ollama, default)
     """
     embedding_provider = await _read_setting(db, "llm.embedding_provider", "ollama")
 
@@ -137,6 +175,17 @@ async def get_embedding_service_db(
                 "Go to Settings → AI Engine and enter your OpenAI API key, then save."
             )
         yield OpenAIEmbeddingService(api_key=api_key)
+        return
+
+    if embedding_provider == "voyage":
+        api_key = settings.get_api_key("voyage")
+        if not api_key:
+            raise RuntimeError(
+                "Voyage AI embedding provider is selected but no Voyage API key is configured. "
+                "Go to Settings → AI Engine and enter your Voyage API key, then save. "
+                "Get a free key at https://dash.voyageai.com"
+            )
+        yield VoyageEmbeddingService(api_key=api_key)
         return
 
     # Default: Ollama
