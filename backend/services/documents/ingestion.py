@@ -235,8 +235,8 @@ class DocumentIngestionService:
             chunk_count=0,
             created_by=created_by_id,
         )
-
-        await self._db.flush()
+        self._db.add(doc)
+        await self._db.flush()   # assigns doc.id
 
         try:
             # 4. Encrypt and store

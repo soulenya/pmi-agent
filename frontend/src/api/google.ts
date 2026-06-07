@@ -32,9 +32,9 @@ export async function listSharedDrives(): Promise<SharedDrive[]> {
   return r.data.drives;
 }
 
-export async function driveListFolder(folderId = "root"): Promise<DriveItem[]> {
+export async function driveListFolder(folderId = "root", driveId?: string): Promise<DriveItem[]> {
   const r = await apiClient.get<{ items: DriveItem[] }>(`${G}/drive/list`, {
-    params: { folder_id: folderId },
+    params: { folder_id: folderId, ...(driveId ? { drive_id: driveId } : {}) },
   });
   return r.data.items;
 }
