@@ -114,7 +114,7 @@ function ApprovalCard({ intent, onResolve }: {
         </div>
       )}
 
-      {/* Actions */}}
+      {/* Actions */}
       {!isExpired && intent.status === "pending" && (
         <>
           {showRejectBox ? (

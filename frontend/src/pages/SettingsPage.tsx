@@ -1019,7 +1019,7 @@ function SystemHealthSection() {
             </div>
           )}
 
-          {/* Disk */}}
+          {/* Disk */}
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-sm">
               <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
