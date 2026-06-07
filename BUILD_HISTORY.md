@@ -19,7 +19,9 @@ git push origin master --force  # only if you want to revert remote
 
 | Build | SHA       | Date       | Description |
 |-------|-----------|------------|-------------|
-| 33+   | `8d08b23` | 2026-06-07 | fix: ChatSidebar WebSocket — wrong URL, send format, broken handler |
+| 33+   | `54e6dbb` | 2026-06-07 | fix: Google Calendar maxResults 50→500; days_behind 30→7 — recurring events no longer swamp the result set |
+| 33+   | `8f2abbe` | 2026-06-07 | docs: add BUILD_HISTORY.md rollback reference |
+| 33+   | `8d08b23` | 2026-06-07 | fix: ChatSidebar WebSocket — wrong URL, send format, broken handler; add streaming bubble |
 | 33+   | `895ce25` | 2026-06-07 | fix: JSX comment syntax typos in ApprovalsPage + SettingsPage |
 | 33+   | `7f8b593` | 2026-06-07 | docs: update README, USER_GUIDE, DEVELOPER_GUIDE to Build 33 |
 | **33** | `894b7a4` | 2026-06-07 | **Phase 7 — Advanced Features** (InvestorPage, meetings bug fix) |
@@ -87,4 +89,4 @@ cd backend && .venv\Scripts\python.exe -m alembic downgrade 615f52d537b5
 
 ---
 
-*Updated: 2026-06-07 after Build 33 + ChatSidebar fix*
+*Updated: 2026-06-07 after Google Calendar sync fix (54e6dbb)*
