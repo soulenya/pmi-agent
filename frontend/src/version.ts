@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 31;
-export const BUILD_DATE = "2026-06-07";
+export const BUILD_NUMBER = 32;
+export const BUILD_DATE = "2026-06-08";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 32,
+    date: "2026-06-08",
+    title: "Phase 6: LangGraph multi-agent system",
+    changes: [
+      "Add LangGraph v2 multi-agent architecture under services/agent/v2/",
+      "Seven specialist agents: ExecutiveAssistant, Research, Regulatory, QMS, IR, Engineering, Operations",
+      "Supervisor routes each message to the best specialist via LLM classification",
+      "LangChain tool wrappers delegate to existing dispatch_tool() without code duplication",
+      "Feature flag: llm.use_langgraph (default false) — toggle in system_settings",
+      "v1 AgentExecutor remains fully operational; zero user-facing disruption",
+    ],
+  },
   {
     build: 31,
     date: "2026-06-07",

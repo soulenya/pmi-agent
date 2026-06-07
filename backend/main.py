@@ -283,13 +283,27 @@ def create_app() -> FastAPI:
                     if incoming.type != "human" or not incoming.content.strip():
                         continue
 
-                    executor = await AgentExecutor.create(
-                        db=db,
-                        user_id=user.id,
-                        conversation_id=conv_uuid,
-                    )
-                    async for frame in executor._run(incoming.content.strip()):
-                        await websocket.send_text(frame)
+                    # Feature flag: llm.use_langgraph = "true" enables v2 supervisor
+                    from routers.settings import _get_setting as _gs
+                    _use_lg = str(await _gs(db, "llm.use_langgraph") or "false").lower() == "true"
+
+                    if _use_lg:
+                        from services.agent.v2.supervisor import LangGraphSupervisor
+                        supervisor = await LangGraphSupervisor.create(
+                            db=db,
+                            user_id=user.id,
+                            conversation_id=conv_uuid,
+                        )
+                        async for frame in supervisor.run(incoming.content.strip()):
+                            await websocket.send_text(frame)
+                    else:
+                        executor = await AgentExecutor.create(
+                            db=db,
+                            user_id=user.id,
+                            conversation_id=conv_uuid,
+                        )
+                        async for frame in executor._run(incoming.content.strip()):
+                            await websocket.send_text(frame)
 
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected: user=%s conversation=%s", user.id, conversation_id)

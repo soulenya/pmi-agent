@@ -362,14 +362,14 @@ Each agent:
 
 ### Tasks (to be expanded)
 
-- [ ] **6.1** Add `langgraph`, `langchain-anthropic`, `langchain-openai`, `langchain-ollama` to `pyproject.toml`
-- [ ] **6.2** Create `services/agent/v2/base_agent.py` — abstract agent with shared LLM routing
-- [ ] **6.3** Create `services/agent/v2/executive_assistant.py` — first agent to implement
-- [ ] **6.4** Create `services/agent/v2/research_agent.py`
-- [ ] **6.5** Create `services/agent/v2/supervisor.py` — routes queries to correct specialist
-- [ ] **6.6** Remaining 5 agents
-- [ ] **6.7** Migrate WebSocket handler in `main.py` to use supervisor when feature flag enabled
-- [ ] **6.8** Update tool definitions to LangChain tool format
+- [x] **6.1** Add `langgraph`, `langchain-anthropic`, `langchain-openai`, `langchain-ollama` to `pyproject.toml`
+- [x] **6.2** Create `services/agent/v2/base_agent.py` — abstract agent with shared LLM routing
+- [x] **6.3** Create `services/agent/v2/executive_assistant.py` — first agent to implement
+- [x] **6.4** Create `services/agent/v2/research_agent.py`
+- [x] **6.5** Create `services/agent/v2/supervisor.py` — routes queries to correct specialist
+- [x] **6.6** Remaining 5 agents (regulatory, qms, ir, engineering, operations)
+- [x] **6.7** Migrate WebSocket handler in `main.py` to use supervisor when feature flag enabled
+- [x] **6.8** Update tool definitions to LangChain tool format (`lc_tools.py` wrapping `dispatch_tool()`)
 
 ### README Update (Phase 6)
 After completing this phase, update `README.md`:
