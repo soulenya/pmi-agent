@@ -33,6 +33,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 # ── Setting keys that are safe to expose ────────────────────────────────────
 
 EXPOSED_KEYS = {
+    "llm.provider",
     "llm.model",
     "llm.ollama_url",
     "llm.embedding_model",
@@ -320,6 +321,46 @@ async def list_anthropic_models(
             return {"models": chat if chat else _ANTHROPIC_FALLBACK}
     except Exception:
         return {"models": _ANTHROPIC_FALLBACK}
+
+
+@router.get("/ai-options")
+async def get_ai_options(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Return static model lists for each LLM and embedding provider.
+    Ollama LLM models are fetched live from /api/tags if reachable;
+    all cloud provider lists are static.
+    """
+    llm_models: dict[str, list[str]] = {
+        "anthropic": ["claude-opus-4-5", "claude-sonnet-4-6", "claude-haiku-3-5"],
+        "openai": ["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"],
+        "ollama": [],  # populated below if Ollama is reachable
+    }
+    embedding_models: dict[str, list[str]] = {
+        "voyage": ["voyage-3", "voyage-3-lite"],
+        "openai": ["text-embedding-3-large", "text-embedding-3-small"],
+        "ollama": [],  # populated below if Ollama is reachable
+    }
+
+    # Try to fetch Ollama model names live
+    try:
+        from services.llm.ollama import OllamaClient
+        ollama_url = str(await _get_setting(db, "llm.ollama_url") or app_settings.ollama_base_url)
+        client = OllamaClient(base_url=ollama_url)
+        ollama_names = await client.list_models()
+        if ollama_names:
+            llm_models["ollama"] = ollama_names
+            embedding_models["ollama"] = ollama_names
+    except Exception:
+        # Ollama not running — return empty list (UI shows text input as fallback)
+        pass
+
+    return {
+        "llm": llm_models,
+        "embedding": embedding_models,
+    }
 
 
 @router.get("/me", response_model=UserOut)

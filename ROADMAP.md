@@ -231,9 +231,9 @@ The v2 spec AI Engine Settings UI requires:
 
 ### Tasks
 
-- [ ] **4.1** Add `llm_provider: str` to `EXPOSED_KEYS` in `routers/settings.py` and include it in `SettingsOut`
+- [x] **4.1** Add `llm_provider: str` to `EXPOSED_KEYS` in `routers/settings.py` and include it in `SettingsOut`
 
-- [ ] **4.2** Define model option lists for all providers — add to `routers/settings.py` or a new `routers/ai_config.py`:
+- [x] **4.2** Define model option lists for all providers — add to `routers/settings.py` or a new `routers/ai_config.py`:
   ```python
   # GET /settings/ai-options → returns available models per provider
   AI_OPTIONS = {
@@ -250,23 +250,24 @@ The v2 spec AI Engine Settings UI requires:
   }
   ```
 
-- [ ] **4.3** Update `frontend/src/pages/SettingsPage.tsx` AI Engine section:
-  - Replace embedding provider text input with `<select>` for embedding model (voyage-3, voyage-3-lite, text-embedding-3-large, text-embedding-3-small, nomic-embed-text)
-  - Add LLM model `<select>` per provider
-  - Add ⚠ warning banner when `localSettings.embedding_provider !== serverSettings.embedding_provider || localSettings.embedding_model !== serverSettings.embedding_model`
-  - Add [Re-index Now] button — calls `POST /documents/reindex` — streams progress
-  - Add `reindex_required` indicator from `SettingsOut`
+- [x] **4.3** Update `frontend/src/pages/SettingsPage.tsx` AI Engine section:
+  - Replaced embedding provider text input with per-provider `<select>` for embedding model
+  - LLM model dropdown uses provider-specific options
+  - Added ⚠ warning banner when `settings.reindex_required === true`
+  - Added [Re-index Now] button — calls `POST /documents/reindex` via SSE
+  - Fixed Voyage AI info box (no longer says "768 dims")
+  - Fixed OpenAI info box (no longer says "768 dims")
 
-- [ ] **4.4** Add System Health panel to SettingsPage:
-  - `useQuery(["settings-health"])` polling `GET /settings/health` on mount
-  - Shows `LLM ● Active / Error` and `Embeddings ● Active / Error` with provider name
-  - Refresh button
+- [x] **4.4** Add System Health panel to SettingsPage:
+  - Compact LLM ● / Embeddings ● live status row inside AI Engine section via `GET /settings/health`
+  - System Health section now shows Embeddings row with provider/model/dims and re-index flag
 
-- [ ] **4.5** Add re-index progress modal/drawer:
-  - Connects to `POST /documents/reindex` SSE response
-  - Shows `Processed N of M documents`
+- [x] **4.5** Add re-index progress modal/drawer:
+  - `ReindexModal` component connects to `POST /documents/reindex` SSE stream
+  - Shows per-document progress (Embedding: doc title (N/M))
+  - Shows schema ALTER events (⚙ Changing vector dimension…)
   - Shows success or error state
-  - Disables KB navigation during re-index
+  - `onReindexComplete` invalidates settings + health queries
 
 **Acceptance criteria:**
 - Switching from Voyage to OpenAI shows ⚠ and [Re-index Now] button

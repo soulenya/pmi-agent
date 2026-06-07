@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 29;
+export const BUILD_NUMBER = 30;
 export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,22 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 30,
+    date: "2026-06-07",
+    title: "Phase 4: Settings UI — model dropdowns, re-index workflow, live AI health panel",
+    changes: [
+      "llm.provider added to EXPOSED_KEYS so the provider field is always persisted correctly",
+      "New GET /settings/ai-options endpoint returns per-provider model lists (Anthropic, OpenAI, Voyage, Ollama)",
+      "Embedding model is now a proper dropdown per provider (voyage-3/voyage-3-lite, text-embedding-3-large/small, Ollama list)",
+      "Fixed incorrect dimension hints in Voyage AI and OpenAI info boxes (was 768 dims, now provider-native)",
+      "Warning banner (⚠ Re-index required) appears automatically when embedding provider/model changes dimension",
+      "Re-index Now button opens a progress modal with real-time SSE stream showing doc-by-doc progress",
+      "Compact LLM ● / Embeddings ● live status row added at the top of AI Engine settings (from GET /settings/health)",
+      "System Health section now includes Embeddings row (provider/model/dims) and re-index flag from GET /health",
+      "Default mergedSettings updated to anthropic/voyage/1024 dims instead of ollama/768 dims",
+    ],
+  },
   {
     build: 29,
     date: "2026-06-07",

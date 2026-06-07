@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen } from "lucide-react";
+import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
+import { useAuthStore } from "@/stores/authStore";
 import {
   getSettings,
   updateSettings,
@@ -11,6 +12,7 @@ import {
   getMyProfile,
   updateMyProfile,
   getSystemHealth,
+  getSettingsHealth,
   checkForUpdate,
   applyUpdate,
   getOllamaModels,
@@ -18,6 +20,7 @@ import {
   type AppSettings,
   type SettingsUpdate,
   type ProfileUpdate,
+  type SettingsHealthResult,
 } from "@/api/settings";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
@@ -223,22 +226,192 @@ function ProfileSection() {
 
 // ── LLM config section ────────────────────────────────────────────────────────
 
+// Embedding model options per provider
+const EMBEDDING_MODEL_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  voyage: [
+    { value: "voyage-3", label: "voyage-3 (1024 dims — recommended)" },
+    { value: "voyage-3-lite", label: "voyage-3-lite (512 dims — faster)" },
+  ],
+  openai: [
+    { value: "text-embedding-3-large", label: "text-embedding-3-large (3072 dims — highest quality)" },
+    { value: "text-embedding-3-small", label: "text-embedding-3-small (1536 dims — faster)" },
+  ],
+};
+
 // Static model list for OpenAI (doesn't have a public unauthenticated listing endpoint)
 const OPENAI_MODELS = ["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"];
 
-function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (s: SettingsUpdate) => void }) {
+// ── Re-index progress modal ─────────────────────────────────────────────────────────────────────────────────
+
+function ReindexModal({
+  open,
+  onClose,
+  onComplete,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onComplete: () => void;
+}) {
+  const [lines, setLines] = useState<string[]>([]);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLines([]);
+    setDone(false);
+    setError(null);
+    setRunning(true);
+
+    const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
+    const token = useAuthStore.getState().accessToken;
+    const controller = new AbortController();
+
+    fetch(`${API_BASE}/documents/reindex`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token ?? ""}`,
+      },
+      signal: controller.signal,
+    })
+      .then(async (resp) => {
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => resp.statusText);
+          throw new Error(`Re-index failed: ${resp.status} ${txt}`);
+        }
+        const reader = resp.body!.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done: streamDone, value } = await reader.read();
+          if (streamDone) break;
+          buf += decoder.decode(value, { stream: true });
+          const parts = buf.split("\n\n");
+          buf = parts.pop() ?? "";
+          for (const part of parts) {
+            const dataLine = part.split("\n").find((l) => l.startsWith("data:"));
+            if (!dataLine) continue;
+            try {
+              const evt = JSON.parse(dataLine.slice(5).trim());
+              if (evt.status === "done") {
+                setDone(true);
+                setRunning(false);
+                onComplete();
+              } else if (evt.status === "error") {
+                setError(evt.detail ?? "Unknown error during re-index");
+                setRunning(false);
+              } else {
+                if (evt.phase === "alter_schema") {
+                  setLines((p) => [...p, `⚙ ${evt.detail}`]);
+                } else if (evt.processed != null) {
+                  const msg = `Embedding: ${evt.doc_title ?? "document"} (${evt.processed}/${evt.total})`;
+                  setLines((p) => {
+                    const next = [...p];
+                    if (next.length > 0 && next[next.length - 1].startsWith("Embedding:")) {
+                      next[next.length - 1] = msg;
+                    } else {
+                      next.push(msg);
+                    }
+                    return next;
+                  });
+                }
+              }
+            } catch {
+              // skip malformed SSE line
+            }
+          }
+        }
+      })
+      .catch((e) => {
+        if (e instanceof Error && e.name === "AbortError") return;
+        setError(String(e));
+        setRunning(false);
+      });
+
+    return () => controller.abort();
+  }, [open, onComplete]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-card rounded-xl border shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-sm flex items-center gap-2">
+            <RotateCcw className={cn("h-4 w-4 text-primary", running && "animate-spin")} />
+            Re-indexing Knowledge Base
+          </h2>
+          {!running && (
+            <button onClick={onClose} className="text-xs text-muted-foreground hover:text-foreground">
+              ✕ Close
+            </button>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          All documents are being re-embedded through the active provider. This may take a few minutes.
+          {running && " Do not close this window."}
+        </p>
+
+        <div className="rounded-md bg-muted p-3 max-h-48 overflow-y-auto space-y-1 font-mono text-xs">
+          {lines.length === 0 && running && (
+            <p className="text-muted-foreground animate-pulse">Initialising…</p>
+          )}
+          {lines.map((l, i) => (
+            <p key={i} className="text-muted-foreground">{l}</p>
+          ))}
+          {done && (
+            <p className="text-green-600 font-semibold flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3 inline" /> Re-index complete — Knowledge Base is up to date.
+            </p>
+          )}
+          {error && (
+            <p className="text-destructive">✕ {error}</p>
+          )}
+        </div>
+
+        {!running && (done || error) && (
+          <div className="flex justify-end">
+            <button
+              onClick={onClose}
+              className="text-sm rounded-md bg-primary text-primary-foreground px-4 py-2 hover:bg-primary/90"
+            >
+              Done
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── LLM config section ─────────────────────────────────────────────────────────────────────────────────
+
+function LLMSection({
+  settings,
+  onChange,
+  onReindexComplete,
+}: {
+  settings: AppSettings;
+  onChange: (s: SettingsUpdate) => void;
+  onReindexComplete: () => void;
+}) {
   const [openaiKey, setOpenaiKey] = useState("");
   const [anthropicKey, setAnthropicKey] = useState("");
   const [voyageKey, setVoyageKey] = useState("");
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
+  const [reindexOpen, setReindexOpen] = useState(false);
 
-  const provider = settings.llm_provider ?? "ollama";
+  const provider = settings.llm_provider ?? "anthropic";
+  const embProv = settings.embedding_provider ?? "voyage";
 
   const { data: ollamaModels = [] } = useQuery({
     queryKey: ["ollama-models"],
     queryFn: getOllamaModels,
-    enabled: provider === "ollama",
+    enabled: provider === "ollama" || embProv === "ollama",
     staleTime: 30_000,
   });
 
@@ -249,10 +422,22 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
     staleTime: 60_000,
   });
 
+  const { data: aiHealth } = useQuery<SettingsHealthResult>({
+    queryKey: ["settings-health"],
+    queryFn: getSettingsHealth,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
   const modelOptions =
     provider === "ollama" ? ollamaModels :
     provider === "openai" ? OPENAI_MODELS :
     anthropicModels;
+
+  const embModelOptions =
+    embProv === "voyage" ? EMBEDDING_MODEL_OPTIONS.voyage :
+    embProv === "openai" ? EMBEDDING_MODEL_OPTIONS.openai :
+    ollamaModels.map((m) => ({ value: m, label: m }));
 
   const handleTest = async () => {
     setTesting(true);
@@ -278,257 +463,352 @@ function LLMSection({ settings, onChange }: { settings: AppSettings; onChange: (
     setVoyageKey("");
   };
 
+  const handleReindexComplete = () => {
+    setReindexOpen(false);
+    onReindexComplete();
+  };
+
   return (
-    <Section
-      icon={Cpu}
-      title="AI / LLM Configuration"
-      description="Choose your AI provider and configure models"
-    >
-      {/* Provider selector */}
-      <Field label="LLM Provider" hint="Select which AI service powers the assistant.">
-        <select
-          value={provider}
-          onChange={(e) => onChange({ llm_provider: e.target.value })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="ollama">Ollama (local)</option>
-          <option value="openai">OpenAI (cloud)</option>
-          <option value="anthropic">Anthropic / Claude (cloud)</option>
-        </select>
-      </Field>
-
-      {/* Model dropdown */}
-      <Field
-        label="Chat Model"
-        hint={
-          provider === "ollama"
-            ? "Locally installed Ollama models. Pull more with: ollama pull <model>"
-            : provider === "openai"
-            ? "OpenAI model to use for chat."
-            : "Anthropic Claude model to use for chat."
-        }
+    <>
+      <ReindexModal
+        open={reindexOpen}
+        onClose={() => setReindexOpen(false)}
+        onComplete={handleReindexComplete}
+      />
+      <Section
+        icon={Cpu}
+        title="AI / LLM Configuration"
+        description="Choose your AI provider and configure models"
       >
-        <select
-          value={settings.llm_model}
-          onChange={(e) => onChange({ llm_model: e.target.value })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-        >
-          {modelOptions.length === 0 && (
-            <option value={settings.llm_model}>{settings.llm_model || "No models found"}</option>
-          )}
-          {modelOptions.map((m) => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </select>
-      </Field>
+        {/* ── Compact live status row ────────────────────────────────────────────────── */}
+        {aiHealth && (
+          <div className="flex flex-wrap items-center gap-3 text-xs rounded-md border bg-muted/50 px-3 py-2">
+            <span className="text-muted-foreground font-medium">Live status:</span>
+            <span className={cn(
+              "flex items-center gap-1",
+              aiHealth.llm.status === "ok" ? "text-green-600" : "text-destructive"
+            )}>
+              <span className={cn(
+                "inline-block h-1.5 w-1.5 rounded-full",
+                aiHealth.llm.status === "ok" ? "bg-green-500" : "bg-red-500"
+              )} />
+              LLM ({aiHealth.llm.provider}/{aiHealth.llm.model})
+            </span>
+            <span className={cn(
+              "flex items-center gap-1",
+              aiHealth.embedding.status === "ok" ? "text-green-600" : "text-destructive"
+            )}>
+              <span className={cn(
+                "inline-block h-1.5 w-1.5 rounded-full",
+                aiHealth.embedding.status === "ok" ? "bg-green-500" : "bg-red-500"
+              )} />
+              Embeddings ({aiHealth.embedding.provider}/{aiHealth.embedding.model})
+              {aiHealth.embedding.status === "ok" && aiHealth.embedding.dimension && (
+                <span className="text-muted-foreground">· {aiHealth.embedding.dimension} dims</span>
+              )}
+            </span>
+          </div>
+        )}
 
-      {/* ── Embedding provider ──────────────────────────────────────────── */}
-      <div className="border-t pt-4 space-y-3">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Document Embeddings</p>
-        <p className="text-xs text-muted-foreground">
-          Embeddings power Knowledge Base import and Semantic Search — independent of your LLM choice.
-          Anthropic has no embedding API; use <strong>Voyage AI</strong> (Anthropic's partner) or OpenAI.
-        </p>
-        <Field label="Embedding Provider">
+        {/* Provider selector */}
+        <Field label="LLM Provider" hint="Select which AI service powers the assistant.">
           <select
-            value={settings.embedding_provider ?? "ollama"}
-            onChange={(e) => onChange({ embedding_provider: e.target.value })}
+            value={provider}
+            onChange={(e) => onChange({ llm_provider: e.target.value })}
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           >
-            <option value="ollama">Ollama (local — nomic-embed-text)</option>
-            <option value="voyage">Voyage AI (cloud — recommended for Anthropic users)</option>
-            <option value="openai">OpenAI (cloud — text-embedding-3-small)</option>
+            <option value="ollama">Ollama (local)</option>
+            <option value="openai">OpenAI (cloud)</option>
+            <option value="anthropic">Anthropic / Claude (cloud)</option>
           </select>
         </Field>
 
-        {(settings.embedding_provider ?? "ollama") === "ollama" && (
-          <>
-            <Field label="Ollama Server URL" hint="Address of the Ollama server running nomic-embed-text.">
+        {/* Model dropdown */}
+        <Field
+          label="Chat Model"
+          hint={
+            provider === "ollama"
+              ? "Locally installed Ollama models. Pull more with: ollama pull <model>"
+              : provider === "openai"
+              ? "OpenAI model to use for chat."
+              : "Anthropic Claude model to use for chat."
+          }
+        >
+          <select
+            value={settings.llm_model}
+            onChange={(e) => onChange({ llm_model: e.target.value })}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          >
+            {modelOptions.length === 0 && (
+              <option value={settings.llm_model}>{settings.llm_model || "No models found"}</option>
+            )}
+            {modelOptions.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </Field>
+
+        {/* ── Embedding provider ───────────────────────────────────────────────────────── */}
+        <div className="border-t pt-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Document Embeddings</p>
+          <p className="text-xs text-muted-foreground">
+            Embeddings power Knowledge Base import and Semantic Search — independent of your LLM choice.
+            Anthropic has no embedding API; use <strong>Voyage AI</strong> (Anthropic’s partner) or OpenAI.
+          </p>
+          <Field label="Embedding Provider">
+            <select
+              value={embProv}
+              onChange={(e) => onChange({ embedding_provider: e.target.value })}
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="ollama">Ollama (local — nomic-embed-text · 768 dims)</option>
+              <option value="voyage">Voyage AI (cloud — voyage-3 · 1024 dims — recommended)</option>
+              <option value="openai">OpenAI (cloud — text-embedding-3-small · 1536 dims)</option>
+            </select>
+          </Field>
+
+          {/* Embedding model — per-provider select */}
+          {embProv === "ollama" ? (
+            <>
+              <Field label="Ollama Server URL" hint="Address of the Ollama server running your embedding model.">
+                <input
+                  value={settings.ollama_url}
+                  onChange={(e) => onChange({ ollama_url: e.target.value })}
+                  placeholder="http://localhost:11434"
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+                />
+              </Field>
+              <Field label="Embedding Model" hint="Ollama model to use for embeddings. Must be pulled first.">
+                {ollamaModels.length > 0 ? (
+                  <select
+                    value={settings.embedding_model}
+                    onChange={(e) => onChange({ embedding_model: e.target.value })}
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {ollamaModels.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    value={settings.embedding_model}
+                    onChange={(e) => onChange({ embedding_model: e.target.value })}
+                    placeholder="nomic-embed-text"
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                )}
+              </Field>
+            </>
+          ) : (
+            <Field
+              label="Embedding Model"
+              hint={
+                embProv === "voyage"
+                  ? "voyage-3 gives the highest quality (1024 dims). voyage-3-lite is faster (512 dims)."
+                  : "text-embedding-3-large gives the highest quality (3072 dims). text-embedding-3-small is faster (1536 dims)."
+              }
+            >
+              <select
+                value={settings.embedding_model}
+                onChange={(e) => onChange({ embedding_model: e.target.value })}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              >
+                {(embModelOptions.length > 0 ? embModelOptions : [{ value: settings.embedding_model, label: settings.embedding_model }]).map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </Field>
+          )}
+
+          {embProv === "voyage" && (
+            <div className="rounded-md border border-purple-200 bg-purple-50 dark:bg-purple-950/30 dark:border-purple-800 px-4 py-3 text-xs text-purple-800 dark:text-purple-200 space-y-1">
+              <p className="font-semibold">Voyage AI — Anthropic’s recommended embedding partner</p>
+              <p>
+                {settings.voyage_key_set
+                  ? "✓ Voyage API key is configured."
+                  : <></>}
+                {!settings.voyage_key_set && (
+                  <>Get a free key at <strong>dash.voyageai.com</strong> and enter it below.</>
+                )}
+              </p>
+            </div>
+          )}
+
+          {embProv === "openai" && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3 text-xs text-blue-800 dark:text-blue-200 space-y-1">
+              <p className="font-semibold">OpenAI Embeddings</p>
+              <p>{settings.openai_key_set ? "✓ OpenAI API key is configured." : "Add your OpenAI key below and save."}</p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Re-index warning ───────────────────────────────────────────────────────────────── */}
+        {settings.reindex_required && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3 space-y-2">
+            <p className="flex items-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              Knowledge Base re-index required
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              The embedding provider or model changed and the stored vector dimensions no longer match.
+              Semantic search is disabled until you re-index.
+            </p>
+            <button
+              onClick={() => setReindexOpen(true)}
+              className="flex items-center gap-1.5 text-xs rounded-md bg-amber-600 text-white px-3 py-1.5 hover:bg-amber-700"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Re-index Now
+            </button>
+          </div>
+        )}
+
+        {/* Voyage AI key */}
+        {embProv === "voyage" && (
+          <div className="border-t pt-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+              <KeyRound className="h-3.5 w-3.5" />
+              Voyage AI API Key
+            </p>
+            {settings.voyage_key_set && (
+              <p className="flex items-center gap-1.5 text-xs text-green-600">
+                <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
+              </p>
+            )}
+            <Field label={settings.voyage_key_set ? "Replace API Key" : "API Key"} hint="Stored securely in the OS keychain — never saved to disk. Get yours at dash.voyageai.com">
               <input
-                value={settings.ollama_url}
-                onChange={(e) => onChange({ ollama_url: e.target.value })}
-                placeholder="http://localhost:11434"
+                type="password"
+                value={voyageKey}
+                onChange={(e) => setVoyageKey(e.target.value)}
+                placeholder="pa-..."
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
               />
             </Field>
-            {provider === "ollama" && (
-              <Field label="Embedding Model" hint="Ollama model name. Must output exactly 768 dimensions.">
-                <input
-                  value={settings.embedding_model}
-                  onChange={(e) => onChange({ embedding_model: e.target.value })}
-                  placeholder="nomic-embed-text"
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                />
-              </Field>
+            {voyageKey && (
+              <button
+                onClick={handleKeyApply}
+                className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
+              >
+                Stage key (save with main Save button)
+              </button>
             )}
-          </>
-        )}
-
-        {(settings.embedding_provider ?? "ollama") === "voyage" && (
-          <div className="rounded-md border border-purple-200 bg-purple-50 dark:bg-purple-950/30 dark:border-purple-800 px-4 py-3 text-xs text-purple-800 dark:text-purple-200 space-y-1">
-            <p className="font-semibold">Voyage AI — Anthropic's recommended embedding partner</p>
-            <p>Uses <code>voyage-3</code> at 768 dims — no database changes needed.{" "}
-            {settings.voyage_key_set
-              ? "✓ Voyage API key is configured."
-              : <>Get a free key at <strong>dash.voyageai.com</strong> and enter it below.</>}</p>
           </div>
         )}
 
-        {(settings.embedding_provider ?? "ollama") === "openai" && (
-          <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3 text-xs text-blue-800 dark:text-blue-200 space-y-1">
-            <p className="font-semibold">OpenAI — text-embedding-3-small at 768 dims</p>
-            <p>{settings.openai_key_set ? "✓ OpenAI API key is configured." : "Add your OpenAI key below and save."}</p>
+        {/* Cloud API keys — OpenAI LLM */}
+        {provider === "openai" && (
+          <div className="border-t pt-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+              <KeyRound className="h-3.5 w-3.5" />
+              OpenAI API Key
+            </p>
+            {settings.openai_key_set && (
+              <p className="flex items-center gap-1.5 text-xs text-green-600">
+                <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
+              </p>
+            )}
+            <Field label="New API Key" hint="Stored securely in the OS keychain — never saved to disk.">
+              <input
+                type="password"
+                value={openaiKey}
+                onChange={(e) => setOpenaiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+              />
+            </Field>
+            {openaiKey && (
+              <button
+                onClick={handleKeyApply}
+                className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
+              >
+                Stage key (save with main Save button)
+              </button>
+            )}
           </div>
         )}
-      </div>
 
-      {/* Voyage AI key */}
-      {(settings.embedding_provider ?? "ollama") === "voyage" && (
-        <div className="border-t pt-4 space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-            <KeyRound className="h-3.5 w-3.5" />
-            Voyage AI API Key
-          </p>
-          {settings.voyage_key_set && (
-            <p className="flex items-center gap-1.5 text-xs text-green-600">
-              <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
+        {/* OpenAI key when LLM != openai but embedding = openai */}
+        {provider !== "openai" && embProv === "openai" && (
+          <div className="border-t pt-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+              <KeyRound className="h-3.5 w-3.5" />
+              OpenAI API Key <span className="font-normal text-muted-foreground/70">(for embeddings)</span>
             </p>
-          )}
-          <Field label={settings.voyage_key_set ? "Replace API Key" : "API Key"} hint="Stored securely in the OS keychain — never saved to disk. Get yours at dash.voyageai.com">
-            <input
-              type="password"
-              value={voyageKey}
-              onChange={(e) => setVoyageKey(e.target.value)}
-              placeholder="pa-..."
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
-            />
-          </Field>
-          {voyageKey && (
-            <button
-              onClick={handleKeyApply}
-              className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
-            >
-              Stage key (save with main Save button)
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Cloud API keys */}
-      {provider === "openai" && (
-        <div className="border-t pt-4 space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-            <KeyRound className="h-3.5 w-3.5" />
-            OpenAI API Key
-          </p>
-          {settings.openai_key_set && (
-            <p className="flex items-center gap-1.5 text-xs text-green-600">
-              <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
-            </p>
-          )}
-          <Field label="New API Key" hint="Stored securely in the OS keychain — never saved to disk.">
-            <input
-              type="password"
-              value={openaiKey}
-              onChange={(e) => setOpenaiKey(e.target.value)}
-              placeholder="sk-..."
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
-            />
-          </Field>
-          {openaiKey && (
-            <button
-              onClick={handleKeyApply}
-              className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
-            >
-              Stage key (save with main Save button)
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* OpenAI key when LLM != openai but embedding = openai */}
-      {provider !== "openai" && (settings.embedding_provider ?? "ollama") === "openai" && (
-        <div className="border-t pt-4 space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-            <KeyRound className="h-3.5 w-3.5" />
-            OpenAI API Key <span className="font-normal text-muted-foreground/70">(for embeddings)</span>
-          </p>
-          {settings.openai_key_set
-            ? <p className="flex items-center gap-1.5 text-xs text-green-600"><CheckCircle2 className="h-3.5 w-3.5" /> API key configured</p>
-            : (
-              <>
-                <Field label="API Key" hint="Stored securely in the OS keychain — never saved to disk.">
-                  <input
-                    type="password"
-                    value={openaiKey}
-                    onChange={(e) => setOpenaiKey(e.target.value)}
-                    placeholder="sk-..."
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </Field>
-                {openaiKey && (
-                  <button
-                    onClick={handleKeyApply}
-                    className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
-                  >
-                    Stage key (save with main Save button)
-                  </button>
-                )}
-              </>
-            )
-          }
-        </div>
-      )}
-
-      {provider === "anthropic" && (
-        <div className="border-t pt-4 space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-            <KeyRound className="h-3.5 w-3.5" />
-            Anthropic API Key
-          </p>
-          {settings.anthropic_key_set && (
-            <p className="flex items-center gap-1.5 text-xs text-green-600">
-              <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
-            </p>
-          )}
-          <Field label="New API Key" hint="Stored securely in the OS keychain — never saved to disk.">
-            <input
-              type="password"
-              value={anthropicKey}
-              onChange={(e) => setAnthropicKey(e.target.value)}
-              placeholder="sk-ant-..."
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
-            />
-          </Field>
-          {anthropicKey && (
-            <button
-              onClick={handleKeyApply}
-              className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
-            >
-              Stage key (save with main Save button)
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Test connection */}
-      <div className="border-t pt-4 flex items-center gap-3">
-        <button
-          onClick={handleTest}
-          disabled={testing}
-          className="flex items-center gap-2 text-xs rounded-md border px-3 py-1.5 hover:bg-muted transition-colors disabled:opacity-50"
-        >
-          {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          Test Connection
-        </button>
-        {testResult && (
-          <span className={cn("flex items-center gap-1 text-xs", testResult.ok ? "text-green-600" : "text-destructive")}>
-            {testResult.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
-            {testResult.message}
-          </span>
+            {settings.openai_key_set
+              ? <p className="flex items-center gap-1.5 text-xs text-green-600"><CheckCircle2 className="h-3.5 w-3.5" /> API key configured</p>
+              : (
+                <>
+                  <Field label="API Key" hint="Stored securely in the OS keychain — never saved to disk.">
+                    <input
+                      type="password"
+                      value={openaiKey}
+                      onChange={(e) => setOpenaiKey(e.target.value)}
+                      placeholder="sk-..."
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </Field>
+                  {openaiKey && (
+                    <button
+                      onClick={handleKeyApply}
+                      className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
+                    >
+                      Stage key (save with main Save button)
+                    </button>
+                  )}
+                </>
+              )
+            }
+          </div>
         )}
-      </div>
-    </Section>
+
+        {provider === "anthropic" && (
+          <div className="border-t pt-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+              <KeyRound className="h-3.5 w-3.5" />
+              Anthropic API Key
+            </p>
+            {settings.anthropic_key_set && (
+              <p className="flex items-center gap-1.5 text-xs text-green-600">
+                <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
+              </p>
+            )}
+            <Field label="New API Key" hint="Stored securely in the OS keychain — never saved to disk.">
+              <input
+                type="password"
+                value={anthropicKey}
+                onChange={(e) => setAnthropicKey(e.target.value)}
+                placeholder="sk-ant-..."
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+              />
+            </Field>
+            {anthropicKey && (
+              <button
+                onClick={handleKeyApply}
+                className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
+              >
+                Stage key (save with main Save button)
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Test connection */}
+        <div className="border-t pt-4 flex items-center gap-3">
+          <button
+            onClick={handleTest}
+            disabled={testing}
+            className="flex items-center gap-2 text-xs rounded-md border px-3 py-1.5 hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Test Connection
+          </button>
+          {testResult && (
+            <span className={cn("flex items-center gap-1 text-xs", testResult.ok ? "text-green-600" : "text-destructive")}>
+              {testResult.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+              {testResult.message}
+            </span>
+          )}
+        </div>
+      </Section>
+    </>
   );
 }
 
@@ -660,7 +940,8 @@ function SystemHealthSection() {
   const checks = health?.checks ?? {};
 
   // AI Engine label: use the active provider from the llm check
-  const llmCheck = (checks.llm ?? checks.ollama) as { status?: string; provider?: string; detail?: string } | undefined;
+  const llmCheck = (checks.llm ?? checks.ollama) as { status?: string; provider?: string; model?: string; detail?: string } | undefined;
+  const embCheck = checks.embedding as { status?: string; provider?: string; model?: string; dimension?: number; detail?: string } | undefined;
   const providerLabels: Record<string, string> = {
     ollama: "AI Engine (Ollama)",
     openai: "AI Engine (OpenAI)",
@@ -716,7 +997,29 @@ function SystemHealthSection() {
             <StatusPill status={llmCheck?.status} detail={llmCheck?.detail} />
           </div>
 
-          {/* Disk */}
+          {/* Embedding provider */}
+          {embCheck && (
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-sm">
+                <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
+                {`Embeddings (${embCheck.provider ?? ""} / ${embCheck.model ?? ""})`}
+                {embCheck.status === "ok" && embCheck.dimension && (
+                  <span className="text-xs text-muted-foreground">· {embCheck.dimension} dims</span>
+                )}
+              </span>
+              <StatusPill status={embCheck.status} detail={embCheck.detail} />
+            </div>
+          )}
+
+          {/* Re-index flag */}
+          {checks.kb_needs_reindex === true && (
+            <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-3 w-3" />
+              Knowledge Base re-index required — go to AI Engine settings
+            </div>
+          )}
+
+          {/* Disk */}}
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-sm">
               <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
@@ -958,11 +1261,13 @@ export function SettingsPage() {
   const mergedSettings: AppSettings = settings
     ? { ...settings, ...localSettings }
     : {
-        llm_provider: "ollama",
-        llm_model: "llama3.2",
+        llm_provider: "anthropic",
+        llm_model: "claude-sonnet-4-6",
         ollama_url: "http://localhost:11434",
-        embedding_model: "nomic-embed-text",
-        embedding_provider: "ollama",
+        embedding_model: "voyage-3",
+        embedding_provider: "voyage",
+        embedding_dimension: 1024,
+        reindex_required: false,
         theme: "system",
         timezone: "UTC",
         notifications_email_enabled: false,
@@ -1000,7 +1305,15 @@ export function SettingsPage() {
       ) : (
         <div className="space-y-5">
           <ProfileSection />
-          <LLMSection settings={mergedSettings} onChange={handleChange} />
+          <LLMSection
+            settings={mergedSettings}
+            onChange={handleChange}
+            onReindexComplete={() => {
+              qc.invalidateQueries({ queryKey: ["settings"] });
+              qc.invalidateQueries({ queryKey: ["system-health"] });
+              qc.invalidateQueries({ queryKey: ["settings-health"] });
+            }}
+          />
           <AppearanceSection settings={mergedSettings} onChange={handleChange} />
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />
           <SystemHealthSection />

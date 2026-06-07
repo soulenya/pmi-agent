@@ -4,6 +4,20 @@
 
 ## Changelog
 
+### Build 30 — 2026-06-07
+**Phase 4: Settings UI Completion**
+- Added `llm.provider` to `EXPOSED_KEYS` in `settings.py` so LLM provider is correctly persisted
+- New `GET /settings/ai-options` endpoint: returns static model lists per provider (Anthropic, OpenAI, Voyage, Ollama live)
+- Embedding model now uses proper per-provider `<select>` dropdown (voyage-3/voyage-3-lite, text-embedding-3-large/small, Ollama model list)
+- Fixed incorrect dimension hints: Voyage AI info box no longer says "768 dims" (now shows 1024); OpenAI shows 1536/3072
+- ⚠ Warning banner appears automatically when `reindex_required=true` (embedding provider/model mismatch)
+- [Re-index Now] button opens SSE progress modal showing per-document embedding progress
+- Compact LLM ● / Embeddings ● live status row added inside AI Engine settings (polls `GET /settings/health`)
+- System Health section now shows Embeddings check row (provider, model, dims) and re-index flag from `GET /health`
+- Default `mergedSettings` updated to `anthropic`/`voyage`/1024 dims (was `ollama`/768)
+
+---
+
 ### Build 29 — 2026-06-07
 **Phase 3: Live API Health Pings**
 - `GET /health` now performs real live API calls to verify each provider:
