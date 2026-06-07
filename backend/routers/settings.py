@@ -13,6 +13,8 @@ Keys are namespaced: e.g. "llm.model", "llm.ollama_url", "app.theme".
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -325,6 +327,43 @@ async def get_my_profile(
     current_user: User = Depends(get_current_user),
 ) -> UserOut:
     return UserOut.model_validate(current_user)
+
+
+@router.get("/health")
+async def settings_health(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Lightweight AI-provider-only health check for the Settings page.
+    Performs live pings against the active LLM and embedding providers.
+    Does NOT check disk space or database (those are in GET /health).
+
+    Response shape:
+      {
+        "llm":       {"status": "ok"|"error", "provider": ..., "model": ..., "detail"?: ...},
+        "embedding": {"status": "ok"|"error", "provider": ..., "model": ..., "dimension"?: ..., "detail"?: ...},
+        "kb_needs_reindex": bool
+      }
+    """
+    from routers.health import _ping_llm, _ping_embedding
+
+    llm_provider = str(await _get_setting(db, "llm.provider"))
+    llm_model = str(await _get_setting(db, "llm.model"))
+    emb_provider = str(await _get_setting(db, "llm.embedding_provider"))
+    emb_model = str(await _get_setting(db, "llm.embedding_model"))
+    reindex_raw = str(await _get_setting(db, "llm.kb_needs_reindex") or "false")
+
+    llm_result, emb_result = await asyncio.gather(
+        _ping_llm(llm_provider, llm_model, db),
+        _ping_embedding(emb_provider, emb_model, db),
+    )
+
+    return {
+        "llm": llm_result,
+        "embedding": emb_result,
+        "kb_needs_reindex": reindex_raw.lower() == "true",
+    }
 
 
 @router.put("/me", response_model=UserOut)

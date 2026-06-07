@@ -4,6 +4,20 @@
 
 ## Changelog
 
+### Build 29 — 2026-06-07
+**Phase 3: Live API Health Pings**
+- `GET /health` now performs real live API calls to verify each provider:
+  - Anthropic: `client.messages.count_tokens()` — free, no tokens billed
+  - OpenAI: `client.models.retrieve(model)` — free metadata call
+  - Voyage AI: `client.embed(["ping"], model=model)` — minimal token usage
+  - Ollama: `GET /api/tags` — unchanged
+- `GET /health` now includes an `embedding` check block with `provider`, `model`, and measured `dimension`
+- `GET /health` now includes `kb_needs_reindex` boolean flag
+- New `GET /settings/health` endpoint: lightweight LLM + embedding ping only (no disk/DB), target < 3s response
+- Both endpoints run LLM and embedding pings concurrently via `asyncio.gather`
+
+---
+
 ### Build 28 — 2026-06-07
 **Phase 2: Anthropic/Voyage as Defaults, No Silent Ollama Fallback**
 - Default LLM provider changed from Ollama to Anthropic (`claude-sonnet-4-6`)

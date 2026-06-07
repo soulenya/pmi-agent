@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 28;
+export const BUILD_NUMBER = 29;
 export const BUILD_DATE = "2026-06-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 29,
+    date: "2026-06-07",
+    title: "Phase 3: Live API health pings for LLM and embedding providers",
+    changes: [
+      "GET /health now performs a real live API call to verify each provider (Anthropic count_tokens, OpenAI models.retrieve, Voyage embed)",
+      "GET /health now includes an 'embedding' check with provider, model, and measured dimension",
+      "GET /health now includes 'kb_needs_reindex' flag from system_settings",
+      "New GET /settings/health endpoint: lightweight LLM + embedding ping only, no disk/DB checks, < 3s target",
+      "Both health endpoints run LLM and embedding pings concurrently (asyncio.gather) for speed",
+      "Anthropic ping uses count_tokens (free, no tokens billed); OpenAI ping uses models.retrieve (free metadata)",
+    ],
+  },
   {
     build: 28,
     date: "2026-06-07",
