@@ -147,29 +147,41 @@ class VoyageEmbeddingService:
     No forced truncation. Use POST /documents/reindex when switching providers.
     """
 
+    _MAX_RETRIES = 5
+    _RETRY_BASE_WAIT = 25  # seconds — free tier allows 3 RPM → 1 req/20s
+
     def __init__(self, api_key: str, model: str = "voyage-3") -> None:
         self._api_key = api_key
         self._model = model
 
-    async def embed(self, text: str) -> list[float]:
+    async def _embed_with_retry(self, texts: list[str]) -> list[list[float]]:
+        """Call Voyage embed with automatic retry on rate-limit errors."""
+        import asyncio
         import voyageai
         client = voyageai.AsyncClient(api_key=self._api_key)
-        result = await client.embed(
-            [text],
-            model=self._model,
-        )
-        return result.embeddings[0]
+        for attempt in range(self._MAX_RETRIES):
+            try:
+                result = await client.embed(texts, model=self._model)
+                return result.embeddings
+            except voyageai.error.RateLimitError:
+                if attempt == self._MAX_RETRIES - 1:
+                    raise
+                wait = self._RETRY_BASE_WAIT * (attempt + 1)
+                logger.warning(
+                    "Voyage AI rate limit hit — waiting %ds before retry %d/%d",
+                    wait, attempt + 1, self._MAX_RETRIES,
+                )
+                await asyncio.sleep(wait)
+        raise RuntimeError("Voyage AI embed failed after retries")
+
+    async def embed(self, text: str) -> list[float]:
+        results = await self._embed_with_retry([text])
+        return results[0]
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
-        import voyageai
-        client = voyageai.AsyncClient(api_key=self._api_key)
-        result = await client.embed(
-            texts,
-            model=self._model,
-        )
-        return result.embeddings
+        return await self._embed_with_retry(texts)
 
 
 # ── FastAPI dependencies ──────────────────────────────────────────────────────
