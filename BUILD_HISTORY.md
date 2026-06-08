@@ -119,4 +119,4 @@ cd backend && .venv\Scripts\python.exe -m alembic downgrade 615f52d537b5
 
 ---
 
-*Updated: 2026-06-08 — Build 35, milestone `v0.9.0` (Drive auto-update detection, KB polish, copy fix; commit 28fb46d)*
+*Updated: 2026-06-08 — Build 37 (in-app feedback → owner notifications; commit d7a164b). Milestone tag: `v0.9.0` (commit 28fb46d).*
