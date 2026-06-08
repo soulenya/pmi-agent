@@ -4,6 +4,43 @@
 
 ## Changelog
 
+### Build 35 — 2026-06-08 — 🏷 Milestone `v0.9.0`
+**Drive auto-update detection, Knowledge Base polish, copy fix**
+
+Tagged as milestone **`v0.9.0`** (commit `28fb46d`) — core features working well.
+
+- **Automatic Google Drive document update detection** (new `backend/services/documents/sync.py`):
+  - Background scan runs daily at **06:00, 12:00, and 18:00** local time, plus a manual **"Check for updates"** button on the Knowledge Base page
+  - Cheap metadata-only polling (no content download, not subject to Voyage rate limits) detects **modified**, **renamed**, and **deleted** source files
+  - Changes are **flagged for human review — never auto-overwritten** (important for regulated medical content): **Apply update** re-fetches and re-embeds from Drive; **Dismiss** acknowledges and re-baselines
+  - Owner is notified (`SYSTEM_ALERT`) when a linked file changes; notifications deduped to fire only on a fresh transition
+  - New columns on `documents`: `sync_status`, `source_modified_at`, `last_checked_at`, `sync_detail`, `source_name` (migration `003`); Drive `source_id`/`source_type=google_drive` recorded on import
+  - New endpoints: `POST /documents/check-updates`, `POST /documents/{id}/apply-update`, `POST /documents/{id}/dismiss-update`
+  - KB UI: per-document sync badges ("Update available" / "Renamed in source" / "Source deleted") with inline Apply/Dismiss actions
+- **Knowledge Base import UX**: in-modal **progress bar** and per-file status while importing from Drive
+- **Bug fix — DOCX import**: uploaded Word files are not Google-native, so `files().export()` returned `403 fileNotExportable`; now downloaded via `get_media` and parsed with `python-docx` (paragraphs + table cells)
+- **Bug fix — `GET /documents` 500**: `PaginationParams` was missing a `limit` property → `AttributeError`; added it
+- **Bug fix — delete/edit not persisting**: `delete_document` and `update_document` flushed but never committed (`get_db()` never auto-commits) → changes rolled back; both now `await db.commit()`
+- **Bug fix — Drive content mis-parsed**: extracted Drive text kept a `.pdf` name, so ingestion tried to PyMuPDF-parse plain text ("Failed to open stream"); now uses a text extension matching the extracted content
+- **Bug fix — silent import errors**: Drive import/upload failures were swallowed by an empty catch; real backend error messages now surface in the UI
+- **Bug fix — email draft 500**: `EmailDraftOut` declared `created_at`/`updated_at` as `str` but the DB returns `datetime`, 500ing on every generate (masked as a CORS "Network Error"); typed as `datetime`
+- **Fix — copy/paste**: text would not highlight in chat messages or read-only display fields — the desktop window (pywebview) injects `body { user-select: none }` by default; passing `text_select=True` to `create_window` restores selection and Ctrl+C
+
+---
+
+### Build 34 — 2026-06-08
+**Knowledge Base & Search — end-to-end fixes**
+- Fix Knowledge Base uploads silently failing: upload and Drive-import routes never committed the transaction, so documents rolled back and the KB stayed empty
+- Fix 500 on upload: refresh document after ingest so server-generated timestamps serialize without a `MissingGreenlet` error
+- Fix semantic search returning no results: corrected repository session attribute (`self._session`→`self.session`) and switched to typed pgvector `cosine_distance`
+- Fix Google shared-drive browsing: list shared-drive roots via `corpora`+`driveId`; Drive search now spans all drives
+- Fix ingestion root cause: document was never added to the session (`self._db.add(doc)`), leaving null IDs and orphaned files
+- Voyage embeddings: per-provider default model resolution, batch embedding, and rate-limit retry; axios timeout raised 30s→120s
+- Google Calendar: scope events to the viewed month; raise `maxResults` so recurring events no longer swamp results
+- Verified live end-to-end over HTTP: PC upload, Drive import, and semantic search all working
+
+---
+
 ### Build 33 — 2026-06-07
 **Phase 7: Advanced Features**
 - **Bug fix** `meetings.py`: `_llm_summarize` called `get_llm_client(db)` but `db` was not in scope — passes `db` as explicit parameter now; `POST /meetings/{id}/summarize` no longer crashes at runtime
@@ -339,7 +376,21 @@
 | 6 | Windows only | `backend/.venv` setup and `launcher.py` are Windows-only; Linux/macOS require manual setup | Open |
 | 7 | Voyage AI | Free tier (200M tokens/month) is sufficient for personal use but may be insufficient for large-scale document ingestion | By design |
 
-### Resolved This Session (Builds 20–25)
+### Resolved This Session (Builds 34–35)
+
+| # | Area | Description | Resolved |
+|---|------|-------------|---------|
+| R11 | KB / Upload | Upload and Drive-import routes never committed — documents rolled back, KB stayed empty | Build 34 |
+| R12 | KB / Upload | `MissingGreenlet` 500 on upload — doc not refreshed before timestamp serialization | Build 34 |
+| R13 | Search | No results — repository used undefined `self._session`; vector distance not typed | Build 34 |
+| R14 | KB / Documents | `GET /documents` 500 — `PaginationParams` missing `limit` property | Build 35 |
+| R15 | KB / Documents | Delete and edit silently rolled back — routes flushed but never committed | Build 35 |
+| R16 | KB / Drive | DOCX import failed — `export()` returns 403 for non-Google files; now parsed with python-docx | Build 35 |
+| R17 | KB / Drive | "Failed to open stream" — extracted Drive text kept a `.pdf` name and was PDF-parsed | Build 35 |
+| R18 | Email Drafts | Every generate 500'd (masked as CORS "Network Error") — `EmailDraftOut` timestamps typed as `str` not `datetime` | Build 35 |
+| R19 | Desktop UI | Could not select/copy text in chat or display fields — pywebview disables `user-select` by default | Build 35 |
+
+### Resolved (Builds 20–25)
 
 | # | Area | Description | Resolved |
 |---|------|-------------|---------|

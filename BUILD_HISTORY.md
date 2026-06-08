@@ -2,6 +2,12 @@
 
 Use this file to identify the exact GitHub commit for any build and roll back if needed.
 
+## Milestones (annotated tags)
+
+| Tag | SHA | Date | Notes |
+|-----|-----|------|-------|
+| **`v0.9.0`** | `28fb46d` | 2026-06-08 | First milestone build — core features working well. Check out with `git checkout v0.9.0`. |
+
 ## Rollback command
 
 ```bash
@@ -19,6 +25,17 @@ git push origin master --force  # only if you want to revert remote
 
 | Build | SHA       | Date       | Description |
 |-------|-----------|------------|-------------|
+| **35 🏷 `v0.9.0`** | `28fb46d` | 2026-06-08 | **Milestone build** — Enable text selection/copy in desktop window (pywebview `text_select=True`) |
+| 35    | `c9f3f11` | 2026-06-08 | feat: automatic Google Drive document update detection (background scan 06:00/12:00/18:00 + manual check; flag modified/renamed/deleted for human approval; apply/dismiss; migration 003) |
+| 35    | `2d3445d` | 2026-06-08 | fix(emails): type `EmailDraftOut` timestamps as datetime (str caused 500 on every draft generate) |
+| 35    | `f1ed410` | 2026-06-08 | fix(drive-import): parse uploaded .docx via python-docx (export() returns 403 fileNotExportable for non-Google files) |
+| 35    | `44a3a4c` | 2026-06-08 | feat(kb): show in-modal progress bar + per-file status during Drive import |
+| 35    | `8421ead` | 2026-06-08 | fix(documents): commit on delete and update so changes persist (get_db never auto-commits) |
+| 35    | `739c232` | 2026-06-08 | fix(documents): add `limit` property to PaginationParams so GET /documents stops 500ing |
+| 35    | `e6fe196` | 2026-06-08 | fix(drive-import): use text extension for extracted Drive content so ingestion doesn't PyMuPDF-parse plain text |
+| 35    | `64c043b` | 2026-06-08 | fix(kb): surface real Drive import/upload error messages instead of swallowing them |
+| 34    | `66a5f9e` | 2026-06-08 | docs: complete Build 34 in BUILD_HISTORY (key files row + footer date) |
+| 34    | `e305836` | 2026-06-08 | docs: bump to Build 34 + record KB/search end-to-end fixes |
 | **34** | `f878479` | 2026-06-08 | **KB & Search end-to-end fixes** — persist uploads/imports (missing `db.commit()`); refresh doc before serialize (MissingGreenlet 500) |
 | 34    | `990436e` | 2026-06-08 | fix(search): correct `self._session`→`self.session`; typed `cosine_distance` in vector_search |
 | 34    | `c0e3aaa` | 2026-06-07 | fix: add missing `self._db.add(doc)` in ingestion — root cause of all import failures; shared drive browsing (corpora+driveId); drive_search across all drives |
@@ -65,7 +82,8 @@ _* earlier SHAs may be short-refs; use `git log --oneline` to verify_
 
 | Migration revision | Description |
 |--------------------|-------------|
-| `002`              | Flexible embedding dimensions (Phase 1) — **current HEAD** |
+| `003`              | Document source-update tracking (sync_status, source_modified_at, last_checked_at, sync_detail, source_name) — **current HEAD** |
+| `002`              | Flexible embedding dimensions (Phase 1) |
 | `f07c8aa64867`     | Add task_attachments column |
 | `9a3c1f2e8b57`     | Add meeting_notes + email_drafts tables |
 | `615f52d537b5`     | Add missing columns (agent_runs, approval_intents, conversations…) |
@@ -87,6 +105,7 @@ cd backend && .venv\Scripts\python.exe -m alembic downgrade 615f52d537b5
 
 | Build | Key files |
 |-------|-----------|
+| 35 | `backend/services/documents/sync.py` (new), `backend/migrations/versions/003_add_document_sync_tracking.py` (new), `backend/services/documents/ingestion.py`, `backend/services/google_service.py`, `backend/routers/documents.py`, `backend/routers/google_integration.py`, `backend/models/db/document.py`, `backend/models/schemas/documents.py`, `backend/main.py`, `frontend/src/pages/DocumentsPage.tsx`, `frontend/src/api/documents.ts`, `frontend/src/types/documents.ts`, `launcher.py`, `frontend/src/version.ts` |
 | 34 | `backend/routers/documents.py`, `backend/routers/google_integration.py`, `backend/services/documents/ingestion.py`, `backend/repositories/document_repo.py`, `backend/services/google_service.py`, `backend/services/embeddings/service.py`, `frontend/src/version.ts` |
 | 33 | `frontend/src/pages/InvestorPage.tsx` (new), `backend/routers/meetings.py` |
 | 32 | `backend/services/agent/v2/` (new package — 9 files), `backend/main.py`, `backend/routers/settings.py` |
@@ -98,4 +117,4 @@ cd backend && .venv\Scripts\python.exe -m alembic downgrade 615f52d537b5
 
 ---
 
-*Updated: 2026-06-08 after KB & Search end-to-end fixes (Build 34, f878479)*
+*Updated: 2026-06-08 — Build 35, milestone `v0.9.0` (Drive auto-update detection, KB polish, copy fix; commit 28fb46d)*
