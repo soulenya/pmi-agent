@@ -39,3 +39,15 @@ async def require_admin(current_user: User = Depends(get_current_user)) -> User:
             detail="Admin role required.",
         )
     return current_user
+
+
+async def require_regulatory_write(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Allow only users granted regulatory write access (admins always pass)."""
+    if current_user.role == "admin" or getattr(current_user, "can_write_regulatory", False):
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="You don't have permission to modify regulatory files.",
+    )

@@ -28,6 +28,7 @@ export interface User {
   display_name: string;
   role: string;
   is_active: boolean;
+  can_write_regulatory?: boolean;
   created_at: string;
 }
 

@@ -26,12 +26,14 @@ class CreateUserRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=8)
     role: str = Field(default="user")
+    can_write_regulatory: bool = False
 
 
 class UpdateUserRequest(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=255)
     is_active: bool | None = None
     role: str | None = None
+    can_write_regulatory: bool | None = None
 
 
 @router.get("", response_model=ApiResponse[list[UserOut]])
@@ -68,6 +70,7 @@ async def create_user(
         hashed_password=hash_password(body.password),
         role=body.role,
         is_active=True,
+        can_write_regulatory=body.can_write_regulatory,
     )
     db.add(user)
     await db.flush()
@@ -106,6 +109,9 @@ async def update_user(
     if body.role is not None:
         changes["role"] = body.role
         user.role = body.role
+    if body.can_write_regulatory is not None:
+        changes["can_write_regulatory"] = body.can_write_regulatory
+        user.can_write_regulatory = body.can_write_regulatory
 
     if changes:
         await db.flush()

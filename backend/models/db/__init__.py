@@ -10,7 +10,7 @@ from models.db.email_draft import EmailDraft
 from models.db.google import GoogleCredential, GoogleSyncState
 from models.db.meeting import MeetingNote
 from models.db.notification import Notification
-from models.db.regulatory import CAPA, RegulatoryDocument, RiskItem
+from models.db.regulatory import CAPA, RegulatoryDocument, RegulatoryNode, RiskItem
 from models.db.research import ResearchReport, ResearchSource
 from models.db.settings import ModelRoutingRule, SystemSetting
 from models.db.task import Project, Task, TaskComment
@@ -37,6 +37,7 @@ __all__ = [
     "RegulatoryDocument",
     "RiskItem",
     "CAPA",
+    "RegulatoryNode",
     "Notification",
     "Briefing",
     "SystemSetting",

@@ -394,6 +394,64 @@ def drive_get_content(file_id: str) -> dict:
     }
 
 
+def drive_download_bytes(file_id: str) -> dict:
+    """Download a Drive file's raw bytes for storage in the regulatory file store.
+
+    Google-native files (Docs/Sheets/Slides) are exported to their Office
+    equivalents (.docx/.xlsx/.pptx); everything else is downloaded as-is via
+    get_media. Returns ``{name, mime_type, extension, content (bytes),
+    modified, url}``. The returned ``name`` already carries the right extension.
+    """
+    svc = _build("drive", "v3")
+    meta = svc.files().get(
+        fileId=file_id,
+        fields="id,name,mimeType,webViewLink,modifiedTime",
+        supportsAllDrives=True,
+    ).execute()
+    mime = meta.get("mimeType", "")
+    name = meta.get("name", "file")
+
+    # Google-native → export to an Office format
+    google_export = {
+        "application/vnd.google-apps.document": (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".docx",
+        ),
+        "application/vnd.google-apps.spreadsheet": (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".xlsx",
+        ),
+        "application/vnd.google-apps.presentation": (
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".pptx",
+        ),
+    }
+
+    if mime in google_export:
+        out_mime, ext = google_export[mime]
+        raw = svc.files().export(fileId=file_id, mimeType=out_mime).execute()
+        if not name.lower().endswith(ext):
+            name = f"{name}{ext}"
+        content = raw if isinstance(raw, bytes) else str(raw).encode("utf-8")
+        result_mime = out_mime
+    else:
+        raw = svc.files().get_media(fileId=file_id).execute()
+        content = raw if isinstance(raw, bytes) else str(raw).encode("utf-8")
+        result_mime = mime
+        ext = ""
+        if "." in name:
+            ext = name[name.rfind("."):]
+
+    return {
+        "name": name,
+        "mime_type": result_mime,
+        "extension": ext.lower(),
+        "content": content,
+        "modified": meta.get("modifiedTime", ""),
+        "url": meta.get("webViewLink", ""),
+    }
+
+
 def drive_get_metadata(file_id: str) -> dict | None:
     """Fetch lightweight Drive file metadata for update detection.
 

@@ -1,907 +1,559 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Plus, FileText, ShieldAlert, Trash2, Pencil, X,
-  AlertTriangle, TrendingDown, CheckCircle2, Activity,
-  Sparkles, Copy, Check, Loader2,
+  Folder, FolderPlus, Upload, FileText, FileSpreadsheet, FileImage,
+  FileCode, FileArchive, File as FileIcon, MoreVertical, Pencil, Trash2,
+  Download, FolderInput, X, Loader2, ChevronRight, ShieldAlert, Save,
+  HardDrive, ArrowLeft, Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores/authStore";
+import { DriveBrowser } from "@/components/google/DriveBrowser";
+import type { DriveItem } from "@/api/google";
 import {
-  listRegDocs, createRegDoc, updateRegDoc,
-  listCapas, createCapa, updateCapa,
-  listRiskItems, createRiskItem, updateRiskItem, deleteRiskItem,
-  draftRegDocContent,
-} from "@/api/regulatory";
-import type {
-  RegDoc, RegDocCreate,
-  CAPA, CAPACreate,
-  RiskItem, RiskItemCreate,
-} from "@/types/regulatory";
+  listRegNodes, createRegFolder, uploadRegFile, importRegFromDrive,
+  renameRegNode, moveRegNode, deleteRegNode, getRegText, saveRegText,
+  downloadRegFile,
+  type RegNode,
+} from "@/api/regulatoryFiles";
 
-const DOC_STATUS_COLORS: Record<string, string> = {
-  draft: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  in_review: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  approved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  effective: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
-  superseded: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-};
+// ── helpers ─────────────────────────────────────────────────────────────────
 
-const CAPA_STATUS_COLORS: Record<string, string> = {
-  open: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  in_progress: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  closed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  cancelled: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-};
+function formatBytes(n?: number | null): string {
+  if (!n && n !== 0) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
 
-// ── Reg Doc Form ──────────────────────────────────────────────────────────────
+function fileIcon(node: RegNode) {
+  const ext = (node.extension || "").toLowerCase();
+  if ([".csv", ".xlsx", ".xls"].includes(ext)) return FileSpreadsheet;
+  if ([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp"].includes(ext)) return FileImage;
+  if ([".json", ".xml", ".html", ".htm", ".js", ".ts", ".css", ".yaml", ".yml"].includes(ext)) return FileCode;
+  if ([".zip", ".rar", ".7z", ".tar", ".gz"].includes(ext)) return FileArchive;
+  if ([".txt", ".md", ".markdown", ".rst", ".log", ".pdf", ".doc", ".docx"].includes(ext)) return FileText;
+  return FileIcon;
+}
 
-function NewRegDocForm({ onClose }: { onClose: () => void }) {
+function apiError(e: unknown, fallback: string): string {
+  return (
+    (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? fallback
+  );
+}
+
+// ── New folder modal ────────────────────────────────────────────────────────
+
+function NewFolderModal({ parentId, onClose }: { parentId: string | null; onClose: () => void }) {
   const qc = useQueryClient();
-  const [docType, setDocType] = useState("SOP");
-  const [title, setTitle] = useState("");
-  const [docNumber, setDocNumber] = useState("");
-
-  const mutation = useMutation({
-    mutationFn: (body: RegDocCreate) => createRegDoc(body),
+  const [name, setName] = useState("");
+  const mut = useMutation({
+    mutationFn: () => createRegFolder(name.trim(), parentId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["reg-docs"] });
+      qc.invalidateQueries({ queryKey: ["reg-files", parentId] });
+      onClose();
+    },
+  });
+  return (
+    <ModalShell title="New Folder" icon={<FolderPlus className="h-5 w-5 text-primary" />} onClose={onClose}>
+      <form
+        onSubmit={(e) => { e.preventDefault(); if (name.trim()) mut.mutate(); }}
+        className="space-y-4"
+      >
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Folder name"
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+        />
+        {mut.isError && <p className="text-xs text-destructive">{apiError(mut.error, "Failed to create folder")}</p>}
+        <ModalActions onCancel={onClose} submitLabel="Create" pending={mut.isPending} disabled={!name.trim()} />
+      </form>
+    </ModalShell>
+  );
+}
+
+// ── Rename modal ────────────────────────────────────────────────────────────
+
+function RenameModal({ node, parentId, onClose }: { node: RegNode; parentId: string | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(node.name);
+  const mut = useMutation({
+    mutationFn: () => renameRegNode(node.id, name.trim()),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reg-files", parentId] });
+      onClose();
+    },
+  });
+  return (
+    <ModalShell title="Rename" icon={<Pencil className="h-5 w-5 text-primary" />} onClose={onClose}>
+      <form
+        onSubmit={(e) => { e.preventDefault(); if (name.trim()) mut.mutate(); }}
+        className="space-y-4"
+      >
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+        />
+        {mut.isError && <p className="text-xs text-destructive">{apiError(mut.error, "Failed to rename")}</p>}
+        <ModalActions onCancel={onClose} submitLabel="Rename" pending={mut.isPending} disabled={!name.trim()} />
+      </form>
+    </ModalShell>
+  );
+}
+
+// ── Move modal (folder picker) ──────────────────────────────────────────────
+
+function MoveModal({ node, sourceParentId, onClose }: { node: RegNode; sourceParentId: string | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [dest, setDest] = useState<string | null>(null);
+  const { data: listing, isLoading } = useQuery({
+    queryKey: ["reg-move-picker", dest],
+    queryFn: () => listRegNodes(dest),
+  });
+  const folders = (listing?.nodes ?? []).filter((n) => n.node_type === "folder" && n.id !== node.id);
+
+  const mut = useMutation({
+    mutationFn: () => moveRegNode(node.id, dest),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reg-files", sourceParentId] });
+      qc.invalidateQueries({ queryKey: ["reg-files", dest] });
       onClose();
     },
   });
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!title.trim()) return;
-        mutation.mutate({ doc_type: docType, title: title.trim(), doc_number: docNumber || undefined });
-      }}
-      className="rounded-lg border bg-card p-4 space-y-3 shadow-sm"
-    >
-      <div className="flex gap-3">
-        <select
-          value={docType}
-          onChange={(e) => setDocType(e.target.value)}
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
-        >
-          {["SOP", "WI", "FORM", "SPEC", "RISK_MANAGEMENT_FILE", "510K", "PMA", "DHF", "DMR", "DHR"].map(
-            (t) => <option key={t} value={t}>{t}</option>
+    <ModalShell title={`Move "${node.name}"`} icon={<FolderInput className="h-5 w-5 text-primary" />} onClose={onClose}>
+      <div className="space-y-3">
+        {/* Breadcrumb of picker location */}
+        <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+          {(listing?.breadcrumb ?? [{ id: null, name: "Regulatory" }]).map((c, i) => (
+            <span key={c.id ?? "root"} className="flex items-center gap-1">
+              {i > 0 && <ChevronRight className="h-3 w-3" />}
+              <button className="hover:text-foreground" onClick={() => setDest(c.id)}>{c.name}</button>
+            </span>
+          ))}
+        </div>
+
+        <div className="max-h-64 overflow-auto rounded-md border">
+          {isLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : folders.length === 0 ? (
+            <p className="px-3 py-6 text-center text-xs text-muted-foreground">No sub-folders here.</p>
+          ) : (
+            folders.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setDest(f.id)}
+                className="flex w-full items-center gap-2 border-b px-3 py-2 text-left text-sm last:border-0 hover:bg-accent"
+              >
+                <Folder className="h-4 w-4 text-amber-500" />
+                {f.name}
+                <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground" />
+              </button>
+            ))
           )}
-        </select>
-        <input
-          value={docNumber}
-          onChange={(e) => setDocNumber(e.target.value)}
-          placeholder="Doc # (e.g. SOP-001)"
-          className="w-32 rounded-md border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Destination: <span className="font-medium text-foreground">
+            {listing?.breadcrumb?.[listing.breadcrumb.length - 1]?.name ?? "Regulatory"}
+          </span>
+        </p>
+        {mut.isError && <p className="text-xs text-destructive">{apiError(mut.error, "Failed to move")}</p>}
+        <ModalActions
+          onCancel={onClose}
+          submitLabel="Move here"
+          pending={mut.isPending}
+          disabled={dest === sourceParentId}
+          onSubmit={() => mut.mutate()}
         />
       </div>
-      <input
-        autoFocus
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Document title…"
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-      />
-      <div className="flex gap-2 justify-end">
-        <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent">Cancel</button>
-        <button type="submit" disabled={mutation.isPending || !title.trim()} className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50">
-          {mutation.isPending ? "Creating…" : "Create"}
-        </button>
-      </div>
-    </form>
+    </ModalShell>
   );
 }
 
-// ── CAPA Form ─────────────────────────────────────────────────────────────────
+// ── Text editor modal ───────────────────────────────────────────────────────
 
-function NewCAPAForm({ onClose }: { onClose: () => void }) {
+function EditModal({ node, parentId, onClose }: { node: RegNode; parentId: string | null; onClose: () => void }) {
   const qc = useQueryClient();
-  const [title, setTitle] = useState("");
-  const [capaNumber, setCapaNumber] = useState("");
-  const [capaType, setCapaType] = useState("capa");
-
-  const mutation = useMutation({
-    mutationFn: (body: CAPACreate) => createCapa(body),
+  const [content, setContent] = useState<string | null>(null);
+  const { isLoading } = useQuery({
+    queryKey: ["reg-text", node.id],
+    queryFn: async () => {
+      const r = await getRegText(node.id);
+      setContent(r.content);
+      return r;
+    },
+  });
+  const mut = useMutation({
+    mutationFn: () => saveRegText(node.id, content ?? ""),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["capas"] });
+      qc.invalidateQueries({ queryKey: ["reg-files", parentId] });
       onClose();
     },
   });
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!title.trim() || !capaNumber.trim()) return;
-        mutation.mutate({ title: title.trim(), capa_number: capaNumber.trim(), capa_type: capaType });
-      }}
-      className="rounded-lg border bg-card p-4 space-y-3 shadow-sm"
-    >
-      <div className="flex gap-3">
-        <input
-          value={capaNumber}
-          onChange={(e) => setCapaNumber(e.target.value)}
-          placeholder="CAPA # (e.g. CAPA-001)"
-          className="w-40 rounded-md border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-        />
-        <select
-          value={capaType}
-          onChange={(e) => setCapaType(e.target.value)}
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
-        >
-          <option value="ca">Corrective Action</option>
-          <option value="pa">Preventive Action</option>
-          <option value="capa">CAPA</option>
-        </select>
-      </div>
-      <input
-        autoFocus
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="CAPA title…"
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-      />
-      <div className="flex gap-2 justify-end">
-        <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent">Cancel</button>
-        <button type="submit" disabled={mutation.isPending || !title.trim() || !capaNumber.trim()} className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50">
-          {mutation.isPending ? "Creating…" : "Create"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-// ── AI Draft Modal ────────────────────────────────────────────────────────────
-
-function AIDraftModal({
-  docTitle,
-  content,
-  onClose,
-}: {
-  docTitle: string;
-  content: string;
-  onClose: () => void;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    navigator.clipboard.writeText(content).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex flex-col w-full max-w-2xl max-h-[85vh] rounded-xl border bg-card shadow-xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
-          <h3 className="font-semibold text-sm flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            AI Draft — {docTitle}
-          </h3>
+      <div className="flex h-[80vh] w-full max-w-3xl flex-col rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b px-5 py-3">
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium bg-muted hover:bg-accent"
-            >
-              {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied ? "Copied!" : "Copy"}
-            </button>
-            <button onClick={onClose} className="rounded-md p-1 hover:bg-accent">
-              <X className="h-4 w-4" />
-            </button>
+            <FileText className="h-5 w-5 text-primary" />
+            <h2 className="font-semibold">{node.name}</h2>
           </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          <pre className="whitespace-pre-wrap text-sm font-sans leading-relaxed">{content}</pre>
-        </div>
-        <div className="px-5 py-3 border-t bg-muted/30 text-xs text-muted-foreground shrink-0">
-          AI-generated content for review only. Verify before use in official documents.
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Reg Doc Row ────────────────────────────────────────────────────────────────
-
-function RegDocRow({ doc }: { doc: RegDoc }) {
-  const qc = useQueryClient();
-  const [draftContent, setDraftContent] = useState<string | null>(null);
-
-  const statusMutation = useMutation({
-    mutationFn: (newStatus: string) => updateRegDoc(doc.id, { status: newStatus }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reg-docs"] }),
-  });
-
-  const draftMutation = useMutation({
-    mutationFn: () => draftRegDocContent(doc.id),
-    onSuccess: (data) => setDraftContent(data.content),
-  });
-
-  return (
-    <>
-      <div className="group flex items-center gap-4 rounded-md border bg-card px-4 py-3 hover:bg-accent/30 transition-colors">
-        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            {doc.doc_number && (
-              <span className="text-xs font-mono text-muted-foreground">{doc.doc_number}</span>
-            )}
-            <span className="text-sm font-medium truncate">{doc.title}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-xs text-muted-foreground">{doc.doc_type}</span>
-            <span className="text-xs text-muted-foreground">Rev {doc.revision}</span>
-            {doc.related_standards.length > 0 && (
-              <span className="text-xs text-muted-foreground">
-                {doc.related_standards.slice(0, 2).join(", ")}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
+        {isLoading || content === null ? (
+          <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            spellCheck={false}
+            className="flex-1 resize-none bg-background p-4 font-mono text-sm outline-none"
+          />
+        )}
+        <div className="flex items-center justify-end gap-2 border-t px-5 py-3">
+          {mut.isError && <p className="mr-auto text-xs text-destructive">{apiError(mut.error, "Failed to save")}</p>}
+          <button onClick={onClose} className="rounded-md border px-4 py-2 text-sm text-muted-foreground hover:bg-accent">Cancel</button>
           <button
-            onClick={() => draftMutation.mutate()}
-            disabled={draftMutation.isPending}
-            title="Generate AI draft content"
-            className="flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending || content === null}
+            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            {draftMutation.isPending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Sparkles className="h-3 w-3" />
-            )}
-            AI Draft
+            {mut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            Save
           </button>
-          <select
-            value={doc.status}
-            onChange={(e) => statusMutation.mutate(e.target.value)}
-            className={cn(
-              "text-xs rounded-full px-2.5 py-0.5 border-0 font-medium cursor-pointer",
-              DOC_STATUS_COLORS[doc.status] ?? "bg-gray-100 text-gray-600"
-            )}
-          >
-            {["draft", "in_review", "approved", "effective", "superseded"].map((s) => (
-              <option key={s} value={s}>{s.replace("_", " ")}</option>
-            ))}
-          </select>
-          {doc.effective_date && (
-            <span className="text-xs text-muted-foreground hidden group-hover:inline">
-              Effective: {new Date(doc.effective_date).toLocaleDateString()}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {draftContent !== null && (
-        <AIDraftModal
-          docTitle={doc.title}
-          content={draftContent}
-          onClose={() => setDraftContent(null)}
-        />
-      )}
-    </>
-  );
-}
-
-// ── Risk helpers ─────────────────────────────────────────────────────────────
-
-function riskColor(score: number | null | undefined): string {
-  if (score == null) return "bg-muted text-muted-foreground";
-  if (score >= 10) return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
-  if (score >= 5) return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300";
-  return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
-}
-
-function matrixCellColor(prob: number, sev: number): string {
-  const score = prob * sev;
-  if (score >= 10) return "bg-red-200 dark:bg-red-900/50";
-  if (score >= 5) return "bg-yellow-200 dark:bg-yellow-900/50";
-  return "bg-green-200 dark:bg-green-900/50";
-}
-
-// ── Risk Matrix ────────────────────────────────────────────────────────────────
-
-function RiskMatrix({ items }: { items: RiskItem[] }) {
-  const cellCounts: Record<string, number> = {};
-  for (const item of items) {
-    const p = item.probability_after ?? item.probability_before;
-    const s = item.severity_after ?? item.severity_before;
-    if (p && s) {
-      const key = `${p}-${s}`;
-      cellCounts[key] = (cellCounts[key] ?? 0) + 1;
-    }
-  }
-
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-        Risk Matrix (after mitigation)
-      </p>
-      <div className="flex gap-4">
-        <div className="flex flex-col gap-0">
-          {[5, 4, 3, 2, 1].map((prob) => (
-            <div key={prob} className="flex items-center gap-0">
-              <span className="w-6 text-center text-xs text-muted-foreground shrink-0">{prob}</span>
-              {[1, 2, 3, 4, 5].map((sev) => {
-                const count = cellCounts[`${prob}-${sev}`] ?? 0;
-                return (
-                  <div
-                    key={sev}
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-sm border border-background text-xs font-medium",
-                      matrixCellColor(prob, sev),
-                    )}
-                    title={`P${prob}×S${sev}=${prob * sev}`}
-                  >
-                    {count > 0 && <span>{count}</span>}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-          <div className="flex ml-6">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <div key={s} className="flex h-5 w-10 items-center justify-center text-xs text-muted-foreground">{s}</div>
-            ))}
-          </div>
-        </div>
-        <div className="flex flex-col gap-2 justify-center text-xs">
-          <p className="text-muted-foreground font-medium">Legend</p>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-sm bg-green-200 dark:bg-green-900/50" />
-            <span className="text-muted-foreground">Acceptable (&lt;5)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-sm bg-yellow-200 dark:bg-yellow-900/50" />
-            <span className="text-muted-foreground">ALARP (5–9)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-sm bg-red-200 dark:bg-red-900/50" />
-            <span className="text-muted-foreground">Unacceptable (≥10)</span>
-          </div>
-          <p className="text-muted-foreground mt-1">Y=Probability, X=Severity</p>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Risk Form ─────────────────────────────────────────────────────────────────
+// ── shared modal pieces ─────────────────────────────────────────────────────
 
-function ScoreSelect({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+function ModalShell({ title, icon, onClose, children }: { title: string; icon: React.ReactNode; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs text-muted-foreground">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-md border bg-background px-2 py-1.5 text-sm w-20"
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <div className="flex items-center gap-2">{icon}<h2 className="font-semibold">{title}</h2></div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ModalActions({ onCancel, onSubmit, submitLabel, pending, disabled }: { onCancel: () => void; onSubmit?: () => void; submitLabel: string; pending?: boolean; disabled?: boolean }) {
+  return (
+    <div className="flex justify-end gap-2 pt-1">
+      <button type="button" onClick={onCancel} className="rounded-md border px-4 py-2 text-sm text-muted-foreground hover:bg-accent">Cancel</button>
+      <button
+        type={onSubmit ? "button" : "submit"}
+        onClick={onSubmit}
+        disabled={pending || disabled}
+        className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
       >
-        <option value="">–</option>
-        {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
-      </select>
+        {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {submitLabel}
+      </button>
     </div>
   );
 }
 
-function RiskForm({
-  docs,
-  initial,
-  onSave,
-  onClose,
-  saving,
-}: {
-  docs: RegDoc[];
-  initial?: Partial<RiskItemCreate & { doc_id?: string }>;
-  onSave: (docId: string, body: RiskItemCreate) => void;
-  onClose: () => void;
-  saving: boolean;
+// ── row actions menu ────────────────────────────────────────────────────────
+
+function RowMenu({ node, canWrite, onEdit, onRename, onMove, onDelete, onDownload }: {
+  node: RegNode; canWrite: boolean;
+  onEdit: () => void; onRename: () => void; onMove: () => void; onDelete: () => void; onDownload: () => void;
 }) {
-  const [docId, setDocId] = useState(initial?.doc_id ?? docs[0]?.id ?? "");
-  const [hazard, setHazard] = useState(initial?.hazard ?? "");
-  const [situation, setSituation] = useState(initial?.hazardous_situation ?? "");
-  const [harm, setHarm] = useState(initial?.harm ?? "");
-  const [probBefore, setProbBefore] = useState(String(initial?.probability_before ?? ""));
-  const [sevBefore, setSevBefore] = useState(String(initial?.severity_before ?? ""));
-  const [mitigation, setMitigation] = useState(initial?.mitigation_measures ?? "");
-  const [probAfter, setProbAfter] = useState(String(initial?.probability_after ?? ""));
-  const [sevAfter, setSevAfter] = useState(String(initial?.severity_after ?? ""));
-  const [acceptability, setAcceptability] = useState(initial?.risk_acceptability ?? "");
-
-  const canSave = hazard.trim() && situation.trim() && harm.trim() && docId;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSave) return;
-    onSave(docId, {
-      hazard: hazard.trim(),
-      hazardous_situation: situation.trim(),
-      harm: harm.trim(),
-      probability_before: probBefore ? Number(probBefore) : null,
-      severity_before: sevBefore ? Number(sevBefore) : null,
-      mitigation_measures: mitigation.trim() || null,
-      probability_after: probAfter ? Number(probAfter) : null,
-      severity_after: sevAfter ? Number(sevAfter) : null,
-      risk_acceptability: acceptability || null,
-    });
-  };
-
+  const [open, setOpen] = useState(false);
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border bg-card p-4 space-y-3 shadow-sm">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">{initial ? "Edit Risk Item" : "New Risk Item"}</p>
-        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div>
-        <label className="text-xs text-muted-foreground block mb-1">Regulatory Document *</label>
-        <select
-          value={docId}
-          onChange={(e) => setDocId(e.target.value)}
-          required
-          className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-        >
-          <option value="">Select document…</option>
-          {docs.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.doc_number ? `${d.doc_number} – ` : ""}{d.title}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Hazard *</label>
-          <input value={hazard} onChange={(e) => setHazard(e.target.value)} required placeholder="e.g. Electrical fault"
-            className="w-full rounded-md border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring" />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Hazardous Situation *</label>
-          <input value={situation} onChange={(e) => setSituation(e.target.value)} required placeholder="e.g. Patient contact during fault"
-            className="w-full rounded-md border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring" />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Harm *</label>
-          <input value={harm} onChange={(e) => setHarm(e.target.value)} required placeholder="e.g. Electric shock"
-            className="w-full rounded-md border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring" />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-4 items-end">
-        <ScoreSelect value={probBefore} onChange={setProbBefore} label="Prob. Before" />
-        <ScoreSelect value={sevBefore} onChange={setSevBefore} label="Sev. Before" />
-        {probBefore && sevBefore && (
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Score Before</span>
-            <span className={cn("rounded-full px-2 py-0.5 text-sm font-bold text-center w-20", riskColor(Number(probBefore) * Number(sevBefore)))}>
-              {Number(probBefore) * Number(sevBefore)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <label className="text-xs text-muted-foreground block mb-1">Mitigation Measures</label>
-        <textarea value={mitigation} onChange={(e) => setMitigation(e.target.value)} rows={2}
-          placeholder="Control measures, design changes, warnings…"
-          className="w-full rounded-md border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring resize-none" />
-      </div>
-
-      <div className="flex flex-wrap gap-4 items-end">
-        <ScoreSelect value={probAfter} onChange={setProbAfter} label="Prob. After" />
-        <ScoreSelect value={sevAfter} onChange={setSevAfter} label="Sev. After" />
-        {probAfter && sevAfter && (
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Score After</span>
-            <span className={cn("rounded-full px-2 py-0.5 text-sm font-bold text-center w-20", riskColor(Number(probAfter) * Number(sevAfter)))}>
-              {Number(probAfter) * Number(sevAfter)}
-            </span>
-          </div>
-        )}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Acceptability</label>
-          <select value={acceptability} onChange={(e) => setAcceptability(e.target.value)}
-            className="rounded-md border bg-background px-2 py-1.5 text-sm w-36">
-            <option value="">–</option>
-            <option value="acceptable">Acceptable</option>
-            <option value="alarp">ALARP</option>
-            <option value="unacceptable">Unacceptable</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="flex gap-2 justify-end">
-        <button type="button" onClick={onClose} className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent">Cancel</button>
-        <button type="submit" disabled={saving || !canSave} className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50">
-          {saving ? "Saving…" : initial ? "Update" : "Create"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-// ── Risk Item Row ──────────────────────────────────────────────────────────────
-
-function RiskItemRow({
-  item, docTitle, onEdit, onDelete,
-}: {
-  item: RiskItem;
-  docTitle: string | undefined;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const scoreBefore = item.probability_before != null && item.severity_before != null
-    ? item.probability_before * item.severity_before : null;
-  const scoreAfter = item.probability_after != null && item.severity_after != null
-    ? item.probability_after * item.severity_after : null;
-
-  return (
-    <div className="rounded-lg border bg-card px-4 py-3 hover:bg-accent/30 transition-colors">
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">{item.hazard}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{item.hazardous_situation}</p>
-              <p className="text-xs text-muted-foreground">Harm: {item.harm}</p>
-              {docTitle && (
-                <p className="text-xs text-muted-foreground mt-0.5 truncate">Doc: {docTitle}</p>
-              )}
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <button onClick={onEdit} className="rounded p-1.5 text-muted-foreground hover:text-foreground" title="Edit">
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button onClick={onDelete} className="rounded p-1.5 text-muted-foreground hover:text-destructive" title="Delete">
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 mt-2">
-            {scoreBefore != null && (
-              <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", riskColor(scoreBefore))}>
-                Before: {scoreBefore}
-              </span>
+    <div className="relative">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+          <div className="absolute right-0 z-20 mt-1 w-40 rounded-md border bg-popover py-1 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            {node.node_type === "file" && (
+              <MenuItem icon={<Download className="h-3.5 w-3.5" />} label="Download" onClick={() => { setOpen(false); onDownload(); }} />
             )}
-            {item.mitigation_measures && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1 max-w-xs truncate">
-                <TrendingDown className="h-3 w-3 shrink-0" />
-                {item.mitigation_measures}
-              </span>
+            {canWrite && node.node_type === "file" && node.is_editable && (
+              <MenuItem icon={<Pencil className="h-3.5 w-3.5" />} label="Edit" onClick={() => { setOpen(false); onEdit(); }} />
             )}
-            {scoreAfter != null && (
-              <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", riskColor(scoreAfter))}>
-                After: {scoreAfter}
-              </span>
-            )}
-            {item.risk_acceptability && (
-              <span className={cn(
-                "rounded-full px-2 py-0.5 text-xs font-semibold",
-                item.risk_acceptability === "unacceptable"
-                  ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                  : item.risk_acceptability === "alarp"
-                    ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
-                    : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-              )}>
-                {item.risk_acceptability.toUpperCase()}
-              </span>
-            )}
+            {canWrite && <MenuItem icon={<Pencil className="h-3.5 w-3.5" />} label="Rename" onClick={() => { setOpen(false); onRename(); }} />}
+            {canWrite && <MenuItem icon={<FolderInput className="h-3.5 w-3.5" />} label="Move" onClick={() => { setOpen(false); onMove(); }} />}
+            {canWrite && <MenuItem icon={<Trash2 className="h-3.5 w-3.5 text-destructive" />} label="Delete" danger onClick={() => { setOpen(false); onDelete(); }} />}
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
 
-// ── CAPA Row ──────────────────────────────────────────────────────────────────
-
-function CAPARow({ capa }: { capa: CAPA }) {
-  const qc = useQueryClient();
-
-  const statusMutation = useMutation({
-    mutationFn: (newStatus: string) => updateCapa(capa.id, { status: newStatus }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["capas"] }),
-  });
-
-  const isOverdue =
-    capa.due_date &&
-    capa.status !== "closed" &&
-    capa.status !== "cancelled" &&
-    new Date(capa.due_date) < new Date();
-
+function MenuItem({ icon, label, onClick, danger }: { icon: React.ReactNode; label: string; onClick: () => void; danger?: boolean }) {
   return (
-    <div className="group flex items-center gap-4 rounded-md border bg-card px-4 py-3 hover:bg-accent/30 transition-colors">
-      <ShieldAlert className={cn("h-4 w-4 shrink-0", isOverdue ? "text-destructive" : "text-muted-foreground")} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-muted-foreground">{capa.capa_number}</span>
-          <span className="text-sm font-medium truncate">{capa.title}</span>
-        </div>
-        <span className="text-xs text-muted-foreground capitalize">{capa.capa_type}</span>
-      </div>
-      <div className="flex items-center gap-3 shrink-0">
-        {capa.due_date && (
-          <span className={cn("text-xs", isOverdue ? "text-destructive font-medium" : "text-muted-foreground")}>
-            {new Date(capa.due_date).toLocaleDateString()}
-          </span>
-        )}
-        <select
-          value={capa.status}
-          onChange={(e) => statusMutation.mutate(e.target.value)}
-          className={cn(
-            "text-xs rounded-full px-2.5 py-0.5 border-0 font-medium cursor-pointer",
-            CAPA_STATUS_COLORS[capa.status] ?? "bg-gray-100 text-gray-600"
-          )}
-        >
-          {["open", "in_progress", "closed", "cancelled"].map((s) => (
-            <option key={s} value={s}>{s.replace("_", " ")}</option>
-          ))}
-        </select>
-      </div>
-    </div>
+    <button
+      onClick={onClick}
+      className={cn("flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-accent", danger && "text-destructive")}
+    >
+      {icon}{label}
+    </button>
   );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Page ────────────────────────────────────────────────────────────────────
 
 export function RegulatoryPage() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"docs" | "capa" | "risks">("docs");
-  const [showNewDoc, setShowNewDoc] = useState(false);
-  const [showNewCapa, setShowNewCapa] = useState(false);
-  const [showNewRisk, setShowNewRisk] = useState(false);
-  const [editRisk, setEditRisk] = useState<RiskItem | null>(null);
-  const [confirmDeleteRisk, setConfirmDeleteRisk] = useState<string | null>(null);
+  const user = useAuthStore((s) => s.user);
+  const canWrite = user?.role === "admin" || !!user?.can_write_regulatory;
 
-  const { data: docs = [], isLoading: docsLoading } = useQuery({
-    queryKey: ["reg-docs"],
-    queryFn: () => listRegDocs(),
+  const [parentId, setParentId] = useState<string | null>(null);
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [showDrive, setShowDrive] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<RegNode | null>(null);
+  const [moveTarget, setMoveTarget] = useState<RegNode | null>(null);
+  const [editTarget, setEditTarget] = useState<RegNode | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [driveImporting, setDriveImporting] = useState(false);
+  const [driveStatus, setDriveStatus] = useState<string | null>(null);
+  const [driveProgress, setDriveProgress] = useState<{ current: number; total: number } | null>(null);
+
+  const { data: listing, isLoading } = useQuery({
+    queryKey: ["reg-files", parentId],
+    queryFn: () => listRegNodes(parentId),
   });
 
-  const { data: capas = [], isLoading: capaLoading } = useQuery({
-    queryKey: ["capas"],
-    queryFn: () => listCapas(),
+  const uploadMut = useMutation({
+    mutationFn: (file: File) => uploadRegFile(file, parentId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["reg-files", parentId] }),
+    onError: (e) => setUploadError(apiError(e, "Upload failed")),
   });
 
-  const { data: risks = [], isLoading: risksLoading } = useQuery({
-    queryKey: ["risk-items"],
-    queryFn: () => listRiskItems(),
-    enabled: tab === "risks",
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteRegNode(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["reg-files", parentId] }),
   });
 
-  const docById = Object.fromEntries(docs.map((d) => [d.id, d]));
+  function handleUpload(ev: React.ChangeEvent<HTMLInputElement>) {
+    setUploadError(null);
+    const files = ev.target.files;
+    if (!files) return;
+    Array.from(files).forEach((f) => uploadMut.mutate(f));
+    ev.target.value = "";
+  }
 
-  const createRiskMutation = useMutation({
-    mutationFn: ({ docId, body }: { docId: string; body: RiskItemCreate }) =>
-      createRiskItem(docId, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["risk-items"] });
-      setShowNewRisk(false);
-    },
-  });
+  async function handleDriveImport(items: DriveItem[]) {
+    const importable = items.filter((i) => i.type !== "folder");
+    if (importable.length === 0) { setShowDrive(false); return; }
+    setDriveImporting(true);
+    setDriveProgress({ current: 0, total: importable.length });
+    for (let i = 0; i < importable.length; i++) {
+      setDriveStatus(`Importing ${importable[i].name}…`);
+      setDriveProgress({ current: i + 1, total: importable.length });
+      try {
+        await importRegFromDrive(importable[i].id, parentId);
+      } catch (e) {
+        setDriveStatus(apiError(e, `Failed to import ${importable[i].name}`));
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
+    qc.invalidateQueries({ queryKey: ["reg-files", parentId] });
+    setDriveImporting(false);
+    setDriveStatus(null);
+    setDriveProgress(null);
+    setShowDrive(false);
+  }
 
-  const updateRiskMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<RiskItemCreate> }) =>
-      updateRiskItem(id, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["risk-items"] });
-      setEditRisk(null);
-    },
-  });
+  function openNode(node: RegNode) {
+    if (node.node_type === "folder") {
+      setParentId(node.id);
+    } else if (node.is_editable && canWrite) {
+      setEditTarget(node);
+    } else {
+      downloadRegFile(node.id, node.name);
+    }
+  }
 
-  const deleteRiskMutation = useMutation({
-    mutationFn: (id: string) => deleteRiskItem(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["risk-items"] });
-      setConfirmDeleteRisk(null);
-    },
-  });
-
-  const openCapas = capas.filter((c) => c.status === "open" || c.status === "in_progress").length;
-  const draftDocs = docs.filter((d) => d.status === "draft").length;
-  const unacceptableRisks = risks.filter((r) => r.risk_acceptability === "unacceptable").length;
-  const alarpRisks = risks.filter((r) => r.risk_acceptability === "alarp").length;
+  const nodes = listing?.nodes ?? [];
+  const breadcrumb = listing?.breadcrumb ?? [{ id: null, name: "Regulatory" }];
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
-      {confirmDeleteRisk && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-xl">
-            <h2 className="mb-2 text-lg font-bold">Delete risk item?</h2>
-            <p className="mb-5 text-sm text-muted-foreground">This action cannot be undone.</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => deleteRiskMutation.mutate(confirmDeleteRisk)}
-                disabled={deleteRiskMutation.isPending}
-                className="rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground disabled:opacity-50"
-              >
-                {deleteRiskMutation.isPending ? "Deleting…" : "Delete"}
-              </button>
-              <button onClick={() => setConfirmDeleteRisk(null)} className="rounded-md border px-4 py-2 text-sm">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <div className="flex flex-col gap-5 p-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Regulatory</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {docs.length} documents · {draftDocs} draft
-            {openCapas > 0 && <span className="text-destructive ml-2">· {openCapas} open CAPAs</span>}
-            {unacceptableRisks > 0 && <span className="text-destructive ml-2">· {unacceptableRisks} unacceptable risks</span>}
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <ShieldAlert className="h-6 w-6" />
+            Regulatory Files
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Controlled document store. {canWrite ? "You can create, edit, move, and delete files." : "You have read-only access."}
           </p>
         </div>
-        <button
-          onClick={() => {
-            if (tab === "docs") setShowNewDoc(true);
-            else if (tab === "capa") setShowNewCapa(true);
-            else { setEditRisk(null); setShowNewRisk(true); }
-          }}
-          className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          {tab === "docs" ? "New Document" : tab === "capa" ? "New CAPA" : "New Risk"}
-        </button>
+        {canWrite && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowNewFolder(true)}
+              className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"
+            >
+              <FolderPlus className="h-4 w-4" /> New Folder
+            </button>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent">
+              <Upload className="h-4 w-4" /> Upload
+              <input type="file" multiple className="hidden" onChange={handleUpload} />
+            </label>
+            <button
+              onClick={() => setShowDrive(true)}
+              className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              <HardDrive className="h-4 w-4" /> Import from Drive
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-lg border bg-muted p-1 w-fit">
-        <button
-          onClick={() => setTab("docs")}
-          className={cn(
-            "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
-            tab === "docs" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Documents ({docs.length})
-        </button>
-        <button
-          onClick={() => setTab("capa")}
-          className={cn(
-            "rounded-md px-4 py-1.5 text-sm font-medium transition-colors flex items-center gap-1.5",
-            tab === "capa" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          CAPAs
-          {openCapas > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-bold text-destructive-foreground">
-              {openCapas}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setTab("risks")}
-          className={cn(
-            "rounded-md px-4 py-1.5 text-sm font-medium transition-colors flex items-center gap-1.5",
-            tab === "risks" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          Risk Register
-          {unacceptableRisks > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-bold text-destructive-foreground">
-              {unacceptableRisks}
-            </span>
-          )}
-        </button>
+      {/* Read-only banner */}
+      {!canWrite && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+          <Lock className="h-4 w-4 shrink-0" />
+          You have read-only access to regulatory files. Ask an administrator for write access.
+        </div>
+      )}
+
+      {/* Breadcrumb */}
+      <div className="flex flex-wrap items-center gap-1 text-sm">
+        {parentId !== null && (
+          <button
+            onClick={() => setParentId(breadcrumb[breadcrumb.length - 2]?.id ?? null)}
+            className="mr-1 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            title="Up one level"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        )}
+        {breadcrumb.map((c, i) => (
+          <span key={c.id ?? "root"} className="flex items-center gap-1">
+            {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+            <button
+              onClick={() => setParentId(c.id)}
+              className={cn(
+                "rounded px-1.5 py-0.5 hover:bg-accent",
+                i === breadcrumb.length - 1 ? "font-semibold" : "text-muted-foreground",
+              )}
+            >
+              {c.name}
+            </button>
+          </span>
+        ))}
       </div>
 
-      {/* Forms */}
-      {showNewDoc && <NewRegDocForm onClose={() => setShowNewDoc(false)} />}
-      {showNewCapa && <NewCAPAForm onClose={() => setShowNewCapa(false)} />}
-      {showNewRisk && docs.length === 0 && (
-        <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-          Create a regulatory document first to attach risk items to it.
-        </div>
+      {uploadError && (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{uploadError}</p>
       )}
-      {showNewRisk && docs.length > 0 && (
-        <RiskForm
-          docs={docs}
-          onSave={(docId, body) => createRiskMutation.mutate({ docId, body })}
-          onClose={() => setShowNewRisk(false)}
-          saving={createRiskMutation.isPending}
+
+      {/* Listing */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+          </div>
+        ) : nodes.length === 0 ? (
+          <div className="py-16 text-center text-muted-foreground">
+            <Folder className="mx-auto mb-3 h-8 w-8 opacity-30" />
+            <p className="text-sm font-medium">This folder is empty</p>
+            {canWrite && <p className="mt-1 text-xs">Create a folder, upload, or import from Drive.</p>}
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
+                <th className="px-4 py-2.5 text-left font-medium">Name</th>
+                <th className="hidden px-4 py-2.5 text-left font-medium sm:table-cell">Source</th>
+                <th className="hidden px-4 py-2.5 text-left font-medium md:table-cell">Size</th>
+                <th className="hidden px-4 py-2.5 text-left font-medium lg:table-cell">Modified</th>
+                <th className="px-4 py-2.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {nodes.map((node) => {
+                const Icon = node.node_type === "folder" ? Folder : fileIcon(node);
+                return (
+                  <tr
+                    key={node.id}
+                    onDoubleClick={() => openNode(node)}
+                    className="group cursor-pointer border-b last:border-0 hover:bg-accent/30"
+                  >
+                    <td className="px-4 py-2.5">
+                      <button onClick={() => openNode(node)} className="flex items-center gap-2.5 text-left">
+                        <Icon className={cn("h-5 w-5 shrink-0", node.node_type === "folder" ? "text-amber-500" : "text-muted-foreground")} />
+                        <span className="font-medium">{node.name}</span>
+                      </button>
+                    </td>
+                    <td className="hidden px-4 py-2.5 text-xs text-muted-foreground sm:table-cell">
+                      {node.node_type === "folder" ? "—"
+                        : node.source_type === "google_drive" ? "Drive"
+                        : node.source_type === "upload" ? "Upload" : "Local"}
+                    </td>
+                    <td className="hidden px-4 py-2.5 text-xs text-muted-foreground md:table-cell">
+                      {node.node_type === "folder" ? "—" : formatBytes(node.size_bytes)}
+                    </td>
+                    <td className="hidden px-4 py-2.5 text-xs text-muted-foreground lg:table-cell">
+                      {new Date(node.updated_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <RowMenu
+                        node={node}
+                        canWrite={canWrite}
+                        onDownload={() => downloadRegFile(node.id, node.name)}
+                        onEdit={() => setEditTarget(node)}
+                        onRename={() => setRenameTarget(node)}
+                        onMove={() => setMoveTarget(node)}
+                        onDelete={() => {
+                          if (confirm(`Delete "${node.name}"${node.node_type === "folder" ? " and everything in it" : ""}? This can't be undone.`)) {
+                            deleteMut.mutate(node.id);
+                          }
+                        }}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Files are stored locally. Source files mostly originate from the PMI Share Drive — use
+        “Import from Drive” to pull a working copy into this controlled store.
+      </p>
+
+      {/* Modals */}
+      {showNewFolder && <NewFolderModal parentId={parentId} onClose={() => setShowNewFolder(false)} />}
+      {renameTarget && <RenameModal node={renameTarget} parentId={parentId} onClose={() => setRenameTarget(null)} />}
+      {moveTarget && <MoveModal node={moveTarget} sourceParentId={parentId} onClose={() => setMoveTarget(null)} />}
+      {editTarget && <EditModal node={editTarget} parentId={parentId} onClose={() => setEditTarget(null)} />}
+      {showDrive && (
+        <DriveBrowser
+          onClose={() => { if (!driveImporting) setShowDrive(false); }}
+          onSelect={handleDriveImport}
+          importing={driveImporting}
+          importStatus={driveStatus}
+          importProgress={driveProgress}
         />
-      )}
-      {editRisk && (
-        <RiskForm
-          docs={docs}
-          initial={{
-            doc_id: editRisk.regulatory_doc_id ?? undefined,
-            hazard: editRisk.hazard,
-            hazardous_situation: editRisk.hazardous_situation,
-            harm: editRisk.harm,
-            probability_before: editRisk.probability_before,
-            severity_before: editRisk.severity_before,
-            mitigation_measures: editRisk.mitigation_measures,
-            probability_after: editRisk.probability_after,
-            severity_after: editRisk.severity_after,
-            risk_acceptability: editRisk.risk_acceptability,
-          }}
-          onSave={(_docId, body) => updateRiskMutation.mutate({ id: editRisk.id, body })}
-          onClose={() => setEditRisk(null)}
-          saving={updateRiskMutation.isPending}
-        />
-      )}
-
-      {/* Content */}
-      {tab === "docs" && (
-        <div className="space-y-2">
-          {docsLoading ? (
-            <div className="text-center text-muted-foreground py-12">Loading documents…</div>
-          ) : docs.length === 0 ? (
-            <div className="rounded-lg border border-dashed py-16 text-center text-muted-foreground">
-              <p className="font-medium">No regulatory documents yet</p>
-              <p className="text-sm mt-1">Add SOPs, work instructions, design history files, and more.</p>
-            </div>
-          ) : (
-            docs.map((doc) => <RegDocRow key={doc.id} doc={doc} />)
-          )}
-        </div>
-      )}
-
-      {tab === "capa" && (
-        <div className="space-y-2">
-          {capaLoading ? (
-            <div className="text-center text-muted-foreground py-12">Loading CAPAs…</div>
-          ) : capas.length === 0 ? (
-            <div className="rounded-lg border border-dashed py-16 text-center text-muted-foreground">
-              <p className="font-medium">No CAPAs recorded</p>
-              <p className="text-sm mt-1">Track corrective and preventive actions here.</p>
-            </div>
-          ) : (
-            capas.map((capa) => <CAPARow key={capa.id} capa={capa} />)
-          )}
-        </div>
-      )}
-
-      {tab === "risks" && (
-        <div className="space-y-4">
-          {risksLoading ? (
-            <div className="text-center text-muted-foreground py-12">Loading risk register…</div>
-          ) : risks.length === 0 ? (
-            <div className="rounded-lg border border-dashed py-16 text-center text-muted-foreground">
-              <p className="font-medium">No risk items recorded</p>
-              <p className="text-sm mt-1">Start your ISO 14971 risk register by adding risk items above.</p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: "Total Risks", value: risks.length, icon: Activity, color: "" },
-                  { label: "ALARP", value: alarpRisks, icon: CheckCircle2, color: alarpRisks > 0 ? "text-yellow-600" : "" },
-                  { label: "Unacceptable", value: unacceptableRisks, icon: AlertTriangle, color: unacceptableRisks > 0 ? "text-destructive" : "" },
-                ].map(({ label, value, icon: Icon, color }) => (
-                  <div key={label} className="rounded-lg border bg-card px-4 py-3 flex items-center gap-3">
-                    <Icon className={cn("h-5 w-5 shrink-0 text-muted-foreground", color)} />
-                    <div>
-                      <p className="text-xs text-muted-foreground">{label}</p>
-                      <p className={cn("text-2xl font-bold", color)}>{value}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <RiskMatrix items={risks} />
-              <div className="space-y-2">
-                {risks.map((item) => (
-                  <RiskItemRow
-                    key={item.id}
-                    item={item}
-                    docTitle={item.regulatory_doc_id ? docById[item.regulatory_doc_id]?.title : undefined}
-                    onEdit={() => { setShowNewRisk(false); setEditRisk(item); }}
-                    onDelete={() => setConfirmDeleteRisk(item.id)}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
       )}
     </div>
   );

@@ -158,3 +158,66 @@ class CAPA(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+
+class RegulatoryNode(Base):
+    """A node in the Regulatory file explorer — either a folder or a file.
+
+    Folders and files form a single self-referential tree (``parent_id``).
+    File bytes live on disk under the local regulatory store; ``stored_filename``
+    is the stable on-disk name (``{uuid}{ext}``) so renames/moves in the tree
+    never touch the filesystem.
+    """
+
+    __tablename__ = "regulatory_nodes"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("regulatory_nodes.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    # "folder" | "file"
+    node_type: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    # File-only fields (NULL for folders)
+    stored_filename: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    extension: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # Provenance: where the file came from
+    # "upload" | "google_drive" | "folder"
+    source_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    source_file_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_modified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    parent: Mapped[RegulatoryNode | None] = relationship(
+        "RegulatoryNode", remote_side="RegulatoryNode.id", back_populates="children"
+    )
+    children: Mapped[list[RegulatoryNode]] = relationship(
+        "RegulatoryNode",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    def __repr__(self) -> str:
+        return f"<RegulatoryNode {self.node_type} {self.name!r}>"
