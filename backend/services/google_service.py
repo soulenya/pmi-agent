@@ -365,12 +365,24 @@ def drive_get_content(file_id: str) -> dict:
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/msword",
     ):
-        # For Word docs, export as plain text via Google's conversion
-        try:
-            raw = svc.files().export(fileId=file_id, mimeType="text/plain").execute()
-            content = raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw)
-        except Exception:
-            content = ""
+        # Uploaded Word docs are NOT Google-native, so files().export() returns
+        # 403 fileNotExportable. Download the raw bytes and parse locally.
+        raw_bytes = svc.files().get_media(fileId=file_id).execute()
+        if isinstance(raw_bytes, bytes):
+            try:
+                import io
+                import docx
+                document = docx.Document(io.BytesIO(raw_bytes))
+                parts = [p.text for p in document.paragraphs if p.text.strip()]
+                # Include table cell text, which is common in cover letters/forms.
+                for table in document.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            if cell.text.strip():
+                                parts.append(cell.text)
+                content = "\n".join(parts)
+            except Exception:
+                content = ""
 
     return {
         "id": file_id,
