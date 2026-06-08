@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Folder, FolderPlus, Upload, FileText, FileSpreadsheet, FileImage,
@@ -274,9 +274,31 @@ function RowMenu({ node, canWrite, onEdit, onRename, onMove, onDelete, onDownloa
   onEdit: () => void; onRename: () => void; onMove: () => void; onDelete: () => void; onDownload: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  // Anchor the menu to the button in viewport coordinates so it isn't clipped
+  // by the listing card's `overflow-hidden`.
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return;
+    const update = () => {
+      const r = btnRef.current!.getBoundingClientRect();
+      const MENU_W = 160; // w-40
+      setPos({ top: r.bottom + 4, left: Math.max(8, r.right - MENU_W) });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open]);
+
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
         className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
       >
@@ -284,8 +306,12 @@ function RowMenu({ node, canWrite, onEdit, onRename, onMove, onDelete, onDownloa
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
-          <div className="absolute right-0 z-20 mt-1 w-40 rounded-md border bg-popover py-1 shadow-lg" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+          <div
+            className="fixed z-50 w-40 rounded-md border bg-popover py-1 shadow-lg"
+            style={{ top: pos.top, left: pos.left }}
+            onClick={(e) => e.stopPropagation()}
+          >
             {node.node_type === "file" && (
               <MenuItem icon={<Download className="h-3.5 w-3.5" />} label="Download" onClick={() => { setOpen(false); onDownload(); }} />
             )}
