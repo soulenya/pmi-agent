@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 34;
+export const BUILD_NUMBER = 35;
 export const BUILD_DATE = "2026-06-08";
 
 export interface ChangelogEntry {
@@ -15,7 +15,23 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    build: 34,
+    build: 35,
+    date: "2026-06-08",
+    title: "Milestone v0.9.0 — Drive auto-update detection, KB polish, copy fix",
+    changes: [
+      "Automatic Google Drive document update detection: background scan at 06:00/12:00/18:00 plus a manual 'Check for updates' button",
+      "Detects modified, renamed, and deleted source files and flags them for human approval (no auto-overwrite) — Apply update re-imports, Dismiss re-baselines",
+      "Records Drive source linkage on import; notifies the owner when a linked file changes",
+      "Knowledge Base: in-modal progress bar and per-file status during Drive import",
+      "Fix Drive import of uploaded Word files: parse .docx with python-docx (export() returns 403 for non-Google files)",
+      "Fix GET /documents 500: add limit property to pagination params",
+      "Fix delete and edit not persisting: routes now commit (get_db never auto-commits)",
+      "Fix Drive-imported content mis-parsed: use a text extension so ingestion doesn't PDF-parse plain text",
+      "Surface real Drive import/upload error messages instead of swallowing them",
+      "Fix email draft generation 500: type EmailDraftOut timestamps as datetime",
+      "Enable text selection/copy in the desktop window (pywebview disabled it by default)",
+    ],
+  },
     date: "2026-06-08",
     title: "Knowledge Base & Search — end-to-end fixes",
     changes: [
