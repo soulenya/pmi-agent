@@ -1,7 +1,7 @@
 # Little Gerry — Developer Guide
 **AI Executive Assistant for Precisian Medical Instruments**
 
-Build 33 · June 2026
+Build 39 · June 2026
 
 ---
 
@@ -517,7 +517,7 @@ All frames are JSON strings:
 
 - OAuth 2.0 flow via `google-auth-oauthlib`
 - Credentials stored in `backend/google_token.json` (gitignored)
-- OAuth client config in `backend/google_credentials.json`
+- OAuth client config in `backend/google_credentials.json` — **gitignored**; it holds the OAuth client secret, so it is never committed. The installer bundles it from the local working copy at build time (`installer/setup.iss`). If the client secret is rotated in Google Cloud, replace this file locally and rebuild the installer; existing installs keep their own copy (the auto-update `git reset` only touches tracked files).
 - `get_credentials()` — returns valid `Credentials` or `None`; auto-refreshes if expired
 
 ### Scopes requested
@@ -575,7 +575,8 @@ The executor checks `get_credentials() is not None` and injects a note into the 
 
 | Router | Prefix | Key endpoints |
 |---|---|---|
-| `auth.py` | `/api/auth` | `POST /login`, `POST /refresh`, `POST /logout` |
+| `auth.py` | `/auth` | Google SSO only: `POST /google/initiate` → `{auth_id}`, `GET /google/poll/{auth_id}` (polls the local OAuth flow). On first successful sign-in the user is **auto-provisioned** (owner → `admin`, everyone else → full-access `member` with `can_write_regulatory=True`); domain restricted to `pmi-llc.com` / `precisianmedical.com`. `POST /refresh`, `POST /logout` |
+| `users.py` | `/users` | `GET /`, `PATCH /{id}` (update role / active / regulatory write), `POST /invite` (admin-only — emails an installer link via Gmail) |
 | `settings.py` | `/settings` | `GET /`, `PUT /`, `GET /health`, `GET /ai-options`, `POST /reindex` (SSE) |
 | `documents.py` | `/documents` | `POST /upload`, `GET /`, `DELETE /{id}`, `POST /{id}/reembed` |
 | `search.py` | `/search` | `POST /` (semantic search) |
@@ -589,6 +590,16 @@ The executor checks `get_credentials() is not None` and injects a note into the 
 | `google_integration.py` | `/google` | `GET /status`, `POST /connect`, `DELETE /disconnect`, `POST /drive/import` |
 | `health.py` | `/health` | `GET /` (full system check: DB, LLM, embedding, disk) |
 | `update.py` | `/update` | `GET /check`, `POST /apply` |
+
+### Auto-update on launch
+
+`launcher.py` runs `_auto_update()` as step 0 of `_start_services()`, before anything else:
+
+1. Skips if there's no `.git` checkout, or if `git status --porcelain` is non-empty (protects developer machines with uncommitted work).
+2. `git fetch origin`, then compares `HEAD` vs `origin/master`.
+3. If behind: `git reset --hard origin/master`, `uv sync` (backend deps), `npm install` (frontend deps).
+
+After PostgreSQL is ready (and before the backend starts), the launcher always runs `alembic upgrade head` so the schema matches the code on every launch (a cheap no-op when current). The in-app `update.py` router / `scripts/update.ps1` remain available for on-demand updates.
 
 ---
 
@@ -658,8 +669,8 @@ The installer script is `installer/setup.iss`. It:
 
 ```typescript
 // frontend/src/version.ts
-export const BUILD_NUMBER = 34;  // ← increment (current: 33)
-export const BUILD_DATE = "2026-06-07";
+export const BUILD_NUMBER = 40;  // ← increment (current: 39)
+export const BUILD_DATE = "2026-06-08";
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
@@ -700,6 +711,8 @@ export const CHANGELOG: ChangelogEntry[] = [
 - Rate limiting on all API endpoints via `slowapi`
 - CORS restricted to localhost origins
 - Google OAuth tokens stored locally; never transmitted to third parties
+- Sign-in is Google SSO only (no passwords) and restricted to approved Workspace domains; accounts auto-provision on first sign-in
+- `backend/google_credentials.json` (OAuth client secret) is gitignored and bundled only at installer build time — rotate the secret in Google Cloud if exposed
 - All AI actions logged immutably in `audit_events` table
 
 ---
