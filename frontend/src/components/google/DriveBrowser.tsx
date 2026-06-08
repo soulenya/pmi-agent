@@ -31,9 +31,12 @@ function isImportable(mime: string) {
 interface Props {
   onSelect: (files: DriveItem[]) => void;
   onClose: () => void;
+  importing?: boolean;
+  importStatus?: string | null;
+  importProgress?: { current: number; total: number } | null;
 }
 
-export function DriveBrowser({ onSelect, onClose }: Props) {
+export function DriveBrowser({ onSelect, onClose, importing = false, importStatus, importProgress }: Props) {
   const [folderStack, setFolderStack] = useState<Array<{ id: string; name: string }>>([
     { id: "root", name: "My Drive" },
   ]);
@@ -163,7 +166,7 @@ export function DriveBrowser({ onSelect, onClose }: Props) {
                 </button>
               )}
             </div>
-            <button onClick={onClose} className="rounded p-1 hover:bg-muted">
+            <button onClick={onClose} disabled={importing} className="rounded p-1 hover:bg-muted disabled:opacity-40 disabled:hover:bg-transparent">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -275,29 +278,52 @@ export function DriveBrowser({ onSelect, onClose }: Props) {
             )}
           </div>
 
-          {/* Footer — import button */}
-          <div className="border-t px-4 py-3 flex items-center justify-between gap-3">
-            <span className="text-xs text-muted-foreground">
-              {selected.size > 0
-                ? `${selected.size} file${selected.size > 1 ? "s" : ""} selected`
-                : "Click files to select them"}
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={onClose}
-                className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                disabled={selected.size === 0}
-                onClick={() => onSelect(Array.from(selected.values()))}
-                className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
-              >
-                Import {selected.size > 0 ? `${selected.size} file${selected.size > 1 ? "s" : ""}` : ""}
-              </button>
+          {/* Footer — import button or progress */}
+          {importing ? (
+            <div className="border-t px-4 py-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-foreground">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                <span className="truncate">{importStatus ?? "Importing…"}</span>
+              </div>
+              <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                {/* completed-file fill (determinate) */}
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-300"
+                  style={{
+                    width:
+                      importProgress && importProgress.total > 0
+                        ? `${(importProgress.current / importProgress.total) * 100}%`
+                        : "0%",
+                  }}
+                />
+                {/* active-processing shimmer (indeterminate) */}
+                <div className="absolute inset-y-0 w-2/5 animate-indeterminate-progress rounded-full bg-primary/50" />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="border-t px-4 py-3 flex items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">
+                {selected.size > 0
+                  ? `${selected.size} file${selected.size > 1 ? "s" : ""} selected`
+                  : "Click files to select them"}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={onClose}
+                  className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={selected.size === 0}
+                  onClick={() => onSelect(Array.from(selected.values()))}
+                  className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                >
+                  Import {selected.size > 0 ? `${selected.size} file${selected.size > 1 ? "s" : ""}` : ""}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

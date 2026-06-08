@@ -44,6 +44,15 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      keyframes: {
+        "indeterminate-progress": {
+          "0%": { left: "-40%" },
+          "100%": { left: "100%" },
+        },
+      },
+      animation: {
+        "indeterminate-progress": "indeterminate-progress 1.1s ease-in-out infinite",
+      },
     },
   },
   plugins: [require("@tailwindcss/typography")],
