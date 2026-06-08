@@ -7,6 +7,7 @@ from models.db.briefing import Briefing
 from models.db.conversation import AgentRun, Conversation, Message
 from models.db.document import Document, DocumentCategory, DocumentChunk
 from models.db.email_draft import EmailDraft
+from models.db.feedback import Feedback
 from models.db.google import GoogleCredential, GoogleSyncState
 from models.db.meeting import MeetingNote
 from models.db.notification import Notification
@@ -45,4 +46,5 @@ __all__ = [
     "AuditEvent",
     "MeetingNote",
     "EmailDraft",
+    "Feedback",
 ]

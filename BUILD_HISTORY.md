@@ -25,6 +25,7 @@ git push origin master --force  # only if you want to revert remote
 
 | Build | SHA       | Date       | Description |
 |-------|-----------|------------|-------------|
+| **37** | `PENDING` | 2026-06-08 | **In-app feedback** — top-bar Feedback button (Bug/Feature + text) → `feedback` table + owner notifications; `FEEDBACK_SUBMITTED` type; migration 005; fix `GET /notifications` 500 (`entity_id` UUID); migrations run as `pmi` + `OWNER TO pmi_app` |
 | **36** | `9358efe` | 2026-06-08 | **Regulatory file explorer + per-user write permission** — folder/file tree with create/upload/import-from-Drive/edit/rename/move/delete; `can_write_regulatory` flag + `require_regulatory_write`; migration 004; fix Alembic table ownership (env.py uses app role) |
 | **35 🏷 `v0.9.0`** | `28fb46d` | 2026-06-08 | **Milestone build** — Enable text selection/copy in desktop window (pywebview `text_select=True`) |
 | 35    | `c9f3f11` | 2026-06-08 | feat: automatic Google Drive document update detection (background scan 06:00/12:00/18:00 + manual check; flag modified/renamed/deleted for human approval; apply/dismiss; migration 003) |

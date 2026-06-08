@@ -8,6 +8,7 @@ import {
   AlertCircle,
   FileText,
   Info,
+  MessageSquare,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   task_assigned: <CheckCheck className="h-3.5 w-3.5 text-blue-500" />,
   document_ingested: <FileText className="h-3.5 w-3.5 text-green-500" />,
   briefing_ready: <Info className="h-3.5 w-3.5 text-primary" />,
+  feedback_submitted: <MessageSquare className="h-3.5 w-3.5 text-purple-500" />,
 };
 
 function timeAgo(iso: string): string {

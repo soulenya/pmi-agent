@@ -36,6 +36,7 @@ from routers.emails import router as emails_router
 from routers.update import router as update_router
 from routers.google_integration import router as google_router
 from routers.files import router as files_router
+from routers.feedback import router as feedback_router
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -271,6 +272,7 @@ def create_app() -> FastAPI:
     app.include_router(update_router)
     app.include_router(google_router)
     app.include_router(files_router)
+    app.include_router(feedback_router)
 
     # ── WebSocket: real-time chat stream ─────────────────────────────────────
     @app.websocket("/ws/chat/{conversation_id}")

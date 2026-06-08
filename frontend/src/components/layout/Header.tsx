@@ -4,6 +4,7 @@ import { logout as apiLogout } from "@/api/auth";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { ChatSidebarToggle } from "./ChatSidebar";
+import { FeedbackButton } from "./FeedbackButton";
 
 interface HeaderProps {
   onOpenPalette: () => void;
@@ -44,6 +45,9 @@ export function Header({ onOpenPalette }: HeaderProps) {
 
         {/* Chat sidebar toggle */}
         <ChatSidebarToggle />
+
+        {/* Feedback */}
+        <FeedbackButton />
 
         {/* Notifications */}
         <NotificationDropdown />

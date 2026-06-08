@@ -4,6 +4,18 @@
 
 ## Changelog
 
+### Build 37 — 2026-06-08
+**In-app feedback — report bugs / request features from the top bar**
+
+- **Feedback button in the top bar** (new `frontend/src/components/layout/FeedbackButton.tsx`): opens a modal with a **Bug / Feature** toggle and a text box so any user can report an issue or request a feature
+- **Routed to notifications**: each submission is persisted (new `feedback` table) and creates a notification for the configured owner (`feedback_recipient_email`, falling back to all admins) — so feedback from any current or future user shows up in the Notifications tab and bell dropdown, with a purple message icon
+  - New backend: `Feedback` model, `POST /feedback` router, `FEEDBACK_SUBMITTED` notification type, migration `005`
+  - Best-effort real-time WebSocket push to connected recipients; otherwise picked up by the existing 30s poll
+- **Bug fix — Notifications 500**: `GET /notifications` returned a `ResponseValidationError` whenever a notification linked to an entity, because `NotificationOut.entity_id` was typed `str` but the DB returns a `UUID`; corrected to `UUID`
+- **Bug fix — migration DB role**: migrations now run as the privileged `pmi` role (which has `CREATE`) and each new table hands ownership to the runtime `pmi_app` role via `ALTER TABLE ... OWNER TO pmi_app`, preventing `permission denied` 500s on new endpoints (reverts the Build 36 env.py approach, which made migrations run as the unprivileged app role)
+
+---
+
 ### Build 36 — 2026-06-08
 **Regulatory file explorer + per-user write permissions**
 
@@ -395,7 +407,8 @@ Tagged as milestone **`v0.9.0`** (commit `28fb46d`) — core features working we
 
 | # | Area | Description | Resolved |
 |---|------|-------------|---------|
-| R20 | Database / Migrations | New tables created by Alembic were owned by the `pmi` superuser, not the app's `pmi_app` role → `permission denied` 500s on new endpoints; env.py now uses the app sync URL | Build 36 |
+| R21 | Notifications | `GET /notifications` 500'd (`ResponseValidationError`) whenever a notification linked to an entity — `entity_id` typed `str` not `UUID` | Build 37 |
+| R20 | Database / Migrations | New tables created by Alembic were owned by the `pmi` superuser, not the app's `pmi_app` role → `permission denied` 500s on new endpoints; migrations now run as `pmi` and `ALTER ... OWNER TO pmi_app` per table (refined in Build 37) | Build 36 |
 | R11 | KB / Upload | Upload and Drive-import routes never committed — documents rolled back, KB stayed empty | Build 34 |
 | R12 | KB / Upload | `MissingGreenlet` 500 on upload — doc not refreshed before timestamp serialization | Build 34 |
 | R13 | Search | No results — repository used undefined `self._session`; vector distance not typed | Build 34 |
