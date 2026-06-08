@@ -71,3 +71,7 @@ backend/generated_files/*
 backend/migrations/__pycache__/
 backend/google_token.json 
 backend/google_credentials.json
+
+# Code-signing private key — NEVER commit. Public .cer is safe to share.
+*.pfx
+installer/cert/LittleGerry-Signing.pfx
