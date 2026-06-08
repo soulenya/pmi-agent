@@ -127,6 +127,7 @@ async def upload_document(
             detail=f"Ingestion failed: {exc}",
         )
 
+    await db.commit()
     return ApiResponse.ok(_doc_out(doc))
 
 

@@ -279,6 +279,10 @@ class DocumentIngestionService:
             doc.chunk_count = len(chunks)
             doc.status = "ready"
             await self._db.flush()
+            # Reload server-generated columns (created_at/updated_at) inside the
+            # async context so response serialization doesn't trigger a lazy
+            # load outside a greenlet (MissingGreenlet -> 500).
+            await self._db.refresh(doc)
 
         except Exception:
             doc.status = "failed"
