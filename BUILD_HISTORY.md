@@ -19,6 +19,14 @@ git push origin master --force  # only if you want to revert remote
 
 | Build | SHA       | Date       | Description |
 |-------|-----------|------------|-------------|
+| **34** | `f878479` | 2026-06-08 | **KB & Search end-to-end fixes** — persist uploads/imports (missing `db.commit()`); refresh doc before serialize (MissingGreenlet 500) |
+| 34    | `990436e` | 2026-06-08 | fix(search): correct `self._session`→`self.session`; typed `cosine_distance` in vector_search |
+| 34    | `c0e3aaa` | 2026-06-07 | fix: add missing `self._db.add(doc)` in ingestion — root cause of all import failures; shared drive browsing (corpora+driveId); drive_search across all drives |
+| 34    | `d1f3c43` | 2026-06-07 | fix: DocumentOut schema fields (file_extension→file_name, created_by_id→created_by); drop token_count; doc.filename→doc.file_name; Voyage retry; axios timeout 30s→120s |
+| 34    | `60f4305` | 2026-06-07 | fix: knowledge base ingestion — 5 ORM bugs + vector dimension mismatch + Voyage rate-limit retry |
+| 34    | `807703b` | 2026-06-07 | fix: embedding model mismatch — per-provider default model resolution (no nomic-embed-text to Voyage/OpenAI) |
+| 34    | `7dec9ae` | 2026-06-07 | fix: Google Calendar query scoped to viewed month |
+| 34    | `ff00d9f` | 2026-06-07 | docs: update BUILD_HISTORY — ChatSidebar fix, BUILD_HISTORY creation, Calendar fix |
 | 33+   | `54e6dbb` | 2026-06-07 | fix: Google Calendar maxResults 50→500; days_behind 30→7 — recurring events no longer swamp the result set |
 | 33+   | `8f2abbe` | 2026-06-07 | docs: add BUILD_HISTORY.md rollback reference |
 | 33+   | `8d08b23` | 2026-06-07 | fix: ChatSidebar WebSocket — wrong URL, send format, broken handler; add streaming bubble |

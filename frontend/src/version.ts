@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 33;
-export const BUILD_DATE = "2026-06-07";
+export const BUILD_NUMBER = 34;
+export const BUILD_DATE = "2026-06-08";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,21 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 34,
+    date: "2026-06-08",
+    title: "Knowledge Base & Search — end-to-end fixes",
+    changes: [
+      "Fix Knowledge Base uploads silently failing: upload and Drive-import routes never committed the transaction, so documents rolled back and the KB stayed empty",
+      "Fix 500 on upload: refresh document after ingest so server-generated timestamps serialize without a MissingGreenlet error",
+      "Fix semantic search returning no results: corrected repository session attribute and switched to typed pgvector cosine_distance",
+      "Fix Google shared-drive browsing: list shared-drive roots via corpora+driveId; Drive search now spans all drives",
+      "Fix ingestion root cause: document was never added to the session, leaving null IDs and orphaned files",
+      "Voyage embeddings: per-provider default model resolution, batch embedding, and rate-limit retry; axios timeout raised to 120s",
+      "Google Calendar: scope events to the viewed month; raise maxResults so recurring events no longer swamp results",
+      "Verified live end-to-end over HTTP: PC upload, Drive import from PMI Share Drive, and semantic search all working",
+    ],
+  },
   {
     build: 33,
     date: "2026-06-07",
