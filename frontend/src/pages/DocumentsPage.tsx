@@ -446,6 +446,7 @@ export function DocumentsPage() {
   const [showDriveBrowser, setShowDriveBrowser] = useState(false);
   const [driveImportStatus, setDriveImportStatus] = useState<string | null>(null);
   const [driveImporting, setDriveImporting] = useState(false);
+  const [driveImportProgress, setDriveImportProgress] = useState<{ current: number; total: number } | null>(null);
   const [activeCategoryId, setActiveCategoryId] = useState<string | undefined>();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [editDoc, setEditDoc] = useState<Document | null>(null);
@@ -513,6 +514,7 @@ export function DocumentsPage() {
 
   async function handleDriveImport(items: DriveItem[]) {
     setDriveImporting(true);
+    setDriveImportProgress({ current: 0, total: items.length });
     setDriveImportStatus(`Importing 0 of ${items.length}…`);
     let succeeded = 0;
     const failures: string[] = [];
@@ -525,9 +527,11 @@ export function DocumentsPage() {
       } catch (e) {
         failures.push(`${item.name}: ${getErrorMessage(e)}`);
       }
+      setDriveImportProgress({ current: i + 1, total: items.length });
     }
     queryClient.invalidateQueries({ queryKey: ["documents"] });
     setDriveImporting(false);
+    setDriveImportProgress(null);
     setShowDriveBrowser(false);
     const msg = failures.length === 0
       ? `Imported ${succeeded} file${succeeded === 1 ? "" : "s"} successfully.`
@@ -663,6 +667,9 @@ export function DocumentsPage() {
           <DriveBrowser
             onClose={() => { if (!driveImporting) setShowDriveBrowser(false); }}
             onSelect={handleDriveImport}
+            importing={driveImporting}
+            importStatus={driveImportStatus}
+            importProgress={driveImportProgress}
           />
         )}
 
