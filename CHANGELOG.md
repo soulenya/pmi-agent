@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### Build 39 — 2026-06-08
+**Email invites + Google sign-in onboarding + automatic updates**
+
+- **Invite by email** (new `POST /users/invite`, admin-only): sends the invitee a message (via Gmail) with a link to download the installer and instructions to sign in with Google — no passwords. The Users-page Invite dialog is now just **Email + optional Name + optional personal note** (role/password/regulatory fields removed)
+- **Auto-provisioning on first Google sign-in** (`routers/auth.py`): when someone signs in with Google for the first time their account is created automatically — the owner (`settings.admin_email`) becomes **admin**, everyone else becomes a **full-access member** (`can_write_regulatory=True`). A random password is set internally since sign-in is SSO-only; audited as `user.auto_provisioned`
+- **New settings** (`config.py`): `admin_email` (who is the admin) and `installer_download_url` (link included in invite emails)
+- **Automatic updates on launch** (`launcher.py`): on startup the app checks GitHub and, if a newer version exists, pulls it (`git reset --hard origin/master`), refreshes dependencies (`uv sync`, `npm install`), and always applies pending database migrations (`alembic upgrade head`). Skipped on a dirty working tree so developer machines aren't disturbed
+
 ### Build 38 — 2026-06-08
 **First-use setup wizard — guided one-time onboarding**
 

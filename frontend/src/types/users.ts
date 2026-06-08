@@ -24,3 +24,15 @@ export interface UpdateUserRequest {
   role?: string;
   can_write_regulatory?: boolean;
 }
+
+export interface InviteRequest {
+  email: string;
+  display_name?: string;
+  message?: string;
+}
+
+export interface InviteResult {
+  sent: boolean;
+  email: string;
+  message: string;
+}

@@ -80,7 +80,11 @@ def _run_sso_flow(auth_id: str) -> None:
             )
 
         with _sso_lock:
-            _sso_sessions[auth_id] = {"status": "done", "email": email}
+            _sso_sessions[auth_id] = {
+                "status": "done",
+                "email": email,
+                "name": claims.get("name", ""),
+            }
 
     except Exception as exc:
         with _sso_lock:
@@ -173,10 +177,34 @@ async def google_poll(
     user = await auth_service.user_repo.get_by_email(email)
 
     if user is None:
-        return {
-            "status": "error",
-            "message": f"No account found for '{email}'. Contact your administrator.",
-        }
+        # First sign-in on this machine — auto-provision the account (local-first:
+        # this is the user's own copy). The owner becomes admin; everyone else is a
+        # full-access member. SSO-only accounts get an unusable random password.
+        import secrets as _secrets
+        from services.auth.service import hash_password
+
+        role = "admin" if email == settings.admin_email.lower() else "member"
+        display_name = (session_data.get("name") or "").strip() or email.split("@")[0]
+        user = User(
+            email=email,
+            display_name=display_name,
+            hashed_password=hash_password(_secrets.token_urlsafe(32)),
+            role=role,
+            is_active=True,
+            can_write_regulatory=True,  # full access for everyone
+            onboarding_complete=False,
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+        await audit.log(
+            "user.auto_provisioned",
+            actor_id=user.id,
+            entity_type="user",
+            entity_id=user.id,
+            payload={"email": email, "role": role},
+        )
+
     if not user.is_active:
         return {
             "status": "error",

@@ -25,6 +25,7 @@ git push origin master --force  # only if you want to revert remote
 
 | Build | SHA       | Date       | Description |
 |-------|-----------|------------|-------------|
+| **39** | `PENDING` | 2026-06-08 | **Email invites + SSO auto-provision + auto-update** — admin-only `POST /users/invite` (Gmail link to installer); accounts auto-created on first Google sign-in (owner→admin, others→full-access member); `admin_email` + `installer_download_url` settings; `launcher.py` pulls latest on launch (`git reset --hard origin/master`, `uv sync`, `npm install`) + always runs `alembic upgrade head` (skips on dirty tree) |
 | **38** | `c8942c5` | 2026-06-08 | **First-use setup wizard** — one-time guided onboarding (welcome, why Docker/Python, connect Claude + Voyage with pre-set defaults, optional Google, usage tour, roles); `users.onboarding_complete` flag + migration `006` + `POST /settings/onboarding/complete`; replaces `FirstRunSetup` |
 | **37** | `d7a164b` | 2026-06-08 | **In-app feedback** — top-bar Feedback button (Bug/Feature + text) → `feedback` table + owner notifications; `FEEDBACK_SUBMITTED` type; migration 005; fix `GET /notifications` 500 (`entity_id` UUID); migrations run as `pmi` + `OWNER TO pmi_app` |
 | **36** | `9358efe` | 2026-06-08 | **Regulatory file explorer + per-user write permission** — folder/file tree with create/upload/import-from-Drive/edit/rename/move/delete; `can_write_regulatory` flag + `require_regulatory_write`; migration 004; fix Alembic table ownership (env.py uses app role) |
@@ -120,4 +121,4 @@ cd backend && .venv\Scripts\python.exe -m alembic downgrade 615f52d537b5
 
 ---
 
-*Updated: 2026-06-08 — Build 38 (first-use setup wizard). Milestone tag: `v0.9.0` (commit 28fb46d).*
+*Updated: 2026-06-08 — Build 39 (email invites + SSO auto-provision + auto-update). Milestone tag: `v0.9.0` (commit 28fb46d).*
