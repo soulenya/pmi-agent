@@ -32,6 +32,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Enable text selection/copy in the desktop window (pywebview disabled it by default)",
     ],
   },
+  {
+    build: 34,
     date: "2026-06-08",
     title: "Knowledge Base & Search — end-to-end fixes",
     changes: [
