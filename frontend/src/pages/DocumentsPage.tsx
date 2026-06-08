@@ -8,6 +8,9 @@ import {
   deleteDocument,
   listChunks,
   reembed,
+  checkDocumentUpdates,
+  applyDocumentUpdate,
+  dismissDocumentUpdate,
 } from "@/api/documents";
 import type { Document, DocumentChunk } from "@/types/documents";
 import { DocumentViewer } from "@/components/DocumentViewer";
@@ -29,6 +32,9 @@ import {
   Pencil,
   X,
   Eye,
+  DownloadCloud,
+  AlertTriangle,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import axios from "axios";
@@ -61,6 +67,13 @@ const STATUS_LABEL: Record<Document["status"], string> = {
   ready: "Ready",
   processing: "Processing…",
   failed: "Failed",
+};
+
+// Sync-status badge styling/labels for Drive-linked documents.
+const SYNC_BADGE: Record<string, { label: string; className: string }> = {
+  modified: { label: "Update available", className: "bg-amber-100 text-amber-800" },
+  renamed: { label: "Renamed in source", className: "bg-blue-100 text-blue-800" },
+  deleted: { label: "Source deleted", className: "bg-red-100 text-red-800" },
 };
 
 function formatBytes(bytes: number | null) {
@@ -346,6 +359,10 @@ function DocumentRow({
   onReembed,
   onEdit,
   onView,
+  onApplyUpdate,
+  onDismissUpdate,
+  applyingUpdate,
+  dismissingUpdate,
 }: {
   doc: Document;
   categories: { id: string; name: string }[];
@@ -353,12 +370,23 @@ function DocumentRow({
   onReembed: () => void;
   onEdit: () => void;
   onView: () => void;
+  onApplyUpdate: () => void;
+  onDismissUpdate: () => void;
+  applyingUpdate: boolean;
+  dismissingUpdate: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const categoryName = categories.find((c) => c.id === doc.category_id)?.name;
+  const sync = doc.sync_status && doc.sync_status !== "current"
+    ? SYNC_BADGE[doc.sync_status]
+    : undefined;
+  const busy = applyingUpdate || dismissingUpdate;
 
   return (
-    <div className="rounded-lg border bg-card overflow-hidden">
+    <div className={cn(
+      "rounded-lg border bg-card overflow-hidden",
+      sync && "border-amber-300",
+    )}>
       <div className="flex items-center gap-3 px-4 py-3">
         {/* Expand toggle */}
         <button
@@ -390,6 +418,15 @@ function DocumentRow({
             {doc.is_regulated && (
               <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700">
                 Regulated
+              </span>
+            )}
+            {sync && (
+              <span className={cn(
+                "flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+                sync.className,
+              )}>
+                <AlertTriangle className="h-3 w-3" />
+                {sync.label}
               </span>
             )}
           </div>
@@ -432,6 +469,39 @@ function DocumentRow({
           </button>
         </div>
       </div>
+
+      {/* Source-update banner */}
+      {sync && (
+        <div className="flex items-center gap-3 border-t border-amber-200 bg-amber-50 px-4 py-2.5">
+          <p className="min-w-0 flex-1 text-xs text-amber-800">
+            {doc.sync_detail ?? "The source file changed in Google Drive."}
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            {doc.sync_status !== "deleted" && (
+              <button
+                onClick={onApplyUpdate}
+                disabled={busy}
+                className="flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {applyingUpdate
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <DownloadCloud className="h-3.5 w-3.5" />}
+                {applyingUpdate ? "Applying…" : "Apply update"}
+              </button>
+            )}
+            <button
+              onClick={onDismissUpdate}
+              disabled={busy}
+              className="flex items-center gap-1.5 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+            >
+              {dismissingUpdate
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Check className="h-3.5 w-3.5" />}
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {expanded && <ChunkDrawer docId={doc.id} />}
     </div>
@@ -501,6 +571,47 @@ export function DocumentsPage() {
 
   const reembedMutation = useMutation({
     mutationFn: (id: string) => reembed(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+  });
+
+  const [checkStatus, setCheckStatus] = useState<string | null>(null);
+
+  const checkUpdatesMutation = useMutation({
+    mutationFn: checkDocumentUpdates,
+    onSuccess: (summary) => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      if (summary.skipped === "not_connected") {
+        setCheckStatus("Connect your Google account to check Drive documents.");
+      } else if (summary.changed === 0) {
+        setCheckStatus(`All ${summary.checked} linked document(s) are up to date.`);
+      } else {
+        setCheckStatus(
+          `${summary.changed} document(s) have source changes. Review the flagged items below.`,
+        );
+      }
+      setTimeout(() => setCheckStatus(null), 8000);
+    },
+    onError: (e: Error) => {
+      setCheckStatus(`Update check failed: ${getErrorMessage(e)}`);
+      setTimeout(() => setCheckStatus(null), 8000);
+    },
+  });
+
+  const applyUpdateMutation = useMutation({
+    mutationFn: (id: string) => applyDocumentUpdate(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+    onError: (e: Error) => {
+      setCheckStatus(`Apply update failed: ${getErrorMessage(e)}`);
+      setTimeout(() => setCheckStatus(null), 8000);
+    },
+  });
+
+  const dismissUpdateMutation = useMutation({
+    mutationFn: (id: string) => dismissDocumentUpdate(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
@@ -638,6 +749,19 @@ export function DocumentsPage() {
           <div className="flex items-center gap-2">
             {googleStatus?.connected && (
               <button
+                onClick={() => checkUpdatesMutation.mutate()}
+                disabled={checkUpdatesMutation.isPending}
+                className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+                title="Check Drive-linked documents for source changes"
+              >
+                {checkUpdatesMutation.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <RefreshCw className="h-4 w-4" />}
+                Check for updates
+              </button>
+            )}
+            {googleStatus?.connected && (
+              <button
                 onClick={() => setShowDriveBrowser(true)}
                 className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
               >
@@ -659,6 +783,13 @@ export function DocumentsPage() {
           <div className="flex items-center gap-2 rounded-md border bg-card px-4 py-2 text-sm text-muted-foreground">
             {driveImporting && <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />}
             {driveImportStatus}
+          </div>
+        )}
+
+        {/* Update-check status toast */}
+        {checkStatus && (
+          <div className="flex items-center gap-2 rounded-md border bg-card px-4 py-2 text-sm text-muted-foreground">
+            {checkStatus}
           </div>
         )}
 
@@ -715,6 +846,10 @@ export function DocumentsPage() {
               onReembed={() => reembedMutation.mutate(doc.id)}
               onEdit={() => setEditDoc(doc)}
               onView={() => setViewDoc(doc)}
+              onApplyUpdate={() => applyUpdateMutation.mutate(doc.id)}
+              onDismissUpdate={() => dismissUpdateMutation.mutate(doc.id)}
+              applyingUpdate={applyUpdateMutation.isPending && applyUpdateMutation.variables === doc.id}
+              dismissingUpdate={dismissUpdateMutation.isPending && dismissUpdateMutation.variables === doc.id}
             />
           ))}
         </div>

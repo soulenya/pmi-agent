@@ -100,6 +100,26 @@ class Document(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    # ── Source-update tracking (Google Drive sync) ──────────────────────────────
+    # sync_status: None/"current" = in sync, "modified"/"renamed"/"deleted" = an
+    # update is available in the source that has not yet been applied/dismissed.
+    sync_status: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    # Last-known source modified timestamp (e.g. Drive modifiedTime) used as the
+    # baseline to detect changes without downloading the full file each check.
+    source_modified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # When the source was last checked for updates (distinct from last_synced_at,
+    # which is when the content was last actually (re)imported).
+    last_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Human-readable note about the detected change (e.g. new name on rename).
+    sync_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Baseline source file name recorded at import/sync time, used to detect
+    # renames in the source without relying on the (possibly customised) title.
+    source_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     # Relationships
     category: Mapped[DocumentCategory | None] = relationship(
         "DocumentCategory", back_populates="documents"

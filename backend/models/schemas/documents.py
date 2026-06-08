@@ -43,6 +43,15 @@ class DocumentOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    # Source-update tracking (Google Drive sync)
+    source_id: str | None = None
+    source_name: str | None = None
+    sync_status: str | None = None
+    sync_detail: str | None = None
+    source_modified_at: datetime | None = None
+    last_synced_at: datetime | None = None
+    last_checked_at: datetime | None = None
+
 
 class DocumentCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=512)

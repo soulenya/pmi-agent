@@ -72,6 +72,43 @@ export async function reembed(id: string): Promise<Document> {
   return data.data!;
 }
 
+// ── Source update detection (Google Drive sync) ───────────────────────────────
+
+export interface CheckUpdatesSummary {
+  checked: number;
+  changed: number;
+  errors: number;
+  items: {
+    id: string;
+    title: string;
+    sync_status: string;
+    detail: string | null;
+  }[];
+  skipped?: string;
+}
+
+export async function checkDocumentUpdates(): Promise<CheckUpdatesSummary> {
+  const { data } = await apiClient.post<ApiResponse<CheckUpdatesSummary>>(
+    "/documents/check-updates",
+  );
+  return data.data!;
+}
+
+export async function applyDocumentUpdate(id: string): Promise<Document> {
+  const { data } = await apiClient.post<ApiResponse<Document>>(
+    `/documents/${id}/apply-update`,
+  );
+  return data.data!;
+}
+
+export async function dismissDocumentUpdate(id: string): Promise<Document> {
+  const { data } = await apiClient.post<ApiResponse<Document>>(
+    `/documents/${id}/dismiss-update`,
+  );
+  return data.data!;
+}
+
+
 // ── Search ────────────────────────────────────────────────────────────────────
 
 export async function semanticSearch(

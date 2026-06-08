@@ -11,6 +11,7 @@ import logging
 import logging.handlers
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -134,6 +135,56 @@ async def _notification_loop() -> None:
             logger.exception("Notification loop error")
 
 
+# ── Background Drive update-check loop ────────────────────────────────────────
+
+# Local clock times (24h) at which to scan Drive-linked documents for updates.
+DRIVE_CHECK_HOURS = (6, 12, 18)
+
+
+def _seconds_until_next_check(now: datetime) -> float:
+    """Seconds from ``now`` until the next scheduled DRIVE_CHECK_HOURS time."""
+    candidates = []
+    for day_offset in (0, 1):
+        base = (now + timedelta(days=day_offset)).replace(
+            minute=0, second=0, microsecond=0
+        )
+        for hour in DRIVE_CHECK_HOURS:
+            candidate = base.replace(hour=hour)
+            if candidate > now:
+                candidates.append(candidate)
+    nxt = min(candidates)
+    return max(1.0, (nxt - now).total_seconds())
+
+
+async def _drive_sync_loop() -> None:
+    """Scan Drive-linked documents for updates at 06:00, 12:00, and 18:00 local time."""
+    from services.documents.sync import check_document_updates
+
+    while True:
+        delay = _seconds_until_next_check(datetime.now())
+        await asyncio.sleep(delay)
+        try:
+            async for db in get_db():
+                summary = await check_document_updates(db)
+                for item in summary.get("items", []):
+                    if item.get("notify") and item.get("user_id"):
+                        await notification_manager.push(
+                            item["user_id"],
+                            {
+                                "type": "notification",
+                                "entity_id": item["id"],
+                                "title": f"Document update available: {item['title']}",
+                                "notif_type": "system_alert",
+                            },
+                        )
+            logger.info(
+                "Drive update check complete: %s document(s) flagged",
+                summary.get("changed", 0),
+            )
+        except Exception:
+            logger.exception("Drive sync loop error")
+
+
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -151,12 +202,15 @@ async def lifespan(app: FastAPI):
             logger.warning("DB not ready yet (attempt %d/10): %s — retrying in 3 s", _attempt + 1, exc)
             await asyncio.sleep(3)
     bg_task = asyncio.create_task(_notification_loop())
+    drive_task = asyncio.create_task(_drive_sync_loop())
     yield
     bg_task.cancel()
-    try:
-        await bg_task
-    except asyncio.CancelledError:
-        pass
+    drive_task.cancel()
+    for _t in (bg_task, drive_task):
+        try:
+            await _t
+        except asyncio.CancelledError:
+            pass
     await engine.dispose()
 
 

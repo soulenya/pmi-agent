@@ -219,6 +219,61 @@ async def reembed_document(
     return ApiResponse.ok(_doc_out(doc))
 
 
+# ── Source update detection (Google Drive sync) ───────────────────────────────
+
+@router.post("/check-updates")
+async def check_document_updates_endpoint(
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> ApiResponse[dict]:
+    """Scan all Drive-linked documents and flag any source changes."""
+    from services.documents.sync import check_document_updates
+
+    summary = await check_document_updates(db)
+    return ApiResponse.ok(summary)
+
+
+@router.post("/{doc_id}/apply-update", response_model=ApiResponse[DocumentOut])
+async def apply_document_update_endpoint(
+    doc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
+) -> ApiResponse[DocumentOut]:
+    """Re-import a flagged document's current content from Google Drive."""
+    from services.documents.sync import apply_document_update
+
+    try:
+        doc = await apply_document_update(db, embedding_svc, doc_id)
+    except LookupError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+    except Exception:
+        logger.exception("Apply-update failed for doc %s", doc_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Apply update failed — check server logs",
+        )
+    return ApiResponse.ok(_doc_out(doc))
+
+
+@router.post("/{doc_id}/dismiss-update", response_model=ApiResponse[DocumentOut])
+async def dismiss_document_update_endpoint(
+    doc_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> ApiResponse[DocumentOut]:
+    """Acknowledge a flagged change without re-importing (re-baselines)."""
+    from services.documents.sync import dismiss_document_update
+
+    try:
+        doc = await dismiss_document_update(db, doc_id)
+    except LookupError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    return ApiResponse.ok(_doc_out(doc))
+
+
 # ── Knowledge Base Re-index ───────────────────────────────────────────────────
 
 class ReindexRequest(BaseModel):
