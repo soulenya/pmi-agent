@@ -382,6 +382,7 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
         height=900,
         min_size=(900, 600),
         background_color="#000000",
+        text_select=True,  # allow selecting/copying text (pywebview disables it by default)
     )
     _win_ref = win
 
