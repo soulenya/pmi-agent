@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 39;
+export const BUILD_NUMBER = 40;
 export const BUILD_DATE = "2026-06-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 40,
+    date: "2026-06-08",
+    title: "Reliable startup — self-heal a leftover database container",
+    changes: [
+      "Fix the app failing to start with a “container name pmi_postgres is already in use” error when a stale database container was left behind",
+      "On launch the app now removes any conflicting leftover database container it doesn’t own before starting its own",
+    ],
+  },
   {
     build: 39,
     date: "2026-06-08",

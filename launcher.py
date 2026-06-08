@@ -150,6 +150,11 @@ def _start_services() -> None:
 
         # 2. PostgreSQL — always use compose so the container is recreated if deleted
         _set_status("Starting PostgreSQL...", 2)
+        # Self-heal: a leftover `pmi_postgres` container from another project (e.g. a
+        # dev checkout) would block compose with a name conflict. If this project
+        # doesn't already own the container, remove any stray one before bringing ours up.
+        if not _run("docker compose ps -q postgres", cwd=str(ROOT)).stdout.strip():
+            _run("docker rm -f pmi_postgres", cwd=str(ROOT))
         _run("docker compose up -d", cwd=str(ROOT))
         # Wait up to 30 s for postgres to accept connections
         for _ in range(10):

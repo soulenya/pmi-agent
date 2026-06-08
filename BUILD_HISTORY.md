@@ -25,6 +25,7 @@ git push origin master --force  # only if you want to revert remote
 
 | Build | SHA       | Date       | Description |
 |-------|-----------|------------|-------------|
+| **40** | `PENDING` | 2026-06-08 | **Startup self-heal** — fix `container name "/pmi_postgres" is already in use` crash; `launcher.py` + `Start Little Gerry.bat` now `docker rm -f pmi_postgres` if this project doesn't own it before `docker compose up` (volume preserved) |
 | 39    | `2952ece` | 2026-06-08 | security: stop tracking `backend/google_credentials.json` (held an OAuth client secret) + gitignore; rotate the secret in Google Cloud |
 | **39** | `e24a182` | 2026-06-08 | **Email invites + SSO auto-provision + auto-update** — admin-only `POST /users/invite` (Gmail link to installer); accounts auto-created on first Google sign-in (owner→admin, others→full-access member); `admin_email` + `installer_download_url` settings; `launcher.py` pulls latest on launch (`git reset --hard origin/master`, `uv sync`, `npm install`) + always runs `alembic upgrade head` (skips on dirty tree) |
 | **38** | `c8942c5` | 2026-06-08 | **First-use setup wizard** — one-time guided onboarding (welcome, why Docker/Python, connect Claude + Voyage with pre-set defaults, optional Google, usage tour, roles); `users.onboarding_complete` flag + migration `006` + `POST /settings/onboarding/complete`; replaces `FirstRunSetup` |
@@ -122,4 +123,4 @@ cd backend && .venv\Scripts\python.exe -m alembic downgrade 615f52d537b5
 
 ---
 
-*Updated: 2026-06-08 — Build 39 (email invites + SSO auto-provision + auto-update). Milestone tag: `v0.9.0` (commit 28fb46d).*
+*Updated: 2026-06-08 — Build 40 (startup self-heal for leftover pmi_postgres container). Milestone tag: `v0.9.0` (commit 28fb46d).*
