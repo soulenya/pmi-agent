@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 35;
+export const BUILD_NUMBER = 36;
 export const BUILD_DATE = "2026-06-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 36,
+    date: "2026-06-08",
+    title: "Regulatory file explorer + per-user write permissions",
+    changes: [
+      "Regulatory page rebuilt as a file explorer: browse folders, create folders, upload files, import from Google Drive, edit text files, rename, move, and delete",
+      "Everyone can read/write all sections except Regulatory; Regulatory write access is granted per user (admins always allowed)",
+      "New per-user 'Regulatory write' permission with a toggle on the Users page and a checkbox in the invite dialog",
+      "Files are stored locally; renames and moves only update the database (fast, no re-upload)",
+      "Import from Drive exports Google Docs/Sheets/Slides to Office formats automatically",
+      "Fix Alembic migrations creating tables owned by the wrong DB role (caused permission-denied 500s) — migrations now use the app role by default",
+    ],
+  },
   {
     build: 35,
     date: "2026-06-08",

@@ -49,12 +49,12 @@ Key design principles:
 | **Research**               | AI-assisted literature/regulatory research with cited responses                                                                            |
 | **Meeting Notes**          | Meeting transcripts with AI summarization and one-click action item extraction → Tasks                                                    |
 | **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications                                                         |
-| **Regulatory**             | Track regulatory documents (DHF, IFU, 510(k), ISO 13485) with AI content drafting                                                          |
+| **Regulatory**             | File explorer for regulatory documents (DHF, IFU, 510(k), ISO 13485): browse/create folders, upload, import from Drive, edit, rename, move, and delete — write access gated per user |
 | **Investor Relations**     | IR hub: company snapshot, regulatory proof-points, AI-drafted pitch context, research feed, and IR specialist chat                          |
 | **Approvals**              | Workflow approval queue — approve/reject with automatic execution and full audit trail                                                       |
 | **Notifications**          | Real-time WebSocket push notifications with read/unread management                                                                         |
 | **Audit Trail**            | Immutable log of all system and AI actions with filtering and export                                                                       |
-| **User Management**        | Role-based access control (Admin / User), user creation and deactivation                                                                   |
+| **User Management**        | Role-based access control (Admin / User), per-user Regulatory write permission, user creation and deactivation                            |
 | **Google Workspace**       | Connect your Google account for Gmail, Drive, Calendar, and Contacts integration with human-in-the-loop write approvals                    |
 | **Settings**               | LLM model selection, embedding provider, re-index KB, live health monitoring, appearance, notification preferences, and one-click in-app updates |
 
