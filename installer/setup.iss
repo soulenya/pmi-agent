@@ -71,6 +71,12 @@ Uninstallable=yes
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[Messages]
+; Make the standard "Finished" wizard page clearly state success
+FinishedHeadingLabel=Little Gerry was installed successfully
+FinishedLabelNoIcons=Setup has finished installing Little Gerry on your computer. Prerequisites are configured. The first launch will finish setting things up (2-5 minutes) before the app window appears.
+FinishedLabel=Setup has finished installing Little Gerry on your computer. Prerequisites are configured. The first launch will finish setting things up (2-5 minutes) before the app window appears.
+
 [Tasks]
 Name: "desktopicon";    Description: "Create a &desktop shortcut";   GroupDescription: "Additional icons:"
 Name: "startmenuicon";  Description: "Create a &Start Menu entry";   GroupDescription: "Additional icons:"
@@ -220,3 +226,21 @@ begin
       Result := False;
   end;
 end;
+
+// Show an explicit "install succeeded" popup once files are copied and
+// prerequisites have run, just before the Finished page is displayed.
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then begin
+    MsgBox(
+      'Little Gerry was installed successfully!' + Chr(13)+Chr(10) +
+      Chr(13)+Chr(10) +
+      'When you launch it, a setup window will finish preparing the app ' +
+      '(about 2-5 minutes on first run). After that it opens automatically ' +
+      'and starts on its own every time from then on.' + Chr(13)+Chr(10) +
+      Chr(13)+Chr(10) +
+      'Use the desktop shortcut or Start Menu entry to open Little Gerry.',
+      mbInformation, MB_OK);
+  end;
+end;
+
