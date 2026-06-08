@@ -52,11 +52,25 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    """Prefer DATABASE_URL_SYNC env var; fall back to alembic.ini value."""
-    return os.environ.get(
-        "DATABASE_URL_SYNC",
-        config.get_main_option("sqlalchemy.url", ""),
-    )
+    """Resolve the sync DB URL for migrations.
+
+    Prefer the ``DATABASE_URL_SYNC`` env var, then the application's configured
+    ``database_url_sync`` (the ``pmi_app`` role that owns the runtime tables),
+    and only fall back to the alembic.ini value as a last resort. Using the app
+    role keeps newly created objects owned by ``pmi_app`` so the running API can
+    access them.
+    """
+    env_url = os.environ.get("DATABASE_URL_SYNC")
+    if env_url:
+        return env_url
+    try:
+        from config import settings
+
+        if settings.database_url_sync:
+            return settings.database_url_sync
+    except Exception:  # pragma: no cover — fall back to ini if config import fails
+        pass
+    return config.get_main_option("sqlalchemy.url", "")
 
 
 def run_migrations_offline() -> None:

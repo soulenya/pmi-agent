@@ -133,6 +133,24 @@ function InviteModal({ onClose }: { onClose: () => void }) {
             </select>
           </div>
 
+          {/* Regulatory write access */}
+          <label className="flex items-start gap-2 rounded-md border bg-background px-3 py-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.role === "admin" || !!form.can_write_regulatory}
+              disabled={form.role === "admin"}
+              onChange={(e) => setForm((f) => ({ ...f, can_write_regulatory: e.target.checked }))}
+              className="mt-0.5"
+            />
+            <span className="text-xs">
+              <span className="font-medium">Regulatory write access</span>
+              <span className="block text-muted-foreground">
+                Allow creating, editing, moving, and deleting regulatory files. Admins always have
+                this.
+              </span>
+            </span>
+          </label>
+
           {/* Temporary password */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">
@@ -185,7 +203,7 @@ function UserRow({ user }: { user: User }) {
   const qc = useQueryClient();
 
   const updateMutation = useMutation({
-    mutationFn: (body: { is_active?: boolean; role?: string }) =>
+    mutationFn: (body: { is_active?: boolean; role?: string; can_write_regulatory?: boolean }) =>
       updateUser(user.id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
   });
@@ -250,6 +268,42 @@ function UserRow({ user }: { user: User }) {
           )}
           {user.is_active ? "Active" : "Inactive"}
         </button>
+      </td>
+
+      {/* Regulatory write access */}
+      <td className="px-4 py-3">
+        {user.role === "admin" ? (
+          <span
+            title="Admins always have regulatory write access"
+            className="inline-flex items-center gap-1.5 rounded-md bg-purple-100 px-2.5 py-1 text-xs font-medium text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Always
+          </span>
+        ) : (
+          <button
+            onClick={() => updateMutation.mutate({ can_write_regulatory: !user.can_write_regulatory })}
+            disabled={updateMutation.isPending}
+            title={
+              user.can_write_regulatory
+                ? "Revoke regulatory write access"
+                : "Grant regulatory write access"
+            }
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50",
+              user.can_write_regulatory
+                ? "bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300"
+                : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400",
+            )}
+          >
+            {user.can_write_regulatory ? (
+              <ToggleRight className="h-3.5 w-3.5" />
+            ) : (
+              <ToggleLeft className="h-3.5 w-3.5" />
+            )}
+            {user.can_write_regulatory ? "Read / Write" : "Read only"}
+          </button>
+        )}
       </td>
 
       {/* Joined */}
@@ -364,6 +418,9 @@ export function UsersPage() {
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
                   Status
+                </th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
+                  Regulatory
                 </th>
                 <th className="hidden px-4 py-2.5 text-left text-xs font-medium text-muted-foreground md:table-cell">
                   Joined
