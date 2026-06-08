@@ -87,6 +87,7 @@ cd backend && .venv\Scripts\python.exe -m alembic downgrade 615f52d537b5
 
 | Build | Key files |
 |-------|-----------|
+| 34 | `backend/routers/documents.py`, `backend/routers/google_integration.py`, `backend/services/documents/ingestion.py`, `backend/repositories/document_repo.py`, `backend/services/google_service.py`, `backend/services/embeddings/service.py`, `frontend/src/version.ts` |
 | 33 | `frontend/src/pages/InvestorPage.tsx` (new), `backend/routers/meetings.py` |
 | 32 | `backend/services/agent/v2/` (new package — 9 files), `backend/main.py`, `backend/routers/settings.py` |
 | 31 | `backend/routers/conversations.py`, `frontend/src/pages/ApprovalsPage.tsx`, `frontend/src/types/chat.ts` |
@@ -97,4 +98,4 @@ cd backend && .venv\Scripts\python.exe -m alembic downgrade 615f52d537b5
 
 ---
 
-*Updated: 2026-06-07 after Google Calendar sync fix (54e6dbb)*
+*Updated: 2026-06-08 after KB & Search end-to-end fixes (Build 34, f878479)*
