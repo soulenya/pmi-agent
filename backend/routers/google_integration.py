@@ -153,6 +153,7 @@ async def drive_import(
     except Exception as exc:
         raise HTTPException(500, f"Ingestion failed: {exc}")
 
+    await db.commit()
     return {
         "id": str(doc.id), "title": doc.title, "filename": doc.file_name,
         "status": doc.status, "drive_file_id": req.file_id,
