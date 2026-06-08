@@ -362,6 +362,86 @@ class DocumentIngestionService:
 
         return doc
 
+    async def replace_content(
+        self, doc_id: UUID, filename: str, raw_bytes: bytes
+    ) -> Document:
+        """
+        Replace an existing document's stored content with new bytes and
+        re-run chunking + embedding. Used when applying a detected source
+        update (e.g. a Google Drive file changed). The document id, title and
+        category are preserved; the stored file, checksum, size, mime type and
+        chunks are refreshed.
+
+        Raises LookupError if the document is not found.
+        """
+        doc = await self._doc_repo.get_active(doc_id)
+        if doc is None:
+            raise LookupError(f"Document {doc_id} not found")
+
+        mime_type, _ = mimetypes.guess_type(filename)
+        if mime_type not in SUPPORTED_MIME_TYPES:
+            ext = Path(filename).suffix.lower()
+            mime_type = "text/plain" if ext in (".txt", ".md", ".csv") else (mime_type or "text/plain")
+
+        # Remove the previous encrypted file (extension may change).
+        old_ext = Path(doc.file_name or "").suffix.lower() or ".bin"
+        try:
+            _delete_stored_file(doc_id, old_ext)
+        except Exception:
+            pass
+
+        # Wipe old chunks.
+        await self._chunk_repo.delete_by_document(doc_id)
+        doc.status = "processing"
+        doc.chunk_count = 0
+        doc.file_name = filename
+        doc.mime_type = mime_type
+        doc.file_size_bytes = len(raw_bytes)
+        doc.checksum_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+        await self._db.flush()
+
+        try:
+            extension = Path(filename).suffix.lower() or ".bin"
+            stored_path = _encrypt_and_store(doc_id, raw_bytes, extension)
+            doc.source_uri = str(stored_path.relative_to(_get_storage_root()))
+
+            text = _extract_text(raw_bytes, mime_type)
+            text = re.sub(r"\s{3,}", "\n\n", text).strip()
+
+            chunks = _chunk_text(text)
+            if not chunks:
+                chunks = [text] if text else ["(no content)"]
+
+            all_embeddings = await self._emb.embed_batch(chunks)
+            actual_dim = len(all_embeddings[0])
+            await _ensure_vector_dimension(self._db, actual_dim)
+            emb_model = getattr(self._emb, "_model", "nomic-embed-text")
+
+            for idx, (chunk_text, embedding) in enumerate(zip(chunks, all_embeddings)):
+                chunk = DocumentChunk(
+                    document_id=doc.id,
+                    chunk_index=idx,
+                    content=chunk_text,
+                    content_hash=hashlib.sha256(chunk_text.encode()).hexdigest(),
+                    embedding=embedding,
+                    embedding_model=emb_model,
+                    embedding_dimension=actual_dim,
+                    page_number=None,
+                )
+                self._db.add(chunk)
+
+            doc.chunk_count = len(chunks)
+            doc.status = "ready"
+            await self._db.flush()
+            await self._db.refresh(doc)
+
+        except Exception:
+            doc.status = "failed"
+            await self._db.flush()
+            raise
+
+        return doc
+
 
 # ── FastAPI dependency ────────────────────────────────────────────────────────
 

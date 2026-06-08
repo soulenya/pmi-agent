@@ -160,6 +160,20 @@ async def drive_import(
     except Exception as exc:
         raise HTTPException(500, f"Ingestion failed: {exc}")
 
+    # Record source linkage so the document can be checked for updates later.
+    from datetime import datetime, timezone
+    from services.documents.sync import parse_drive_time
+
+    now = datetime.now(timezone.utc)
+    doc.source_type = "google_drive"
+    doc.source_id = req.file_id
+    doc.source_name = name
+    doc.source_modified_at = parse_drive_time(drive_file_data.get("modified", ""))
+    doc.last_synced_at = now
+    doc.last_checked_at = now
+    doc.sync_status = "current"
+    doc.sync_detail = None
+
     await db.commit()
     return {
         "id": str(doc.id), "title": doc.title, "filename": doc.file_name,

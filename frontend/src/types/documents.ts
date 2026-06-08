@@ -23,6 +23,14 @@ export interface Document {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Source-update tracking (Google Drive sync)
+  source_id?: string | null;
+  source_name?: string | null;
+  sync_status?: "current" | "modified" | "renamed" | "deleted" | null;
+  sync_detail?: string | null;
+  source_modified_at?: string | null;
+  last_synced_at?: string | null;
+  last_checked_at?: string | null;
 }
 
 export interface DocumentChunk {

@@ -333,7 +333,7 @@ def drive_get_content(file_id: str) -> dict:
     svc = _build("drive", "v3")
     meta = svc.files().get(
         fileId=file_id,
-        fields="id,name,mimeType,webViewLink",
+        fields="id,name,mimeType,webViewLink,modifiedTime",
         supportsAllDrives=True,
     ).execute()
     mime = meta.get("mimeType", "")
@@ -389,7 +389,38 @@ def drive_get_content(file_id: str) -> dict:
         "name": meta.get("name", ""),
         "type": mime,
         "url": meta.get("webViewLink", ""),
+        "modified": meta.get("modifiedTime", ""),
         "content": content[:10_000],
+    }
+
+
+def drive_get_metadata(file_id: str) -> dict | None:
+    """Fetch lightweight Drive file metadata for update detection.
+
+    Returns ``{id, name, mimeType, modifiedTime, trashed, url}`` or ``None`` if
+    the file no longer exists (404) / is otherwise inaccessible.  This is a
+    cheap metadata-only call (no content download) suitable for polling.
+    """
+    from googleapiclient.errors import HttpError
+
+    svc = _build("drive", "v3")
+    try:
+        meta = svc.files().get(
+            fileId=file_id,
+            fields="id,name,mimeType,modifiedTime,trashed,webViewLink",
+            supportsAllDrives=True,
+        ).execute()
+    except HttpError as exc:
+        if getattr(exc, "resp", None) is not None and exc.resp.status in (404, 403):
+            return None
+        raise
+    return {
+        "id": meta.get("id", file_id),
+        "name": meta.get("name", ""),
+        "mimeType": meta.get("mimeType", ""),
+        "modified": meta.get("modifiedTime", ""),
+        "trashed": bool(meta.get("trashed", False)),
+        "url": meta.get("webViewLink", ""),
     }
 
 
