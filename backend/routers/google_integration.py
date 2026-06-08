@@ -138,8 +138,15 @@ async def drive_import(
         "text/plain": ".txt", "text/csv": ".csv",
         "text/markdown": ".md", "application/json": ".json",
     }
+    # drive_get_content always returns already-extracted plain text (PDFs are
+    # parsed via pypdf, Google Docs/Sheets/Slides are exported). The ingestion
+    # service re-detects type from the filename extension, so the extension MUST
+    # match the extracted text — otherwise a ".pdf" name makes ingestion try to
+    # PyMuPDF-parse plain text and fail with "Failed to open stream".
+    from pathlib import Path as _Path
+
     ext = ext_map.get(mime, ".txt")
-    filename = name if "." in name else name + ext
+    filename = _Path(name).stem + ext
     raw_bytes = content.encode("utf-8")
     cat_id = _UUID(req.category_id) if req.category_id else None
 
