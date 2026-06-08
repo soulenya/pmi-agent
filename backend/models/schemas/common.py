@@ -52,3 +52,7 @@ class PaginationParams(BaseModel):
     @property
     def offset(self) -> int:
         return (self.page - 1) * self.page_size
+
+    @property
+    def limit(self) -> int:
+        return self.page_size
