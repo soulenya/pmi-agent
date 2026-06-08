@@ -54,6 +54,7 @@ Key design principles:
 | **Approvals**              | Workflow approval queue — approve/reject with automatic execution and full audit trail                                                       |
 | **Notifications**          | Real-time WebSocket push notifications with read/unread management                                                                         |
 | **Feedback**               | Top-bar button to report a bug or request a feature; submissions are routed to the owner's notifications                                   |
+| **Setup Wizard**           | One-time guided first-use onboarding: explains the stack, connects Claude + Voyage (pre-set defaults) and Google, and covers roles & usage |
 | **Audit Trail**            | Immutable log of all system and AI actions with filtering and export                                                                       |
 | **User Management**        | Role-based access control (Admin / User), per-user Regulatory write permission, user creation and deactivation                            |
 | **Google Workspace**       | Connect your Google account for Gmail, Drive, Calendar, and Contacts integration with human-in-the-loop write approvals                    |

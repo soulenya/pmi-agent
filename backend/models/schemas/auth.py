@@ -31,6 +31,7 @@ class UserOut(BaseModel):
     role: str
     is_active: bool
     can_write_regulatory: bool = False
+    onboarding_complete: bool = False
     created_at: datetime
 
     model_config = {"from_attributes": True}

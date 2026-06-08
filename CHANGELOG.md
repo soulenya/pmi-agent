@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### Build 38 — 2026-06-08
+**First-use setup wizard — guided one-time onboarding**
+
+- **Guided wizard on first login** (new `frontend/src/components/SetupWizard.tsx`, replaces the AI-only `FirstRunSetup`): an 8-step walkthrough — Welcome, How it works, Claude, Voyage, Google, Using it, Roles, Done
+- **Explains the stack**: why Docker (the local PostgreSQL database that stores your content) and Python (the backend engine) were installed, and that API keys are stored in the OS keyring
+- **Connect Claude + Voyage**: paste the keys your team already has; the wizard pre-sets the defaults (`anthropic` / `claude-sonnet-4-6` and `voyage` / `voyage-3`), verifies the Claude key, and saves the Voyage key
+- **Optional Google Workspace step** (Connect → OAuth in browser, with live status), plus a tour of import / edit / chat / feedback and an explainer of roles & per-user privileges (Admin, Member, Regulatory write)
+- **Shows only once per user**: new `users.onboarding_complete` flag (migration `006`) set via `POST /settings/onboarding/complete`; surfaced on `UserOut` and checked at login
+
 ### Build 37 — 2026-06-08
 **In-app feedback — report bugs / request features from the top bar**
 

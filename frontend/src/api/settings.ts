@@ -67,6 +67,12 @@ export async function updateMyProfile(body: ProfileUpdate): Promise<User> {
   return resp.data;
 }
 
+/** Mark the first-use setup wizard as completed for the current user (one-time). */
+export async function completeOnboarding(): Promise<User> {
+  const resp = await apiClient.post<User>("/settings/onboarding/complete");
+  return resp.data;
+}
+
 export interface HealthCheckResult {
   status: string;
   timestamp: string;

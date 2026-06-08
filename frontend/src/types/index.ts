@@ -29,6 +29,7 @@ export interface User {
   role: string;
   is_active: boolean;
   can_write_regulatory?: boolean;
+  onboarding_complete?: boolean;
   created_at: string;
 }
 

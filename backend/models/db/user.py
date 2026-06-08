@@ -28,6 +28,11 @@ class User(Base):
     can_write_regulatory: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False
     )
+    # True once the user has finished the first-use setup wizard. The wizard is
+    # shown only while this is False, so onboarding runs exactly once per user.
+    onboarding_complete: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
