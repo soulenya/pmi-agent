@@ -18,7 +18,7 @@ class DocumentCategoryRepository(BaseRepository[DocumentCategory]):
         super().__init__(DocumentCategory, session)
 
     async def get_by_name(self, name: str) -> DocumentCategory | None:
-        result = await self._session.execute(
+        result = await self.session.execute(
             select(DocumentCategory).where(DocumentCategory.name == name)
         )
         return result.scalar_one_or_none()
@@ -39,18 +39,18 @@ class DocumentRepository(BaseRepository[Document]):
         if category_id is not None:
             q = q.where(Document.category_id == category_id)
         q = q.order_by(Document.created_at.desc()).limit(limit).offset(offset)
-        result = await self._session.execute(q)
+        result = await self.session.execute(q)
         return list(result.scalars().all())
 
     async def count_active(self, *, category_id: UUID | None = None) -> int:
         q = select(func.count()).select_from(Document).where(Document.deleted_at.is_(None))
         if category_id is not None:
             q = q.where(Document.category_id == category_id)
-        result = await self._session.execute(q)
+        result = await self.session.execute(q)
         return result.scalar_one()
 
     async def get_active(self, doc_id: UUID) -> Document | None:
-        result = await self._session.execute(
+        result = await self.session.execute(
             select(Document).where(
                 Document.id == doc_id,
                 Document.deleted_at.is_(None),
@@ -65,7 +65,7 @@ class DocumentRepository(BaseRepository[Document]):
         if doc is None:
             return False
         doc.deleted_at = datetime.now(timezone.utc)
-        await self._session.flush()
+        await self.session.flush()
         return True
 
 
@@ -74,7 +74,7 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         super().__init__(DocumentChunk, session)
 
     async def get_by_document(self, document_id: UUID) -> list[DocumentChunk]:
-        result = await self._session.execute(
+        result = await self.session.execute(
             select(DocumentChunk)
             .where(DocumentChunk.document_id == document_id)
             .order_by(DocumentChunk.chunk_index)
@@ -84,18 +84,18 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
     async def delete_by_document(self, document_id: UUID) -> int:
         from sqlalchemy import delete
 
-        result = await self._session.execute(
+        result = await self.session.execute(
             delete(DocumentChunk).where(DocumentChunk.document_id == document_id)
         )
-        await self._session.flush()
+        await self.session.flush()
         return result.rowcount
 
     async def delete_all_chunks(self) -> int:
         """Delete ALL document chunks across all documents. Used during re-index."""
         from sqlalchemy import delete
 
-        result = await self._session.execute(delete(DocumentChunk))
-        await self._session.flush()
+        result = await self.session.execute(delete(DocumentChunk))
+        await self.session.flush()
         return result.rowcount
 
     async def get_all_document_ids_ready(self) -> list[UUID]:
@@ -103,7 +103,7 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         Return IDs of all active (non-deleted), ready documents.
         Used by the re-index pipeline to enumerate documents to re-embed.
         """
-        result = await self._session.execute(
+        result = await self.session.execute(
             select(Document.id).where(
                 Document.deleted_at.is_(None),
                 Document.status == "ready",
@@ -119,17 +119,13 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
         category_id: UUID | None = None,
     ) -> list[tuple[DocumentChunk, float]]:
         """
-        Cosine similarity search using pgvector <=> operator.
+        Cosine similarity search using pgvector cosine_distance.
         Returns (chunk, distance) pairs ordered by ascending distance (most similar first).
         Joins to Document to allow category filtering and soft-delete exclusion.
         """
-        from pgvector.sqlalchemy import Vector
-
+        distance = DocumentChunk.embedding.cosine_distance(embedding).label("distance")
         q = (
-            select(
-                DocumentChunk,
-                DocumentChunk.embedding.op("<=>")(embedding).label("distance"),
-            )
+            select(DocumentChunk, distance)
             .join(Document, Document.id == DocumentChunk.document_id)
             .where(Document.deleted_at.is_(None))
         )
@@ -137,7 +133,7 @@ class DocumentChunkRepository(BaseRepository[DocumentChunk]):
             q = q.where(Document.category_id == category_id)
 
         q = q.order_by("distance").limit(top_k)
-        result = await self._session.execute(q)
+        result = await self.session.execute(q)
         rows = result.all()
         # Convert cosine distance [0,2] → cosine similarity [0,1]
         return [(row[0], round(1 - float(row[1]) / 2, 4)) for row in rows]
