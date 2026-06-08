@@ -103,7 +103,7 @@ Source: "LittleGerry.ico";             DestDir: "{app}\installer"; Flags: ignore
 
 ; Backend
 Source: "..\backend\*"; DestDir: "{app}\backend"; \
-    Excludes: "*.pyc,__pycache__,*.egg-info,.venv,*.log"; \
+    Excludes: "*.pyc,__pycache__,*.egg-info,.venv,*.log,google_token.json,.env"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; Frontend source (without node_modules — npm install runs during setup)
