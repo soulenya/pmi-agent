@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
@@ -50,8 +51,8 @@ class EmailDraftOut(BaseModel):
     is_archived: bool
     tags: list[str]
     created_by: uuid.UUID | None
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}
 
