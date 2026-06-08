@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### Build 40 — 2026-06-08
+**Reliable startup — self-heal a leftover database container**
+
+- **Fix startup crash on name conflict**: launching the app could fail with `Conflict. The container name "/pmi_postgres" is already in use` when a stale Postgres container (e.g. from a separate dev checkout or a previous install) was left behind, since Docker container names are global
+- **Self-healing**: both `launcher.py` and `Start Little Gerry.bat` now check whether this project already owns the `pmi_postgres` container (`docker compose ps -q postgres`); if not, they `docker rm -f pmi_postgres` to clear the stray one before `docker compose up` — the data volume is untouched, so no data is lost
+
 ### Build 39 — 2026-06-08
 **Email invites + Google sign-in onboarding + automatic updates**
 

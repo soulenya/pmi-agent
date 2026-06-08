@@ -71,6 +71,11 @@ if !DOCKER_READY! equ 0 (
 )
 
 cd /d "%~dp0"
+:: Self-heal: remove a leftover pmi_postgres container from another project
+:: (e.g. a dev checkout) that would otherwise cause a name conflict.
+for /f %%c in ('docker compose ps -q postgres 2^>nul') do set "PG_OWNED=%%c"
+if not defined PG_OWNED docker rm -f pmi_postgres >nul 2>&1
+set "PG_OWNED="
 docker compose up -d --remove-orphans
 if !ERRORLEVEL! neq 0 (
     echo  [ERROR] docker compose up failed. Is Docker Desktop running?
