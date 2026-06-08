@@ -13,6 +13,11 @@ export async function getGoogleStatus(): Promise<GoogleStatus> {
   return { connected: r.data.status === "connected", status: r.data.status, email: r.data.email };
 }
 
+/** Launch the Google OAuth flow in the system browser. */
+export async function startGoogleAuth(): Promise<void> {
+  await apiClient.post(`${G}/auth/start`, {});
+}
+
 export interface DriveItem {
   id: string;
   name: string;

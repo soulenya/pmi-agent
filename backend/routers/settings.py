@@ -434,3 +434,16 @@ async def update_my_profile(
     await db.commit()
     await db.refresh(current_user)
     return UserOut.model_validate(current_user)
+
+
+@router.post("/onboarding/complete", response_model=UserOut)
+async def complete_onboarding(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UserOut:
+    """Mark the current user's first-use setup wizard as completed (one-time)."""
+    if not current_user.onboarding_complete:
+        current_user.onboarding_complete = True
+        await db.commit()
+        await db.refresh(current_user)
+    return UserOut.model_validate(current_user)

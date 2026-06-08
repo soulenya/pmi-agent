@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 37;
+export const BUILD_NUMBER = 38;
 export const BUILD_DATE = "2026-06-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 38,
+    date: "2026-06-08",
+    title: "First-use setup wizard — guided one-time onboarding",
+    changes: [
+      "New guided wizard on first login: welcome, how it works (why Docker and Python were installed), and a tour of importing, editing, chatting, and submitting feedback",
+      "Walks you through connecting Claude (Anthropic) and Voyage (document search) with the keys your team already has — Claude + Voyage are pre-set as the defaults",
+      "Optional Google Workspace connection step, plus an explainer of roles and per-user privileges",
+      "Shows only once per user (tracked server-side); change anything later in Settings",
+    ],
+  },
   {
     build: 37,
     date: "2026-06-08",
