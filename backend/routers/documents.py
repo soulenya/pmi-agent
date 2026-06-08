@@ -159,6 +159,7 @@ async def update_document(
     for k, v in updates.items():
         setattr(doc, k, v)
     await db.flush()
+    await db.commit()
     return ApiResponse.ok(_doc_out(doc))
 
 
@@ -174,6 +175,7 @@ async def delete_document(
     deleted = await svc.delete(doc_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    await db.commit()
     return ApiResponse.ok(None)
 
 
