@@ -4,6 +4,21 @@
 
 ## Changelog
 
+### Build 36 — 2026-06-08
+**Regulatory file explorer + per-user write permissions**
+
+- **Regulatory page rebuilt as a file explorer** (new `backend/routers/regulatory_files.py`, `frontend/src/pages/RegulatoryPage.tsx`):
+  - Browse a folder/file tree with breadcrumbs; **create folders**, **upload files**, **import from Google Drive**, **edit text files** in-app, **rename**, **move**, and **delete**
+  - Backed by a self-referential `regulatory_nodes` table; file bytes live in a local store (`~/.pmi-agent/regulatory/`) keyed by a stable id, so **renames and moves only touch the database** (no re-upload)
+  - Import from Drive reuses the multi-select Drive browser with progress; Google Docs/Sheets/Slides are exported to `.docx`/`.xlsx`/`.pptx` automatically (`drive_download_bytes`)
+- **Per-user Regulatory write permission**: all users can read/write every section **except Regulatory**; Regulatory write access is granted per user
+  - New `users.can_write_regulatory` flag (admins are always allowed) enforced server-side by a `require_regulatory_write` dependency on every mutating endpoint — everyone can still browse and read
+  - **Users page**: a Regulatory column toggles **Read / Write** vs **Read only** per user (admins show an "Always" badge); the invite dialog gains a matching checkbox
+  - New endpoints under `/regulatory-files`: list, download, get/save text, create folder, upload, import-drive, rename/move (`PATCH`), delete; migration `004`
+- **Bug fix — Alembic table ownership**: running migrations could create tables owned by the `pmi` superuser instead of the app's `pmi_app` role, causing `permission denied` 500s on the new endpoints; `migrations/env.py` now falls back to the app's configured sync URL so migrated objects are owned by `pmi_app`
+
+---
+
 ### Build 35 — 2026-06-08 — 🏷 Milestone `v0.9.0`
 **Drive auto-update detection, Knowledge Base polish, copy fix**
 
@@ -380,6 +395,7 @@ Tagged as milestone **`v0.9.0`** (commit `28fb46d`) — core features working we
 
 | # | Area | Description | Resolved |
 |---|------|-------------|---------|
+| R20 | Database / Migrations | New tables created by Alembic were owned by the `pmi` superuser, not the app's `pmi_app` role → `permission denied` 500s on new endpoints; env.py now uses the app sync URL | Build 36 |
 | R11 | KB / Upload | Upload and Drive-import routes never committed — documents rolled back, KB stayed empty | Build 34 |
 | R12 | KB / Upload | `MissingGreenlet` 500 on upload — doc not refreshed before timestamp serialization | Build 34 |
 | R13 | Search | No results — repository used undefined `self._session`; vector distance not typed | Build 34 |
