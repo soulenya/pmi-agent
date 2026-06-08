@@ -89,7 +89,7 @@ class NotificationOut(BaseModel):
     title: str
     message: str | None
     entity_type: str | None
-    entity_id: str | None
+    entity_id: uuid.UUID | None
     is_read: bool
     created_at: datetime
 

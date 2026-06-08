@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 36;
+export const BUILD_NUMBER = 37;
 export const BUILD_DATE = "2026-06-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 37,
+    date: "2026-06-08",
+    title: "In-app feedback — report bugs / request features from the top bar",
+    changes: [
+      "New Feedback button in the top bar: open a box, pick Bug or Feature, and write in an issue or request",
+      "Submissions are saved and routed to the owner's Notifications (tab + bell), so feedback from any user shows up there",
+      "Fix Notifications failing to load (500) when a notification linked to an entity — entity_id type corrected",
+      "Fix Alembic migrations: run as the privileged DB role and hand new-table ownership to the app role so endpoints don't hit permission errors",
+    ],
+  },
   {
     build: 36,
     date: "2026-06-08",

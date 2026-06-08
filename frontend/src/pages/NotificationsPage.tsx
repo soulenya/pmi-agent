@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bell, CheckCheck, AlertCircle, ClipboardCheck, FileText, Info } from "lucide-react";
+import { Bell, CheckCheck, AlertCircle, ClipboardCheck, FileText, Info, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listNotifications, markNotificationRead, markAllNotificationsRead } from "@/api/chat";
 import type { Notification } from "@/types/chat";
@@ -10,6 +10,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   task_assigned: <CheckCheck className="h-4 w-4 text-blue-500" />,
   document_ingested: <FileText className="h-4 w-4 text-green-500" />,
   briefing_ready: <Info className="h-4 w-4 text-primary" />,
+  feedback_submitted: <MessageSquare className="h-4 w-4 text-purple-500" />,
 };
 
 function timeAgo(iso: string): string {

@@ -115,6 +115,7 @@ class NotificationType(str, enum.Enum):
     RESEARCH_COMPLETE = "research_complete"
     SYSTEM_ALERT = "system_alert"
     REMINDER = "reminder"
+    FEEDBACK_SUBMITTED = "feedback_submitted"
 
 
 class ResearchStatus(str, enum.Enum):

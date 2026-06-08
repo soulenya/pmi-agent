@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     # ── Approval ─────────────────────────────────────────────────────────────
     approval_expiry_hours: int = 48
 
+    # ── Feedback ─────────────────────────────────────────────────────────────
+    # User-submitted bug reports / feature requests are routed to this account's
+    # notifications. Falls back to all admin users if the email isn't found.
+    feedback_recipient_email: str = "morganjkeane@pmi-llc.com"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
