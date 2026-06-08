@@ -93,8 +93,47 @@ def _log_error() -> None:
 
 # ── service startup (runs in background thread) ───────────────────────────────
 
+def _auto_update() -> None:
+    """
+    Pull the latest code from GitHub at launch so updates reach every user
+    automatically. Safety guards:
+      * skips silently if this isn't a git checkout,
+      * skips if the working tree is dirty (protects developer machines with
+        uncommitted changes from a destructive reset),
+      * only runs the heavier dependency install when the code actually changed.
+    Database migrations run later, after PostgreSQL is up.
+    """
+    if not (ROOT / ".git").exists():
+        return
+    try:
+        _set_status("Checking for updates...", 0)
+
+        # Don't clobber local work (dev machines / in-progress edits).
+        dirty = _run("git status --porcelain", cwd=str(ROOT)).stdout.decode(errors="ignore").strip()
+        if dirty:
+            return
+
+        _run("git fetch origin", cwd=str(ROOT))
+        local = _run("git rev-parse HEAD", cwd=str(ROOT)).stdout.decode(errors="ignore").strip()
+        remote = _run("git rev-parse origin/master", cwd=str(ROOT)).stdout.decode(errors="ignore").strip()
+        if not local or not remote or local == remote:
+            return  # already current
+
+        _set_status("Installing the latest update...", 0)
+        _run("git reset --hard origin/master", cwd=str(ROOT))
+        # Refresh dependencies to match the new code.
+        _run("uv sync", cwd=str(BACKEND_DIR))
+        _run("npm install --silent", cwd=str(FRONTEND_DIR))
+        _set_status("Update installed.", 0)
+    except Exception:
+        _log_error()
+
+
 def _start_services() -> None:
     try:
+        # 0. Auto-update from GitHub (skipped on a dirty working tree, e.g. dev machines)
+        _auto_update()
+
         # 1. Docker
         _set_status("Checking Docker...", 1)
         if _run("docker info").returncode != 0:
@@ -118,6 +157,13 @@ def _start_services() -> None:
             if chk.returncode == 0:
                 break
             time.sleep(3)
+
+        # 2b. Apply any pending database migrations (cheap no-op when up to date)
+        _set_status("Updating database...", 2)
+        try:
+            _run(f'"{VENV_PYTHON}" -m alembic upgrade head', cwd=str(BACKEND_DIR))
+        except Exception:
+            _log_error()
 
         # 3. Backend
         _set_status("Starting backend...", 3)

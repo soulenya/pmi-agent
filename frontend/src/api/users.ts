@@ -1,5 +1,11 @@
 import { apiClient } from "./client";
-import type { User, CreateUserRequest, UpdateUserRequest } from "@/types/users";
+import type {
+  User,
+  CreateUserRequest,
+  UpdateUserRequest,
+  InviteRequest,
+  InviteResult,
+} from "@/types/users";
 
 interface ApiResponse<T> {
   data: T;
@@ -14,6 +20,11 @@ export async function listUsers(): Promise<User[]> {
 
 export async function createUser(body: CreateUserRequest): Promise<User> {
   const resp = await apiClient.post<ApiResponse<User>>("/users", body);
+  return resp.data.data;
+}
+
+export async function inviteUser(body: InviteRequest): Promise<InviteResult> {
+  const resp = await apiClient.post<ApiResponse<InviteResult>>("/users/invite", body);
   return resp.data.data;
 }
 

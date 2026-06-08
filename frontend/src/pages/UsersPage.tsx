@@ -9,15 +9,18 @@ import {
   ToggleRight,
   X,
   Loader2,
+  Mail,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listUsers, createUser, updateUser } from "@/api/users";
-import type { User, CreateUserRequest } from "@/types/users";
+import { listUsers, inviteUser, updateUser } from "@/api/users";
+import type { User } from "@/types/users";
 
 // ── Role badge ─────────────────────────────────────────────────────────────────
 
 const ROLE_STYLES: Record<string, string> = {
   admin: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+  member: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
   manager: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   user: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   readonly: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
@@ -44,37 +47,28 @@ function RoleBadge({ role }: { role: string }) {
 // ── Invite modal ───────────────────────────────────────────────────────────────
 
 function InviteModal({ onClose }: { onClose: () => void }) {
-  const qc = useQueryClient();
-  const [form, setForm] = useState<CreateUserRequest>({
-    email: "",
-    display_name: "",
-    password: "",
-    role: "user",
-  });
-  const [errors, setErrors] = useState<Partial<Record<keyof CreateUserRequest, string>>>({});
+  const [form, setForm] = useState({ email: "", display_name: "", message: "" });
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: createUser,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["users"] });
-      onClose();
-    },
+    mutationFn: inviteUser,
   });
-
-  function validate(): boolean {
-    const e: typeof errors = {};
-    if (!form.email.includes("@")) e.email = "Valid email required";
-    if (form.display_name.trim().length < 1) e.display_name = "Name required";
-    if (form.password.length < 8) e.password = "At least 8 characters";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  }
 
   function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
-    if (!validate()) return;
-    mutation.mutate({ ...form, email: form.email.toLowerCase() });
+    if (!form.email.includes("@")) {
+      setEmailError("Valid email required");
+      return;
+    }
+    setEmailError(null);
+    mutation.mutate({
+      email: form.email.toLowerCase().trim(),
+      display_name: form.display_name.trim() || undefined,
+      message: form.message.trim() || undefined,
+    });
   }
+
+  const sent = mutation.isSuccess;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -89,109 +83,106 @@ function InviteModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {/* Email */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Email</label>
-            <input
-              type="email"
-              autoFocus
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              placeholder="user@precisian.local"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-            {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
-          </div>
-
-          {/* Display name */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Display Name</label>
-            <input
-              value={form.display_name}
-              onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
-              placeholder="Jane Smith"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-            {errors.display_name && (
-              <p className="text-xs text-destructive">{errors.display_name}</p>
-            )}
-          </div>
-
-          {/* Role */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Role</label>
-            <select
-              value={form.role}
-              onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            >
-              <option value="user">User</option>
-              <option value="manager">Manager</option>
-              <option value="admin">Admin</option>
-              <option value="readonly">Read Only</option>
-            </select>
-          </div>
-
-          {/* Regulatory write access */}
-          <label className="flex items-start gap-2 rounded-md border bg-background px-3 py-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.role === "admin" || !!form.can_write_regulatory}
-              disabled={form.role === "admin"}
-              onChange={(e) => setForm((f) => ({ ...f, can_write_regulatory: e.target.checked }))}
-              className="mt-0.5"
-            />
-            <span className="text-xs">
-              <span className="font-medium">Regulatory write access</span>
-              <span className="block text-muted-foreground">
-                Allow creating, editing, moving, and deleting regulatory files. Admins always have
-                this.
-              </span>
-            </span>
-          </label>
-
-          {/* Temporary password */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              Temporary Password
-            </label>
-            <input
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-              placeholder="Min. 8 characters"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
-            {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
-          </div>
-
-          {/* API error */}
-          {mutation.isError && (
-            <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {(mutation.error as { response?: { data?: { detail?: string } } })?.response?.data
-                ?.detail ?? "Failed to create user"}
+        {sent ? (
+          <div className="space-y-4 p-6 text-center">
+            <CheckCircle2 className="mx-auto h-12 w-12 text-green-500" />
+            <div>
+              <p className="font-semibold">Invitation sent</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {mutation.data?.message ?? `An email is on its way to ${form.email}.`}
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              They&apos;ll install Little Gerry and sign in with Google — their account is created
+              automatically on first login as a full-access member.
             </p>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
             <button
-              type="button"
               onClick={onClose}
-              className="rounded-md border px-4 py-2 text-sm text-muted-foreground hover:bg-accent"
+              className="mx-auto rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {mutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Create User
+              Done
             </button>
           </div>
-        </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4 p-5">
+            <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              We&apos;ll email a download link. The invitee installs Little Gerry and signs in with
+              Google — no password needed, and their account is set up automatically as a full-access
+              member.
+            </p>
+
+            {/* Email */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Email</label>
+              <input
+                type="email"
+                autoFocus
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="jane@pmi-llc.com"
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+              {emailError && <p className="text-xs text-destructive">{emailError}</p>}
+            </div>
+
+            {/* Display name (optional) */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Name <span className="text-muted-foreground/60">(optional)</span>
+              </label>
+              <input
+                value={form.display_name}
+                onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
+                placeholder="Jane Smith"
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            {/* Personal message (optional) */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Personal message <span className="text-muted-foreground/60">(optional)</span>
+              </label>
+              <textarea
+                value={form.message}
+                onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
+                placeholder="Looking forward to having you on board!"
+                rows={3}
+                className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            {/* API error */}
+            {mutation.isError && (
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {(mutation.error as { response?: { data?: { detail?: string } } })?.response?.data
+                  ?.detail ?? "Failed to send the invitation."}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border px-4 py-2 text-sm text-muted-foreground hover:bg-accent"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={mutation.isPending}
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {mutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Mail className="h-3.5 w-3.5" />
+                )}
+                Send Invite
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

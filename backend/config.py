@@ -66,6 +66,14 @@ class Settings(BaseSettings):
     # notifications. Falls back to all admin users if the email isn't found.
     feedback_recipient_email: str = "morganjkeane@pmi-llc.com"
 
+    # ── Access / onboarding ──────────────────────────────────────────────────
+    # The single application owner. On first Google SSO sign-in this email is
+    # provisioned as "admin"; every other allowed-domain account is provisioned
+    # as a full-access "member". Each user runs their own local copy.
+    admin_email: str = "morganjkeane@pmi-llc.com"
+    # Link emailed to invitees so they can download and install Little Gerry.
+    installer_download_url: str = "https://github.com/soulenya/pmi-agent/releases/latest"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

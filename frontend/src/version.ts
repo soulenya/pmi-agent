@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 38;
+export const BUILD_NUMBER = 39;
 export const BUILD_DATE = "2026-06-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 39,
+    date: "2026-06-08",
+    title: "Email invites + Google sign-in onboarding + automatic updates",
+    changes: [
+      "Invite teammates by email: send a link to download the app and sign in with Google — no passwords to manage",
+      "Accounts are created automatically on first Google sign-in; everyone joins as a full-access member, you stay the admin",
+      "The Invite dialog is now just an email, optional name, and an optional personal note",
+      "The app updates itself on launch — it pulls the latest version and applies any database changes automatically",
+    ],
+  },
   {
     build: 38,
     date: "2026-06-08",

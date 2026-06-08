@@ -36,6 +36,18 @@ class UpdateUserRequest(BaseModel):
     can_write_regulatory: bool | None = None
 
 
+class InviteRequest(BaseModel):
+    email: EmailStr
+    display_name: str | None = Field(default=None, max_length=255)
+    message: str | None = Field(default=None, max_length=2000)
+
+
+class InviteResult(BaseModel):
+    sent: bool
+    email: str
+    message: str
+
+
 @router.get("", response_model=ApiResponse[list[UserOut]])
 async def list_users(
     _admin: User = Depends(require_admin),
@@ -85,6 +97,63 @@ async def create_user(
     )
     await db.commit()
     return ApiResponse.ok(UserOut.model_validate(user))
+
+
+@router.post("/invite", response_model=ApiResponse[InviteResult])
+async def invite_user(
+    body: InviteRequest,
+    admin: User = Depends(require_admin),
+    audit: AuditLogger = Depends(get_audit_logger),
+    db: AsyncSession = Depends(get_db),
+) -> ApiResponse[InviteResult]:
+    """
+    Email an invitation with the download link. The invitee installs Little Gerry
+    and signs in with Google SSO — their account is auto-created on first login as
+    a full-access member. No account is created here (each user runs their own copy).
+    """
+    from config import settings
+    from services.google_service import gmail_send
+
+    to = body.email.lower()
+    greeting = f"Hi {body.display_name.strip()}," if body.display_name and body.display_name.strip() else "Hi,"
+    personal = f"\n\n{body.message.strip()}\n" if body.message and body.message.strip() else ""
+    download = settings.installer_download_url
+
+    subject = "You're invited to Little Gerry"
+    text = (
+        f"{greeting}"
+        f"{personal}\n"
+        f"{admin.display_name} has invited you to use Little Gerry, the PMI AI assistant.\n\n"
+        f"Getting started:\n"
+        f"  1. Download and run the installer: {download}\n"
+        f"  2. Launch Little Gerry and click \"Sign in with Google\".\n"
+        f"  3. Use your @pmi-llc.com or @precisianmedical.com account — your access is\n"
+        f"     set up automatically on first sign-in.\n\n"
+        f"That's it. See you inside!\n"
+    )
+
+    try:
+        gmail_send(to=to, subject=subject, body=text)
+    except Exception as exc:  # Google not connected, token expired, etc.
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "Could not send the invitation email. Make sure Google Workspace is "
+                f"connected (Google page → Connect). Details: {exc}"
+            ),
+        )
+
+    await audit.log(
+        "user.invited",
+        actor_id=admin.id,
+        entity_type="user",
+        payload={"email": to},
+    )
+    await db.commit()
+
+    return ApiResponse.ok(
+        InviteResult(sent=True, email=to, message=f"Invitation sent to {to}.")
+    )
 
 
 @router.patch("/{user_id}", response_model=ApiResponse[UserOut])
