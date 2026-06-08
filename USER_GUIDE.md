@@ -1,7 +1,7 @@
 # Little Gerry — User Guide
 **AI Executive Assistant for Precisian Medical Instruments**
 
-Build 33 · June 2026
+Build 39 · June 2026
 
 ---
 
@@ -24,24 +24,25 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 
 1. [Getting Started](#getting-started)
 2. [Logging In](#logging-in)
-3. [AI Configuration (First Time)](#ai-configuration-first-time)
-4. [Features at a Glance](#features-at-a-glance)
-5. [Talking to Little Gerry](#talking-to-little-gerry)
-6. [Knowledge Base](#knowledge-base)
-7. [Semantic Search](#semantic-search)
-8. [Research](#research)
-9. [Tasks & Projects](#tasks--projects)
-10. [Calendar](#calendar)
-11. [Email Drafts](#email-drafts)
-12. [Meeting Notes](#meeting-notes)
-13. [Regulatory Documents](#regulatory-documents)
-14. [Investor Relations](#investor-relations)
-15. [Google Workspace](#google-workspace)
-16. [Approvals Queue](#approvals-queue)
-17. [Notifications](#notifications)
-18. [Settings](#settings)
-19. [Updating Little Gerry](#updating-little-gerry)
-20. [Tips & Example Prompts](#tips--example-prompts)
+3. [Inviting Teammates](#inviting-teammates)
+4. [AI Configuration (First Time)](#ai-configuration-first-time)
+5. [Features at a Glance](#features-at-a-glance)
+6. [Talking to Little Gerry](#talking-to-little-gerry)
+7. [Knowledge Base](#knowledge-base)
+8. [Semantic Search](#semantic-search)
+9. [Research](#research)
+10. [Tasks & Projects](#tasks--projects)
+11. [Calendar](#calendar)
+12. [Email Drafts](#email-drafts)
+13. [Meeting Notes](#meeting-notes)
+14. [Regulatory Documents](#regulatory-documents)
+15. [Investor Relations](#investor-relations)
+16. [Google Workspace](#google-workspace)
+17. [Approvals Queue](#approvals-queue)
+18. [Notifications](#notifications)
+19. [Settings](#settings)
+20. [Updating Little Gerry](#updating-little-gerry)
+21. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -65,7 +66,19 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 
 ## Logging In
 
-Sign in with the email and password you set up during first-run configuration. If you've forgotten your password, contact your system administrator.
+Click **Sign in with Google**. Little Gerry uses Google sign-in only — there are no passwords. Your Google account must be on an approved Workspace domain (`pmi-llc.com` or `precisianmedical.com`). On your **first** sign-in your account is created automatically: the owner is the **admin** and everyone else joins as a **full-access member**.
+
+---
+
+## Inviting Teammates
+
+If you're the admin, you can invite others from **Users** → **Invite**:
+
+1. Enter their **email** (a display name and a short personal note are optional).
+2. Click **Send Invite**. They get an email with a link to download Little Gerry and a one-line instruction: **Sign in with Google**.
+3. The first time they sign in, their account is created automatically as a **full-access member** — no passwords, no setup steps for you.
+
+Everyone runs their own copy of Little Gerry, so each install keeps its own local data. The invite simply gets a teammate the app and an account on their own machine.
 
 ---
 
@@ -361,7 +374,10 @@ Connect or disconnect your Google account (see [Google Workspace](#google-worksp
 
 ## Updating Little Gerry
 
-**In-app (recommended):**
+**Automatic (default):**
+Every time you start Little Gerry it checks for a newer version and, if one is available, installs it and applies any database updates before the app opens — so you're always on the latest build without doing anything.
+
+**In-app (on demand):**
 Go to **Settings → Updates** → **Check for Updates** → **Install Update**
 
 **Manual:**

@@ -56,7 +56,7 @@ Key design principles:
 | **Feedback**               | Top-bar button to report a bug or request a feature; submissions are routed to the owner's notifications                                   |
 | **Setup Wizard**           | One-time guided first-use onboarding: explains the stack, connects Claude + Voyage (pre-set defaults) and Google, and covers roles & usage |
 | **Audit Trail**            | Immutable log of all system and AI actions with filtering and export                                                                       |
-| **User Management**        | Role-based access control (Admin / User), per-user Regulatory write permission, user creation and deactivation                            |
+| **User Management**        | Google sign-in only (no passwords); invite teammates by email; accounts auto-created on first sign-in (owner = admin, everyone else = full-access member); per-user Regulatory write permission and deactivation |
 | **Google Workspace**       | Connect your Google account for Gmail, Drive, Calendar, and Contacts integration with human-in-the-loop write approvals                    |
 | **Settings**               | LLM model selection, embedding provider, re-index KB, live health monitoring, appearance, notification preferences, and one-click in-app updates |
 
@@ -262,7 +262,19 @@ Open **http://localhost:5173** in your browser.
 
 ### Logging In
 
-Sign in with the email and password you set during first-run setup.
+Click **Sign in with Google**. Little Gerry uses Google sign-in only — there are no passwords to manage. Your account must belong to an approved Workspace domain (`pmi-llc.com` or `precisianmedical.com`). On your **first** sign-in your account is created automatically: the owner becomes the **admin**, and everyone else joins as a **full-access member**. The one-time Setup Wizard then walks you through configuration.
+
+---
+
+### Inviting Teammates
+
+Admins can invite others from **Users** → **Invite**:
+
+1. Enter the teammate's **email** (optionally a display name and a personal note).
+2. They receive an email with a link to download Little Gerry and instructions to **Sign in with Google**.
+3. Their account is created automatically on first sign-in as a **full-access member** — no passwords, no manual setup.
+
+Because each person runs their own local copy, every install keeps its own data; the invite simply gets them the app and an account on their own machine.
 
 ---
 
@@ -367,6 +379,8 @@ Navigate to **Approvals** for the human-in-the-loop queue. Pending approvals sho
 - **System Health** — live status of PostgreSQL, active LLM (with live ping), active embedding provider (with live ping), disk space, and re-index flag
 - **Updates** — check and install updates in-app
 
+> **Automatic updates on launch.** Each time Little Gerry starts it checks GitHub and, if a newer version is available, pulls it, refreshes dependencies, and applies any pending database migrations before the app opens. The in-app **Updates** panel remains available for an on-demand check. (Auto-update is skipped on developer machines with uncommitted changes.)
+
 ---
 
 ## Configuration Reference
@@ -419,7 +433,7 @@ VITE_WS_BASE=ws://127.0.0.1:8000
 
 ### Google Workspace
 
-OAuth credentials are stored in `backend/google_credentials.json` (Desktop app type). The per-user token is written to `backend/google_token.json` after first sign-in and is gitignored.
+OAuth credentials are stored in `backend/google_credentials.json` (Desktop app type) and are **gitignored** — they are bundled into the installer at build time, never committed to source control. The per-user token is written to `backend/google_token.json` after first sign-in and is also gitignored. If you ever rotate the OAuth client secret in Google Cloud, replace `backend/google_credentials.json` locally and rebuild the installer.
 
 ---
 
@@ -473,6 +487,8 @@ Output: `installer\Output\LittleGerry_Setup.exe`
 - Rate limiting is applied to all API endpoints via `slowapi`
 - CORS is restricted to localhost origins
 - Google OAuth tokens are stored locally and never transmitted to any third-party service
+- Sign-in is Google SSO only and restricted to approved Workspace domains (`pmi-llc.com`, `precisianmedical.com`); no passwords are stored or transmitted
+- `backend/google_credentials.json` (OAuth client secret) is gitignored and bundled only at installer build time — rotate the secret in Google Cloud if it is ever exposed
 
 ---
 
