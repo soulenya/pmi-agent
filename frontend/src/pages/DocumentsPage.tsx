@@ -31,6 +31,23 @@ import {
   Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import axios from "axios";
+
+// â”€â”€ Extract a human-readable error message from an axios/unknown error â”€â”€â”€â”€â”€â”€
+function getErrorMessage(e: unknown): string {
+  if (axios.isAxiosError(e)) {
+    if (!e.response) {
+      return "Cannot reach the server. Is Little Gerry running?";
+    }
+    const detail = e.response.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;
+    if (typeof e.response.data?.message === "string") return e.response.data.message;
+    return `Request failed (${e.response.status})`;
+  }
+  if (e instanceof Error) return e.message;
+  return "Unknown error";
+}
 
 // â”€â”€ Status badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -461,7 +478,7 @@ export function DocumentsPage() {
       setShowUpload(false);
       setUploadError("");
     },
-    onError: (e: Error) => setUploadError(e.message),
+    onError: (e: Error) => setUploadError(getErrorMessage(e)),
   });
 
   const deleteMutation = useMutation({
@@ -498,25 +515,25 @@ export function DocumentsPage() {
     setDriveImporting(true);
     setDriveImportStatus(`Importing 0 of ${items.length}…`);
     let succeeded = 0;
-    let failed = 0;
+    const failures: string[] = [];
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       setDriveImportStatus(`Importing ${i + 1} of ${items.length}: ${item.name}`);
       try {
         await driveImportToKnowledgeBase(item.id, item.name, undefined, false);
         succeeded++;
-      } catch {
-        failed++;
+      } catch (e) {
+        failures.push(`${item.name}: ${getErrorMessage(e)}`);
       }
     }
     queryClient.invalidateQueries({ queryKey: ["documents"] });
     setDriveImporting(false);
     setShowDriveBrowser(false);
-    const msg = failed === 0
-      ? `Imported ${succeeded} file${succeeded > 1 ? "s" : ""} successfully.`
-      : `Imported ${succeeded}, failed ${failed}.`;
+    const msg = failures.length === 0
+      ? `Imported ${succeeded} file${succeeded === 1 ? "" : "s"} successfully.`
+      : `Imported ${succeeded}, failed ${failures.length}. ${failures.join(" | ")}`;
     setDriveImportStatus(msg);
-    setTimeout(() => setDriveImportStatus(null), 5000);
+    setTimeout(() => setDriveImportStatus(null), failures.length === 0 ? 5000 : 15000);
   }
 
   // â”€â”€ Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
