@@ -70,3 +70,4 @@ backend/generated_files/*
 # Alembic (keep versions/, not __pycache__)
 backend/migrations/__pycache__/
 backend/google_token.json 
+backend/google_credentials.json
