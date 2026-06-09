@@ -19,14 +19,17 @@ import {
   CalendarDays,
   Globe,
   TrendingUp,
+  Sparkles,
 } from "lucide-react";
 import { listPendingApprovals, listNotifications } from "@/api/chat";
+import { getPendingSuggestionCount } from "@/api/assistant";
 import { ServiceMenu } from "@/components/ServiceMenu";
 import { BUILD_NUMBER, BUILD_DATE } from "@/version";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/chat", icon: MessageSquare, label: "Little Gerry" },
+  { to: "/assistant", icon: Sparkles, label: "Daily Assistant", badge: "assistant" as const },
   { to: "/projects", icon: FolderOpen, label: "Projects" },
   { to: "/tasks", icon: FolderKanban, label: "Tasks" },
   { to: "/calendar", icon: CalendarDays, label: "Calendar" },
@@ -59,12 +62,19 @@ export function Sidebar() {
     staleTime: 30_000,
   });
 
+  const { data: assistantPending = 0 } = useQuery({
+    queryKey: ["assistant", "suggestions", "count"],
+    queryFn: getPendingSuggestionCount,
+    refetchInterval: 30_000,
+  });
+
   const approvalCount = pendingApprovals.length;
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
-  const badgeCount = (badge: "approvals" | "notifications" | undefined) => {
+  const badgeCount = (badge: "approvals" | "notifications" | "assistant" | undefined) => {
     if (badge === "approvals") return approvalCount;
     if (badge === "notifications") return unreadCount;
+    if (badge === "assistant") return assistantPending;
     return 0;
   };
 

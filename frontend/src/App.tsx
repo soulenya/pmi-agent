@@ -8,6 +8,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { ChatPage } from "@/pages/ChatPage";
 import { ApprovalsPage } from "@/pages/ApprovalsPage";
+import { AssistantPage } from "@/pages/AssistantPage";
 import { DocumentsPage } from "@/pages/DocumentsPage";
 import { SearchPage } from "@/pages/SearchPage";
 import { TasksPage } from "@/pages/TasksPage";
@@ -55,6 +56,7 @@ function ThemedApp() {
             <Route path="chat" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
             <Route path="chat/:conversationId" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
             <Route path="approvals" element={<ErrorBoundary><ApprovalsPage /></ErrorBoundary>} />
+            <Route path="assistant" element={<ErrorBoundary><AssistantPage /></ErrorBoundary>} />
             <Route path="documents" element={<ErrorBoundary><DocumentsPage /></ErrorBoundary>} />
             <Route path="search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
             <Route path="tasks" element={<ErrorBoundary><TasksPage /></ErrorBoundary>} />

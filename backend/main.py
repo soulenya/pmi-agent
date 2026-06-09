@@ -37,6 +37,7 @@ from routers.update import router as update_router
 from routers.google_integration import router as google_router
 from routers.files import router as files_router
 from routers.feedback import router as feedback_router
+from routers.assistant import router as assistant_router
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -187,6 +188,89 @@ async def _drive_sync_loop() -> None:
             logger.exception("Drive sync loop error")
 
 
+# ── Background daily-assistant scan loop ──────────────────────────────────────
+
+async def _run_assistant_scan() -> None:
+    """Run one daily-assistant scan and push any resulting notifications."""
+    from services.assistant import daily_scan
+    from services.embeddings.service import get_embedding_service_db
+
+    async for db in get_db():
+        embedding_svc = await get_embedding_service_db(db)
+        summary = await daily_scan.run_daily_scan(db, embedding_svc)
+        for n in summary.get("notifications", []):
+            await notification_manager.push(
+                n["user_id"],
+                {
+                    "type": "notification",
+                    "entity_id": n["id"],
+                    "title": n["title"],
+                    "notif_type": "reminder",
+                },
+            )
+        logger.info(
+            "Assistant scan: %s suggestion(s), %s import(s)%s",
+            summary.get("created", 0),
+            summary.get("imported", 0),
+            f" (skipped: {summary['skipped']})" if summary.get("skipped") else "",
+        )
+
+
+def _seconds_until_hour(now: datetime, hour: int) -> float:
+    """Seconds from ``now`` until the next occurrence of ``hour`` (local)."""
+    target = now.replace(hour=max(0, min(23, hour)), minute=0, second=0, microsecond=0)
+    if target <= now:
+        target = target + timedelta(days=1)
+    return max(1.0, (target - now).total_seconds())
+
+
+async def _assistant_scan_loop() -> None:
+    """Run the assistant scan once a day at the configured local hour (default 07:00).
+
+    Also performs a catch-up run on startup if today's scan has not happened yet.
+    """
+    from services.assistant import daily_scan
+
+    # Startup catch-up: run now if enabled and we haven't scanned yet today.
+    try:
+        async for db in get_db():
+            enabled = await daily_scan.get_setting(
+                db, daily_scan.SETTING_ENABLED, daily_scan.DEFAULT_ENABLED
+            )
+            last_run = await daily_scan.get_setting(db, daily_scan.SETTING_LAST_RUN, None)
+        ran_today = False
+        if last_run:
+            try:
+                last_dt = datetime.fromisoformat(str(last_run).replace("Z", "+00:00"))
+                ran_today = last_dt.date() == datetime.now(last_dt.tzinfo).date()
+            except Exception:
+                ran_today = False
+        if enabled and not ran_today:
+            await _run_assistant_scan()
+    except Exception:
+        logger.exception("Assistant scan startup catch-up error")
+
+    while True:
+        try:
+            async for db in get_db():
+                hour = await daily_scan.get_setting(
+                    db, daily_scan.SETTING_HOUR, daily_scan.DEFAULT_HOUR
+                )
+            delay = _seconds_until_hour(datetime.now(), int(hour))
+        except Exception:
+            delay = _seconds_until_hour(datetime.now(), daily_scan.DEFAULT_HOUR)
+        await asyncio.sleep(delay)
+        try:
+            async for db in get_db():
+                enabled = await daily_scan.get_setting(
+                    db, daily_scan.SETTING_ENABLED, daily_scan.DEFAULT_ENABLED
+                )
+            if enabled:
+                await _run_assistant_scan()
+        except Exception:
+            logger.exception("Assistant scan loop error")
+
+
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -205,10 +289,12 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(3)
     bg_task = asyncio.create_task(_notification_loop())
     drive_task = asyncio.create_task(_drive_sync_loop())
+    assistant_task = asyncio.create_task(_assistant_scan_loop())
     yield
     bg_task.cancel()
     drive_task.cancel()
-    for _t in (bg_task, drive_task):
+    assistant_task.cancel()
+    for _t in (bg_task, drive_task, assistant_task):
         try:
             await _t
         except asyncio.CancelledError:
@@ -273,6 +359,7 @@ def create_app() -> FastAPI:
     app.include_router(google_router)
     app.include_router(files_router)
     app.include_router(feedback_router)
+    app.include_router(assistant_router)
 
     # ── WebSocket: real-time chat stream ─────────────────────────────────────
     @app.websocket("/ws/chat/{conversation_id}")
