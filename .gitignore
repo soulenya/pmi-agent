@@ -75,3 +75,7 @@ backend/google_credentials.json
 # Code-signing private key — NEVER commit. Public .cer is safe to share.
 *.pfx
 installer/cert/LittleGerry-Signing.pfx
+
+# Auto-update token — read-only GitHub PAT baked into installers at build time.
+# NEVER commit. Lives only on the build machine and inside built installers.
+update_token.txt
