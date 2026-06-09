@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     chunk_overlap_tokens: int = 64
     rag_top_k: int = 5
 
+    # ── Agent ────────────────────────────────────────────────────────────────
+    # Max recursive tool-call rounds for a single chat turn. Complex multi-step
+    # tasks (e.g. search → fetch many threads → build a doc → upload) need many
+    # rounds; this caps runaway loops while leaving generous headroom.
+    agent_max_tool_rounds: int = 30
+
     # ── Storage ──────────────────────────────────────────────────────────────
     # Root directory where encrypted document files are stored
     storage_root: str = "~/.pmi-agent/documents"

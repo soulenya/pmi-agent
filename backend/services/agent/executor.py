@@ -24,6 +24,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
 from models.db.enums import MessageRole
 from models.schemas.conversations import WSDone, WSError, WSToken, WSToolStatus
 from repositories.conversation_repo import ConversationRepository, MessageRepository
@@ -34,7 +35,11 @@ from services.llm.router import get_llm_client
 
 logger = logging.getLogger(__name__)
 
-MAX_TOOL_ROUNDS = 5  # hard cap on recursive tool calls
+# Hard cap on recursive tool-call rounds per turn (configurable). Kept as a
+# module attribute for backwards compatibility; the runtime value comes from
+# settings so it can be tuned without a code change.
+MAX_TOOL_ROUNDS = settings.agent_max_tool_rounds
+
 
 # ── PMI system prompt ─────────────────────────────────────────────────────────
 
@@ -326,12 +331,46 @@ class AgentExecutor:
                     # Anthropic needs tool_use_id in a content block, Ollama just uses role=tool)
                     messages.append(self.ollama.build_tool_result_message(tc_id, tool_name, result))
 
-        # Exceeded MAX_TOOL_ROUNDS — return what we have
-        if accumulated_content:
+        # Exceeded MAX_TOOL_ROUNDS. Rather than dropping the work (or returning a
+        # bare error), make one FINAL streaming call with NO tools so the model is
+        # forced to write its answer from everything it has already gathered.
+        accumulated_content += content_this_round
+        messages.append({
+            "role": "user",
+            "content": (
+                "You have reached the maximum number of tool calls for this turn. "
+                "Do NOT call any more tools. Using everything you have gathered so "
+                "far, write your complete final answer now."
+            ),
+        })
+
+        final_content = ""
+        final_model = ""
+        try:
+            async for chunk in self.ollama.chat_stream(messages, tools=None):
+                if chunk.content:
+                    final_content += chunk.content
+                    yield WSToken(
+                        content=chunk.content,
+                        conversation_id=str(self.conversation_id),
+                    ).model_dump_json()
+                if chunk.done:
+                    final_model = chunk.model
+        except Exception:  # noqa: BLE001 — fall back to whatever we already have
+            logger.exception("Final no-tools answer failed after exhausting tool rounds")
+
+        import re as _re
+        body = final_content or accumulated_content
+        clean_content = _re.sub(
+            r"<tool_call>.*?</tool_call>", "", body, flags=_re.DOTALL
+        ).strip()
+
+        if clean_content:
             assistant_msg = await msg_repo.create(
                 conversation_id=self.conversation_id,
                 role=MessageRole.ASSISTANT,
-                content=accumulated_content,
+                content=clean_content,
+                model_name=final_model,
                 cited_chunk_ids=cited_chunk_ids,
             )
             await self.db.commit()

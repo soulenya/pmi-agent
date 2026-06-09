@@ -62,7 +62,7 @@ class BaseAgent:
         messages: list[dict[str, Any]],
         today: str,
         google_connected: bool,
-        max_rounds: int = 5,
+        max_rounds: int | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
         Async generator — yields dicts:
@@ -72,6 +72,9 @@ class BaseAgent:
           {"type": "done"}
           {"type": "error",  "detail": "..."}
         """
+        if max_rounds is None:
+            from config import settings
+            max_rounds = settings.agent_max_tool_rounds
         lc_messages = [self._system_message(today, google_connected)]
         for m in messages:
             role = m.get("role", "")
