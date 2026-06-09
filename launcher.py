@@ -133,6 +133,29 @@ def _update_token() -> str | None:
         return None
 
 
+def _spawn_detached(args):
+    """
+    Launch a fully independent child process that survives this launcher exiting.
+
+    Critically uses CREATE_BREAKAWAY_FROM_JOB: when the launcher (pythonw.exe) is
+    running inside a Windows Job Object with kill-on-close (which can happen
+    depending on how it was started), a plain detached child would JOIN that job
+    and be killed the instant this process calls os._exit(0) — before it could do
+    any work. Breaking away from the job lets the updater run to completion.
+    Falls back to a plain detached spawn if the job forbids breakaway.
+    """
+    DETACHED = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+    try:
+        return subprocess.Popen(
+            args,
+            creationflags=DETACHED | CREATE_BREAKAWAY_FROM_JOB,
+            close_fds=True,
+        )
+    except OSError:
+        return subprocess.Popen(args, creationflags=DETACHED, close_fds=True)
+
+
 def _auto_update_release() -> bool:
     """
     Installed-copy updater: check the private repo's GitHub Releases for a newer
@@ -188,15 +211,13 @@ def _auto_update_release() -> bool:
 
         _set_status("Installing update...", 0)
         apply_script = ROOT / "scripts" / "apply_update.ps1"
-        subprocess.Popen(
+        _spawn_detached(
             [
                 "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
                 "-File", str(apply_script),
                 "-Installer", str(target),
                 "-AppDir", str(ROOT),
-            ],
-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-            close_fds=True,
+            ]
         )
         return True
     except Exception:
