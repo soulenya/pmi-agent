@@ -155,10 +155,22 @@ class VoyageEmbeddingService:
         self._model = model
 
     async def _embed_with_retry(self, texts: list[str]) -> list[list[float]]:
-        """Call Voyage embed with automatic retry on rate-limit errors."""
+        """Call Voyage embed with automatic retry on transient errors.
+
+        Retries rate-limit errors (with longer backoff) and transient network /
+        server errors such as connection failures, timeouts, and 5xx responses
+        (with short backoff) so a momentary blip doesn't fail a whole ingestion.
+        """
         import asyncio
         import voyageai
         client = voyageai.AsyncClient(api_key=self._api_key)
+        transient_errors = (
+            voyageai.error.APIConnectionError,
+            voyageai.error.ServiceUnavailableError,
+            voyageai.error.ServerError,
+            voyageai.error.Timeout,
+            voyageai.error.TryAgain,
+        )
         for attempt in range(self._MAX_RETRIES):
             try:
                 result = await client.embed(texts, model=self._model)
@@ -170,6 +182,15 @@ class VoyageEmbeddingService:
                 logger.warning(
                     "Voyage AI rate limit hit — waiting %ds before retry %d/%d",
                     wait, attempt + 1, self._MAX_RETRIES,
+                )
+                await asyncio.sleep(wait)
+            except transient_errors as exc:
+                if attempt == self._MAX_RETRIES - 1:
+                    raise
+                wait = 2 * (attempt + 1)  # short backoff: 2s, 4s, 6s
+                logger.warning(
+                    "Voyage AI transient error (%s) — retrying in %ds (%d/%d)",
+                    type(exc).__name__, wait, attempt + 1, self._MAX_RETRIES,
                 )
                 await asyncio.sleep(wait)
         raise RuntimeError("Voyage AI embed failed after retries")
