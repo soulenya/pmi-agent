@@ -133,27 +133,51 @@ def _update_token() -> str | None:
         return None
 
 
-def _spawn_detached(args):
+def _launch_updater(apply_script: Path, target: Path) -> None:
     """
-    Launch a fully independent child process that survives this launcher exiting.
+    Hand off to apply_update.ps1 as a process that OUTLIVES this launcher.
 
-    Critically uses CREATE_BREAKAWAY_FROM_JOB: when the launcher (pythonw.exe) is
-    running inside a Windows Job Object with kill-on-close (which can happen
-    depending on how it was started), a plain detached child would JOIN that job
-    and be killed the instant this process calls os._exit(0) — before it could do
-    any work. Breaking away from the job lets the updater run to completion.
-    Falls back to a plain detached spawn if the job forbids breakaway.
+    The launcher (pythonw.exe) frequently runs inside a Windows Job Object with
+    kill-on-close semantics. A child created with subprocess.Popen — even with
+    DETACHED_PROCESS or CREATE_BREAKAWAY_FROM_JOB — joins (or fails to break out
+    of) that job and is killed the instant this process calls os._exit(0), before
+    apply_update.ps1 can run (its log file is never even created — confirmed in
+    the field and in a controlled kill-on-close-job repro).
+
+    os.startfile() uses ShellExecute, so the new process is created by the shell
+    (Explorer) — parented OUTSIDE our job — and runs in the interactive desktop
+    (so the installer's UAC prompt can appear). This is the launch method that
+    reliably survives. Fallbacks keep older behaviour if ShellExecute fails.
     """
+    ps_args = (
+        f'-NoProfile -ExecutionPolicy Bypass '
+        f'-File "{apply_script}" -Installer "{target}" -AppDir "{ROOT}"'
+    )
+    try:
+        # show_cmd=0 (SW_HIDE) hides the PowerShell host window; the installer's
+        # UAC consent prompt still appears on the secure desktop.
+        os.startfile("powershell.exe", arguments=ps_args, show_cmd=0)
+        return
+    except Exception:
+        _log_error()
+
+    # Fallback: detached spawn with job breakaway (best-effort).
     DETACHED = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
     CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+    args = [
+        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-File", str(apply_script),
+        "-Installer", str(target),
+        "-AppDir", str(ROOT),
+    ]
     try:
-        return subprocess.Popen(
+        subprocess.Popen(
             args,
             creationflags=DETACHED | CREATE_BREAKAWAY_FROM_JOB,
             close_fds=True,
         )
     except OSError:
-        return subprocess.Popen(args, creationflags=DETACHED, close_fds=True)
+        subprocess.Popen(args, creationflags=DETACHED, close_fds=True)
 
 
 def _auto_update_release() -> bool:
@@ -211,14 +235,7 @@ def _auto_update_release() -> bool:
 
         _set_status("Installing update...", 0)
         apply_script = ROOT / "scripts" / "apply_update.ps1"
-        _spawn_detached(
-            [
-                "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
-                "-File", str(apply_script),
-                "-Installer", str(target),
-                "-AppDir", str(ROOT),
-            ]
-        )
+        _launch_updater(apply_script, target)
         return True
     except Exception:
         _log_error()
