@@ -18,6 +18,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/contacts.readonly",
@@ -329,6 +330,46 @@ def drive_search(query: str, max_results: int = 10) -> list[dict]:
         }
         for f in resp.get("files", [])
     ]
+
+
+def drive_upload_file(
+    local_path: str,
+    name: str | None = None,
+    folder_id: str | None = None,
+) -> dict:
+    """Upload a local file to the user's Google Drive and return its metadata.
+
+    Requires the ``drive.file`` scope (granted on connect). ``name`` overrides the
+    Drive filename; ``folder_id`` places the file inside a folder. Returns
+    ``{id, name, url}`` where ``url`` is the shareable webViewLink.
+    """
+    import mimetypes
+    from googleapiclient.http import MediaFileUpload
+
+    p = Path(local_path)
+    if not p.is_file():
+        raise RuntimeError(f"Local file not found: {local_path}")
+
+    drive_name = name or p.name
+    mime_type = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
+
+    metadata: dict[str, Any] = {"name": drive_name}
+    if folder_id:
+        metadata["parents"] = [folder_id]
+
+    svc = _build("drive", "v3")
+    media = MediaFileUpload(str(p), mimetype=mime_type, resumable=False)
+    created = svc.files().create(
+        body=metadata,
+        media_body=media,
+        fields="id,name,webViewLink",
+        supportsAllDrives=True,
+    ).execute()
+    return {
+        "id": created.get("id", ""),
+        "name": created.get("name", drive_name),
+        "url": created.get("webViewLink", ""),
+    }
 
 
 def drive_search_by_name(name_contains: str, max_results: int = 25) -> list[dict]:

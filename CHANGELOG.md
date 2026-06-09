@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v1.1.2 — 2026-06-10
+**Create Word documents and upload them to Google Drive**
+
+- **Create `.docx` documents** — a new `create_docx` agent tool (`backend/services/agent/tools.py`) builds real Microsoft Word files with python-docx. It accepts lightweight Markdown (`#`/`##`/`###` headings, `-`/`*` bullets, `1.` numbered lists, `**bold**`) and saves into the Generated Files area, so the file appears on the **Generated Files** page ready to download. The files router (`backend/routers/files.py`) now serves `.docx`/`.doc`, and the page strips the internal id prefix so names display cleanly
+- **Upload to Google Drive** — a new `upload_to_drive` agent tool plus `drive_upload_file()` (`backend/services/google_service.py`) uploads any generated file to Drive (optionally into a folder by id) and returns the shareable link. Added the `drive.file` write scope — **reconnect Google in Settings → Google Integration** to grant upload access. Together these let the assistant go end-to-end: gather data → write a `.docx` → upload it to Drive
+- **No more premature "maximum tool call rounds" errors** — the per-turn tool-call cap (`backend/config.py` `agent_max_tool_rounds`) was raised from 5 to a configurable 30, and when the cap is reached the assistant now makes one final no-tools call to **write its complete answer** instead of failing and discarding all the work it gathered (`backend/services/agent/executor.py`, `backend/services/agent/v2/base_agent.py`)
+
 ### v1.1.1 — 2026-06-09
 **Fix chat errors on the newest Claude models + macOS support groundwork**
 

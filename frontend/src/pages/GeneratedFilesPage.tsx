@@ -4,7 +4,9 @@ import { Download, Trash2, FileText, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 function stripUuidPrefix(name: string): string {
-  return name.replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[-_]/i, "");
+  return name
+    .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[-_]/i, "")
+    .replace(/^[0-9a-f]{8}_/i, "");
 }
 
 function formatBytes(bytes: number): string {

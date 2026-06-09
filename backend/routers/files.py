@@ -15,7 +15,7 @@ from fastapi import Depends
 _FILES_DIR = Path(__file__).resolve().parent.parent / "generated_files"
 _FILES_DIR.mkdir(exist_ok=True)
 
-_ALLOWED_EXTENSIONS = {".txt", ".md", ".csv", ".json"}
+_ALLOWED_EXTENSIONS = {".txt", ".md", ".csv", ".json", ".docx", ".doc"}
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 

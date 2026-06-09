@@ -531,6 +531,71 @@ TOOL_DEFINITIONS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_docx",
+            "description": (
+                "Create a Microsoft Word (.docx) document and save it to the server's "
+                "Generated Files area so the user can download it. Use this whenever the "
+                "user asks for a Word document, a formatted report, a memo, a weekly update, "
+                "meeting notes, or any deliverable that should be a .docx. The 'content' "
+                "field accepts lightweight Markdown: lines starting with '# ', '## ', or "
+                "'### ' become headings; lines starting with '- ' or '* ' become bullet "
+                "points; lines starting with '1. ' become numbered list items; '**bold**' "
+                "renders as bold; blank lines separate paragraphs. Returns a download URL."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "Filename, e.g. 'Weekly Update.docx'. The .docx extension is added if missing.",
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Optional document title rendered as a heading at the top.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Document body as lightweight Markdown (see tool description for supported syntax).",
+                    },
+                },
+                "required": ["filename", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "upload_to_drive",
+            "description": (
+                "Upload a previously generated file (from the Generated Files area) to the "
+                "user's Google Drive. Provide the server filename returned by create_docx or "
+                "generate_file (e.g. the value after '/api/files/'). Optionally place it inside "
+                "a Drive folder by id. Returns the Google Drive link. Requires the user to have "
+                "connected Google with write access."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "The server filename in the Generated Files area, e.g. 'a1b2c3d4_Weekly Update.docx'.",
+                    },
+                    "drive_name": {
+                        "type": "string",
+                        "description": "Optional name to give the file in Google Drive. Defaults to the original filename without the internal id prefix.",
+                    },
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Optional Google Drive folder id to upload into. Omit to upload to the Drive root.",
+                    },
+                },
+                "required": ["filename"],
+            },
+        },
+    },
 ]
 
 
@@ -1093,6 +1158,99 @@ async def execute_generate_file(ctx: ToolContext, args: dict[str, Any]) -> str:
     return f"File created: /api/files/{safe_name}"
 
 
+def _add_markdown_runs(paragraph, text: str) -> None:
+    """Add text to a python-docx paragraph, rendering **bold** spans as bold runs."""
+    for i, segment in enumerate(re.split(r"\*\*(.+?)\*\*", text)):
+        if not segment:
+            continue
+        run = paragraph.add_run(segment)
+        run.bold = bool(i % 2)  # odd indices are the captured bold groups
+
+
+async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Build a real Word (.docx) document from lightweight Markdown content."""
+    import docx
+
+    filename = str(args.get("filename", "document.docx")).strip()
+    title = str(args.get("title", "")).strip()
+    content = str(args.get("content", ""))
+
+    # Sanitize filename and force a .docx extension
+    filename = re.sub(r"[^\w.\- ]", "_", filename).strip() or "document.docx"
+    if Path(filename).suffix.lower() not in (".docx", ".doc"):
+        filename = Path(filename).stem + ".docx"
+    if Path(filename).suffix.lower() == ".doc":
+        # python-docx only writes the modern format
+        filename = Path(filename).stem + ".docx"
+
+    document = docx.Document()
+    if title:
+        document.add_heading(title, level=0)
+
+    for raw_line in content.splitlines():
+        line = raw_line.rstrip()
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("### "):
+            document.add_heading(stripped[4:].strip(), level=3)
+        elif stripped.startswith("## "):
+            document.add_heading(stripped[3:].strip(), level=2)
+        elif stripped.startswith("# "):
+            document.add_heading(stripped[2:].strip(), level=1)
+        elif stripped.startswith(("- ", "* ")):
+            p = document.add_paragraph(style="List Bullet")
+            _add_markdown_runs(p, stripped[2:].strip())
+        elif re.match(r"^\d+\.\s+", stripped):
+            p = document.add_paragraph(style="List Number")
+            _add_markdown_runs(p, re.sub(r"^\d+\.\s+", "", stripped))
+        else:
+            p = document.add_paragraph()
+            _add_markdown_runs(p, stripped)
+
+    _GENERATED_FILES_DIR.mkdir(exist_ok=True)
+    uid_prefix = uuid.uuid4().hex[:8]
+    safe_name = f"{uid_prefix}_{filename}"
+    document.save(str(_GENERATED_FILES_DIR / safe_name))
+    return f"Word document created: /api/files/{safe_name}"
+
+
+async def execute_upload_to_drive(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Upload a generated file to the user's Google Drive."""
+    import asyncio
+
+    from services.google_service import drive_upload_file
+
+    filename = str(args.get("filename", "")).strip()
+    if not filename:
+        return "Error: filename is required."
+    # Guard against path traversal — only allow a bare filename.
+    if "/" in filename or "\\" in filename or filename.startswith(".."):
+        return "Error: invalid filename."
+
+    path = (_GENERATED_FILES_DIR / filename).resolve()
+    if not str(path).startswith(str(_GENERATED_FILES_DIR.resolve())) or not path.is_file():
+        return f"Error: file '{filename}' not found in Generated Files. Create it first, then upload."
+
+    # Strip the internal 8-hex id prefix (e.g. 'a1b2c3d4_Name.docx') for a clean Drive name.
+    default_name = re.sub(r"^[0-9a-f]{8}_", "", filename)
+    drive_name = str(args.get("drive_name") or default_name).strip() or default_name
+    folder_id = str(args.get("folder_id") or "").strip() or None
+
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_upload_file(str(path), name=drive_name, folder_id=folder_id)
+        )
+    except Exception as exc:  # noqa: BLE001 — surface a readable message to the model
+        return f"Drive upload failed: {exc}"
+
+    return (
+        f"Uploaded '{result.get('name', drive_name)}' to Google Drive. "
+        f"Link: {result.get('url', '(no link returned)')}"
+    )
+
+
+
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
 TOOL_EXECUTORS = {
@@ -1105,6 +1263,8 @@ TOOL_EXECUTORS = {
     "search_web": execute_search_web,
     "fetch_page": execute_fetch_page,
     "generate_file": execute_generate_file,
+    "create_docx": execute_create_docx,
+    "upload_to_drive": execute_upload_to_drive,
     # Google Workspace (read-only)
     "search_gmail": execute_search_gmail,
     "read_gmail_message": execute_read_gmail_message,
