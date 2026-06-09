@@ -162,10 +162,13 @@ Name: "{autostartup}\{#AppName}"; \
 ; Install winget prerequisites (Docker, Ollama, Python, Node) via install.ps1
 ; NOTE: uv sync / npm install / migrations run on first launch via Start bat
 ;       because they need the user's PATH, not the elevated installer context.
+; skipifsilent: the unattended auto-update (/VERYSILENT) skips this winget pass.
+;       Prerequisites are already present on an existing install, and re-running
+;       winget headlessly is slow and was returning a spurious exit code 1.
 Filename: "powershell.exe"; \
     Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\install.ps1"" -ProjectRoot ""{app}"""; \
     WorkingDir: "{app}"; \
-    Flags: waituntilterminated; \
+    Flags: waituntilterminated skipifsilent; \
     StatusMsg: "Installing prerequisites (Docker, Ollama, Python, Node.js)..."; \
     Description: "Install prerequisites via winget"
 
@@ -212,9 +215,11 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
-  // Warn the user on the final confirmation page that the setup takes time
+  // Warn the user on the final confirmation page that the setup takes time.
+  // SuppressibleMsgBox auto-answers IDYES under /SILENT or /SUPPRESSMSGBOXES
+  // (e.g. the unattended auto-update), so it never blocks a headless install.
   if CurPageID = wpReady then begin
-    if MsgBox(
+    if SuppressibleMsgBox(
       'The installer will now download and configure:' + Chr(13)+Chr(10) +
       '  - Docker Desktop (~500 MB)' + Chr(13)+Chr(10) +
       '  - Ollama + AI models (~2.5 GB)' + Chr(13)+Chr(10) +
@@ -223,7 +228,7 @@ begin
       'Internet access is required. Estimated time: 10-30 minutes.' + Chr(13)+Chr(10) +
       Chr(13)+Chr(10) +
       'Continue?',
-      mbConfirmation, MB_YESNO) = IDNO
+      mbConfirmation, MB_YESNO, IDYES) = IDNO
     then
       Result := False;
   end;
@@ -231,10 +236,13 @@ end;
 
 // Show an explicit "install succeeded" popup once files are copied and
 // prerequisites have run, just before the Finished page is displayed.
+// MUST be SuppressibleMsgBox: a plain MsgBox() is NOT suppressed by
+// /SUPPRESSMSGBOXES and would block the detached, headless auto-update
+// (apply_update.ps1 -Wait) forever, so the app would never relaunch.
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then begin
-    MsgBox(
+    SuppressibleMsgBox(
       'Little Gerry was installed successfully!' + Chr(13)+Chr(10) +
       Chr(13)+Chr(10) +
       'When you launch it, a setup window will finish preparing the app ' +
@@ -242,7 +250,7 @@ begin
       'and starts on its own every time from then on.' + Chr(13)+Chr(10) +
       Chr(13)+Chr(10) +
       'Use the desktop shortcut or Start Menu entry to open Little Gerry.',
-      mbInformation, MB_OK);
+      mbInformation, MB_OK, IDOK);
   end;
 end;
 
