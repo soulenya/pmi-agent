@@ -6,6 +6,11 @@ Use this file to identify the exact GitHub commit for any build and roll back if
 
 | Tag | SHA | Date | Notes |
 |-----|-----|------|-------|
+| **`v1.0.4`** | `767bcb1` | 2026-06-09 | Fix Google Drive PDF/DOCX imports (match upload extractor). |
+| **`v1.0.3`** | `fa13fd9` | 2026-06-09 | Fix Knowledge Base imports — default embedding provider to Voyage. |
+| **`v1.0.2`** | `19be119` | 2026-06-09 | Resilient embeddings — retry transient Voyage errors. |
+| **`v1.0.1`** | `46d8cd4` | 2026-06-09 | Silent auto-update + admin self-lockout guard. |
+| **`v1.0.0`** | `d04982a` | 2026-06-09 | First signed public release — code-signing + publisher trust kit. |
 | **`v0.9.0`** | `28fb46d` | 2026-06-08 | First milestone build — core features working well. Check out with `git checkout v0.9.0`. |
 
 ## Rollback command
@@ -25,6 +30,11 @@ git push origin master --force  # only if you want to revert remote
 
 | Build | SHA       | Date       | Description |
 |-------|-----------|------------|-------------|
+| **v1.0.4** | `767bcb1` | 2026-06-09 | **Fix Drive PDF/DOCX import** — Drive imports failed with "Could not extract text" on PDFs that uploaded fine; the Drive path used pypdf (empty text on many PDFs) + truncated to 10k chars. Now hands raw bytes to the ingestion pipeline so PDFs extract via **PyMuPDF** and DOCX via **python-docx** (identical to upload); in-place extraction upgraded pypdf→PyMuPDF for the agent reader + update-sync |
+| **v1.0.3** | `fa13fd9` | 2026-06-09 | **Fix KB imports — default embedding provider to Voyage** — missing `llm.embedding_provider` made ingestion fall back to a non-running Ollama (`localhost:11434`) → "All connection attempts failed"; now falls back to `settings.default_embedding_provider` (Voyage) |
+| **v1.0.2** | `1d35024` | 2026-06-09 | **Resilient embeddings** — `VoyageEmbeddingService` retries transient errors (connection failures, timeouts, 5xx, rate limits) with backoff so a brief blip doesn't fail a whole ingestion |
+| **v1.0.1** | `c3ed5a3` | 2026-06-09 | **Silent auto-update + admin self-lockout guard** — installed app pulls newer signed installer from GitHub Releases on launch (`launcher.py`, `scripts/apply_update.ps1`); admins can't deactivate their own account or drop their own admin role (`routers/users.py`) |
+| **v1.0.0** | `d04982a` | 2026-06-09 | **Signed installer + publisher trust kit** — code-signing cert + one-click `Trust-Little-Gerry.bat` (`installer/cert/`); add missing `voyageai` dependency; exclude personal `google_token.json`/`.env` from bundle; post-install success popup |
 | **40** | `d068996` | 2026-06-08 | **Startup self-heal** — fix `container name "/pmi_postgres" is already in use` crash; `launcher.py` + `Start Little Gerry.bat` now `docker rm -f pmi_postgres` if this project doesn't own it before `docker compose up` (volume preserved) |
 | 39    | `2952ece` | 2026-06-08 | security: stop tracking `backend/google_credentials.json` (held an OAuth client secret) + gitignore; rotate the secret in Google Cloud |
 | **39** | `e24a182` | 2026-06-08 | **Email invites + SSO auto-provision + auto-update** — admin-only `POST /users/invite` (Gmail link to installer); accounts auto-created on first Google sign-in (owner→admin, others→full-access member); `admin_email` + `installer_download_url` settings; `launcher.py` pulls latest on launch (`git reset --hard origin/master`, `uv sync`, `npm install`) + always runs `alembic upgrade head` (skips on dirty tree) |

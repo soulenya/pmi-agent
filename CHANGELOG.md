@@ -4,6 +4,36 @@
 
 ## Changelog
 
+### v1.0.4 — 2026-06-09
+**Fix Google Drive PDF/DOCX imports**
+
+- **Drive imports now use the same robust extractor as uploads**: importing a PDF (or Word doc) from Google Drive previously failed with *"Could not extract text"* even when the identical file uploaded from disk worked. The Drive path extracted text with **pypdf**, which returns empty text on many PDFs, and silently truncated content to 10,000 characters
+- **Fix** (`services/google_service.py`, `routers/google_integration.py`): Drive PDF/DOCX files now hand their **raw bytes** to the ingestion pipeline, which extracts text with **PyMuPDF (fitz)** for PDFs and **python-docx** for Word — identical to the Upload path, with no truncation. The in-place text extraction (used by the AI agent's Drive reader and document update-sync) was also upgraded from pypdf to PyMuPDF
+
+### v1.0.3 — 2026-06-09
+**Fix Knowledge Base imports — default embedding provider to Voyage**
+
+- **Document imports no longer fail trying to reach a local Ollama server**: when no embedding provider was persisted in the database, ingestion silently fell back to **Ollama** (`localhost:11434`), which isn't running — producing *"All connection attempts failed."* The Settings page showed "Voyage connected" because the API key lived in the keyring, but the provider selection had never been saved
+- **Fix** (`services/embeddings/service.py`): the embedding provider/model now fall back to the configured default (`settings.default_embedding_provider` = Voyage) instead of Ollama, so a fresh install with a cloud key configured works out of the box
+
+### v1.0.2 — 2026-06-09
+**Resilient embeddings — retry transient Voyage connection errors**
+
+- **Auto-retry on momentary network blips** (`services/embeddings/service.py`): `VoyageEmbeddingService` now retries transient errors (connection failures, timeouts, 5xx, rate limits) with backoff so a brief hiccup doesn't fail an entire document ingestion
+
+### v1.0.1 — 2026-06-09
+**Silent auto-update + admin self-lockout guard**
+
+- **Silent auto-update for installed copies** (`launcher.py`, `scripts/apply_update.ps1`): on launch the installed app checks GitHub Releases and, if a newer signed installer exists, downloads and applies it in the background, then relaunches
+- **Prevent admin self-lockout** (`routers/users.py`): an admin can no longer deactivate their own account or remove their own admin role (returns 400), preventing accidental loss of access
+
+### v1.0.0 — 2026-06-09
+**Signed installer + publisher trust kit**
+
+- **Internal code-signing** (`installer/cert/`): the installer is signed with a self-signed code-signing certificate; a one-click `Trust-Little-Gerry.bat` installs the publisher certificate so Windows SmartScreen/AV trust the app
+- **Added missing `voyageai` dependency** to `backend/pyproject.toml` + lockfile
+- **Installer hygiene**: exclude personal `google_token.json` and `.env` from the bundle; post-install success popup + clearer Finished page
+
 ### Build 40 — 2026-06-08
 **Reliable startup — self-heal a leftover database container**
 
