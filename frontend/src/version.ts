@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 44;
-export const BUILD_DATE = "2026-06-09";
+export const BUILD_NUMBER = 45;
+export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 45,
+    date: "2026-06-10",
+    title: "Create Word documents and upload them to Google Drive",
+    changes: [
+      "Little Gerry can now create Microsoft Word (.docx) documents on request — reports, memos, weekly updates, meeting notes — and they appear on the Generated Files page ready to download",
+      "New: ask Little Gerry to upload a generated file to your Google Drive and it returns a shareable link (reconnect Google in Settings to grant upload access)",
+      "Complex multi-step requests (search → gather many items → build a document → upload) no longer stop early with “maximum tool call rounds” — the limit was raised and the assistant now always writes its final answer instead of erroring",
+    ],
+  },
   {
     build: 44,
     date: "2026-06-09",
