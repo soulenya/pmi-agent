@@ -172,6 +172,7 @@ Closing the Little Gerry window shows a native confirmation dialog before shutti
 | Requirement              | Version | Notes                                                     |
 | ------------------------ | ------- | --------------------------------------------------------- |
 | **Windows 10/11**  | 64-bit  | Primary supported platform                                |
+| **macOS**          | 12+ (Apple Silicon) | Supported — see the [macOS section](#macos-apple-silicon) |
 | **Node.js**        | v20+    | [nodejs.org](https://nodejs.org)                             |
 | **Python**         | 3.14    | [python.org](https://www.python.org)                         |
 | **uv**             | latest  | `pip install uv`                                        |
@@ -258,6 +259,68 @@ npm run dev
 Open **http://localhost:5173** in your browser.
 
 ---
+
+## macOS (Apple Silicon)
+
+Little Gerry runs on macOS using the same backend, frontend, and Docker stack. The
+launcher (`launcher.py`) is cross-platform; macOS-specific scripts live alongside the
+Windows `.bat` files.
+
+### First-time setup
+
+```bash
+git clone https://github.com/soulenya/pmi-agent.git
+cd pmi-agent
+bash scripts/install.sh        # installs Homebrew deps, DB, migrations, frontend
+```
+
+`install.sh` installs the prerequisites via Homebrew (Docker Desktop, Python, Node 20,
+`uv`), brings up PostgreSQL, runs migrations, seeds the admin user, and makes the
+launcher scripts executable.
+
+### Running
+
+Double-click **`Start Little Gerry.command`** in Finder (or run it from a terminal).
+It performs first-run setup if needed, then opens the app in a native Cocoa/WebKit
+window. **`Stop Little Gerry.command`** shuts the services down.
+
+> If a script won't run after a fresh `git clone`, make them executable once:
+> `chmod +x *.command scripts/*.sh`
+
+| File | Purpose |
+| --- | --- |
+| `Start Little Gerry.command` | Start all services and launch Little Gerry (first-run setup if needed) |
+| `Stop Little Gerry.command` | Gracefully stop backend, frontend, and PostgreSQL |
+| `scripts/install.sh` | Full Homebrew-based setup (run once after cloning) |
+| `scripts/update.sh` | Developer update — git pull, deps, migrations, restart |
+| `scripts/build-macos.sh` | Build the macOS installer `installer/Output/LittleGerry.pkg` |
+| `scripts/publish-macos.sh` | Build and attach `LittleGerry.pkg` to the GitHub release |
+
+### Building the macOS installer (.pkg)
+
+```bash
+bash scripts/build-macos.sh
+```
+
+Produces a per-user `installer/Output/LittleGerry.pkg` that installs to
+`~/Applications/Little Gerry` with a double-clickable **Little Gerry.app** launcher —
+the macOS analog of the Windows `LittleGerry_Setup.exe`.
+
+**Code signing / notarization** (requires a paid Apple Developer account) is optional
+and enabled via environment variables — when unset, the build is unsigned (works on
+your own Mac; other Macs need a one-time right-click → Open):
+
+```bash
+export DEVELOPER_ID_INSTALLER="Developer ID Installer: Your Name (TEAMID)"
+export NOTARY_PROFILE="littlegerry"   # from: xcrun notarytool store-credentials
+bash scripts/publish-macos.sh         # builds, signs, notarizes, uploads to the release
+```
+
+The Windows `.exe` and macOS `.pkg` attach to the **same** GitHub release/tag, and the
+in-app auto-updater downloads the correct asset for each platform automatically.
+
+---
+
 
 ## Usage Guide
 

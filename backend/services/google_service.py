@@ -93,8 +93,27 @@ def start_auth_flow() -> None:
             pass
 
     def _open_url(url: str, *a, **kw) -> bool:
-        """Open a URL from pythonw.exe (no console) using multiple fallbacks."""
+        """Open a URL from a no-console process using platform-specific fallbacks."""
         _log(f"Opening URL (first 80 chars): {url[:80]}")
+        import sys as _sys
+        if _sys.platform == "darwin":
+            # macOS: hand the URL to the default browser via `open`.
+            try:
+                import subprocess as _sp
+                _sp.Popen(["open", url])
+                _log("Browser opened via open")
+                return True
+            except Exception as e:
+                _log(f"open failed: {e}")
+            try:
+                import webbrowser as _wb
+                if _wb.open(url):
+                    _log("Browser opened via webbrowser")
+                    return True
+            except Exception as e:
+                _log(f"webbrowser failed: {e}")
+            _log("All browser-open attempts failed")
+            return False
         # 1. os.startfile — passes URL to Windows shell (default browser handler)
         try:
             import os as _os2

@@ -13,6 +13,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -24,12 +25,42 @@ ROOT         = Path(__file__).parent
 BACKEND_DIR  = ROOT / "backend"
 FRONTEND_DIR = ROOT / "frontend"
 LOGO_PATH    = ROOT / "Spaceman on Black BG.png"
-VENV_PYTHON  = BACKEND_DIR / ".venv" / "Scripts" / "python.exe"
+
+# ── platform abstraction ─────────────────────────────────────────────────────
+IS_WINDOWS = (os.name == "nt")
+IS_MAC     = (sys.platform == "darwin")
+
+if IS_WINDOWS:
+    VENV_PYTHON = BACKEND_DIR / ".venv" / "Scripts" / "python.exe"
+else:
+    VENV_PYTHON = BACKEND_DIR / ".venv" / "bin" / "python"
+
+# Per-platform release asset + apply-update script used by the installed-copy
+# auto-updater (see _auto_update_release / _launch_updater).
+if IS_WINDOWS:
+    UPDATE_ASSET_NAME  = "LittleGerry_Setup.exe"
+    UPDATE_TARGET_NAME = "LittleGerry_Setup_update.exe"
+    APPLY_SCRIPT       = ROOT / "scripts" / "apply_update.ps1"
+elif IS_MAC:
+    UPDATE_ASSET_NAME  = "LittleGerry.pkg"
+    UPDATE_TARGET_NAME = "LittleGerry_update.pkg"
+    APPLY_SCRIPT       = ROOT / "scripts" / "apply_update.sh"
+else:
+    UPDATE_ASSET_NAME  = ""
+    UPDATE_TARGET_NAME = "LittleGerry_update.bin"
+    APPLY_SCRIPT       = ROOT / "scripts" / "apply_update.sh"
 
 HEALTH_URL    = "http://127.0.0.1:8000/health"
 APP_URL       = "http://localhost:5173"
-NO_WIN        = subprocess.CREATE_NO_WINDOW
 CONTROL_FILE  = BACKEND_DIR / "logs" / "launcher_cmd.txt"
+
+
+def _no_window_kwargs() -> dict:
+    """Popen/run kwargs that hide a console window on Windows (no-op elsewhere)."""
+    if IS_WINDOWS:
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
 
 # Auto-update (installed copies pull signed installers from the private repo's
 # Releases using a read-only token baked in at build time).
@@ -68,16 +99,23 @@ def _set_status(text: str, step: int | None = None) -> None:
 def _run(cmd: str, cwd: str | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         cmd, cwd=cwd, shell=True,
-        capture_output=True, creationflags=NO_WIN,
+        capture_output=True, **_no_window_kwargs(),
     )
 
 
 def _kill_port(port: int) -> None:
-    r = _run(f'netstat -aon | findstr ":{port} "')
-    for line in r.stdout.decode(errors="ignore").splitlines():
-        parts = line.split()
-        if len(parts) >= 5 and f":{port}" in parts[1]:
-            _run(f"taskkill /f /pid {parts[4]}")
+    if IS_WINDOWS:
+        r = _run(f'netstat -aon | findstr ":{port} "')
+        for line in r.stdout.decode(errors="ignore").splitlines():
+            parts = line.split()
+            if len(parts) >= 5 and f":{port}" in parts[1]:
+                _run(f"taskkill /f /pid {parts[4]}")
+    else:
+        # macOS / Unix: find the PID(s) bound to the port and kill them.
+        r = _run(f"lsof -ti tcp:{port}")
+        for pid in r.stdout.decode(errors="ignore").split():
+            if pid.strip():
+                _run(f"kill -9 {pid.strip()}")
 
 
 def _health_ok() -> bool:
@@ -135,20 +173,34 @@ def _update_token() -> str | None:
 
 def _launch_updater(apply_script: Path, target: Path) -> None:
     """
-    Hand off to apply_update.ps1 as a process that OUTLIVES this launcher.
+    Hand off to the platform's apply-update script as a process that OUTLIVES
+    this launcher so it can replace files after we exit.
 
-    The launcher (pythonw.exe) frequently runs inside a Windows Job Object with
-    kill-on-close semantics. A child created with subprocess.Popen — even with
-    DETACHED_PROCESS or CREATE_BREAKAWAY_FROM_JOB — joins (or fails to break out
-    of) that job and is killed the instant this process calls os._exit(0), before
-    apply_update.ps1 can run (its log file is never even created — confirmed in
-    the field and in a controlled kill-on-close-job repro).
+    macOS / Unix: there is no kill-on-close Job Object, so a detached session
+    (start_new_session=True → setsid) reliably survives the parent's os._exit().
 
+    Windows: the launcher (pythonw.exe) frequently runs inside a Windows Job
+    Object with kill-on-close semantics. A child created with subprocess.Popen —
+    even with DETACHED_PROCESS or CREATE_BREAKAWAY_FROM_JOB — joins (or fails to
+    break out of) that job and is killed the instant this process calls
+    os._exit(0), before apply_update.ps1 can run (its log file is never even
+    created — confirmed in the field and in a controlled kill-on-close-job repro).
     os.startfile() uses ShellExecute, so the new process is created by the shell
     (Explorer) — parented OUTSIDE our job — and runs in the interactive desktop
     (so the installer's UAC prompt can appear). This is the launch method that
     reliably survives. Fallbacks keep older behaviour if ShellExecute fails.
     """
+    if not IS_WINDOWS:
+        try:
+            subprocess.Popen(
+                ["/bin/bash", str(apply_script), str(target), str(ROOT)],
+                start_new_session=True, close_fds=True,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            _log_error()
+        return
+
     ps_args = (
         f'-NoProfile -ExecutionPolicy Bypass '
         f'-File "{apply_script}" -Installer "{target}" -AppDir "{ROOT}"'
@@ -195,6 +247,8 @@ def _auto_update_release() -> bool:
     token = _update_token()
     if not token:
         return False
+    if not UPDATE_ASSET_NAME:
+        return False  # unsupported platform for installed-copy updates
     try:
         _set_status("Checking for updates...", 0)
         req = urllib.request.Request(
@@ -214,7 +268,7 @@ def _auto_update_release() -> bool:
             return False  # already current
 
         asset = next(
-            (a for a in data.get("assets", []) if a.get("name") == "LittleGerry_Setup.exe"),
+            (a for a in data.get("assets", []) if a.get("name") == UPDATE_ASSET_NAME),
             None,
         )
         if not asset:
@@ -229,13 +283,12 @@ def _auto_update_release() -> bool:
                 "User-Agent": "LittleGerry-Updater",
             },
         )
-        target = Path(tempfile.gettempdir()) / "LittleGerry_Setup_update.exe"
+        target = Path(tempfile.gettempdir()) / UPDATE_TARGET_NAME
         with urllib.request.urlopen(dl_req, timeout=300) as r, open(target, "wb") as out:
             shutil.copyfileobj(r, out)
 
         _set_status("Installing update...", 0)
-        apply_script = ROOT / "scripts" / "apply_update.ps1"
-        _launch_updater(apply_script, target)
+        _launch_updater(APPLY_SCRIPT, target)
         return True
     except Exception:
         _log_error()
@@ -291,11 +344,14 @@ def _start_services() -> None:
         _set_status("Checking Docker...", 1)
         if _run("docker info").returncode != 0:
             _set_status("Starting Docker...", 1)
-            # Try Windows service (harmless if it fails) and launch Desktop.exe simultaneously
-            _run("sc start com.docker.service")
-            desktop_exe = r"C:\Program Files\Docker\Docker\Docker Desktop.exe"
-            if Path(desktop_exe).exists():
-                subprocess.Popen([desktop_exe], creationflags=NO_WIN)
+            if IS_WINDOWS:
+                # Try Windows service (harmless if it fails) and launch Desktop.exe
+                _run("sc start com.docker.service")
+                desktop_exe = r"C:\Program Files\Docker\Docker\Docker Desktop.exe"
+                if Path(desktop_exe).exists():
+                    subprocess.Popen([desktop_exe], **_no_window_kwargs())
+            elif IS_MAC:
+                _run("open -a Docker")
             for _ in range(30):
                 time.sleep(3)
                 if _run("docker info").returncode == 0:
@@ -335,7 +391,7 @@ def _start_services() -> None:
             cwd=str(BACKEND_DIR),
             stdout=_backend_log,
             stderr=_backend_log,
-            creationflags=NO_WIN,
+            **_no_window_kwargs(),
         ))
 
         # 4. Frontend
@@ -347,8 +403,8 @@ def _start_services() -> None:
             cwd=str(FRONTEND_DIR),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=NO_WIN,
             shell=True,
+            **_no_window_kwargs(),
         ))
 
         # Wait for backend health-check
@@ -595,16 +651,24 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
         global _skip_close_confirm
         if _skip_close_confirm:
             return None  # tray already confirmed — allow
-        import ctypes
-        IDYES = 6
-        result = ctypes.windll.user32.MessageBoxW(
-            0,
+        message = (
             "Shut down Little Gerry and stop all services?\n\n"
-            "This will close the backend, frontend, database, and Ollama.",
-            "Little Gerry — Confirm Exit",
-            0x24,  # MB_YESNO | MB_ICONQUESTION
+            "This will close the backend, frontend, database, and Ollama."
         )
-        if result != IDYES:
+        title = "Little Gerry — Confirm Exit"
+        if IS_WINDOWS:
+            import ctypes
+            IDYES = 6
+            confirmed = ctypes.windll.user32.MessageBoxW(
+                0, message, title, 0x24,  # MB_YESNO | MB_ICONQUESTION
+            ) == IDYES
+        else:
+            # macOS / Unix: ask via the webview's native confirmation dialog.
+            try:
+                confirmed = bool(win.create_confirmation_dialog(title, message))
+            except Exception:
+                confirmed = True  # fall back to allowing the close
+        if not confirmed:
             return False  # user chose No — cancel the close
         _skip_close_confirm = True  # prevent re-entry if destroy fires closing again
         return None  # allow close
@@ -622,18 +686,30 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
         except Exception:
             _log_error()
 
-    icon = _make_tray(win)
+    # System tray: pystray's detached mode (run_detached) is Windows/X11 only.
+    # The macOS (Cocoa) backend must own the main thread, which pywebview already
+    # uses, so we skip the tray there. The window-close handler still stops every
+    # service, and in-app Restart/Update commands arrive via the control file.
+    icon = None
     global _icon_ref
-    _icon_ref = icon
+    if IS_WINDOWS:
+        icon = _make_tray(win)
+        _icon_ref = icon
     threading.Thread(target=_poll_control_file, daemon=True).start()
-    icon.run_detached(setup=lambda i: setattr(i, "visible", True))
+    if icon is not None:
+        icon.run_detached(setup=lambda i: setattr(i, "visible", True))
 
-    # gui="winforms" is the most stable Windows backend (WinForms + Edge WebView2)
-    webview.start(_after_start, win, gui="winforms", debug=False)
+    # gui="winforms" is the most stable Windows backend (WinForms + Edge WebView2).
+    # On macOS pywebview uses its native Cocoa/WebKit backend automatically.
+    if IS_WINDOWS:
+        webview.start(_after_start, win, gui="winforms", debug=False)
+    else:
+        webview.start(_after_start, win, debug=False)
 
     # Reached here only when the window is closed
     _stop_all()
-    icon.stop()
+    if icon is not None:
+        icon.stop()
     os._exit(0)
 
 
