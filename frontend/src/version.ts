@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 40;
-export const BUILD_DATE = "2026-06-08";
+export const BUILD_NUMBER = 41;
+export const BUILD_DATE = "2026-06-09";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 41,
+    date: "2026-06-09",
+    title: "Tidier sidebar — scrollable, with collapsible sections",
+    changes: [
+      "The left navigation now scrolls when there are more items than fit on screen",
+      "Navigation is grouped into collapsible sections (Work, Knowledge, Communications, Compliance, Administration) with Dashboard, Little Gerry, and Daily Assistant pinned at the top",
+      "Collapsed sections show a badge with any pending counts inside them, so nothing important gets hidden",
+      "The section containing your current page stays open, and your collapsed/expanded choices are remembered between sessions",
+    ],
+  },
   {
     build: 40,
     date: "2026-06-08",
