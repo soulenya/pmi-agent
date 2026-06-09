@@ -18,6 +18,19 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = "claude-sonnet-4-6"
 MAX_TOKENS = 4096
 
+# Some newer Claude models reject the `temperature` parameter ("temperature is
+# deprecated for this model"). We learn which models those are at runtime — the
+# first call that hits the error records the model here so subsequent calls omit
+# the parameter automatically. This self-heals without a hard-coded model list.
+_TEMP_UNSUPPORTED_MODELS: set[str] = set()
+
+
+def _is_temperature_deprecated_error(exc: Exception) -> bool:
+    """True when the API rejected the request because `temperature` is deprecated."""
+    msg = str(getattr(exc, "message", "") or exc).lower()
+    return "temperature" in msg and "deprecated" in msg
+
+
 
 class AnthropicClient:
     """Async Anthropic client matching OllamaClient's interface."""
@@ -94,47 +107,67 @@ class AnthropicClient:
     ) -> AsyncGenerator[StreamChunk, None]:
         """Stream chat completion tokens."""
         system, filtered = self._split_messages(messages)
-        kwargs = {
+        base_kwargs: dict = {
             "model": self._model,
             "max_tokens": MAX_TOKENS,
             "messages": filtered,
-            "temperature": temperature,
         }
         if system:
-            kwargs["system"] = system
+            base_kwargs["system"] = system
         if tools:
-            kwargs["tools"] = self._convert_tools(tools)
+            base_kwargs["tools"] = self._convert_tools(tools)
 
         tool_calls: list[dict] = []
         input_tokens = 0
         output_tokens = 0
+        yielded_any = False
+        include_temperature = self._model not in _TEMP_UNSUPPORTED_MODELS
 
-        async with self._client.messages.stream(**kwargs) as stream:
-            # stream.text_stream is the SDK's reliable way to get text tokens.
-            # It handles all the internal SSE events correctly regardless of SDK version.
-            async for text_chunk in stream.text_stream:
-                yield StreamChunk(
-                    content=text_chunk,
-                    done=False,
-                    model=self._model,
-                )
+        while True:
+            kwargs = dict(base_kwargs)
+            if include_temperature:
+                kwargs["temperature"] = temperature
+            try:
+                async with self._client.messages.stream(**kwargs) as stream:
+                    # stream.text_stream is the SDK's reliable way to get text tokens.
+                    # It handles all internal SSE events correctly across SDK versions.
+                    async for text_chunk in stream.text_stream:
+                        yielded_any = True
+                        yield StreamChunk(
+                            content=text_chunk,
+                            done=False,
+                            model=self._model,
+                        )
 
-            # get_final_message() waits for the stream to complete and returns
-            # the full Message object including all tool_use blocks.
-            final = await stream.get_final_message()
-            if final.usage:
-                input_tokens = final.usage.input_tokens
-                output_tokens = final.usage.output_tokens
+                    # get_final_message() waits for the stream to complete and returns
+                    # the full Message object including all tool_use blocks.
+                    final = await stream.get_final_message()
+                    if final.usage:
+                        input_tokens = final.usage.input_tokens
+                        output_tokens = final.usage.output_tokens
 
-            for block in final.content:
-                if block.type == "tool_use":
-                    tool_calls.append({
-                        "id": block.id,
-                        "function": {
-                            "name": block.name,
-                            "arguments": block.input,  # already a dict
-                        }
-                    })
+                    for block in final.content:
+                        if block.type == "tool_use":
+                            tool_calls.append({
+                                "id": block.id,
+                                "function": {
+                                    "name": block.name,
+                                    "arguments": block.input,  # already a dict
+                                }
+                            })
+                break
+            except anthropic.BadRequestError as exc:
+                # Retry once without temperature if the model deprecated it and we
+                # haven't streamed anything yet (the error fires at request time).
+                if (
+                    include_temperature
+                    and not yielded_any
+                    and _is_temperature_deprecated_error(exc)
+                ):
+                    _TEMP_UNSUPPORTED_MODELS.add(self._model)
+                    include_temperature = False
+                    continue
+                raise
 
         yield StreamChunk(
             content="",
@@ -153,18 +186,30 @@ class AnthropicClient:
     ) -> StreamChunk:
         """Non-streaming single call."""
         system, filtered = self._split_messages(messages)
-        kwargs = {
+        base_kwargs: dict = {
             "model": self._model,
             "max_tokens": MAX_TOKENS,
             "messages": filtered,
-            "temperature": temperature,
         }
         if system:
-            kwargs["system"] = system
+            base_kwargs["system"] = system
         if tools:
-            kwargs["tools"] = self._convert_tools(tools)
+            base_kwargs["tools"] = self._convert_tools(tools)
 
-        resp = await self._client.messages.create(**kwargs)
+        include_temperature = self._model not in _TEMP_UNSUPPORTED_MODELS
+        while True:
+            kwargs = dict(base_kwargs)
+            if include_temperature:
+                kwargs["temperature"] = temperature
+            try:
+                resp = await self._client.messages.create(**kwargs)
+                break
+            except anthropic.BadRequestError as exc:
+                if include_temperature and _is_temperature_deprecated_error(exc):
+                    _TEMP_UNSUPPORTED_MODELS.add(self._model)
+                    include_temperature = False
+                    continue
+                raise
 
         content = ""
         tool_calls: list[dict] = []
