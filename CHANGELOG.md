@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v1.1.1 — 2026-06-09
+**Fix chat errors on the newest Claude models + macOS support groundwork**
+
+- **Fixed `temperature is deprecated for this model`** — switching to one of the newest Claude models then sending a chat returned `400 invalid_request_error: 'temperature' is deprecated for this model`. The Anthropic client (`backend/services/llm/anthropic_client.py`) always sent `temperature`; it now **retries once without it** on that specific error and **caches the model** so subsequent calls omit the parameter automatically — self-healing with no hard-coded model list. Covers every feature that calls Claude (chat, briefings, emails, meetings, regulatory, research, daily scan)
+- **macOS (Apple Silicon) groundwork** — the launcher (`launcher.py`) is now cross-platform, with macOS launcher scripts (`Start/Stop Little Gerry.command`, `scripts/install.sh`, `update.sh`, `apply_update.sh`), a `.pkg` installer builder (`scripts/build-macos.sh`) with a `Little Gerry.app` stub, and env-gated code-signing/notarization hooks. The Windows `.exe` and macOS `.pkg` attach to the same release; the auto-updater picks the right asset per platform. *(macOS end-to-end testing still pending hardware.)*
+
 ### v1.1.0 — 2026-06-09
 **Auto-update fix (definitive) + tidier sidebar**
 
