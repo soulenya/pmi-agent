@@ -6,6 +6,8 @@ Use this file to identify the exact GitHub commit for any build and roll back if
 
 | Tag | SHA | Date | Notes |
 |-----|-----|------|-------|
+| **`v1.1.0`** | `f562e0e` | 2026-06-09 | Auto-update reliability (updater survives app exit via ShellExecute) + scrollable, collapsible sidebar. |
+| **`v1.0.7`** | `e0f4cc7` | 2026-06-09 | Auto-updater hardening — suppressible install dialogs, skip winget on silent update, logging + guaranteed relaunch. |
 | **`v1.0.5`** | `880c00e` | 2026-06-09 | Fix "Check for Updates" 502 — installed-app-aware update check (authenticated Releases API). |
 | **`v1.0.4`** | `767bcb1` | 2026-06-09 | Fix Google Drive PDF/DOCX imports (match upload extractor). |
 | **`v1.0.3`** | `fa13fd9` | 2026-06-09 | Fix Knowledge Base imports — default embedding provider to Voyage. |
@@ -31,6 +33,13 @@ git push origin master --force  # only if you want to revert remote
 
 | Build | SHA       | Date       | Description |
 |-------|-----------|------------|-------------|
+| **v1.1.0 (b43)** | `f562e0e` | 2026-06-09 | **Auto-update fix (definitive) + sidebar** — the updater is now handed off via `os.startfile`/ShellExecute (`launcher.py` `_launch_updater`) so it is reparented to Explorer, **outside** the launcher's kill-on-close Job Object, and survives `os._exit(0)` to install + relaunch. `CREATE_BREAKAWAY_FROM_JOB` (v1.0.9) was rejected by the job and was not enough; proven with a controlled kill-on-close-job repro (detached = killed, ShellExecute = survives). Also ships the scrollable, collapsible sidebar (b41). Verified end-to-end: installed app auto-updated 1.0.8 → 1.1.0 |
+| _v1.0.10_ | `e272d24` | 2026-06-09 | _Withdrawn — version bump committed but the publish hung at signing; no tag/release was ever created. Superseded by v1.1.0 (skipped to 1.1.0 by preference)._ |
+| **v1.0.9 (b42)** | `ea29035` | 2026-06-09 | **Auto-update — first job-kill attempt** — spawn `apply_update.ps1` with `CREATE_BREAKAWAY_FROM_JOB` so a kill-on-close Job Object wouldn't terminate the detached updater on launcher exit. (Insufficient: the job forbids breakaway; fixed for real in v1.1.0.) |
+| **v1.0.8 (b41)** | `dd3332c` | 2026-06-09 | **Tidier sidebar** — left nav now scrolls on overflow (`overflow-y-auto` + `min-h-0`) and is grouped into collapsible sections (Work, Knowledge, Communications, Compliance, Administration) with Dashboard/Little Gerry/Daily Assistant pinned; collapsed sections bubble up pending-count badges; active section auto-expands; collapse state persisted in `localStorage` (`frontend/src/components/layout/Sidebar.tsx`) |
+| **v1.0.7** | `e0f4cc7` | 2026-06-09 | **Auto-updater hardening** — root-caused field failure ("app quits at Installing update"): Inno `[Code]` used a plain `MsgBox()` that `/SUPPRESSMSGBOXES` does NOT suppress, blocking the headless silent update forever. Switched both dialogs to `SuppressibleMsgBox`; added `skipifsilent` to the `install.ps1` `[Run]` entry; `apply_update.ps1` now logs to `backend/logs/apply_update.log`, kills the `pythonw` launcher, checks the installer exit code, and always relaunches (`installer/setup.iss`, `scripts/apply_update.ps1`) |
+| _v1.0.6_ | `684a659` | 2026-06-09 | _Withdrawn — release + tag deleted; only v1.0.5 is retained as a fallback. The **Daily Assistant** feature it introduced (commit `30ce4f9`) lives on in v1.0.7+._ |
+| **v1.0.6 feature** | `30ce4f9` | 2026-06-09 | **Daily Assistant** — once-a-day background scan of Gmail + Google Tasks surfaces suggestions for human review (`AssistantSuggestion` model + migration `007`, `services/assistant/daily_scan.py`, `routers/assistant.py`, `_assistant_scan_loop` in `main.py`, `AssistantPage.tsx`, sidebar nav) |
 | **v1.0.5** | `880c00e` | 2026-06-09 | **Fix "Check for Updates" 502** — the `/update/check` endpoint hit GitHub's *commits* API unauthenticated against the private repo (→ 502), and the git-based apply couldn't run on installed (non-git) copies. `routers/update.py` is now installed-app-aware: check compares `VERSION` vs latest **GitHub Release** with the baked-in read-only token; **Install Update** downloads + applies the signed installer via `apply_update.ps1`; dev checkouts keep the authenticated commit/`git pull` path |
 | **v1.0.4** | `767bcb1` | 2026-06-09 | **Fix Drive PDF/DOCX import** — Drive imports failed with "Could not extract text" on PDFs that uploaded fine; the Drive path used pypdf (empty text on many PDFs) + truncated to 10k chars. Now hands raw bytes to the ingestion pipeline so PDFs extract via **PyMuPDF** and DOCX via **python-docx** (identical to upload); in-place extraction upgraded pypdf→PyMuPDF for the agent reader + update-sync |
 | **v1.0.3** | `fa13fd9` | 2026-06-09 | **Fix KB imports — default embedding provider to Voyage** — missing `llm.embedding_provider` made ingestion fall back to a non-running Ollama (`localhost:11434`) → "All connection attempts failed"; now falls back to `settings.default_embedding_provider` (Voyage) |
@@ -100,7 +109,11 @@ _* earlier SHAs may be short-refs; use `git log --oneline` to verify_
 
 | Migration revision | Description |
 |--------------------|-------------|
-| `003`              | Document source-update tracking (sync_status, source_modified_at, last_checked_at, sync_detail, source_name) — **current HEAD** |
+| `007`              | Daily Assistant suggestions (`assistant_suggestions` table) — **current HEAD** |
+| `006`              | Add `users.onboarding_complete` flag (first-use wizard) |
+| `005`              | Add `feedback` table (in-app bug/feature reports) |
+| `004`              | Regulatory file store + per-user `can_write_regulatory` permission |
+| `003`              | Document source-update tracking (sync_status, source_modified_at, last_checked_at, sync_detail, source_name) |
 | `002`              | Flexible embedding dimensions (Phase 1) |
 | `f07c8aa64867`     | Add task_attachments column |
 | `9a3c1f2e8b57`     | Add meeting_notes + email_drafts tables |
@@ -135,4 +148,4 @@ cd backend && .venv\Scripts\python.exe -m alembic downgrade 615f52d537b5
 
 ---
 
-*Updated: 2026-06-08 — Build 40 (startup self-heal for leftover pmi_postgres container). Milestone tag: `v0.9.0` (commit 28fb46d).*
+*Updated: 2026-06-09 — v1.1.0 / Build 43 (definitive auto-update fix via ShellExecute hand-off + scrollable, collapsible sidebar). Fallback tag retained: `v1.0.5` (commit `880c00e`).*

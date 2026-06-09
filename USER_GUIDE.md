@@ -1,7 +1,7 @@
 # Little Gerry — User Guide
 **AI Executive Assistant for Precisian Medical Instruments**
 
-Build 39 · June 2026
+Build 43 (v1.1.0) · June 2026
 
 ---
 
@@ -11,6 +11,7 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 
 - Answer questions about your documents and company knowledge
 - Search Gmail, Google Drive, and Calendar on your behalf
+- Surface daily suggestions from your Gmail and Google Tasks for you to review
 - Research topics on the web and produce cited reports
 - Draft emails, summaries, and regulatory content
 - Manage and track tasks and projects
@@ -28,21 +29,22 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 4. [AI Configuration (First Time)](#ai-configuration-first-time)
 5. [Features at a Glance](#features-at-a-glance)
 6. [Talking to Little Gerry](#talking-to-little-gerry)
-7. [Knowledge Base](#knowledge-base)
-8. [Semantic Search](#semantic-search)
-9. [Research](#research)
-10. [Tasks & Projects](#tasks--projects)
-11. [Calendar](#calendar)
-12. [Email Drafts](#email-drafts)
-13. [Meeting Notes](#meeting-notes)
-14. [Regulatory Documents](#regulatory-documents)
-15. [Investor Relations](#investor-relations)
-16. [Google Workspace](#google-workspace)
-17. [Approvals Queue](#approvals-queue)
-18. [Notifications](#notifications)
-19. [Settings](#settings)
-20. [Updating Little Gerry](#updating-little-gerry)
-21. [Tips & Example Prompts](#tips--example-prompts)
+7. [Daily Assistant](#daily-assistant)
+8. [Knowledge Base](#knowledge-base)
+9. [Semantic Search](#semantic-search)
+10. [Research](#research)
+11. [Tasks & Projects](#tasks--projects)
+12. [Calendar](#calendar)
+13. [Email Drafts](#email-drafts)
+14. [Meeting Notes](#meeting-notes)
+15. [Regulatory Documents](#regulatory-documents)
+16. [Investor Relations](#investor-relations)
+17. [Google Workspace](#google-workspace)
+18. [Approvals Queue](#approvals-queue)
+19. [Notifications](#notifications)
+20. [Settings](#settings)
+21. [Updating Little Gerry](#updating-little-gerry)
+22. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -113,6 +115,7 @@ Anthropic does not provide an embedding service. Voyage AI is their official par
 |--------|-------------|
 | **AI Chat** | Talk to Little Gerry — she searches your KB, Drive, emails, and the web |
 | **Dashboard** | Daily briefing, open tasks, pending approvals, today's meetings |
+| **Daily Assistant** | A once-a-day scan of your Gmail and Google Tasks that suggests follow-ups and to-dos for you to review |
 | **Knowledge Base** | Upload and manage your company documents |
 | **Search** | Natural language search across all uploaded documents |
 | **Research** | AI-powered web research with cited reports |
@@ -127,6 +130,8 @@ Anthropic does not provide an embedding service. Voyage AI is their official par
 | **Notifications** | Real-time alerts for tasks, approvals, and AI activity |
 | **Audit Trail** | Immutable log of every AI action and document change |
 | **Settings** | Configure AI providers, appearance, and Google integration |
+
+> **Finding your way around.** The left sidebar groups these modules into collapsible sections — **Work**, **Knowledge**, **Communications**, **Compliance**, and **Administration** — with **Dashboard**, **Little Gerry**, and **Daily Assistant** pinned at the top. Click a section heading to collapse or expand it; the section you're currently in stays open, a collapsed section shows a small badge if it contains anything pending, and your choices are remembered next time. If you have more items than fit on screen, the list scrolls.
 
 ---
 
@@ -152,6 +157,17 @@ When Google is connected, Little Gerry calls the appropriate tool immediately �
 ### What requires your approval
 
 Little Gerry will **never** send an email, create a calendar event, modify a document, or take any write action without putting it in the **Approvals** queue first. You must explicitly approve.
+
+---
+
+## Daily Assistant
+
+The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Google Tasks** in the background and gathers suggestions — follow-ups you may owe someone, emails that look like they need a reply, and to-dos worth tracking — so nothing slips through the cracks.
+
+- Open **Daily Assistant** from the top of the sidebar. The nav entry shows a **badge with the number of pending suggestions**.
+- Each suggestion is something to **review** — the assistant never acts on its own. You decide what to do with it.
+- Suggestions are generated about **once per day**; the scan runs automatically in the background while the app is open.
+- Requires **Google Workspace** to be connected (see [Google Workspace](#google-workspace)). Without it, there's nothing to scan.
 
 ---
 
@@ -375,7 +391,7 @@ Connect or disconnect your Google account (see [Google Workspace](#google-worksp
 ## Updating Little Gerry
 
 **Automatic (default):**
-Every time you start Little Gerry it checks for a newer version and, if one is available, installs it and applies any database updates before the app opens — so you're always on the latest build without doing anything.
+Every time you start Little Gerry it checks for a newer version and, if one is available, installs it for you and applies any database updates before the app opens — so you're always on the latest build without doing anything. The update runs as a background step, so the app will briefly close to swap files and then reopen on its own.
 
 **In-app (on demand):**
 Go to **Settings → Updates** → **Check for Updates** → **Install Update**

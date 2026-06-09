@@ -42,6 +42,7 @@ Key design principles:
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | **AI Chat (Little Gerry)** | Streaming conversational AI with tool use, RAG over your knowledge base, and real-time WebSocket responses                                 |
 | **Dashboard**              | At-a-glance view of tasks, pending approvals, today's meetings, and AI-generated daily briefing                                            |
+| **Daily Assistant**        | Once-a-day background scan of your Gmail and Google Tasks that surfaces suggested follow-ups and to-dos for human review (sidebar badge shows pending count) |
 | **Projects & Tasks**       | Kanban board with drag-and-drop, project tracking, due dates, and priority management                                                      |
 | **Calendar**               | Scheduled events with meeting integration                                                                                                  |
 | **Knowledge Base**         | Upload and semantically search internal documents (PDFs, DOCX, TXT); auto-chunked and embedded                                             |
@@ -379,7 +380,7 @@ Navigate to **Approvals** for the human-in-the-loop queue. Pending approvals sho
 - **System Health** — live status of PostgreSQL, active LLM (with live ping), active embedding provider (with live ping), disk space, and re-index flag
 - **Updates** — check and install updates in-app
 
-> **Automatic updates on launch.** Each time Little Gerry starts it checks GitHub and, if a newer version is available, pulls it, refreshes dependencies, and applies any pending database migrations before the app opens. The in-app **Updates** panel remains available for an on-demand check. (Auto-update is skipped on developer machines with uncommitted changes.)
+> **Automatic updates on launch.** Each time Little Gerry starts it checks GitHub for a newer version. **Installed apps** download the latest signed installer and apply it in the background (stop → silent install → relaunch) — the updater runs as an independent process so it completes even after the app closes to swap files. **Developer checkouts** instead pull the latest code, refresh dependencies, and apply pending database migrations. Either way, the in-app **Updates** panel remains available for an on-demand check. (Auto-update is skipped on developer machines with uncommitted changes.)
 
 ---
 
