@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 41;
+export const BUILD_NUMBER = 42;
 export const BUILD_DATE = "2026-06-09";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 42,
+    date: "2026-06-09",
+    title: "Auto-update reliability — the updater no longer gets killed mid-install",
+    changes: [
+      "Fixed the app quitting at “Installing update…” without ever applying the update",
+      "The updater now runs as a fully independent process so it survives the app closing to swap files, then relaunches automatically",
+    ],
+  },
   {
     build: 41,
     date: "2026-06-09",
