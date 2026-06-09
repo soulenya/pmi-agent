@@ -4,6 +4,39 @@
 
 ## Changelog
 
+### v1.1.0 — 2026-06-09
+**Auto-update fix (definitive) + tidier sidebar**
+
+- **Updates now apply unattended** — the final piece of the auto-update saga. The installed app could still quit at *"Installing update…"* without ever updating. Root cause: the launcher (`pythonw.exe`) runs inside a Windows **Job Object with kill-on-close**, so the detached updater process was terminated the instant the launcher called `os._exit(0)` — before `apply_update.ps1` could even write its first log line. `CREATE_BREAKAWAY_FROM_JOB` (tried in v1.0.9) was *rejected* by the job, so it didn't help
+- **Fix** (`launcher.py` `_launch_updater`): the updater is now started via `os.startfile()` / **ShellExecute**, which reparents it to Explorer — **outside** the launcher's job — so it survives the app closing, installs the signed update, and relaunches. Confirmed with a controlled kill-on-close-job reproduction (plain detached child = killed; ShellExecute child = survives) and verified end-to-end (installed app auto-updated 1.0.8 → 1.1.0)
+- **Tidier sidebar** (`frontend/src/components/layout/Sidebar.tsx`): the left navigation now **scrolls** when items overflow, and is organized into **collapsible sections** (Work, Knowledge, Communications, Compliance, Administration) with Dashboard, Little Gerry, and Daily Assistant pinned at the top. Collapsed sections show a badge with any pending counts inside them, the section containing your current page stays open, and your collapse choices are remembered between sessions
+
+> **Note:** v1.0.6 was withdrawn (release + tag deleted); only **v1.0.5** is retained as a rollback fallback. v1.0.10 was never published (the version was skipped in favor of 1.1.0).
+
+### v1.0.9 — 2026-06-09
+**Auto-update — job-breakaway attempt**
+
+- **Spawn the updater with `CREATE_BREAKAWAY_FROM_JOB`** (`launcher.py`) so a kill-on-close Job Object wouldn't terminate the detached `apply_update.ps1` when the launcher exits. This was a necessary investigation step but **insufficient on its own** — the job forbids breakaway — and was superseded by the ShellExecute hand-off in v1.1.0
+
+### v1.0.8 — 2026-06-09
+**Tidier sidebar — scrollable, with collapsible sections**
+
+- **Scrollable navigation** — the left category list now scrolls when there are more items than fit on screen (previously the overflow was simply unreachable)
+- **Collapsible groups** — navigation is grouped into Work, Knowledge, Communications, Compliance, and Administration, with Dashboard, Little Gerry, and Daily Assistant pinned at the top; collapsed groups surface a combined pending-count badge, the active group auto-expands, and the expanded/collapsed state persists across sessions (`frontend/src/components/layout/Sidebar.tsx`)
+
+### v1.0.7 — 2026-06-09
+**Auto-updater hardening — fix the silent update hanging**
+
+- **Updates no longer hang at "Installing update…" on a hidden dialog**: the Inno Setup `[Code]` section used a plain `MsgBox()` ("Little Gerry was installed successfully!") that `/SUPPRESSMSGBOXES` does **not** suppress, so during an unattended, headless auto-update it appeared off-screen and blocked the installer's `-Wait` forever — the app went down and never relaunched
+- **Fix** (`installer/setup.iss`): both `[Code]` dialogs now use `SuppressibleMsgBox`, which auto-answers under `/VERYSILENT`. Added `skipifsilent` to the `install.ps1` `[Run]` entry so silent auto-updates skip the redundant winget prerequisite pass (which also returned a spurious exit code 1)
+- **Diagnosable + self-recovering updater** (`scripts/apply_update.ps1`): now writes a transcript to `backend/logs/apply_update.log` (plus an Inno log), explicitly stops the `pythonw` launcher process before installing, checks the installer exit code, and **always relaunches** in a `finally` block so the app is never left down
+
+### v1.0.6 — 2026-06-09 *(withdrawn)*
+**Daily Assistant — a once-a-day Gmail + Tasks scan**
+
+- **New Daily Assistant** (`backend/services/assistant/daily_scan.py`, `routers/assistant.py`, `frontend/src/pages/AssistantPage.tsx`): a once-a-day background scan of your Gmail and Google Tasks surfaces suggested follow-ups and to-dos for human review, stored as `AssistantSuggestion` records (migration `007`). A new **Daily Assistant** entry appears in the sidebar with a pending-count badge
+- *This release was later withdrawn (release + tag removed) so that only v1.0.5 remains as a fallback; the Daily Assistant feature ships unchanged in v1.0.7 and later*
+
 ### v1.0.5 — 2026-06-09
 **Fix "Check for Updates" — 502 on installed apps**
 

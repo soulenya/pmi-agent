@@ -463,6 +463,13 @@ export function SetupWizard({ onComplete }: Props) {
                       its sources."
               />
               <InfoRow
+                icon={<Sparkles className="h-5 w-5 text-primary" />}
+                title="Review daily suggestions"
+                desc="Once Google is connected, the Daily Assistant scans your Gmail and Google Tasks once a
+                      day and collects follow-ups and to-dos for you to review — find them under Daily
+                      Assistant in the sidebar."
+              />
+              <InfoRow
                 icon={<MessageSquarePlus className="h-5 w-5 text-violet-500" />}
                 title="Report bugs & request features"
                 desc="Use the feedback button in the top bar to report an issue or request a feature — it goes
