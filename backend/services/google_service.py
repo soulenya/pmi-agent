@@ -338,6 +338,8 @@ def drive_get_content(file_id: str) -> dict:
     ).execute()
     mime = meta.get("mimeType", "")
     content = ""
+    raw_file_bytes: bytes | None = None
+    file_extension = ""
 
     export_map = {
         "application/vnd.google-apps.document":     "text/plain",
@@ -351,14 +353,21 @@ def drive_get_content(file_id: str) -> dict:
         raw = svc.files().get_media(fileId=file_id).execute()
         content = raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw)
     elif mime == "application/pdf":
+        # Return the raw PDF bytes (for the import path to extract via PyMuPDF,
+        # identical to uploads) and also extract text here with PyMuPDF for the
+        # agent reader and update-sync. pypdf (used previously) silently returned
+        # empty text on many PDFs, so Drive imports failed where the identical
+        # uploaded file worked.
         raw_bytes = svc.files().get_media(fileId=file_id).execute()
         if isinstance(raw_bytes, bytes):
+            raw_file_bytes = raw_bytes
+            file_extension = ".pdf"
             try:
-                import io
-                import pypdf
-                reader = pypdf.PdfReader(io.BytesIO(raw_bytes))
-                pages = [page.extract_text() or "" for page in reader.pages]
-                content = "\n\n".join(p for p in pages if p.strip())
+                import fitz  # PyMuPDF
+                with fitz.open(stream=raw_bytes, filetype="pdf") as pdf:
+                    content = "\n\n".join(
+                        t for t in (page.get_text() for page in pdf) if t.strip()
+                    )
             except Exception:
                 content = ""
     elif mime in (
@@ -366,15 +375,19 @@ def drive_get_content(file_id: str) -> dict:
         "application/msword",
     ):
         # Uploaded Word docs are NOT Google-native, so files().export() returns
-        # 403 fileNotExportable. Download the raw bytes and parse locally.
+        # 403 fileNotExportable. Return the raw bytes for the import path to parse
+        # with python-docx (identical to the upload path) and also extract text
+        # here for the agent reader and update-sync.
         raw_bytes = svc.files().get_media(fileId=file_id).execute()
         if isinstance(raw_bytes, bytes):
+            raw_file_bytes = raw_bytes
+            file_extension = ".docx"
             try:
                 import io
                 import docx
                 document = docx.Document(io.BytesIO(raw_bytes))
                 parts = [p.text for p in document.paragraphs if p.text.strip()]
-                # Include table cell text, which is common in cover letters/forms.
+                # Include table cell text, common in cover letters/forms.
                 for table in document.tables:
                     for row in table.rows:
                         for cell in row.cells:
@@ -391,6 +404,8 @@ def drive_get_content(file_id: str) -> dict:
         "url": meta.get("webViewLink", ""),
         "modified": meta.get("modifiedTime", ""),
         "content": content[:10_000],
+        "raw_bytes": raw_file_bytes,
+        "extension": file_extension,
     }
 
 
