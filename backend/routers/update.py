@@ -202,9 +202,19 @@ async def apply_update(_=Depends(require_admin)) -> UpdateResult:
 
 
 async def _apply_release() -> UpdateResult:
-    """Installed-copy apply: download the signed installer and run apply_update.ps1."""
-    if sys.platform != "win32":
-        raise HTTPException(status_code=500, detail="Installed updates are only supported on Windows")
+    """Installed-copy apply: download the signed installer and hand off to the
+    platform's apply-update script (apply_update.ps1 on Windows, apply_update.sh
+    on macOS)."""
+    if sys.platform == "win32":
+        asset_name  = "LittleGerry_Setup.exe"
+        target_name = "LittleGerry_Setup_update.exe"
+        apply_script = _PROJECT_ROOT / "scripts" / "apply_update.ps1"
+    elif sys.platform == "darwin":
+        asset_name  = "LittleGerry.pkg"
+        target_name = "LittleGerry_update.pkg"
+        apply_script = _PROJECT_ROOT / "scripts" / "apply_update.sh"
+    else:
+        raise HTTPException(status_code=500, detail="Installed updates are only supported on Windows and macOS")
 
     token = _update_token()
     if not token:
@@ -217,13 +227,13 @@ async def _apply_release() -> UpdateResult:
             data = resp.json()
 
             asset = next(
-                (a for a in data.get("assets", []) if a.get("name") == "LittleGerry_Setup.exe"),
+                (a for a in data.get("assets", []) if a.get("name") == asset_name),
                 None,
             )
             if not asset:
                 raise HTTPException(status_code=502, detail="Installer asset not found in latest release")
 
-            target = Path(tempfile.gettempdir()) / "LittleGerry_Setup_update.exe"
+            target = Path(tempfile.gettempdir()) / target_name
             async with client.stream(
                 "GET",
                 asset["url"],
@@ -236,21 +246,27 @@ async def _apply_release() -> UpdateResult:
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Could not download update: {exc}")
 
-    apply_script = _PROJECT_ROOT / "scripts" / "apply_update.ps1"
     if not apply_script.exists():
-        raise HTTPException(status_code=500, detail="apply_update.ps1 not found")
+        raise HTTPException(status_code=500, detail=f"{apply_script.name} not found")
 
     try:
-        subprocess.Popen(
-            [
-                "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
-                "-File", str(apply_script),
-                "-Installer", str(target),
-                "-AppDir", str(_PROJECT_ROOT),
-            ],
-            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-            close_fds=True,
-        )
+        if sys.platform == "win32":
+            subprocess.Popen(
+                [
+                    "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                    "-File", str(apply_script),
+                    "-Installer", str(target),
+                    "-AppDir", str(_PROJECT_ROOT),
+                ],
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                close_fds=True,
+            )
+        else:
+            subprocess.Popen(
+                ["/bin/bash", str(apply_script), str(target), str(_PROJECT_ROOT)],
+                start_new_session=True,
+                close_fds=True,
+            )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
