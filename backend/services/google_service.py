@@ -247,6 +247,46 @@ def gmail_send(to: str, subject: str, body: str) -> dict:
     return {"message_id": result["id"], "status": "sent"}
 
 
+def gmail_get_attachments(message_id: str) -> list[dict]:
+    """Return downloadable file attachments for a Gmail message.
+
+    Each item: ``{filename, mime_type, attachment_id, size, data (bytes)}``.
+    Inline parts without a filename are skipped. Used by the daily assistant
+    scan to auto-import meeting-summary attachments into the Knowledge Base.
+    """
+    svc = _build("gmail", "v1")
+    msg = svc.users().messages().get(userId="me", id=message_id, format="full").execute()
+    out: list[dict] = []
+
+    def _walk(part: dict) -> None:
+        filename = part.get("filename") or ""
+        body = part.get("body", {}) or {}
+        att_id = body.get("attachmentId")
+        if filename and att_id:
+            att = (
+                svc.users()
+                .messages()
+                .attachments()
+                .get(userId="me", messageId=message_id, id=att_id)
+                .execute()
+            )
+            data = att.get("data", "")
+            raw = base64.urlsafe_b64decode(data + "==") if data else b""
+            out.append({
+                "filename": filename,
+                "mime_type": part.get("mimeType", ""),
+                "attachment_id": att_id,
+                "size": body.get("size", 0),
+                "data": raw,
+            })
+        for child in part.get("parts", []) or []:
+            _walk(child)
+
+    _walk(msg.get("payload", {}))
+    return out
+
+
+
 # ── Drive ─────────────────────────────────────────────────────────────────
 
 def drive_search(query: str, max_results: int = 10) -> list[dict]:
@@ -272,7 +312,34 @@ def drive_search(query: str, max_results: int = 10) -> list[dict]:
     ]
 
 
-def drive_list_folder(folder_id: str = "root", max_results: int = 50, drive_id: str | None = None) -> list[dict]:
+def drive_search_by_name(name_contains: str, max_results: int = 25) -> list[dict]:
+    """Find Drive files whose name contains ``name_contains`` (newest first).
+
+    Used by the daily assistant scan to locate Gemini meeting-notes Docs, which
+    Google names like ``"<Meeting> - <date> - Notes by Gemini"``.
+    """
+    svc = _build("drive", "v3")
+    safe = name_contains.replace("\\", "\\\\").replace("'", "\\'")
+    resp = svc.files().list(
+        q=f"name contains '{safe}' and trashed=false",
+        pageSize=max_results,
+        orderBy="modifiedTime desc",
+        fields="files(id,name,mimeType,modifiedTime,webViewLink,owners)",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        corpora="allDrives",
+    ).execute()
+    return [
+        {
+            "id": f["id"],
+            "name": f["name"],
+            "type": f.get("mimeType", ""),
+            "modified": f.get("modifiedTime", ""),
+            "url": f.get("webViewLink", ""),
+            "owner": (f.get("owners") or [{}])[0].get("displayName", ""),
+        }
+        for f in resp.get("files", [])
+    ]
     """List the direct children (files and folders) of a Drive folder, including shared drives.
 
     When ``drive_id`` is supplied the caller is navigating the ROOT of a shared

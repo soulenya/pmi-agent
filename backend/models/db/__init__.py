@@ -1,6 +1,7 @@
 """Export all ORM models so Alembic autogenerate discovers them."""
 
 from models.db.approval import ApprovalIntent
+from models.db.assistant import AssistantSuggestion
 from models.db.audit import AuditEvent
 from models.db.base import Base
 from models.db.briefing import Briefing
@@ -47,4 +48,5 @@ __all__ = [
     "MeetingNote",
     "EmailDraft",
     "Feedback",
+    "AssistantSuggestion",
 ]
