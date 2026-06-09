@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 43;
+export const BUILD_NUMBER = 44;
 export const BUILD_DATE = "2026-06-09";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 44,
+    date: "2026-06-09",
+    title: "Fixed chat errors on the newest Claude models",
+    changes: [
+      "Fixed “LLM error… `temperature` is deprecated for this model” when chatting after switching to one of the newest Claude models",
+      "Little Gerry now automatically adapts to models that no longer accept the temperature setting, so chat works across every available model",
+    ],
+  },
   {
     build: 43,
     date: "2026-06-09",
