@@ -6,6 +6,7 @@ Use this file to identify the exact GitHub commit for any build and roll back if
 
 | Tag | SHA | Date | Notes |
 |-----|-----|------|-------|
+| **`v1.0.5`** | `PENDING` | 2026-06-09 | Fix "Check for Updates" 502 — installed-app-aware update check (authenticated Releases API). |
 | **`v1.0.4`** | `767bcb1` | 2026-06-09 | Fix Google Drive PDF/DOCX imports (match upload extractor). |
 | **`v1.0.3`** | `fa13fd9` | 2026-06-09 | Fix Knowledge Base imports — default embedding provider to Voyage. |
 | **`v1.0.2`** | `19be119` | 2026-06-09 | Resilient embeddings — retry transient Voyage errors. |
@@ -30,6 +31,7 @@ git push origin master --force  # only if you want to revert remote
 
 | Build | SHA       | Date       | Description |
 |-------|-----------|------------|-------------|
+| **v1.0.5** | `PENDING` | 2026-06-09 | **Fix "Check for Updates" 502** — the `/update/check` endpoint hit GitHub's *commits* API unauthenticated against the private repo (→ 502), and the git-based apply couldn't run on installed (non-git) copies. `routers/update.py` is now installed-app-aware: check compares `VERSION` vs latest **GitHub Release** with the baked-in read-only token; **Install Update** downloads + applies the signed installer via `apply_update.ps1`; dev checkouts keep the authenticated commit/`git pull` path |
 | **v1.0.4** | `767bcb1` | 2026-06-09 | **Fix Drive PDF/DOCX import** — Drive imports failed with "Could not extract text" on PDFs that uploaded fine; the Drive path used pypdf (empty text on many PDFs) + truncated to 10k chars. Now hands raw bytes to the ingestion pipeline so PDFs extract via **PyMuPDF** and DOCX via **python-docx** (identical to upload); in-place extraction upgraded pypdf→PyMuPDF for the agent reader + update-sync |
 | **v1.0.3** | `fa13fd9` | 2026-06-09 | **Fix KB imports — default embedding provider to Voyage** — missing `llm.embedding_provider` made ingestion fall back to a non-running Ollama (`localhost:11434`) → "All connection attempts failed"; now falls back to `settings.default_embedding_provider` (Voyage) |
 | **v1.0.2** | `1d35024` | 2026-06-09 | **Resilient embeddings** — `VoyageEmbeddingService` retries transient errors (connection failures, timeouts, 5xx, rate limits) with backoff so a brief blip doesn't fail a whole ingestion |
