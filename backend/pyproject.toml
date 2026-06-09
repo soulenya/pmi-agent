@@ -46,6 +46,7 @@ dependencies = [
     "duckduckgo-search>=8.1.1",
     "openai>=1.30.0",
     "anthropic>=0.28.0",
+    "voyageai>=0.3.0",
     # Launcher UI (splash screen + system tray + app window)
     "pillow>=10.0.0",
     "pystray>=0.19.5",
