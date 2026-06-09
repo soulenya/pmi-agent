@@ -58,7 +58,7 @@ $cur = To-Tuple $current; $new = To-Tuple $Version
 for ($i = 0; $i -lt 3; $i++) {
     if ($new[$i] -gt $cur[$i]) { break }
     if ($new[$i] -lt $cur[$i]) { throw "New version $Version is lower than current $current." }
-    if ($i -eq 2) { throw "New version $Version equals current $current — bump it." }
+    if ($i -eq 2) { throw "New version $Version equals current $current - bump it." }
 }
 
 Write-Host ""
@@ -81,7 +81,7 @@ Write-Host "  [2/5] Committed and pushed version bump" -ForegroundColor Green
 
 # 3. Build the installer.
 & $iscc $issFile | Out-Null
-if (-not (Test-Path $exeOut)) { throw "Installer build failed — $exeOut not found." }
+if (-not (Test-Path $exeOut)) { throw "Installer build failed - $exeOut not found." }
 Write-Host "  [3/5] Built installer" -ForegroundColor Green
 
 # 4. Sign it (prompts for the .pfx password).
