@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v1.0.5 — 2026-06-09
+**Fix "Check for Updates" — 502 on installed apps**
+
+- **The Settings → Software Updates "Check for Updates" button no longer fails with *"Request failed with status code 502"***: the endpoint queried GitHub's *commits* API **unauthenticated**, but the repo is private, so GitHub rejected every request — and installed apps aren't git checkouts, so the old git-based "Install Update" path couldn't work either
+- **Fix** (`routers/update.py`): the update check is now installed-app-aware, mirroring the launcher's auto-update. Installed copies compare the local `VERSION` against the latest **GitHub Release** using the read-only token baked into the installer, and **Install Update** downloads the signed installer and applies it (stop → silent install → relaunch). Developer checkouts keep the commit-comparison + `git pull` path, now also authenticated so it won't 502
+
 ### v1.0.4 — 2026-06-09
 **Fix Google Drive PDF/DOCX imports**
 
