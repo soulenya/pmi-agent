@@ -168,6 +168,19 @@ async def update_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
+    # Guard against admins locking themselves out of their own account.
+    if user.id == admin.id:
+        if body.is_active is False:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You can't deactivate your own account.",
+            )
+        if body.role is not None and body.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You can't change your own role away from admin.",
+            )
+
     changes: dict = {}
     if body.display_name is not None:
         changes["display_name"] = body.display_name
