@@ -120,35 +120,40 @@ async def drive_import(
     except Exception as exc:
         raise HTTPException(400, f"Could not read Drive file: {exc}")
 
+    from pathlib import Path as _Path
+
     content = drive_file_data.get("content", "")
     name = drive_file_data.get("name", "drive_file.txt")
     mime = drive_file_data.get("type", "text/plain")
-
-    if not content.strip():
-        raise HTTPException(
-            422,
-            f"Could not extract text from '{name}' ({mime}). "
-            "Supported types: Google Docs/Sheets/Slides, PDFs, Word documents, and plain text files.",
-        )
-
-    ext_map = {
-        "application/vnd.google-apps.document":     ".txt",
-        "application/vnd.google-apps.spreadsheet":  ".csv",
-        "application/vnd.google-apps.presentation": ".txt",
-        "text/plain": ".txt", "text/csv": ".csv",
-        "text/markdown": ".md", "application/json": ".json",
-    }
-    # drive_get_content always returns already-extracted plain text (PDFs are
-    # parsed via pypdf, Google Docs/Sheets/Slides are exported). The ingestion
-    # service re-detects type from the filename extension, so the extension MUST
-    # match the extracted text — otherwise a ".pdf" name makes ingestion try to
-    # PyMuPDF-parse plain text and fail with "Failed to open stream".
-    from pathlib import Path as _Path
-
-    ext = ext_map.get(mime, ".txt")
-    filename = _Path(name).stem + ext
-    raw_bytes = content.encode("utf-8")
+    drive_raw_bytes = drive_file_data.get("raw_bytes")
+    drive_extension = drive_file_data.get("extension", "")
     cat_id = _UUID(req.category_id) if req.category_id else None
+
+    if drive_raw_bytes:
+        # Binary file (PDF/DOCX): hand the raw bytes to the ingestion service so
+        # it extracts text with the same robust parser used for uploads
+        # (PyMuPDF for PDF, python-docx for DOCX). This avoids the weaker
+        # pre-extraction that made Drive imports fail on files that uploaded fine.
+        filename = _Path(name).stem + drive_extension
+        raw_bytes = drive_raw_bytes
+    else:
+        # Google-native (Docs/Sheets/Slides) or text files arrive as plain text.
+        if not content.strip():
+            raise HTTPException(
+                422,
+                f"Could not extract text from '{name}' ({mime}). "
+                "Supported types: Google Docs/Sheets/Slides, PDFs, Word documents, and plain text files.",
+            )
+        ext_map = {
+            "application/vnd.google-apps.document":     ".txt",
+            "application/vnd.google-apps.spreadsheet":  ".csv",
+            "application/vnd.google-apps.presentation": ".txt",
+            "text/plain": ".txt", "text/csv": ".csv",
+            "text/markdown": ".md", "application/json": ".json",
+        }
+        ext = ext_map.get(mime, ".txt")
+        filename = _Path(name).stem + ext
+        raw_bytes = content.encode("utf-8")
 
     svc = DocumentIngestionService(db=db, embedding_svc=embedding_svc)
     try:
