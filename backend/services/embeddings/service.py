@@ -238,8 +238,12 @@ async def get_embedding_service_for_db(
     Awaitable (non-generator) version of get_embedding_service_db.
     Use this from code that cannot use FastAPI dependency injection (e.g., the agent executor).
     """
-    embedding_provider = await _read_setting(db, "llm.embedding_provider", "ollama")
-    stored_model = await _read_setting(db, "llm.embedding_model", "nomic-embed-text")
+    embedding_provider = await _read_setting(
+        db, "llm.embedding_provider", settings.default_embedding_provider
+    )
+    stored_model = await _read_setting(
+        db, "llm.embedding_model", settings.default_embedding_model
+    )
     embedding_model = _resolve_model(embedding_provider, stored_model)
 
     if embedding_provider == "openai":
@@ -272,9 +276,16 @@ async def get_embedding_service_db(
       llm.embedding_provider = "openai"  → OpenAIEmbeddingService (native dims)
       llm.embedding_provider = "voyage"  → VoyageEmbeddingService (native dims)
       llm.embedding_provider = "ollama"  → EmbeddingService (Ollama, 768 dims)
+    When no provider is persisted, falls back to the configured default
+    (settings.default_embedding_provider) rather than Ollama, so a fresh install
+    with a cloud key configured doesn't silently try a non-running local server.
     """
-    embedding_provider = await _read_setting(db, "llm.embedding_provider", "ollama")
-    stored_model = await _read_setting(db, "llm.embedding_model", "nomic-embed-text")
+    embedding_provider = await _read_setting(
+        db, "llm.embedding_provider", settings.default_embedding_provider
+    )
+    stored_model = await _read_setting(
+        db, "llm.embedding_model", settings.default_embedding_model
+    )
     embedding_model = _resolve_model(embedding_provider, stored_model)
 
     if embedding_provider == "openai":
