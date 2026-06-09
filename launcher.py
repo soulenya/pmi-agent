@@ -11,7 +11,9 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import traceback
@@ -28,6 +30,12 @@ HEALTH_URL    = "http://127.0.0.1:8000/health"
 APP_URL       = "http://localhost:5173"
 NO_WIN        = subprocess.CREATE_NO_WINDOW
 CONTROL_FILE  = BACKEND_DIR / "logs" / "launcher_cmd.txt"
+
+# Auto-update (installed copies pull signed installers from the private repo's
+# Releases using a read-only token baked in at build time).
+GITHUB_RELEASES_API = "https://api.github.com/repos/soulenya/pmi-agent/releases/latest"
+VERSION_FILE        = ROOT / "VERSION"
+UPDATE_TOKEN_FILE   = ROOT / "update_token.txt"
 
 _procs: list[subprocess.Popen] = []
 _status_text = "Initializing..."
@@ -93,6 +101,109 @@ def _log_error() -> None:
 
 # ── service startup (runs in background thread) ───────────────────────────────
 
+def _parse_version(text: str) -> tuple[int, int, int]:
+    """Parse a version string like 'v1.2.3' or '1.2.3' into a comparable tuple."""
+    cleaned = (text or "").strip().lstrip("vV")
+    nums: list[int] = []
+    for part in cleaned.split(".")[:3]:
+        digits = "".join(ch for ch in part if ch.isdigit())
+        nums.append(int(digits) if digits else 0)
+    while len(nums) < 3:
+        nums.append(0)
+    return (nums[0], nums[1], nums[2])
+
+
+def _local_version() -> tuple[int, int, int]:
+    try:
+        return _parse_version(VERSION_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return (0, 0, 0)
+
+
+def _update_token() -> str | None:
+    """Return the read-only GitHub token baked into the installer, if present."""
+    try:
+        if not UPDATE_TOKEN_FILE.exists():
+            return None
+        token = UPDATE_TOKEN_FILE.read_text(encoding="utf-8").strip()
+        if not token or token.startswith("PASTE_"):
+            return None
+        return token
+    except Exception:
+        return None
+
+
+def _auto_update_release() -> bool:
+    """
+    Installed-copy updater: check the private repo's GitHub Releases for a newer
+    signed installer. If one exists, download it and hand off to apply_update.ps1,
+    then signal the caller to exit so files can be replaced.
+
+    Returns True when an update is being applied (caller MUST exit immediately).
+    Skips silently on dev checkouts (handled by git via _auto_update) or when no
+    update token is present.
+    """
+    if (ROOT / ".git").exists():
+        return False  # developer checkout — uses the git update path instead
+    token = _update_token()
+    if not token:
+        return False
+    try:
+        _set_status("Checking for updates...", 0)
+        req = urllib.request.Request(
+            GITHUB_RELEASES_API,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "LittleGerry-Updater",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        latest = _parse_version(data.get("tag_name", "0.0.0"))
+        if latest <= _local_version():
+            return False  # already current
+
+        asset = next(
+            (a for a in data.get("assets", []) if a.get("name") == "LittleGerry_Setup.exe"),
+            None,
+        )
+        if not asset:
+            return False
+
+        _set_status(f"Downloading update {'.'.join(map(str, latest))}...", 0)
+        dl_req = urllib.request.Request(
+            asset["url"],
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/octet-stream",
+                "User-Agent": "LittleGerry-Updater",
+            },
+        )
+        target = Path(tempfile.gettempdir()) / "LittleGerry_Setup_update.exe"
+        with urllib.request.urlopen(dl_req, timeout=300) as r, open(target, "wb") as out:
+            shutil.copyfileobj(r, out)
+
+        _set_status("Installing update...", 0)
+        apply_script = ROOT / "scripts" / "apply_update.ps1"
+        subprocess.Popen(
+            [
+                "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", str(apply_script),
+                "-Installer", str(target),
+                "-AppDir", str(ROOT),
+            ],
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            close_fds=True,
+        )
+        return True
+    except Exception:
+        _log_error()
+        return False
+
+
 def _auto_update() -> None:
     """
     Pull the latest code from GitHub at launch so updates reach every user
@@ -132,6 +243,10 @@ def _auto_update() -> None:
 def _start_services() -> None:
     try:
         # 0. Auto-update from GitHub (skipped on a dirty working tree, e.g. dev machines)
+        # 0a. Installed copies: download + apply a newer signed installer, then exit.
+        if _auto_update_release():
+            os._exit(0)
+        # 0b. Developer checkouts: pull the latest code via git.
         _auto_update()
 
         # 1. Docker
