@@ -20,7 +20,7 @@ from models.db.user import User
 from services.scheduler.runner import (
     VALID_FREQUENCIES,
     compute_next_run,
-    run_scheduled_task,
+    start_background_run,
 )
 
 router = APIRouter(prefix="/scheduled-tasks", tags=["scheduled-tasks"])
@@ -185,14 +185,22 @@ async def delete_scheduled_task(
     await db.commit()
 
 
-@router.post("/{task_id}/run", response_model=ScheduledTaskOut)
+@router.post("/{task_id}/run", response_model=ScheduledTaskOut, status_code=202)
 async def run_now(
     task_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Run a scheduled task immediately (also reschedules its next run)."""
+    """Start a scheduled task immediately in the background.
+
+    Returns right away with the task marked ``running``; the run itself can take
+    several minutes, so the UI polls the list endpoint for the outcome.
+    """
     task = await _get_owned(db, task_id, user)
-    await run_scheduled_task(db, task)
+    if task.last_run_status == "running":
+        raise HTTPException(409, "This task is already running")
+    task.last_run_status = "running"
+    await db.commit()
     await db.refresh(task)
+    start_background_run(task.id)
     return task

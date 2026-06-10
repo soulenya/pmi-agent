@@ -109,7 +109,10 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
             title=f"[Scheduled] {task.title}"[:200],
         )
         task.conversation_id = conv.id
-        await db.commit()
+
+    # Mark the row as running so the UI can show progress while the agent works.
+    task.last_run_status = "running"
+    await db.commit()
 
     status = "success"
     output = ""
@@ -148,6 +151,39 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
     )
     await db.commit()
     return {"status": status, "output": output}
+
+
+# Strong references to in-flight "run now" tasks so they aren't garbage-collected.
+_background_runs: set = set()
+
+
+def start_background_run(task_id: uuid.UUID) -> None:
+    """Kick off a scheduled-task run in the background with its own DB session.
+
+    Used by the "run now" endpoint so the HTTP request can return immediately —
+    agent runs routinely take longer than the frontend's request timeout, and a
+    client disconnect must not cancel the run.
+    """
+    import asyncio
+
+    async def _run() -> None:
+        from database import AsyncSessionLocal
+
+        try:
+            async with AsyncSessionLocal() as db:
+                task = (
+                    await db.execute(
+                        select(ScheduledTask).where(ScheduledTask.id == task_id)
+                    )
+                ).scalar_one_or_none()
+                if task is not None:
+                    await run_scheduled_task(db, task)
+        except Exception:
+            logger.exception("Background run of scheduled task %s crashed", task_id)
+
+    bg = asyncio.create_task(_run())
+    _background_runs.add(bg)
+    bg.add_done_callback(_background_runs.discard)
 
 
 async def scheduled_tasks_loop(get_db, notification_manager) -> None:
@@ -214,5 +250,17 @@ async def backfill_next_run(db: AsyncSession) -> None:
             day_of_week=task.day_of_week,
             day_of_month=task.day_of_month,
         )
-    if rows:
+
+    # A backend restart mid-run leaves rows stuck on "running"; mark them failed
+    # so the UI doesn't show a phantom run forever.
+    stale = (
+        await db.execute(
+            select(ScheduledTask).where(ScheduledTask.last_run_status == "running")
+        )
+    ).scalars().all()
+    for task in stale:
+        task.last_run_status = "failed"
+        task.last_run_output = "The run was interrupted by an app restart."
+
+    if rows or stale:
         await db.commit()
