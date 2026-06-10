@@ -13,11 +13,10 @@ import {
   Check,
   Loader2,
   ExternalLink,
-  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listRegDocs, draftRegDocContent, createRegDoc } from "@/api/regulatory";
-import { listResearchReports, runResearch } from "@/api/research";
+import { listResearchReports } from "@/api/research";
 import { createConversation } from "@/api/chat";
 import type { RegDoc, RegDocCreate } from "@/types/regulatory";
 

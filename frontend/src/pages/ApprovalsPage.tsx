@@ -101,13 +101,13 @@ function ApprovalCard({ intent, onResolve }: {
               ? <><XCircle className="h-3.5 w-3.5" /> Execution failed—action was still approved</>
               : <><AlertCircle className="h-3.5 w-3.5" /> {String(executionResult.detail ?? "No automated action")}</>}
           </p>
-          {executionResult.status === "error" && executionResult.detail && (
+          {executionResult.status === "error" && executionResult.detail != null && (
             <p className="text-destructive/80 text-xs">{String(executionResult.detail)}</p>
           )}
-          {executionResult.status === "executed" && executionResult.message_id && (
+          {executionResult.status === "executed" && executionResult.message_id != null && (
             <p className="text-green-600/80">Message ID: {String(executionResult.message_id)}</p>
           )}
-          {executionResult.status === "executed" && executionResult.url && (
+          {executionResult.status === "executed" && executionResult.url != null && (
             <a href={String(executionResult.url)} target="_blank" rel="noopener noreferrer"
                className="text-primary underline">Open in Google ↗</a>
           )}
