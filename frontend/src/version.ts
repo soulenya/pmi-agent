@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 51;
+export const BUILD_NUMBER = 52;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 52,
+    date: "2026-06-10",
+    title: "Choose where downloads go + full knowledge base listing",
+    changes: [
+      "Downloading a regulatory or generated file now asks where it should go: pick an exact folder on your computer (native Save-As dialog) or upload straight to Google Drive",
+      "The Google Drive option lets you browse My Drive and shared drives, pick the destination folder, and shows exactly where the file landed with an Open in Drive link",
+      "Fixed the Knowledge Base only showing the first 25 documents — all imported documents now appear and the Total documents stat is accurate (your other documents were always stored and searchable; only the list was cut off)",
+    ],
+  },
   {
     build: 51,
     date: "2026-06-10",

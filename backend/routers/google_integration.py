@@ -6,7 +6,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,6 +91,27 @@ async def drive_shared_drives(_user=Depends(get_current_user)):
 async def drive_list(folder_id: str = "root", drive_id: str | None = None, _user=Depends(get_current_user)):
     try:
         return {"items": gs.drive_list_folder(folder_id, drive_id=drive_id)}
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+
+
+@router.post("/drive/upload")
+async def drive_upload(
+    file: UploadFile = File(...),
+    folder_id: str | None = Form(None),
+    _user=Depends(get_current_user),
+):
+    """Upload a file into the user's Google Drive (My Drive root or a chosen folder)."""
+    data = await file.read()
+    if len(data) > 50 * 1024 * 1024:
+        raise HTTPException(413, "File exceeds the 50 MB upload limit")
+    try:
+        return gs.drive_upload_bytes(
+            data,
+            file.filename or "file",
+            file.content_type,
+            folder_id or None,
+        )
     except RuntimeError as e:
         raise HTTPException(401, str(e))
 

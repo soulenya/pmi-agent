@@ -109,3 +109,19 @@ export async function listGoogleCalendarEvents(days_behind = 0, days_ahead = 30)
   });
   return r.data.events;
 }
+
+export interface DriveUploadResult {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export async function driveUploadBlob(blob: Blob, name: string, folderId?: string): Promise<DriveUploadResult> {
+  const form = new FormData();
+  form.append("file", blob, name);
+  if (folderId) form.append("folder_id", folderId);
+  const r = await apiClient.post<DriveUploadResult>(`${G}/drive/upload`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return r.data;
+}
