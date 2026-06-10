@@ -5,6 +5,7 @@ import {
   FileCode, FileArchive, File as FileIcon, MoreVertical, Pencil, Trash2,
   Download, FolderInput, X, Loader2, ChevronRight, ShieldAlert, Save,
   HardDrive, ArrowLeft, Lock, RefreshCw, AlertTriangle, CheckCircle2,
+  Sparkles, ClipboardCheck, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -16,6 +17,12 @@ import {
   downloadRegFile, checkRegUpdates, applyRegUpdate, dismissRegUpdate,
   type RegNode, type RegSyncChange, type RegCheckUpdatesSummary,
 } from "@/api/regulatoryFiles";
+import {
+  listRegTemplates, recommendRegFormat, generateRegDocument,
+  type RegTemplateInfo, type RegGenerateResult,
+} from "@/api/regulatoryTemplates";
+import { createTask } from "@/api/tasks";
+import type { TaskPriority } from "@/types/tasks";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -548,6 +555,386 @@ function SyncReviewModal({
   );
 }
 
+// ── Generate document wizard ────────────────────────────────────────────────
+
+function GenerateDocModal({ parentId, folderName, onClose }: {
+  parentId: string | null;
+  folderName: string;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // Step 1 — what to create
+  const { data: templates, isLoading: loadingTemplates } = useQuery({
+    queryKey: ["reg-templates"],
+    queryFn: listRegTemplates,
+  });
+  const [templateKey, setTemplateKey] = useState("");
+  const [title, setTitle] = useState("");
+  const [titleTouched, setTitleTouched] = useState(false);
+  const [docNumber, setDocNumber] = useState("");
+  const [notes, setNotes] = useState("");
+  const selected: RegTemplateInfo | null = templates?.find((t) => t.key === templateKey) ?? null;
+
+  const categories = Array.from(new Set((templates ?? []).map((t) => t.category)));
+
+  function pickTemplate(key: string) {
+    setTemplateKey(key);
+    const t = templates?.find((x) => x.key === key);
+    if (t && !titleTouched) setTitle(t.label);
+  }
+
+  // Step 2 — AI-recommended formatting
+  const [format, setFormat] = useState<"docx" | "md">("docx");
+  const [sectionsText, setSectionsText] = useState("");
+  const [rationale, setRationale] = useState<string | null>(null);
+  const recMut = useMutation({
+    mutationFn: () =>
+      recommendRegFormat({ template_key: templateKey, title: title.trim(), notes: notes.trim() || null }),
+    onSuccess: (rec) => {
+      setFormat(rec.format);
+      setSectionsText(rec.sections.join("\n"));
+      setRationale(rec.rationale);
+      setStep(2);
+    },
+  });
+
+  // Step 3 — auto-populate + generate
+  const [autoPopulate, setAutoPopulate] = useState(true);
+  const [result, setResult] = useState<RegGenerateResult | null>(null);
+  const genMut = useMutation({
+    mutationFn: () =>
+      generateRegDocument({
+        template_key: templateKey,
+        title: title.trim(),
+        doc_number: docNumber.trim() || null,
+        sections: sectionsText.split("\n").map((s) => s.trim()).filter(Boolean),
+        format,
+        auto_populate: autoPopulate,
+        notes: notes.trim() || null,
+        parent_id: parentId,
+      }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["reg-files", parentId] });
+      setResult(res);
+      setStep(4);
+    },
+  });
+
+  // Step 4 — review task
+  const [taskCreated, setTaskCreated] = useState(false);
+  const taskMut = useMutation({
+    mutationFn: () => {
+      if (!result) throw new Error("No generated document.");
+      const rt = result.review_task;
+      return createTask({
+        title: rt.title,
+        description: rt.description,
+        priority: rt.priority as TaskPriority,
+        due_date: rt.due_date,
+        tags: rt.tags,
+      });
+    },
+    onSuccess: () => {
+      setTaskCreated(true);
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+
+  const busy = recMut.isPending || genMut.isPending;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b px-5 py-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            <h2 className="font-semibold">Generate Regulatory Document</h2>
+            <span className="ml-2 text-xs text-muted-foreground">Step {step} of 4</span>
+          </div>
+          <button
+            onClick={() => { if (!busy) onClose(); }}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          {/* ── Step 1: what to create ── */}
+          {step === 1 && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                What would you like to create? Pick an FDA or ISO template and give it a title.
+              </p>
+              {loadingTemplates ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              ) : (
+                <>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">Template</label>
+                    <select
+                      value={templateKey}
+                      onChange={(e) => pickTemplate(e.target.value)}
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="" disabled>Select a document template…</option>
+                      {categories.map((cat) => (
+                        <optgroup key={cat} label={cat}>
+                          {(templates ?? []).filter((t) => t.category === cat).map((t) => (
+                            <option key={t.key} value={t.key}>{t.label}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
+                  {selected && (
+                    <div className="rounded-md border bg-muted/40 px-3 py-2.5 text-xs">
+                      <p className="text-muted-foreground">{selected.description}</p>
+                      <p className="mt-1.5">
+                        {selected.related_standards.map((s) => (
+                          <span key={s} className="mr-1.5 inline-block rounded-full border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{s}</span>
+                        ))}
+                      </p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Title</label>
+                      <input
+                        value={title}
+                        onChange={(e) => { setTitle(e.target.value); setTitleTouched(true); }}
+                        placeholder="Document title"
+                        className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Document number (optional)</label>
+                      <input
+                        value={docNumber}
+                        onChange={(e) => setDocNumber(e.target.value)}
+                        placeholder="e.g. SOP-001"
+                        className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes for the AI (optional)</label>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={2}
+                      placeholder="Anything specific this document should cover…"
+                      className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Saving into: <span className="font-medium text-foreground">{folderName}</span>
+                  </p>
+                </>
+              )}
+              {recMut.isError && (
+                <p className="text-xs text-destructive">{apiError(recMut.error, "Failed to get a formatting recommendation")}</p>
+              )}
+            </>
+          )}
+
+          {/* ── Step 2: formatting recommendation ── */}
+          {step === 2 && (
+            <>
+              {rationale && (
+                <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2.5 text-xs">
+                  <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                  <p><span className="font-medium">Recommended formatting:</span> {rationale}</p>
+                </div>
+              )}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Output format</label>
+                <div className="space-y-2">
+                  <label className="flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                    <input type="radio" checked={format === "docx"} onChange={() => setFormat("docx")} className="mt-0.5" />
+                    <span>
+                      <span className="font-medium">Word document (.docx)</span>
+                      <span className="block text-xs text-muted-foreground">Formal controlled document — download and edit in Word.</span>
+                    </span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                    <input type="radio" checked={format === "md"} onChange={() => setFormat("md")} className="mt-0.5" />
+                    <span>
+                      <span className="font-medium">Markdown (.md)</span>
+                      <span className="block text-xs text-muted-foreground">Editable directly in this app's text editor.</span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Sections (one per line — edit freely)</label>
+                <textarea
+                  value={sectionsText}
+                  onChange={(e) => setSectionsText(e.target.value)}
+                  rows={9}
+                  spellCheck={false}
+                  className="w-full resize-none rounded-md border bg-background px-3 py-2 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+            </>
+          )}
+
+          {/* ── Step 3: auto-populate ── */}
+          {step === 3 && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Would you like Little Gerry to auto-populate the document?
+              </p>
+              <div className="space-y-2">
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                  <input type="radio" checked={autoPopulate} onChange={() => setAutoPopulate(true)} className="mt-0.5" />
+                  <span>
+                    <span className="font-medium">Yes — auto-populate (recommended)</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Fills in PMI and VACTOR specifics from the company profile and knowledge base.
+                      Anything unknown is left as a [FILL IN: …] placeholder — nothing is invented.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                  <input type="radio" checked={!autoPopulate} onChange={() => setAutoPopulate(false)} className="mt-0.5" />
+                  <span>
+                    <span className="font-medium">No — blank template</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Generates the structure with guidance and [FILL IN: …] placeholders only.
+                    </span>
+                  </span>
+                </label>
+              </div>
+              {genMut.isPending && (
+                <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Drafting "{title.trim()}" — this can take a minute…
+                </div>
+              )}
+              {genMut.isError && (
+                <p className="text-xs text-destructive">{apiError(genMut.error, "Document generation failed")}</p>
+              )}
+            </>
+          )}
+
+          {/* ── Step 4: done + review task ── */}
+          {step === 4 && result && (
+            <>
+              <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  <span className="font-medium">{result.node.name}</span> was created in{" "}
+                  <span className="font-medium">{folderName}</span>.
+                  {result.node.is_editable
+                    ? " You can edit it right here in the app."
+                    : " Download it to review and edit in Word."}
+                </p>
+              </div>
+              <div className="rounded-md border px-3 py-3">
+                <div className="flex items-start gap-2">
+                  <ClipboardCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Recommended: create a review task</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      AI-generated regulatory content must be reviewed before use. This creates a
+                      high-priority task due in one week: "{result.review_task.title}".
+                    </p>
+                    {taskMut.isError && (
+                      <p className="mt-1 text-xs text-destructive">{apiError(taskMut.error, "Failed to create the task")}</p>
+                    )}
+                  </div>
+                  {taskCreated ? (
+                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Task created
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => taskMut.mutate()}
+                      disabled={taskMut.isPending}
+                      className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {taskMut.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                      Create task
+                    </button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 border-t px-5 py-3">
+          <div>
+            {(step === 2 || step === 3) && (
+              <button
+                onClick={() => setStep((s) => (s === 3 ? 2 : 1))}
+                disabled={busy}
+                className="flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" /> Back
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {step < 4 && (
+              <button
+                onClick={() => { if (!busy) onClose(); }}
+                disabled={busy}
+                className="rounded-md border px-4 py-2 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            )}
+            {step === 1 && (
+              <button
+                onClick={() => recMut.mutate()}
+                disabled={!templateKey || !title.trim() || recMut.isPending}
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {recMut.isPending
+                  ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Researching format…</>)
+                  : (<>Next <ArrowRight className="h-3.5 w-3.5" /></>)}
+              </button>
+            )}
+            {step === 2 && (
+              <button
+                onClick={() => setStep(3)}
+                disabled={!sectionsText.trim()}
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                Next <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {step === 3 && (
+              <button
+                onClick={() => genMut.mutate()}
+                disabled={genMut.isPending}
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {genMut.isPending
+                  ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</>)
+                  : (<><Sparkles className="h-3.5 w-3.5" /> Generate document</>)}
+              </button>
+            )}
+            {step === 4 && (
+              <button
+                onClick={onClose}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Done
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function RegulatoryPage() {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
@@ -555,6 +942,7 @@ export function RegulatoryPage() {
 
   const [parentId, setParentId] = useState<string | null>(null);
   const [showNewFolder, setShowNewFolder] = useState(false);
+  const [showGenerate, setShowGenerate] = useState(false);
   const [showDrive, setShowDrive] = useState(false);
   const [renameTarget, setRenameTarget] = useState<RegNode | null>(null);
   const [moveTarget, setMoveTarget] = useState<RegNode | null>(null);
@@ -673,6 +1061,13 @@ export function RegulatoryPage() {
               <input type="file" multiple className="hidden" onChange={handleUpload} />
             </label>
             <button
+              onClick={() => setShowGenerate(true)}
+              className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent"
+              title="Generate an FDA / ISO document from a template with AI"
+            >
+              <Sparkles className="h-4 w-4" /> Generate Document
+            </button>
+            <button
               onClick={() => { setSyncMessage(null); checkUpdatesMut.mutate(); }}
               disabled={checkUpdatesMut.isPending}
               className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
@@ -790,6 +1185,7 @@ export function RegulatoryPage() {
                     <td className="hidden px-4 py-2.5 text-xs text-muted-foreground sm:table-cell">
                       {node.node_type === "folder" ? "—"
                         : node.source_type === "google_drive" ? "Drive"
+                        : node.source_type === "generated" ? "Generated"
                         : node.source_type === "upload" ? "Upload" : "Local"}
                     </td>
                     <td className="hidden px-4 py-2.5 text-xs text-muted-foreground md:table-cell">
@@ -828,6 +1224,13 @@ export function RegulatoryPage() {
 
       {/* Modals */}
       {showNewFolder && <NewFolderModal parentId={parentId} onClose={() => setShowNewFolder(false)} />}
+      {showGenerate && (
+        <GenerateDocModal
+          parentId={parentId}
+          folderName={breadcrumb[breadcrumb.length - 1]?.name ?? "Regulatory"}
+          onClose={() => setShowGenerate(false)}
+        />
+      )}
       {renameTarget && <RenameModal node={renameTarget} parentId={parentId} onClose={() => setRenameTarget(null)} />}
       {moveTarget && <MoveModal node={moveTarget} sourceParentId={parentId} onClose={() => setMoveTarget(null)} />}
       {editTarget && <EditModal node={editTarget} parentId={parentId} onClose={() => setEditTarget(null)} />}
