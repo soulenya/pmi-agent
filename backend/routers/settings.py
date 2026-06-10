@@ -421,37 +421,44 @@ async def get_ai_options(
     _user: User = Depends(get_current_user),
 ) -> dict:
     """
-    Return static model lists for each LLM and embedding provider.
-    Ollama LLM models are fetched live from /api/tags if reachable;
-    all cloud provider lists are static.
-    """
-    llm_models: dict[str, list[str]] = {
-        "anthropic": ["claude-opus-4-5", "claude-sonnet-4-6", "claude-haiku-3-5"],
-        "openai": ["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"],
-        "ollama": [],  # populated below if Ollama is reachable
-    }
-    embedding_models: dict[str, list[str]] = {
-        "voyage": ["voyage-3", "voyage-3-lite"],
-        "openai": ["text-embedding-3-large", "text-embedding-3-small"],
-        "ollama": [],  # populated below if Ollama is reachable
-    }
+    Return the available model lists per provider, driven by the model catalog.
 
-    # Try to fetch Ollama model names live
-    try:
-        from services.llm.ollama import OllamaClient
-        ollama_url = str(await _get_setting(db, "llm.ollama_url") or app_settings.ollama_base_url)
-        client = OllamaClient(base_url=ollama_url)
-        ollama_names = await client.list_models()
-        if ollama_names:
-            llm_models["ollama"] = ollama_names
-            embedding_models["ollama"] = ollama_names
-    except Exception:
-        # Ollama not running — return empty list (UI shows text input as fallback)
-        pass
+    Only providers with an active API key are included (Ollama: only when the
+    local server is reachable). The catalog refreshes automatically when older
+    than a week; POST /settings/refresh-models forces a rescan.
+    """
+    from services.llm.catalog import get_model_catalog, is_new_model
+
+    catalog = await get_model_catalog(db)
+
+    llm_models = {p: [m["id"] for m in entries] for p, entries in catalog.get("llm", {}).items()}
+    embedding_models = {p: [m["id"] for m in entries] for p, entries in catalog.get("embedding", {}).items()}
+    new_models = sorted(
+        {m["id"] for entries in catalog.get("llm", {}).values() for m in entries if is_new_model(m)}
+        | {m["id"] for entries in catalog.get("embedding", {}).values() for m in entries if is_new_model(m)}
+    )
 
     return {
         "llm": llm_models,
         "embedding": embedding_models,
+        "new_models": new_models,
+        "updated_at": catalog.get("updated_at"),
+    }
+
+
+@router.post("/refresh-models")
+async def refresh_models(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """Force a model catalog rescan across all keyed providers."""
+    from services.llm.catalog import refresh_model_catalog
+
+    catalog = await refresh_model_catalog(db)
+    return {
+        "updated_at": catalog.get("updated_at"),
+        "llm_providers": sorted(catalog.get("llm", {}).keys()),
+        "embedding_providers": sorted(catalog.get("embedding", {}).keys()),
     }
 
 
