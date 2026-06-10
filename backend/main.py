@@ -287,6 +287,23 @@ async def _scheduled_tasks_loop() -> None:
 
     await scheduled_tasks_loop(get_db, notification_manager)
 
+# ── Background model-catalog refresh loop ───────────────────────────────────────
+
+async def _model_catalog_loop() -> None:
+    """Keep the LLM model catalog fresh (refreshed when older than a week).
+
+    Checks staleness daily; get_model_catalog only re-discovers when the
+    stored catalog is missing or older than CATALOG_MAX_AGE_DAYS.
+    """
+    from services.llm.catalog import get_model_catalog
+
+    while True:
+        try:
+            async for db in get_db():
+                await get_model_catalog(db, refresh_if_stale=True)
+        except Exception:
+            logger.exception("Model catalog refresh error")
+        await asyncio.sleep(24 * 3600)
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
@@ -308,12 +325,14 @@ async def lifespan(app: FastAPI):
     drive_task = asyncio.create_task(_drive_sync_loop())
     assistant_task = asyncio.create_task(_assistant_scan_loop())
     scheduler_task = asyncio.create_task(_scheduled_tasks_loop())
+    catalog_task = asyncio.create_task(_model_catalog_loop())
     yield
     bg_task.cancel()
     drive_task.cancel()
     assistant_task.cancel()
     scheduler_task.cancel()
-    for _t in (bg_task, drive_task, assistant_task, scheduler_task):
+    catalog_task.cancel()
+    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task):
         try:
             await _t
         except asyncio.CancelledError:
