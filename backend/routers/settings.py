@@ -325,6 +325,96 @@ async def list_anthropic_models(
         return {"models": _ANTHROPIC_FALLBACK}
 
 
+# ── Per-task model overrides ─────────────────────────────────────────────────
+
+class TaskModelOut(BaseModel):
+    task: str
+    label: str
+    description: str
+    recommended_provider: str
+    recommended_model: str
+    recommended_reason: str
+    override_provider: str | None
+    override_model: str | None
+    effective_provider: str
+    effective_model: str
+
+
+class TaskModelUpdate(BaseModel):
+    task: str = Field(..., min_length=1, max_length=50)
+    # Both null/omitted = clear the override (revert to global pick)
+    provider: str | None = Field(None, pattern="^(ollama|openai|anthropic)$")
+    model: str | None = Field(None, min_length=1, max_length=100)
+
+
+@router.get("/task-models", response_model=list[TaskModelOut])
+async def get_task_models(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> list[TaskModelOut]:
+    """Return all task categories with their recommended, override, and effective models."""
+    from services.llm.router import resolve_task_llm
+    from services.llm.tasks import LLM_TASKS
+
+    out: list[TaskModelOut] = []
+    for t in LLM_TASKS:
+        ov_provider = await _get_setting(db, f"llm.task.{t.key}.provider")
+        ov_model = await _get_setting(db, f"llm.task.{t.key}.model")
+        eff_provider, eff_model = await resolve_task_llm(db, t.key)
+        out.append(TaskModelOut(
+            task=t.key,
+            label=t.label,
+            description=t.description,
+            recommended_provider=t.recommended_provider,
+            recommended_model=t.recommended_model,
+            recommended_reason=t.recommended_reason,
+            override_provider=str(ov_provider) if ov_provider else None,
+            override_model=str(ov_model) if ov_model else None,
+            effective_provider=eff_provider,
+            effective_model=eff_model,
+        ))
+    return out
+
+
+@router.put("/task-models", response_model=list[TaskModelOut])
+async def update_task_model(
+    body: TaskModelUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[TaskModelOut]:
+    """
+    Set or clear the model override for one task category.
+    Pass provider+model to set; omit both to clear (revert to global pick).
+    """
+    from sqlalchemy import delete as sa_delete
+
+    from services.llm.tasks import TASK_KEYS
+
+    if body.task not in TASK_KEYS:
+        raise HTTPException(status_code=400, detail=f"Unknown task category: {body.task}")
+
+    if (body.provider is None) != (body.model is None):
+        raise HTTPException(status_code=400, detail="Provide both provider and model, or neither to clear.")
+
+    if body.provider is None:
+        # Clear override
+        await db.execute(sa_delete(SystemSetting).where(SystemSetting.key.in_([
+            f"llm.task.{body.task}.provider",
+            f"llm.task.{body.task}.model",
+        ])))
+    else:
+        if body.provider in ("openai", "anthropic") and not app_settings.get_api_key(body.provider):
+            raise HTTPException(
+                status_code=400,
+                detail=f"No API key configured for {body.provider}. Add the key first in Settings → AI Engine.",
+            )
+        await _set_setting(db, f"llm.task.{body.task}.provider", body.provider, current_user.id)
+        await _set_setting(db, f"llm.task.{body.task}.model", body.model, current_user.id)
+
+    await db.commit()
+    return await get_task_models(db, current_user)
+
+
 @router.get("/ai-options")
 async def get_ai_options(
     db: AsyncSession = Depends(get_db),

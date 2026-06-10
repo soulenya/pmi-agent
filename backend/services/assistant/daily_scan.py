@@ -172,7 +172,7 @@ async def _analyze_with_llm(
     try:
         from services.llm.router import get_llm_client
 
-        client = await get_llm_client(db)
+        client = await get_llm_client(db, task="daily_assistant")
     except Exception as exc:
         logger.warning("Assistant scan: LLM unavailable (%s) — skipping recommendations", exc)
         return {}
