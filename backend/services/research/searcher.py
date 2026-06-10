@@ -81,9 +81,15 @@ async def web_search(query: str, max_results: int = 8) -> list[dict]:
     """
     try:
         try:
-            from ddgs import DDGS  # type: ignore[import]  # package renamed to "ddgs"
+            from ddgs import DDGS  # type: ignore[import]
         except ImportError:
-            from duckduckgo_search import DDGS  # type: ignore[import]  # legacy name
+            # The legacy "duckduckgo_search" package is dead — it silently returns
+            # zero results. Don't fall back to it; surface the real problem instead.
+            logger.error(
+                "The 'ddgs' search package is not installed — web search will return "
+                "no results. Run 'uv sync' in the backend directory to install it."
+            )
+            return []
 
         with DDGS() as ddgs:
             raw = list(ddgs.text(query, max_results=max_results))

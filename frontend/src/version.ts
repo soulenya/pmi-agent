@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 53;
+export const BUILD_NUMBER = 54;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 54,
+    date: "2026-06-10",
+    title: "Research search fixed, updates keep dependencies in sync",
+    changes: [
+      "Fixed Research returning zero results: the old DuckDuckGo search package stopped working and the replacement was missing from installed apps — search now uses the working package only and reports clearly if it's unavailable",
+      "App updates now refresh behind-the-scenes dependencies on every launch, so future releases that add new components can't silently break features",
+    ],
+  },
   {
     build: 53,
     date: "2026-06-10",
