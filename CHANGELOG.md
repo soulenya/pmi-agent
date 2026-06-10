@@ -4,7 +4,7 @@
 
 ## Changelog
 
-### v1.4.2 — 2026-06-10 (unreleased — build 52 on dev/v1.2)
+### v1.4.2 — 2026-06-10
 **Download destination picker + full knowledge base listing**
 
 - **Choose where downloads go** — the Download action on Regulatory Files and Generated Files now opens a destination dialog: “Save to this computer” uses the browser's native Save-As picker (exact folder of your choice; falls back to the Downloads folder on browsers without the File System Access API), or “Upload to Google Drive” with a folder browser covering My Drive and shared drives — after upload it shows the exact Drive path and an Open in Drive link (`frontend/src/components/SaveFileDialog.tsx`; new `POST /api/google/drive/upload` + `drive_upload_bytes` in `backend/services/google_service.py`)
