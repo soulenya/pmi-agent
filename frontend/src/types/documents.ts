@@ -31,6 +31,7 @@ export interface Document {
   source_modified_at?: string | null;
   last_synced_at?: string | null;
   last_checked_at?: string | null;
+  file_extension?: string | null;
 }
 
 export interface DocumentChunk {
@@ -39,6 +40,7 @@ export interface DocumentChunk {
   chunk_index: number;
   content: string;
   page_number: number | null;
+  token_count?: number | null;
 }
 
 export interface SearchRequest {
