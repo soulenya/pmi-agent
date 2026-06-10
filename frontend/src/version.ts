@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 46;
+export const BUILD_NUMBER = 47;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 47,
+    date: "2026-06-10",
+    title: "Research search fixed + selective Drive sync for Regulatory files",
+    changes: [
+      "Fixed Research returning zero results every time — web search now uses the maintained search engine and reliably returns sources for your AI-synthesised reports",
+      "New on the Regulatory Files page: a “Check for updates” button that detects when a Drive-linked file has been changed, renamed, or deleted at the source",
+      "Because Regulatory is a controlled store, changes are never applied automatically — you review the flagged files and choose exactly which ones to re-import (or dismiss), one by one",
+      "Changed files are now badged in the file list (“Update available”, “Renamed in source”, “Source deleted”) so it's clear at a glance what needs attention",
+    ],
+  },
   {
     build: 46,
     date: "2026-06-10",
