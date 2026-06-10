@@ -10,11 +10,12 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { DriveBrowser } from "@/components/google/DriveBrowser";
+import { SaveFileDialog } from "@/components/SaveFileDialog";
 import type { DriveItem } from "@/api/google";
 import {
   listRegNodes, createRegFolder, uploadRegFile, importRegFromDrive,
   renameRegNode, moveRegNode, deleteRegNode, getRegText, saveRegText,
-  downloadRegFile, checkRegUpdates, applyRegUpdate, dismissRegUpdate,
+  fetchRegFileBlob, checkRegUpdates, applyRegUpdate, dismissRegUpdate,
   type RegNode, type RegSyncChange, type RegCheckUpdatesSummary,
 } from "@/api/regulatoryFiles";
 import {
@@ -947,6 +948,7 @@ export function RegulatoryPage() {
   const [renameTarget, setRenameTarget] = useState<RegNode | null>(null);
   const [moveTarget, setMoveTarget] = useState<RegNode | null>(null);
   const [editTarget, setEditTarget] = useState<RegNode | null>(null);
+  const [saveTarget, setSaveTarget] = useState<RegNode | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [driveImporting, setDriveImporting] = useState(false);
   const [driveStatus, setDriveStatus] = useState<string | null>(null);
@@ -1028,7 +1030,7 @@ export function RegulatoryPage() {
     } else if (node.is_editable && canWrite) {
       setEditTarget(node);
     } else {
-      downloadRegFile(node.id, node.name);
+      setSaveTarget(node);
     }
   }
 
@@ -1198,7 +1200,7 @@ export function RegulatoryPage() {
                       <RowMenu
                         node={node}
                         canWrite={canWrite}
-                        onDownload={() => downloadRegFile(node.id, node.name)}
+                        onDownload={() => setSaveTarget(node)}
                         onEdit={() => setEditTarget(node)}
                         onRename={() => setRenameTarget(node)}
                         onMove={() => setMoveTarget(node)}
@@ -1234,6 +1236,13 @@ export function RegulatoryPage() {
       {renameTarget && <RenameModal node={renameTarget} parentId={parentId} onClose={() => setRenameTarget(null)} />}
       {moveTarget && <MoveModal node={moveTarget} sourceParentId={parentId} onClose={() => setMoveTarget(null)} />}
       {editTarget && <EditModal node={editTarget} parentId={parentId} onClose={() => setEditTarget(null)} />}
+      {saveTarget && (
+        <SaveFileDialog
+          filename={saveTarget.name}
+          getBlob={() => fetchRegFileBlob(saveTarget.id)}
+          onClose={() => setSaveTarget(null)}
+        />
+      )}
       {showDrive && (
         <DriveBrowser
           onClose={() => { if (!driveImporting) setShowDrive(false); }}

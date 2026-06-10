@@ -15,13 +15,22 @@ export async function listCategories(): Promise<DocumentCategory[]> {
 
 export async function listDocuments(params?: {
   category_id?: string;
-  limit?: number;
-  offset?: number;
 }): Promise<Document[]> {
-  const { data } = await apiClient.get<ApiResponse<Document[]>>("/documents", {
-    params,
-  });
-  return data.data ?? [];
+  // The backend paginates (max 100 per page) — fetch every page so the
+  // knowledge base view always shows all documents, however many exist.
+  const all: Document[] = [];
+  let page = 1;
+  for (;;) {
+    const { data } = await apiClient.get<ApiResponse<Document[]>>("/documents", {
+      params: { ...params, page, page_size: 100 },
+    });
+    const batch = data.data ?? [];
+    all.push(...batch);
+    const total = data.meta?.total ?? all.length;
+    if (batch.length === 0 || all.length >= total) break;
+    page += 1;
+  }
+  return all;
 }
 
 export async function getDocument(id: string): Promise<Document> {
