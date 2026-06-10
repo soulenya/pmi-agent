@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 48;
+export const BUILD_NUMBER = 49;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 49,
+    date: "2026-06-10",
+    title: "Generate FDA & ISO documents from templates",
+    changes: [
+      "New “Generate Document” wizard on the Regulatory Files page: create 510(k) outlines, Design Control plans, CAPA and Complaint Handling SOPs, DHF indexes, ISO 13485 Quality Manuals, ISO 14971 Risk Management Plans & Reports, generic SOPs, and EU Declarations of Conformity",
+      "The wizard asks what you want to create, researches and recommends the best-practice section structure and output format (Word .docx or in-app-editable Markdown), and lets you adjust both before generating",
+      "Optional auto-populate fills in PMI and VACTOR specifics from the company profile and knowledge base — anything unknown is left as an explicit [FILL IN: …] placeholder, never invented",
+      "Generated files land directly in the Regulatory file store as editable documents and are labelled “Generated” in the Source column",
+      "After generating, Little Gerry recommends a one-click high-priority review task (due in one week) so AI-drafted content always gets a human review",
+    ],
+  },
   {
     build: 48,
     date: "2026-06-10",

@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v1.3.0 — 2026-06-10
+**FDA & ISO document generation wizard in Regulatory Files**
+
+- **Generate Document wizard** — the Regulatory Files page gains a "Generate Document" button that walks through a four-step wizard: pick a template and title → review the AI-recommended section structure and output format → choose auto-populate or blank template → generate, with a one-click recommended review task at the end (`GenerateDocModal` in `frontend/src/pages/RegulatoryPage.tsx`, API client `frontend/src/api/regulatoryTemplates.ts`)
+- **Curated FDA / ISO template catalog** — ten templates: 510(k) Premarket Notification Outline, Design and Development Plan (21 CFR 820.30), CAPA Procedure (820.100), Complaint Handling Procedure (820.198 + Part 803), DHF Index, ISO 13485 Quality Manual, ISO 14971 Risk Management Plan and Report, generic SOP, and EU MDR Declaration of Conformity — each with governing standards, default section structure, and drafting guidance (`backend/services/regulatory/templates.py`)
+- **AI formatting recommendation** — `POST /regulatory-templates/recommend` asks the regulatory-task model to refine the section structure and recommend Word vs Markdown output for the specific document, with safe fallback to template defaults (`backend/services/regulatory/generator.py`)
+- **Generation with honest auto-populate** — `POST /regulatory-templates/generate` drafts the full document (task="regulatory" model). Auto-populate fills specifics from the company profile and knowledge-base vector search; anything unverifiable becomes a `[FILL IN: …]` placeholder — facts are never invented. Blank-template mode produces structure + guidance only
+- **Editable output into the controlled store** — output renders to Word (`backend/services/regulatory/docgen.py`) or Markdown (editable in-app) and is saved as a regular `regulatory_nodes` file (`source_type="generated"`, shown as "Generated" in the Source column) — rename, move, download, and edit like any other regulatory file. Generation requires regulatory write permission
+
 ### v1.2.0 — 2026-06-10
 **Per-task model selection, live model catalog, collapsible Settings**
 
