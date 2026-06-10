@@ -4,7 +4,7 @@
 
 ## Changelog
 
-### v1.4.3 — 2026-06-10 (unreleased — build 53 on dev/v1.2)
+### v1.4.3 — 2026-06-10
 **Scheduled tasks: Run Now fixed**
 
 - **Fix: Run Now produced nothing** — running a scheduled task (e.g. Monthly Investor Report) executed the whole agent run inside the HTTP request; the frontend's 120-second request timeout aborted it mid-run, so no file was generated and no outcome was recorded (`run_count` stayed 0). `POST /scheduled-tasks/{id}/run` now marks the task `running`, starts the run as a background task with its own DB session, and returns 202 immediately (`backend/routers/scheduled_tasks.py`, `start_background_run` in `backend/services/scheduler/runner.py`)
