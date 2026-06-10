@@ -98,6 +98,44 @@ export interface SettingsHealthResult {
 export interface AiOptions {
   llm: Record<string, string[]>;
   embedding: Record<string, string[]>;
+  /** Models first seen within the last two weeks (badge as NEW). */
+  new_models?: string[];
+  /** ISO timestamp of the last model catalog scan. */
+  updated_at?: string | null;
+}
+
+export interface TaskModel {
+  task: string;
+  label: string;
+  description: string;
+  recommended_provider: string;
+  recommended_model: string;
+  recommended_reason: string;
+  override_provider: string | null;
+  override_model: string | null;
+  effective_provider: string;
+  effective_model: string;
+}
+
+export interface TaskModelUpdate {
+  task: string;
+  provider?: string;
+  model?: string;
+}
+
+export async function getTaskModels(): Promise<TaskModel[]> {
+  const resp = await apiClient.get<TaskModel[]>("/settings/task-models");
+  return resp.data;
+}
+
+export async function updateTaskModel(body: TaskModelUpdate): Promise<TaskModel[]> {
+  const resp = await apiClient.put<TaskModel[]>("/settings/task-models", body);
+  return resp.data;
+}
+
+export async function refreshModels(): Promise<{ updated_at: string; llm_providers: string[]; embedding_providers: string[] }> {
+  const resp = await apiClient.post("/settings/refresh-models");
+  return resp.data;
 }
 
 export async function getSystemHealth(): Promise<HealthCheckResult> {

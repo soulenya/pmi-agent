@@ -198,6 +198,16 @@ async def update_settings(
         app_settings.set_api_key("voyage", body.voyage_api_key)
 
     await db.commit()
+
+    # A newly added key unlocks that provider's models — rescan the catalog now
+    # instead of waiting for the weekly refresh.
+    if body.openai_api_key or body.anthropic_api_key or body.voyage_api_key:
+        try:
+            from services.llm.catalog import refresh_model_catalog
+            await refresh_model_catalog(db)
+        except Exception:
+            pass  # discovery failure must never block saving settings
+
     return await get_settings(db, current_user)
 
 

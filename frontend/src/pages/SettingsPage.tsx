@@ -429,10 +429,20 @@ function LLMSection({
     refetchOnWindowFocus: false,
   });
 
-  const modelOptions =
-    provider === "ollama" ? ollamaModels :
-    provider === "openai" ? OPENAI_MODELS :
-    anthropicModels;
+  const { data: aiOpts } = useQuery({
+    queryKey: ["ai-options"],
+    queryFn: getAiOptions,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Catalog-driven, key-filtered model list. Providers without an active API
+  // key return no models (add the key first, the list refreshes automatically).
+  const modelOptions = aiOpts
+    ? aiOpts.llm[provider] ?? []
+    : provider === "ollama" ? ollamaModels :
+      provider === "openai" ? OPENAI_MODELS :
+      anthropicModels;
 
   const embModelOptions =
     embProv === "voyage" ? EMBEDDING_MODEL_OPTIONS.voyage :
@@ -809,6 +819,164 @@ function LLMSection({
         </div>
       </Section>
     </>
+  );
+}
+
+// ── Per-task model selection section ──────────────────────────────────────────
+
+function TaskModelsSection() {
+  const qc = useQueryClient();
+  const [message, setMessage] = useState<string | null>(null);
+
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ["task-models"],
+    queryFn: getTaskModels,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: aiOpts } = useQuery({
+    queryKey: ["ai-options"],
+    queryFn: getAiOptions,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const updateMut = useMutation({
+    mutationFn: (body: TaskModelUpdate) => updateTaskModel(body),
+    onSuccess: () => {
+      setMessage(null);
+      qc.invalidateQueries({ queryKey: ["task-models"] });
+    },
+    onError: (e: Error) => setMessage(e.message),
+  });
+
+  const refreshMut = useMutation({
+    mutationFn: refreshModels,
+    onSuccess: () => {
+      setMessage("Model list refreshed.");
+      qc.invalidateQueries({ queryKey: ["ai-options"] });
+      qc.invalidateQueries({ queryKey: ["task-models"] });
+    },
+    onError: (e: Error) => setMessage(e.message),
+  });
+
+  const providers: Record<string, string[]> = aiOpts?.llm ?? {};
+  const newModels = new Set(aiOpts?.new_models ?? []);
+  const providerLabels: Record<string, string> = {
+    anthropic: "Anthropic / Claude",
+    openai: "OpenAI",
+    ollama: "Ollama (local)",
+  };
+
+  const handleSelect = (task: TaskModel, value: string) => {
+    if (value === "__global__") {
+      updateMut.mutate({ task: task.task });
+    } else {
+      const sep = value.indexOf("::");
+      updateMut.mutate({
+        task: task.task,
+        provider: value.slice(0, sep),
+        model: value.slice(sep + 2),
+      });
+    }
+  };
+
+  return (
+    <Section
+      icon={SlidersHorizontal}
+      title="Models per Task"
+      description="Pick a different model for each kind of work — default is your global model"
+    >
+      <p className="text-xs text-muted-foreground">
+        Each category uses your global model unless you override it here. Only models from
+        providers with an active API key are listed (Ollama: only when the local server is
+        running). Little Gerry never switches models on its own.
+      </p>
+
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground">Loading task categories…</p>
+      ) : (
+        <div className="space-y-3">
+          {tasks.map((t) => {
+            const current = t.override_provider && t.override_model
+              ? `${t.override_provider}::${t.override_model}`
+              : "__global__";
+            const recommendedAvailable =
+              (providers[t.recommended_provider] ?? []).includes(t.recommended_model);
+            const isRecommendedActive =
+              t.effective_provider === t.recommended_provider &&
+              t.effective_model === t.recommended_model;
+            return (
+              <div key={t.task} className="rounded-lg border px-4 py-3 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium flex items-center gap-1.5">
+                      {t.label}
+                      {isRecommendedActive && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-1.5 py-0.5 text-[10px] font-semibold">
+                          <Star className="h-2.5 w-2.5" /> Recommended
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{t.description}</p>
+                  </div>
+                  <span className="text-[11px] font-mono text-muted-foreground shrink-0">
+                    {t.effective_provider}/{t.effective_model}
+                  </span>
+                </div>
+                <select
+                  value={current}
+                  onChange={(e) => handleSelect(t, e.target.value)}
+                  disabled={updateMut.isPending}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                >
+                  <option value="__global__">Global default</option>
+                  {Object.entries(providers).map(([prov, models]) =>
+                    models.length > 0 ? (
+                      <optgroup key={prov} label={providerLabels[prov] ?? prov}>
+                        {models.map((m) => (
+                          <option key={`${prov}::${m}`} value={`${prov}::${m}`}>
+                            {m}
+                            {prov === t.recommended_provider && m === t.recommended_model ? " ★ Recommended" : ""}
+                            {newModels.has(m) ? " · NEW" : ""}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null
+                  )}
+                </select>
+                <p className="text-[11px] text-muted-foreground/80">
+                  Recommended: <span className="font-mono">{t.recommended_model}</span>
+                  {" — "}{t.recommended_reason}
+                  {!recommendedAvailable && " (provider key not configured)"}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="border-t pt-3 flex items-center justify-between gap-3 flex-wrap">
+        <button
+          onClick={() => refreshMut.mutate()}
+          disabled={refreshMut.isPending}
+          className="flex items-center gap-2 text-xs rounded-md border px-3 py-1.5 hover:bg-muted transition-colors disabled:opacity-50"
+        >
+          {refreshMut.isPending
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <RefreshCw className="h-3.5 w-3.5" />}
+          Refresh model list
+        </button>
+        <span className="text-[11px] text-muted-foreground/70">
+          {aiOpts?.updated_at
+            ? `Models scanned ${new Date(aiOpts.updated_at).toLocaleString()} · rescans weekly`
+            : "Model list rescans weekly"}
+        </span>
+      </div>
+
+      {message && <p className="text-xs text-muted-foreground">{message}</p>}
+    </Section>
   );
 }
 
@@ -1248,6 +1416,8 @@ export function SettingsPage() {
     mutationFn: (body: SettingsUpdate) => updateSettings(body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["settings"] });
+      qc.invalidateQueries({ queryKey: ["ai-options"] });
+      qc.invalidateQueries({ queryKey: ["task-models"] });
       setSettingsSaved(true);
       setLocalSettings({});
       setTimeout(() => setSettingsSaved(false), 2500);
@@ -1314,6 +1484,7 @@ export function SettingsPage() {
               qc.invalidateQueries({ queryKey: ["settings-health"] });
             }}
           />
+          <TaskModelsSection />
           <AppearanceSection settings={mergedSettings} onChange={handleChange} />
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />
           <SystemHealthSection />
