@@ -113,7 +113,7 @@ async def _generate_briefing_content(user_id, db: AsyncSession, for_date: date) 
 
     full_content = headline  # fallback if LLM fails
     try:
-        llm = await get_llm_client(db)
+        llm = await get_llm_client(db, task="briefings")
         chunk = await llm.chat(
             messages=[
                 {"role": "system", "content": _BRIEFING_SYSTEM},

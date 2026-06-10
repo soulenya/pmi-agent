@@ -198,6 +198,16 @@ async def update_settings(
         app_settings.set_api_key("voyage", body.voyage_api_key)
 
     await db.commit()
+
+    # A newly added key unlocks that provider's models — rescan the catalog now
+    # instead of waiting for the weekly refresh.
+    if body.openai_api_key or body.anthropic_api_key or body.voyage_api_key:
+        try:
+            from services.llm.catalog import refresh_model_catalog
+            await refresh_model_catalog(db)
+        except Exception:
+            pass  # discovery failure must never block saving settings
+
     return await get_settings(db, current_user)
 
 
@@ -325,43 +335,140 @@ async def list_anthropic_models(
         return {"models": _ANTHROPIC_FALLBACK}
 
 
+# ── Per-task model overrides ─────────────────────────────────────────────────
+
+class TaskModelOut(BaseModel):
+    task: str
+    label: str
+    description: str
+    recommended_provider: str
+    recommended_model: str
+    recommended_reason: str
+    override_provider: str | None
+    override_model: str | None
+    effective_provider: str
+    effective_model: str
+
+
+class TaskModelUpdate(BaseModel):
+    task: str = Field(..., min_length=1, max_length=50)
+    # Both null/omitted = clear the override (revert to global pick)
+    provider: str | None = Field(None, pattern="^(ollama|openai|anthropic)$")
+    model: str | None = Field(None, min_length=1, max_length=100)
+
+
+@router.get("/task-models", response_model=list[TaskModelOut])
+async def get_task_models(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> list[TaskModelOut]:
+    """Return all task categories with their recommended, override, and effective models."""
+    from services.llm.router import resolve_task_llm
+    from services.llm.tasks import LLM_TASKS
+
+    out: list[TaskModelOut] = []
+    for t in LLM_TASKS:
+        ov_provider = await _get_setting(db, f"llm.task.{t.key}.provider")
+        ov_model = await _get_setting(db, f"llm.task.{t.key}.model")
+        eff_provider, eff_model = await resolve_task_llm(db, t.key)
+        out.append(TaskModelOut(
+            task=t.key,
+            label=t.label,
+            description=t.description,
+            recommended_provider=t.recommended_provider,
+            recommended_model=t.recommended_model,
+            recommended_reason=t.recommended_reason,
+            override_provider=str(ov_provider) if ov_provider else None,
+            override_model=str(ov_model) if ov_model else None,
+            effective_provider=eff_provider,
+            effective_model=eff_model,
+        ))
+    return out
+
+
+@router.put("/task-models", response_model=list[TaskModelOut])
+async def update_task_model(
+    body: TaskModelUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[TaskModelOut]:
+    """
+    Set or clear the model override for one task category.
+    Pass provider+model to set; omit both to clear (revert to global pick).
+    """
+    from sqlalchemy import delete as sa_delete
+
+    from services.llm.tasks import TASK_KEYS
+
+    if body.task not in TASK_KEYS:
+        raise HTTPException(status_code=400, detail=f"Unknown task category: {body.task}")
+
+    if (body.provider is None) != (body.model is None):
+        raise HTTPException(status_code=400, detail="Provide both provider and model, or neither to clear.")
+
+    if body.provider is None:
+        # Clear override
+        await db.execute(sa_delete(SystemSetting).where(SystemSetting.key.in_([
+            f"llm.task.{body.task}.provider",
+            f"llm.task.{body.task}.model",
+        ])))
+    else:
+        if body.provider in ("openai", "anthropic") and not app_settings.get_api_key(body.provider):
+            raise HTTPException(
+                status_code=400,
+                detail=f"No API key configured for {body.provider}. Add the key first in Settings → AI Engine.",
+            )
+        await _set_setting(db, f"llm.task.{body.task}.provider", body.provider, current_user.id)
+        await _set_setting(db, f"llm.task.{body.task}.model", body.model, current_user.id)
+
+    await db.commit()
+    return await get_task_models(db, current_user)
+
+
 @router.get("/ai-options")
 async def get_ai_options(
     db: AsyncSession = Depends(get_db),
     _user: User = Depends(get_current_user),
 ) -> dict:
     """
-    Return static model lists for each LLM and embedding provider.
-    Ollama LLM models are fetched live from /api/tags if reachable;
-    all cloud provider lists are static.
-    """
-    llm_models: dict[str, list[str]] = {
-        "anthropic": ["claude-opus-4-5", "claude-sonnet-4-6", "claude-haiku-3-5"],
-        "openai": ["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"],
-        "ollama": [],  # populated below if Ollama is reachable
-    }
-    embedding_models: dict[str, list[str]] = {
-        "voyage": ["voyage-3", "voyage-3-lite"],
-        "openai": ["text-embedding-3-large", "text-embedding-3-small"],
-        "ollama": [],  # populated below if Ollama is reachable
-    }
+    Return the available model lists per provider, driven by the model catalog.
 
-    # Try to fetch Ollama model names live
-    try:
-        from services.llm.ollama import OllamaClient
-        ollama_url = str(await _get_setting(db, "llm.ollama_url") or app_settings.ollama_base_url)
-        client = OllamaClient(base_url=ollama_url)
-        ollama_names = await client.list_models()
-        if ollama_names:
-            llm_models["ollama"] = ollama_names
-            embedding_models["ollama"] = ollama_names
-    except Exception:
-        # Ollama not running — return empty list (UI shows text input as fallback)
-        pass
+    Only providers with an active API key are included (Ollama: only when the
+    local server is reachable). The catalog refreshes automatically when older
+    than a week; POST /settings/refresh-models forces a rescan.
+    """
+    from services.llm.catalog import get_model_catalog, is_new_model
+
+    catalog = await get_model_catalog(db)
+
+    llm_models = {p: [m["id"] for m in entries] for p, entries in catalog.get("llm", {}).items()}
+    embedding_models = {p: [m["id"] for m in entries] for p, entries in catalog.get("embedding", {}).items()}
+    new_models = sorted(
+        {m["id"] for entries in catalog.get("llm", {}).values() for m in entries if is_new_model(m)}
+        | {m["id"] for entries in catalog.get("embedding", {}).values() for m in entries if is_new_model(m)}
+    )
 
     return {
         "llm": llm_models,
         "embedding": embedding_models,
+        "new_models": new_models,
+        "updated_at": catalog.get("updated_at"),
+    }
+
+
+@router.post("/refresh-models")
+async def refresh_models(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """Force a model catalog rescan across all keyed providers."""
+    from services.llm.catalog import refresh_model_catalog
+
+    catalog = await refresh_model_catalog(db)
+    return {
+        "updated_at": catalog.get("updated_at"),
+        "llm_providers": sorted(catalog.get("llm", {}).keys()),
+        "embedding_providers": sorted(catalog.get("embedding", {}).keys()),
     }
 
 

@@ -107,7 +107,7 @@ class LangGraphSupervisor:
         conversation_id: uuid.UUID,
     ) -> "LangGraphSupervisor":
         from services.llm.router import get_llm_client
-        llm = await get_llm_client(db)
+        llm = await get_llm_client(db, task="chat")
         return cls(llm=llm, db=db, user_id=user_id, conversation_id=conversation_id)
 
     # ── Routing ───────────────────────────────────────────────────────────────

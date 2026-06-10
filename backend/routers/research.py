@@ -49,7 +49,7 @@ async def _summarise(query: str, sources: list[dict], db: AsyncSession) -> tuple
     )
 
     try:
-        client = await get_llm_client(db)
+        client = await get_llm_client(db, task="research")
         chunk = await client.chat(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
