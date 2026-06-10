@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench } from "lucide-react";
+import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines, Volume2 } from "lucide-react";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/api/chat";
 import { getSettings } from "@/api/settings";
 import { speakText } from "@/api/voice";
+import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { useAuthStore } from "@/stores/authStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -171,7 +172,28 @@ export function ChatPage() {
   const streamBufferRef = useRef("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const playReply = useCallback(async (text: string) => {
+  // ── Voice Conversation mode (hands-free talk → reply aloud → listen again) ───
+  const [voiceMode, setVoiceMode] = useState(false);
+  const voiceModeRef = useRef(false);
+  useEffect(() => {
+    voiceModeRef.current = voiceMode;
+  }, [voiceMode]);
+  const [voiceSpeaking, setVoiceSpeaking] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const handleSendRef = useRef<(content: string) => void>(() => {});
+
+  const { status: voiceStatus, start: voiceStart, stop: voiceStop } = useVoiceConversation({
+    onTranscript: (text) => {
+      setVoiceError(null);
+      handleSendRef.current(text);
+    },
+    onError: (message) => {
+      setVoiceError(message);
+      if (message.startsWith("Microphone")) setVoiceMode(false); // can't listen — exit mode
+    },
+  });
+
+  const playReply = useCallback(async (text: string, voiceLoop = false) => {
     if (!text.trim()) return;
     try {
       const blob = await speakText(text);
@@ -179,12 +201,71 @@ export function ChatPage() {
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => URL.revokeObjectURL(url);
+      if (voiceLoop) setVoiceSpeaking(true);
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        if (voiceLoop) {
+          setVoiceSpeaking(false);
+          if (voiceModeRef.current) void voiceStart(); // loop: listen for the user's next turn
+        }
+      };
       await audio.play();
     } catch {
       // TTS failure should never disrupt the chat
+      if (voiceLoop) {
+        setVoiceSpeaking(false);
+        if (voiceModeRef.current) void voiceStart();
+      }
     }
-  }, []);
+  }, [voiceStart]);
+
+  const exitVoiceMode = useCallback(() => {
+    setVoiceMode(false);
+    setVoiceSpeaking(false);
+    setVoiceError(null);
+    voiceStop();
+    audioRef.current?.pause();
+  }, [voiceStop]);
+
+  const toggleVoiceMode = useCallback(() => {
+    if (voiceModeRef.current) {
+      exitVoiceMode();
+    } else {
+      setVoiceError(null);
+      setVoiceMode(true);
+      void voiceStart();
+    }
+  }, [exitVoiceMode, voiceStart]);
+
+  // Esc exits voice mode
+  useEffect(() => {
+    if (!voiceMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") exitVoiceMode();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [voiceMode, exitVoiceMode]);
+
+  // Release the mic when leaving the page
+  useEffect(() => () => voiceStop(), [voiceStop]);
+
+  // Interrupt Gerry mid-sentence: stop playback and listen right away
+  const interruptSpeech = useCallback(() => {
+    audioRef.current?.pause();
+    setVoiceSpeaking(false);
+    if (voiceModeRef.current) void voiceStart();
+  }, [voiceStart]);
+
+  const voicePhase = !voiceMode
+    ? null
+    : voiceStatus === "listening"
+      ? "listening"
+      : voiceStatus === "transcribing"
+        ? "transcribing"
+        : voiceSpeaking
+          ? "speaking"
+          : "thinking";
 
   // Stop playback when leaving the page
   useEffect(() => {
@@ -282,10 +363,13 @@ export function ChatPage() {
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
           setStreamingContent(null);
           setToolActivities([]);
-          // Speak the reply aloud if enabled in Settings → Voice
+          // Speak the reply aloud — always in voice mode (then listen again),
+          // otherwise only if enabled in Settings → Voice
           const finalText = streamBufferRef.current;
           streamBufferRef.current = "";
-          if (speakRepliesRef.current && finalText) {
+          if (voiceModeRef.current && finalText) {
+            void playReply(finalText, true);
+          } else if (speakRepliesRef.current && finalText) {
             void playReply(finalText);
           }
         } else if (msg.type === "error") {
@@ -293,6 +377,8 @@ export function ChatPage() {
           setStreamingContent(null);
           setToolActivities([]);
           streamBufferRef.current = "";
+          // In voice mode, resume listening so the conversation isn't stranded
+          if (voiceModeRef.current) void voiceStart();
           // Inject a synthetic error message into the message list so it's visible in the chat bubble
           queryClient.setQueryData<Message[]>(
             ["messages", conversationId],
@@ -391,6 +477,7 @@ export function ChatPage() {
     },
     [conversationId, createConvMutation, queryClient],
   );
+  handleSendRef.current = handleSend;
 
   return (
     <div className="flex h-full gap-4">
@@ -432,6 +519,21 @@ export function ChatPage() {
               )}
             />
             {wsConnected ? "Connected" : "Connecting…"}
+            {voiceEnabled && (
+              <button
+                onClick={toggleVoiceMode}
+                className={cn(
+                  "ml-auto flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors",
+                  voiceMode
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "hover:bg-accent",
+                )}
+                title={voiceMode ? "Exit voice conversation (Esc)" : "Start a hands-free voice conversation"}
+              >
+                <AudioLines className="h-3.5 w-3.5" />
+                {voiceMode ? "End voice chat" : "Voice chat"}
+              </button>
+            )}
           </div>
         )}
 
@@ -486,6 +588,52 @@ export function ChatPage() {
 
           <div ref={bottomRef} />
         </div>
+
+        {/* Voice conversation banner */}
+        {voiceMode && (
+          <div className="mb-2 flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+            {voicePhase === "listening" && (
+              <>
+                <Mic className="h-4 w-4 shrink-0 animate-pulse text-red-500" />
+                <span className="flex-1">Listening — just talk; pause and I'll answer.</span>
+              </>
+            )}
+            {voicePhase === "transcribing" && (
+              <>
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                <span className="flex-1">Got it…</span>
+              </>
+            )}
+            {voicePhase === "thinking" && (
+              <>
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+                <span className="flex-1">Thinking…</span>
+              </>
+            )}
+            {voicePhase === "speaking" && (
+              <>
+                <Volume2 className="h-4 w-4 shrink-0 text-primary" />
+                <span className="flex-1">Speaking…</span>
+                <button
+                  onClick={interruptSpeech}
+                  className="rounded-md border px-2 py-1 text-xs hover:bg-accent"
+                >
+                  Interrupt
+                </button>
+              </>
+            )}
+            {voiceError && (
+              <span className="text-xs text-destructive">{voiceError}</span>
+            )}
+            <button
+              onClick={exitVoiceMode}
+              className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              title="Exit voice conversation (Esc)"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Input */}
         <ChatInput
