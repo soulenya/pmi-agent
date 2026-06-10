@@ -157,7 +157,7 @@ async def ai_draft_content(
     )
 
     try:
-        client = await get_llm_client(db)
+        client = await get_llm_client(db, task="regulatory")
         response = await client.chat(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,

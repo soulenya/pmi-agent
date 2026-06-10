@@ -79,7 +79,7 @@ async def _llm_summarize(title: str, transcript: str, db: AsyncSession) -> dict:
         "Output ONLY the four sections above with their ## headings."
     )
     try:
-        client = await get_llm_client(db)
+        client = await get_llm_client(db, task="meetings")
         chunk = await client.chat(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
@@ -276,7 +276,7 @@ async def extract_actions(
         "Do NOT include any other text."
     )
     try:
-        client = await get_llm_client(db)
+        client = await get_llm_client(db, task="meetings")
         response = await client.chat(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,

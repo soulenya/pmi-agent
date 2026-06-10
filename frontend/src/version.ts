@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 47;
+export const BUILD_NUMBER = 48;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 48,
+    date: "2026-06-10",
+    title: "Pick a model per task + live model catalog + tidier Settings",
+    changes: [
+      "New “Models per Task” in Settings: choose a different AI model for each kind of work — Chat & Agent, Daily Assistant, Briefings, Email Drafting, Meetings, Regulatory, and Research — each with a ★ recommended pick and a one-line reason",
+      "Every category defaults to your global model; overrides are always your explicit choice and Little Gerry never switches models on its own",
+      "Model lists are now discovered live from each provider and only show providers with an active API key (no OpenAI models offered if no OpenAI key is set); newly released models are flagged · NEW",
+      "The model catalog rescans automatically every week, immediately after you add a new API key, and on demand via the “Refresh model list” button",
+      "Settings page sections are now collapsible menus (like the sidebar) and start condensed, so the page is much easier to scan",
+    ],
+  },
   {
     build: 47,
     date: "2026-06-10",
