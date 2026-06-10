@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v1.1.4 — 2026-06-10
+**Research search fixed + selective Google Drive sync for Regulatory files**
+
+- **Research now returns results** — the web search silently returned zero results every time because the searcher imported `from ddgs import DDGS` while only the deprecated `duckduckgo-search` package (which DuckDuckGo now blocks) was installed. Added the maintained `ddgs` package (`backend/pyproject.toml`, `uv.lock`) and made the import resilient to either package name (`backend/services/research/searcher.py`). Reports now gather real sources again
+- **Selective Drive sync for Regulatory files** — the Regulatory Files page gains a **"Check for updates"** button that polls Drive-linked files for source changes, mirroring the Knowledge Base sync — but because Regulatory is a *controlled* store, **nothing is ever re-imported automatically**. Changes are detected and flagged (modified / renamed / deleted), and a review dialog lets the user pick exactly which files to re-import or dismiss, one by one:
+  - New tracking columns on `regulatory_nodes` (`sync_status`, `sync_detail`, `source_name`, `last_checked_at`, `last_synced_at`) via migration `009_add_regulatory_sync_columns.py`, plus a baseline recorded on import (`backend/models/db/regulatory.py`, `backend/routers/regulatory_files.py`)
+  - New detection/apply/dismiss service `backend/services/regulatory/sync.py` and endpoints `POST /regulatory-files/check-updates`, `POST /regulatory-files/{id}/apply-update`, `POST /regulatory-files/{id}/dismiss-update`
+  - New review UI on `frontend/src/pages/RegulatoryPage.tsx` with per-file checkboxes and status badges, backed by `checkRegUpdates` / `applyRegUpdate` / `dismissRegUpdate` (`frontend/src/api/regulatoryFiles.ts`). A notification is raised the first time a file is flagged
+
 ### v1.1.3 — 2026-06-10
 **Scheduled tasks, answers that survive navigating away, and a Drive import fix**
 

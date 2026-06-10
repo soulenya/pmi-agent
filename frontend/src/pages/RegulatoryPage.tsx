@@ -4,7 +4,7 @@ import {
   Folder, FolderPlus, Upload, FileText, FileSpreadsheet, FileImage,
   FileCode, FileArchive, File as FileIcon, MoreVertical, Pencil, Trash2,
   Download, FolderInput, X, Loader2, ChevronRight, ShieldAlert, Save,
-  HardDrive, ArrowLeft, Lock,
+  HardDrive, ArrowLeft, Lock, RefreshCw, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -13,8 +13,8 @@ import type { DriveItem } from "@/api/google";
 import {
   listRegNodes, createRegFolder, uploadRegFile, importRegFromDrive,
   renameRegNode, moveRegNode, deleteRegNode, getRegText, saveRegText,
-  downloadRegFile,
-  type RegNode,
+  downloadRegFile, checkRegUpdates, applyRegUpdate, dismissRegUpdate,
+  type RegNode, type RegSyncChange, type RegCheckUpdatesSummary,
 } from "@/api/regulatoryFiles";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -341,6 +341,213 @@ function MenuItem({ icon, label, onClick, danger }: { icon: React.ReactNode; lab
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
+// ── Drive sync review modal (selective — regulated) ─────────────────────────
+
+const SYNC_BADGE: Record<string, { label: string; cls: string }> = {
+  modified: {
+    label: "Update available",
+    cls: "border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300",
+  },
+  renamed: {
+    label: "Renamed in source",
+    cls: "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300",
+  },
+  deleted: {
+    label: "Source deleted",
+    cls: "border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300",
+  },
+};
+
+type RowState = "idle" | "working" | "updated" | "dismissed" | "error";
+
+function SyncReviewModal({
+  changes,
+  parentId,
+  onClose,
+}: {
+  changes: RegSyncChange[];
+  parentId: string | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  // Regulated section: nothing is pre-selected — the user deliberately picks files.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [rowState, setRowState] = useState<Record<string, RowState>>({});
+  const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  // Items still awaiting a decision (not yet updated/dismissed).
+  const pending = changes.filter(
+    (c) => rowState[c.id] !== "updated" && rowState[c.id] !== "dismissed",
+  );
+  const allDone = pending.length === 0;
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    const selectableIds = pending.map((c) => c.id);
+    setSelected((prev) =>
+      selectableIds.every((id) => prev.has(id)) ? new Set() : new Set(selectableIds),
+    );
+  }
+
+  async function run(action: "apply" | "dismiss") {
+    const ids = pending.filter((c) => selected.has(c.id)).map((c) => c.id);
+    if (ids.length === 0) return;
+    setBusy(true);
+    for (const id of ids) {
+      const change = changes.find((c) => c.id === id);
+      // A deleted source can't be re-imported — only dismissed.
+      if (action === "apply" && change?.sync_status === "deleted") {
+        setRowState((s) => ({ ...s, [id]: "error" }));
+        setRowError((e) => ({
+          ...e,
+          [id]: "Source was deleted in Drive — re-import isn't possible. Dismiss to keep the current copy.",
+        }));
+        continue;
+      }
+      setRowState((s) => ({ ...s, [id]: "working" }));
+      try {
+        if (action === "apply") await applyRegUpdate(id);
+        else await dismissRegUpdate(id);
+        setRowState((s) => ({ ...s, [id]: action === "apply" ? "updated" : "dismissed" }));
+        setRowError((e) => {
+          const n = { ...e };
+          delete n[id];
+          return n;
+        });
+        setSelected((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      } catch (err) {
+        setRowState((s) => ({ ...s, [id]: "error" }));
+        setRowError((e) => ({ ...e, [id]: apiError(err, "Action failed") }));
+      }
+    }
+    setBusy(false);
+    qc.invalidateQueries({ queryKey: ["reg-files", parentId] });
+  }
+
+  const selectedCount = pending.filter((c) => selected.has(c.id)).length;
+
+  return (
+    <ModalShell
+      title="Review Drive changes"
+      icon={<RefreshCw className="h-5 w-5 text-primary" />}
+      onClose={onClose}
+    >
+      <div className="space-y-4">
+        <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            This is a controlled store. Changes are <strong>never applied automatically</strong> — select
+            only the files you want to re-import, then choose an action.
+          </span>
+        </div>
+
+        {allDone ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
+            <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+            <p className="text-sm font-medium">All changes have been reviewed.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <button
+                onClick={toggleAll}
+                disabled={busy}
+                className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+              >
+                {pending.every((c) => selected.has(c.id)) ? "Deselect all" : "Select all"}
+              </button>
+              <span className="text-xs text-muted-foreground">
+                {selectedCount} of {pending.length} selected
+              </span>
+            </div>
+
+            <div className="max-h-72 space-y-1.5 overflow-y-auto">
+              {changes.map((c) => {
+                const state = rowState[c.id] ?? "idle";
+                const settled = state === "updated" || state === "dismissed";
+                const badge = SYNC_BADGE[c.sync_status] ?? SYNC_BADGE.modified;
+                return (
+                  <label
+                    key={c.id}
+                    className={cn(
+                      "flex items-start gap-2.5 rounded-md border px-3 py-2 text-sm",
+                      settled ? "opacity-60" : "cursor-pointer hover:bg-accent/30",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 shrink-0"
+                      checked={selected.has(c.id)}
+                      disabled={busy || settled}
+                      onChange={() => toggle(c.id)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate font-medium">{c.name}</span>
+                        <span className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-medium", badge.cls)}>
+                          {badge.label}
+                        </span>
+                        {state === "working" && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                        {state === "updated" && <span className="text-[10px] font-medium text-emerald-600">Re-imported</span>}
+                        {state === "dismissed" && <span className="text-[10px] font-medium text-muted-foreground">Dismissed</span>}
+                      </div>
+                      {c.detail && <p className="mt-0.5 text-xs text-muted-foreground">{c.detail}</p>}
+                      {rowError[c.id] && <p className="mt-0.5 text-xs text-destructive">{rowError[c.id]}</p>}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        <div className="flex items-center justify-end gap-2 border-t pt-3">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+          >
+            {allDone ? "Done" : "Close"}
+          </button>
+          {!allDone && (
+            <>
+              <button
+                onClick={() => run("dismiss")}
+                disabled={busy || selectedCount === 0}
+                className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                title="Keep the current local copy and clear the flag"
+              >
+                Dismiss selected
+              </button>
+              <button
+                onClick={() => run("apply")}
+                disabled={busy || selectedCount === 0}
+                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                Re-import selected
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
 export function RegulatoryPage() {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
@@ -356,6 +563,30 @@ export function RegulatoryPage() {
   const [driveImporting, setDriveImporting] = useState(false);
   const [driveStatus, setDriveStatus] = useState<string | null>(null);
   const [driveProgress, setDriveProgress] = useState<{ current: number; total: number } | null>(null);
+  const [syncChanges, setSyncChanges] = useState<RegSyncChange[] | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  const checkUpdatesMut = useMutation({
+    mutationFn: () => checkRegUpdates(),
+    onSuccess: (summary: RegCheckUpdatesSummary) => {
+      qc.invalidateQueries({ queryKey: ["reg-files", parentId] });
+      if (summary.skipped === "not_connected") {
+        setSyncMessage("Connect your Google account in Settings to check for Drive updates.");
+        return;
+      }
+      if (summary.changed === 0) {
+        setSyncMessage(
+          summary.checked === 0
+            ? "No Drive-linked files to check."
+            : `All ${summary.checked} Drive-linked file${summary.checked === 1 ? "" : "s"} are up to date.`,
+        );
+        return;
+      }
+      setSyncMessage(null);
+      setSyncChanges(summary.items);
+    },
+    onError: (e) => setSyncMessage(apiError(e, "Failed to check for updates")),
+  });
 
   const { data: listing, isLoading } = useQuery({
     queryKey: ["reg-files", parentId],
@@ -442,6 +673,17 @@ export function RegulatoryPage() {
               <input type="file" multiple className="hidden" onChange={handleUpload} />
             </label>
             <button
+              onClick={() => { setSyncMessage(null); checkUpdatesMut.mutate(); }}
+              disabled={checkUpdatesMut.isPending}
+              className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+              title="Check Drive-linked files for source changes"
+            >
+              {checkUpdatesMut.isPending
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <RefreshCw className="h-4 w-4" />}
+              Check for updates
+            </button>
+            <button
               onClick={() => setShowDrive(true)}
               className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
@@ -490,6 +732,15 @@ export function RegulatoryPage() {
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{uploadError}</p>
       )}
 
+      {syncMessage && (
+        <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <span>{syncMessage}</span>
+          <button onClick={() => setSyncMessage(null)} className="rounded p-0.5 hover:bg-accent" title="Dismiss">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Listing */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         {isLoading ? (
@@ -526,6 +777,14 @@ export function RegulatoryPage() {
                       <button onClick={() => openNode(node)} className="flex items-center gap-2.5 text-left">
                         <Icon className={cn("h-5 w-5 shrink-0", node.node_type === "folder" ? "text-amber-500" : "text-muted-foreground")} />
                         <span className="font-medium">{node.name}</span>
+                        {node.sync_status && node.sync_status !== "current" && SYNC_BADGE[node.sync_status] && (
+                          <span
+                            className={cn("rounded-full border px-1.5 py-0.5 text-[10px] font-medium", SYNC_BADGE[node.sync_status].cls)}
+                            title={node.sync_detail ?? undefined}
+                          >
+                            {SYNC_BADGE[node.sync_status].label}
+                          </span>
+                        )}
                       </button>
                     </td>
                     <td className="hidden px-4 py-2.5 text-xs text-muted-foreground sm:table-cell">
@@ -579,6 +838,13 @@ export function RegulatoryPage() {
           importing={driveImporting}
           importStatus={driveStatus}
           importProgress={driveProgress}
+        />
+      )}
+      {syncChanges && (
+        <SyncReviewModal
+          changes={syncChanges}
+          parentId={parentId}
+          onClose={() => setSyncChanges(null)}
         />
       )}
     </div>

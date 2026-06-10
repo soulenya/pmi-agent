@@ -13,6 +13,10 @@ export interface RegNode {
   source_type?: string | null;
   source_url?: string | null;
   source_modified_at?: string | null;
+  sync_status?: string | null;
+  sync_detail?: string | null;
+  last_checked_at?: string | null;
+  last_synced_at?: string | null;
   is_editable: boolean;
   created_at: string;
   updated_at: string;
@@ -58,6 +62,38 @@ export async function importRegFromDrive(fileId: string, parentId: string | null
     file_id: fileId,
     parent_id: parentId,
   });
+  return r.data;
+}
+
+// ── Drive selective sync (regulated — review & approve per file) ─────────────
+
+export interface RegSyncChange {
+  id: string;
+  name: string;
+  sync_status: "modified" | "renamed" | "deleted";
+  detail: string | null;
+}
+
+export interface RegCheckUpdatesSummary {
+  checked: number;
+  changed: number;
+  errors: number;
+  items: RegSyncChange[];
+  skipped?: string | null;
+}
+
+export async function checkRegUpdates(): Promise<RegCheckUpdatesSummary> {
+  const r = await apiClient.post<RegCheckUpdatesSummary>(`${BASE}/check-updates`);
+  return r.data;
+}
+
+export async function applyRegUpdate(id: string): Promise<RegNode> {
+  const r = await apiClient.post<RegNode>(`${BASE}/${id}/apply-update`);
+  return r.data;
+}
+
+export async function dismissRegUpdate(id: string): Promise<RegNode> {
+  const r = await apiClient.post<RegNode>(`${BASE}/${id}/dismiss-update`);
   return r.data;
 }
 

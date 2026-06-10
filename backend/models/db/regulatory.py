@@ -199,6 +199,18 @@ class RegulatoryNode(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    # ── Source-update tracking (Google Drive selective sync) ────────────────────
+    # sync_status: NULL/"current" | "modified" | "renamed" | "deleted"
+    sync_status: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    sync_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )

@@ -67,6 +67,10 @@ class NodeOut(BaseModel):
     source_type: str | None = None
     source_url: str | None = None
     source_modified_at: datetime | None = None
+    sync_status: str | None = None
+    sync_detail: str | None = None
+    last_checked_at: datetime | None = None
+    last_synced_at: datetime | None = None
     is_editable: bool = False
     created_at: datetime
     updated_at: datetime
@@ -110,6 +114,21 @@ class TextContentOut(BaseModel):
 
 class SaveTextRequest(BaseModel):
     content: str
+
+
+class SyncChangeItem(BaseModel):
+    id: uuid.UUID
+    name: str
+    sync_status: str
+    detail: str | None = None
+
+
+class CheckUpdatesSummary(BaseModel):
+    checked: int
+    changed: int
+    errors: int
+    items: list[SyncChangeItem]
+    skipped: str | None = None
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -358,12 +377,71 @@ async def import_from_drive(
         source_file_id=body.file_id,
         source_url=dl.get("url"),
         source_modified_at=modified,
+        source_name=dl["name"],
+        sync_status="current",
+        last_synced_at=datetime.now(timezone.utc),
+        last_checked_at=datetime.now(timezone.utc),
         created_by=user.id,
     )
     db.add(node)
     await db.flush()
     await db.refresh(node)
     await db.commit()
+    return _to_out(node)
+
+
+# ── Drive selective sync (regulated — never bulk-applies) ──────────────────────
+
+@router.post("/check-updates", response_model=CheckUpdatesSummary)
+async def check_updates_endpoint(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_regulatory_write),
+) -> CheckUpdatesSummary:
+    """Scan all Drive-linked regulatory files and flag source changes.
+
+    Detection only — nothing is re-imported. The user reviews the returned
+    changes and approves each file individually via ``apply-update``.
+    """
+    from services.regulatory.sync import check_updates
+
+    summary = await check_updates(db)
+    return CheckUpdatesSummary(**summary)
+
+
+@router.post("/{node_id}/apply-update", response_model=NodeOut)
+async def apply_update_endpoint(
+    node_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_regulatory_write),
+) -> NodeOut:
+    """Re-import a single flagged file's current bytes from Google Drive."""
+    from services.regulatory.sync import apply_update
+
+    try:
+        node = await apply_update(db, node_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="File not found.")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Regulatory apply-update failed for %s", node_id)
+        raise HTTPException(status_code=502, detail=f"Update failed: {exc}") from exc
+    return _to_out(node)
+
+
+@router.post("/{node_id}/dismiss-update", response_model=NodeOut)
+async def dismiss_update_endpoint(
+    node_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_regulatory_write),
+) -> NodeOut:
+    """Acknowledge a flagged change without re-importing (re-baselines)."""
+    from services.regulatory.sync import dismiss_update
+
+    try:
+        node = await dismiss_update(db, node_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="File not found.")
     return _to_out(node)
 
 
