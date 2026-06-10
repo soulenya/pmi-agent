@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v1.4.2 — 2026-06-10 (unreleased — build 52 on dev/v1.2)
+**Download destination picker + full knowledge base listing**
+
+- **Choose where downloads go** — the Download action on Regulatory Files and Generated Files now opens a destination dialog: “Save to this computer” uses the browser's native Save-As picker (exact folder of your choice; falls back to the Downloads folder on browsers without the File System Access API), or “Upload to Google Drive” with a folder browser covering My Drive and shared drives — after upload it shows the exact Drive path and an Open in Drive link (`frontend/src/components/SaveFileDialog.tsx`; new `POST /api/google/drive/upload` + `drive_upload_bytes` in `backend/services/google_service.py`)
+- **Knowledge Base shows all documents** — the Documents page was only ever requesting the first page (25) from the paginated `GET /documents` API (and sent `limit`/`offset` params the backend ignored); `listDocuments` now pages through until every document is loaded, so the list and the “Total documents” stat reflect everything imported. No storage limit exists — documents beyond 25 were always stored and searchable by chat (`frontend/src/api/documents.ts`)
+
 ### v1.4.1 — 2026-06-10
 **Calendar-aware Dashboard, voice-aware setup wizard, model-recommendation fix**
 

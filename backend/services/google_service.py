@@ -372,6 +372,41 @@ def drive_upload_file(
     }
 
 
+def drive_upload_bytes(
+    data: bytes,
+    name: str,
+    mime_type: str | None = None,
+    folder_id: str | None = None,
+) -> dict:
+    """Upload in-memory bytes to the user's Google Drive and return its metadata.
+
+    ``folder_id`` places the file inside a folder (My Drive root when omitted).
+    Returns ``{id, name, url}`` where ``url`` is the shareable webViewLink.
+    """
+    import io
+    import mimetypes
+    from googleapiclient.http import MediaIoBaseUpload
+
+    mt = mime_type or mimetypes.guess_type(name)[0] or "application/octet-stream"
+    metadata: dict[str, Any] = {"name": name}
+    if folder_id:
+        metadata["parents"] = [folder_id]
+
+    svc = _build("drive", "v3")
+    media = MediaIoBaseUpload(io.BytesIO(data), mimetype=mt, resumable=False)
+    created = svc.files().create(
+        body=metadata,
+        media_body=media,
+        fields="id,name,webViewLink",
+        supportsAllDrives=True,
+    ).execute()
+    return {
+        "id": created.get("id", ""),
+        "name": created.get("name", name),
+        "url": created.get("webViewLink", ""),
+    }
+
+
 def drive_search_by_name(name_contains: str, max_results: int = 25) -> list[dict]:
     """Find Drive files whose name contains ``name_contains`` (newest first).
 

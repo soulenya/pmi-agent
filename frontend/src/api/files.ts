@@ -20,3 +20,8 @@ export async function deleteGeneratedFile(name: string): Promise<void> {
 export function getFileDownloadUrl(name: string): string {
   return `${API_BASE}/api/files/${encodeURIComponent(name)}`;
 }
+
+export async function fetchGeneratedFileBlob(name: string): Promise<Blob> {
+  const r = await apiClient.get(`/api/files/${encodeURIComponent(name)}`, { responseType: "blob" });
+  return r.data as Blob;
+}
