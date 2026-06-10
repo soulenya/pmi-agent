@@ -4,7 +4,7 @@
 
 ## Changelog
 
-### v1.4.4 — 2026-06-10 (unreleased — build 54 on dev/v1.2)
+### v1.4.4 — 2026-06-10
 **Research search fixed + dependency sync on launch**
 
 - **Fix: Research tab returned zero results** — the legacy `duckduckgo-search` package is dead (silently returns no results) and installer-based updates never installed its replacement `ddgs` into the app's Python environment. `web_search` no longer falls back to the dead package: it uses `ddgs` only and logs a clear error if it's missing (`backend/services/research/searcher.py`); `duckduckgo-search` removed from dependencies (`backend/pyproject.toml`)
