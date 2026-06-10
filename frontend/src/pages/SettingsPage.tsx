@@ -876,6 +876,11 @@ function TaskModelsSection() {
     ollama: "Ollama (local)",
   };
 
+  // A recommendation like "claude-haiku-4-5" should match dated catalog
+  // snapshots such as "claude-haiku-4-5-20251001".
+  const modelMatches = (alias: string, id: string) =>
+    id === alias || id.startsWith(`${alias}-`);
+
   const handleSelect = (task: TaskModel, value: string) => {
     if (value === "__global__") {
       updateMut.mutate({ task: task.task });
@@ -910,10 +915,10 @@ function TaskModelsSection() {
               ? `${t.override_provider}::${t.override_model}`
               : "__global__";
             const recommendedAvailable =
-              (providers[t.recommended_provider] ?? []).includes(t.recommended_model);
+              (providers[t.recommended_provider] ?? []).some((m) => modelMatches(t.recommended_model, m));
             const isRecommendedActive =
               t.effective_provider === t.recommended_provider &&
-              t.effective_model === t.recommended_model;
+              modelMatches(t.recommended_model, t.effective_model);
             return (
               <div key={t.task} className="rounded-lg border px-4 py-3 space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -945,7 +950,7 @@ function TaskModelsSection() {
                         {models.map((m) => (
                           <option key={`${prov}::${m}`} value={`${prov}::${m}`}>
                             {m}
-                            {prov === t.recommended_provider && m === t.recommended_model ? " ★ Recommended" : ""}
+                            {prov === t.recommended_provider && modelMatches(t.recommended_model, m) ? " ★ Recommended" : ""}
                             {newModels.has(m) ? " · NEW" : ""}
                           </option>
                         ))}
@@ -956,7 +961,7 @@ function TaskModelsSection() {
                 <p className="text-[11px] text-muted-foreground/80">
                   Recommended: <span className="font-mono">{t.recommended_model}</span>
                   {" — "}{t.recommended_reason}
-                  {!recommendedAvailable && " (provider key not configured)"}
+                  {!recommendedAvailable && " (not in your current model list — refresh models or check the provider key)"}
                 </p>
               </div>
             );

@@ -9,9 +9,10 @@
  *   3  Connect Claude (Anthropic API key)   — the default chat model
  *   4  Connect Voyage (embeddings API key)  — the default search model
  *   5  Connect Google Workspace (optional)
- *   6  Using Little Gerry — import, edit, chat, submit feedback
- *   7  Roles & privileges
- *   8  Finish
+ *   6  Voice (optional) — Google Cloud API key for speech-to-text / text-to-speech
+ *   7  Using Little Gerry — import, edit, chat, generate documents, voice, feedback
+ *   8  Roles & privileges
+ *   9  Finish
  *
  * Claude + Voyage are pre-selected as the default stack; the user only needs to
  * paste the keys their team already has access to. Completion is recorded on the
@@ -35,7 +36,6 @@ import {
   Boxes,
   Cloud,
   Upload,
-  Pencil,
   MessageSquare,
   MessageSquarePlus,
   Users,
@@ -46,6 +46,8 @@ import {
   ChevronRight,
   ChevronLeft,
   ExternalLink,
+  Mic,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +62,7 @@ const STEPS = [
   "Claude",
   "Voyage",
   "Google",
+  "Voice",
   "Using it",
   "Roles",
   "Done",
@@ -84,6 +87,11 @@ export function SetupWizard({ onComplete }: Props) {
   const [googleConnected, setGoogleConnected] = useState<boolean | null>(null);
   const [googleConnecting, setGoogleConnecting] = useState(false);
 
+  // ── Voice (Google Cloud API key) ──────────────────────────────────────
+  const [googleCloudKey, setGoogleCloudKey] = useState("");
+  const [voiceSaving, setVoiceSaving] = useState(false);
+  const [voiceResult, setVoiceResult] = useState<{ ok: boolean; message: string } | null>(null);
+
   // ── Finish ──────────────────────────────────────────────────────────────────
   const [finishing, setFinishing] = useState(false);
 
@@ -93,6 +101,7 @@ export function SetupWizard({ onComplete }: Props) {
       .then((s) => {
         if (s.anthropic_key_set) setClaudeResult({ ok: true, message: "Already connected." });
         if (s.voyage_key_set) setVoyageResult({ ok: true, message: "Already connected." });
+        if (s.google_key_set) setVoiceResult({ ok: true, message: "Already connected — voice is ready." });
       })
       .catch(() => {});
   }, []);
@@ -139,6 +148,26 @@ export function SetupWizard({ onComplete }: Props) {
       setVoyageResult({ ok: false, message: msg });
     } finally {
       setVoyageSaving(false);
+    }
+  }
+
+  // ── Save Google Cloud (voice) key ───────────────────────────────────────
+  async function handleSaveGoogleCloud() {
+    if (googleCloudKey.trim().length < 10) return;
+    setVoiceSaving(true);
+    setVoiceResult(null);
+    try {
+      const s = await updateSettings({ google_api_key: googleCloudKey.trim() });
+      setVoiceResult(
+        s.google_key_set
+          ? { ok: true, message: "Key saved. The microphone button and spoken replies are now available." }
+          : { ok: false, message: "The key did not save — please try again." },
+      );
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to save the key.";
+      setVoiceResult({ ok: false, message: msg });
+    } finally {
+      setVoiceSaving(false);
     }
   }
 
@@ -440,8 +469,77 @@ export function SetupWizard({ onComplete }: Props) {
             </div>
           )}
 
-          {/* ── 5 Using it ────────────────────────────────────────────────── */}
+          {/* ── 5 Voice ───────────────────────────────────────────────────── */}
           {step === 5 && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-rose-500/10 p-2.5">
+                  <Mic className="h-6 w-6 text-rose-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">Voice — talk to Little Gerry (optional)</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    With a Google Cloud API key, a microphone button appears in chat — speak and
+                    your words become editable text — and Little Gerry can read replies aloud in a
+                    natural voice. Audio goes only to the company&apos;s own Google Cloud project and
+                    is never stored.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-muted/40 p-4 text-sm space-y-1.5">
+                <p className="font-medium">Where to get the key</p>
+                <p className="text-muted-foreground">
+                  PMI already has this key in the company&apos;s Google Cloud project — ask your admin
+                  for the <span className="font-medium">Google Cloud API key</span>. If you need to
+                  create one: open the Google Cloud Console → <span className="font-medium">APIs &amp;
+                  Services → Credentials → Create credentials → API key</span>, and make sure the{" "}
+                  <span className="font-medium">Speech-to-Text</span> and{" "}
+                  <span className="font-medium">Text-to-Speech</span> APIs are enabled on the project.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-1.5 text-sm font-medium">
+                  <KeyRound className="h-4 w-4" /> Google Cloud API key
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={googleCloudKey}
+                    onChange={(e) => { setGoogleCloudKey(e.target.value); setVoiceResult(null); }}
+                    placeholder="AIza..."
+                    className="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <button
+                    onClick={handleSaveGoogleCloud}
+                    disabled={voiceSaving || googleCloudKey.trim().length < 10}
+                    className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {voiceSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {voiceSaving ? "Saving…" : "Save key"}
+                  </button>
+                </div>
+                <a
+                  href="https://console.cloud.google.com/apis/credentials"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Open Google Cloud Console credentials <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+
+              <ResultBanner result={voiceResult} />
+              <DefaultNote>
+                This step is optional — you can add the key later in Settings → Voice, where you can
+                also pick a voice and turn on spoken replies.
+              </DefaultNote>
+            </div>
+          )}
+
+          {/* ── 6 Using it ──────────────────────────────────────────────── */}
+          {step === 6 && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">A few things you&apos;ll do every day:</p>
               <InfoRow
@@ -451,23 +549,33 @@ export function SetupWizard({ onComplete }: Props) {
                       your knowledge base."
               />
               <InfoRow
-                icon={<Pencil className="h-5 w-5 text-amber-500" />}
-                title="Edit"
-                desc="Browse, create, rename, move, and edit files in the Regulatory file explorer (write
-                      access depends on your permissions — see the next step)."
+                icon={<MessageSquare className="h-5 w-5 text-emerald-500" />}
+                title="Communicate — type or talk"
+                desc="Ask questions in Chat — Little Gerry answers using your imported knowledge and cites
+                      its sources. With voice set up, use the microphone button to dictate and have replies
+                      read aloud."
               />
               <InfoRow
-                icon={<MessageSquare className="h-5 w-5 text-emerald-500" />}
-                title="Communicate"
-                desc="Ask questions in Chat — Little Gerry answers using your imported knowledge and cites
-                      its sources."
+                icon={<FileText className="h-5 w-5 text-amber-500" />}
+                title="Edit & generate regulatory documents"
+                desc="Browse, create, and edit files in the Regulatory file explorer, or use the Generate
+                      Document wizard to draft FDA and ISO documents (510(k) outlines, SOPs, Quality
+                      Manuals, and more) from curated templates — each draft comes with a recommended
+                      human review."
               />
               <InfoRow
                 icon={<Sparkles className="h-5 w-5 text-primary" />}
-                title="Review daily suggestions"
-                desc="Once Google is connected, the Daily Assistant scans your Gmail and Google Tasks once a
-                      day and collects follow-ups and to-dos for you to review — find them under Daily
-                      Assistant in the sidebar."
+                title="Start the day on the Dashboard"
+                desc="The Dashboard gathers today's calendar events, tasks, and meetings with a daily
+                      briefing. Once Google is connected, the Daily Assistant also scans Gmail and Google
+                      Tasks each morning and collects follow-ups and to-dos for you to review."
+              />
+              <InfoRow
+                icon={<Boxes className="h-5 w-5 text-orange-500" />}
+                title="Tune your AI models"
+                desc="Settings → Models per Task lets each kind of work (chat, briefings, regulatory drafting,
+                      research…) use its own model — fast and cheap for daily scans, most capable for
+                      regulatory writing. Recommendations are marked with a ★."
               />
               <InfoRow
                 icon={<MessageSquarePlus className="h-5 w-5 text-violet-500" />}
@@ -478,8 +586,8 @@ export function SetupWizard({ onComplete }: Props) {
             </div>
           )}
 
-          {/* ── 6 Roles ───────────────────────────────────────────────────── */}
-          {step === 6 && (
+          {/* ── 7 Roles ───────────────────────────────────────────────────── */}
+          {step === 7 && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Access is based on your role and a per-user permission:
@@ -505,8 +613,8 @@ export function SetupWizard({ onComplete }: Props) {
             </div>
           )}
 
-          {/* ── 7 Done ────────────────────────────────────────────────────── */}
-          {step === 7 && (
+          {/* ── 8 Done ──────────────────────────────────────────────────── */}
+          {step === 8 && (
             <div className="space-y-4 py-6 text-center">
               <CheckCircle2 className="mx-auto h-14 w-14 text-green-500" />
               <div>
@@ -542,7 +650,7 @@ export function SetupWizard({ onComplete }: Props) {
               onClick={goNext}
               className="flex items-center gap-1.5 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90"
             >
-              {step === 2 || step === 3 || step === 4 ? "Continue" : "Next"}
+              {step === 2 || step === 3 || step === 4 || step === 5 ? "Continue" : "Next"}
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
