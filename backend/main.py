@@ -38,6 +38,7 @@ from routers.google_integration import router as google_router
 from routers.files import router as files_router
 from routers.feedback import router as feedback_router
 from routers.assistant import router as assistant_router
+from routers.scheduled_tasks import router as scheduled_tasks_router
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -271,6 +272,22 @@ async def _assistant_scan_loop() -> None:
             logger.exception("Assistant scan loop error")
 
 
+# ── Background scheduled-tasks loop ───────────────────────────────────────────
+
+async def _scheduled_tasks_loop() -> None:
+    """Run user-defined recurring tasks (daily/weekly/monthly) when they come due."""
+    from services.scheduler.runner import backfill_next_run, scheduled_tasks_loop
+
+    # On startup, give any enabled task without a next_run_at a fresh schedule.
+    try:
+        async for db in get_db():
+            await backfill_next_run(db)
+    except Exception:
+        logger.exception("Scheduled-tasks backfill error")
+
+    await scheduled_tasks_loop(get_db, notification_manager)
+
+
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -290,11 +307,13 @@ async def lifespan(app: FastAPI):
     bg_task = asyncio.create_task(_notification_loop())
     drive_task = asyncio.create_task(_drive_sync_loop())
     assistant_task = asyncio.create_task(_assistant_scan_loop())
+    scheduler_task = asyncio.create_task(_scheduled_tasks_loop())
     yield
     bg_task.cancel()
     drive_task.cancel()
     assistant_task.cancel()
-    for _t in (bg_task, drive_task, assistant_task):
+    scheduler_task.cancel()
+    for _t in (bg_task, drive_task, assistant_task, scheduler_task):
         try:
             await _t
         except asyncio.CancelledError:
@@ -360,6 +379,7 @@ def create_app() -> FastAPI:
     app.include_router(files_router)
     app.include_router(feedback_router)
     app.include_router(assistant_router)
+    app.include_router(scheduled_tasks_router)
 
     # ── WebSocket: real-time chat stream ─────────────────────────────────────
     @app.websocket("/ws/chat/{conversation_id}")
@@ -374,7 +394,6 @@ def create_app() -> FastAPI:
         Server → client: WSToken | WSDone | WSError (JSON strings)
         """
         from models.schemas.conversations import WSError, WSIncoming
-        from services.agent.executor import AgentExecutor
         from services.auth.service import AuthService
 
         # ── Authenticate via query param token ────────────────────────────────
@@ -432,23 +451,21 @@ def create_app() -> FastAPI:
                     from routers.settings import _get_setting as _gs
                     _use_lg = str(await _gs(db, "llm.use_langgraph") or "false").lower() == "true"
 
-                    if _use_lg:
-                        from services.agent.v2.supervisor import LangGraphSupervisor
-                        supervisor = await LangGraphSupervisor.create(
-                            db=db,
-                            user_id=user.id,
-                            conversation_id=conv_uuid,
-                        )
-                        async for frame in supervisor.run(incoming.content.strip()):
-                            await websocket.send_text(frame)
-                    else:
-                        executor = await AgentExecutor.create(
-                            db=db,
-                            user_id=user.id,
-                            conversation_id=conv_uuid,
-                        )
-                        async for frame in executor._run(incoming.content.strip()):
-                            await websocket.send_text(frame)
+                    # Run the agent in a DETACHED background task with its own DB
+                    # session, forwarding frames via a queue. If the client
+                    # disconnects (e.g. navigates away), the run keeps going to
+                    # completion and persists its answer — it is not cancelled.
+                    from services.agent.stream_runner import spawn_agent_run
+
+                    frame_queue: asyncio.Queue[str | None] = asyncio.Queue()
+                    spawn_agent_run(
+                        user.id, conv_uuid, incoming.content.strip(), frame_queue, _use_lg
+                    )
+                    while True:
+                        frame = await frame_queue.get()
+                        if frame is None:
+                            break
+                        await websocket.send_text(frame)
 
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected: user=%s conversation=%s", user.id, conversation_id)

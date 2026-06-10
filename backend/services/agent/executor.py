@@ -68,7 +68,9 @@ TOOL-USE GUIDELINES:
    - If the user asks about contacts → call search_contacts
    - If the user asks to search the web or research a topic → call search_web
    - If the user asks to create a task, add a task, or track something → call create_task
-   - If the user asks to generate, create, or export a document/report/file → call generate_file
+   - If the user asks to generate, create, or export a plain-text/markdown/csv file → call generate_file
+   - If the user asks for a Word document, report, memo, weekly update, or formatted deliverable → call create_docx (it appears on the Generated Files page)
+   - If the user asks to upload a file you created to Google Drive → call upload_to_drive with the generated filename
    - When in doubt about Drive content, use list_drive_folder to browse and search_drive_content to read
 2. DO NOT just describe what you are about to do — use the tool and show the result.
    - Wrong: "Let me browse your Drive now." (then stops)
@@ -107,6 +109,8 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "read_google_sheet": "Reading spreadsheet…",
     "list_google_tasks": "Fetching Google Tasks…",
     "generate_file": "Generating file…",
+    "create_docx": "Creating Word document…",
+    "upload_to_drive": "Uploading to Google Drive…",
 }
 
 

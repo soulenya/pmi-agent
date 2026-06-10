@@ -14,6 +14,7 @@ from models.db.meeting import MeetingNote
 from models.db.notification import Notification
 from models.db.regulatory import CAPA, RegulatoryDocument, RegulatoryNode, RiskItem
 from models.db.research import ResearchReport, ResearchSource
+from models.db.scheduled_task import ScheduledTask
 from models.db.settings import ModelRoutingRule, SystemSetting
 from models.db.task import Project, Task, TaskComment
 from models.db.user import User, UserSession
@@ -49,4 +50,5 @@ __all__ = [
     "EmailDraft",
     "Feedback",
     "AssistantSuggestion",
+    "ScheduledTask",
 ]

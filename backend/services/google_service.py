@@ -400,6 +400,13 @@ def drive_search_by_name(name_contains: str, max_results: int = 25) -> list[dict
         }
         for f in resp.get("files", [])
     ]
+
+
+def drive_list_folder(
+    folder_id: str = "root",
+    drive_id: str | None = None,
+    max_results: int = 100,
+) -> list[dict]:
     """List the direct children (files and folders) of a Drive folder, including shared drives.
 
     When ``drive_id`` is supplied the caller is navigating the ROOT of a shared
