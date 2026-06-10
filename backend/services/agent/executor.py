@@ -178,7 +178,7 @@ class AgentExecutor:
     @classmethod
     async def create(cls, db: AsyncSession, user_id, conversation_id) -> "AgentExecutor":
         """Factory that resolves the active LLM client from system settings."""
-        client = await get_llm_client(db)
+        client = await get_llm_client(db, task="chat")
         return cls(db=db, user_id=user_id, conversation_id=conversation_id, ollama=client)
 
     async def run(self, user_text: str) -> AsyncGenerator[str, None]:
