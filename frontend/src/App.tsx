@@ -25,6 +25,7 @@ import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
 import { CalendarPage } from "@/pages/CalendarPage";
 import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
 import { GeneratedFilesPage } from "@/pages/GeneratedFilesPage";
+import { ScheduledTasksPage } from "@/pages/ScheduledTasksPage";
 import InvestorPage from "@/pages/InvestorPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
@@ -60,6 +61,7 @@ function ThemedApp() {
             <Route path="documents" element={<ErrorBoundary><DocumentsPage /></ErrorBoundary>} />
             <Route path="search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
             <Route path="tasks" element={<ErrorBoundary><TasksPage /></ErrorBoundary>} />
+            <Route path="scheduled-tasks" element={<ErrorBoundary><ScheduledTasksPage /></ErrorBoundary>} />
             <Route path="regulatory" element={<ErrorBoundary><RegulatoryPage /></ErrorBoundary>} />
             <Route path="notifications" element={<ErrorBoundary><NotificationsPage /></ErrorBoundary>} />
             <Route path="research" element={<ErrorBoundary><ResearchPage /></ErrorBoundary>} />

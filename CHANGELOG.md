@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v1.1.3 — 2026-06-10
+**Scheduled tasks, answers that survive navigating away, and a Drive import fix**
+
+- **Scheduled tasks** — a new **Scheduled Tasks** page (`frontend/src/pages/ScheduledTasksPage.tsx`, nav in `Sidebar.tsx`) lets you tell Little Gerry to run a prompt on a repeating schedule (daily / weekly on a chosen day / monthly on a chosen date, at a chosen time). For example, *"create a report every Thursday morning about the previous week."* Backed by a new `scheduled_tasks` table (`backend/models/db/scheduled_task.py`, migration `008_add_scheduled_tasks.py`), a headless agent runner and 60-second scheduler loop (`backend/services/scheduler/runner.py`, wired into `main.py` lifespan), and a REST API (`backend/routers/scheduled_tasks.py`, prefix `/scheduled-tasks`). Each run reuses a dedicated conversation, records its status/output, reschedules itself, and pushes a notification when finished. Run-now, pause/resume, and delete are supported from the UI
+- **Answers no longer lost when you navigate away** — the chat agent now runs in a **detached background task with its own database session** (`backend/services/agent/stream_runner.py`), forwarding frames to the WebSocket via a queue (`backend/main.py`). Previously, closing the chat tab mid-reply cancelled the run before its final `db.commit()`, discarding the answer. Now the run always completes and persists, so the finished answer is waiting in your history when you return
+- **Sidebar chat can create files** — the Little Gerry sidebar chat uses the same agent and tools as the full chat; the system prompt now advertises `create_docx` and `upload_to_drive` (`backend/services/agent/executor.py`) so generated Word documents land on the **Generated Files** page from either chat surface
+- **Fixed "Import from Drive" showing an empty folder** — browsing a Google Drive folder in the Knowledge Base returned nothing because `drive_list_folder()` in `backend/services/google_service.py` was missing its function signature (the body was orphaned dead code). Restored the signature so folder listing works for both My Drive and shared drives
+
 ### v1.1.2 — 2026-06-10
 **Create Word documents and upload them to Google Drive**
 

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 45;
+export const BUILD_NUMBER = 46;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 46,
+    date: "2026-06-10",
+    title: "Scheduled tasks, reliable answers when you switch away, and a Drive import fix",
+    changes: [
+      "New Scheduled Tasks page: set Little Gerry to run a prompt on a repeating schedule — for example, “create a report every Thursday morning about the previous week” — and it runs automatically in the background and notifies you when it's done",
+      "Your chat answer is no longer lost if you navigate away mid-reply: Little Gerry now keeps working server-side and saves the answer, so it's waiting for you when you come back",
+      "The Little Gerry sidebar chat can now create Word documents and upload to Google Drive, just like the full chat — generated files land on the Generated Files page",
+      "Fixed “Import from Drive” showing an empty folder in the Knowledge Base when browsing Google Drive folders",
+    ],
+  },
   {
     build: 45,
     date: "2026-06-10",

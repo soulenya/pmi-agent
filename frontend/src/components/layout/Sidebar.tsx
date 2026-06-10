@@ -18,6 +18,7 @@ import {
   ScrollText,
   Users,
   CalendarDays,
+  CalendarClock,
   Globe,
   TrendingUp,
   Sparkles,
@@ -59,6 +60,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: "/projects", icon: FolderOpen, label: "Projects" },
       { to: "/tasks", icon: FolderKanban, label: "Tasks" },
+      { to: "/scheduled-tasks", icon: CalendarClock, label: "Scheduled Tasks" },
       { to: "/calendar", icon: CalendarDays, label: "Calendar" },
       { to: "/meetings", icon: Mic, label: "Meeting Notes" },
     ],
