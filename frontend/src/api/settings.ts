@@ -12,9 +12,12 @@ export interface AppSettings {
   theme: string;
   timezone: string;
   notifications_email_enabled: boolean;
+  voice_speak_replies: boolean;
+  voice_voice_name: string;
   openai_key_set: boolean;
   anthropic_key_set: boolean;
   voyage_key_set: boolean;
+  google_key_set: boolean;
 }
 
 export interface SettingsUpdate {
@@ -26,9 +29,12 @@ export interface SettingsUpdate {
   theme?: string;
   timezone?: string;
   notifications_email_enabled?: boolean;
+  voice_speak_replies?: boolean;
+  voice_voice_name?: string;
   openai_api_key?: string;
   anthropic_api_key?: string;
   voyage_api_key?: string;
+  google_api_key?: string;
 }
 
 export interface ProfileUpdate {

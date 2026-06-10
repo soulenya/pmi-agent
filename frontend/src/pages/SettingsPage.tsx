@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw } from "lucide-react";
+import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
@@ -17,11 +17,18 @@ import {
   applyUpdate,
   getOllamaModels,
   getAnthropicModels,
+  getAiOptions,
+  getTaskModels,
+  updateTaskModel,
+  refreshModels,
   type AppSettings,
   type SettingsUpdate,
   type ProfileUpdate,
   type SettingsHealthResult,
+  type TaskModel,
+  type TaskModelUpdate,
 } from "@/api/settings";
+import { listVoices } from "@/api/voice";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
@@ -1076,6 +1083,92 @@ function NotificationsSection({
     </Section>
   );
 }
+
+// ── Voice section ──────────────────────────────────────────────────────────────────────────
+
+function VoiceSection({
+  settings,
+  onChange,
+}: {
+  settings: AppSettings;
+  onChange: (s: SettingsUpdate) => void;
+}) {
+  const [googleKey, setGoogleKey] = useState("");
+
+  const { data: voices = [] } = useQuery({
+    queryKey: ["tts-voices"],
+    queryFn: listVoices,
+    enabled: settings.google_key_set,
+    staleTime: 24 * 60 * 60 * 1000,
+    retry: false,
+  });
+
+  return (
+    <Section
+      icon={Mic}
+      title="Voice"
+      description="Speak to Little Gerry and hear replies — powered by Google Cloud Speech"
+    >
+      <Field
+        label={settings.google_key_set ? "Replace Google Cloud API Key" : "Google Cloud API Key"}
+        hint="Stored securely in the OS keychain — never saved to disk. Requires Speech-to-Text and Text-to-Speech APIs enabled on your Google Cloud project."
+      >
+        <input
+          type="password"
+          value={googleKey}
+          onChange={(e) => {
+            setGoogleKey(e.target.value);
+            onChange({ google_api_key: e.target.value || undefined });
+          }}
+          placeholder={settings.google_key_set ? "✓ Key configured — paste to replace" : "AIza…"}
+          autoComplete="off"
+          spellCheck={false}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+        />
+      </Field>
+
+      <label className={cn("flex items-center gap-3", settings.google_key_set ? "cursor-pointer" : "opacity-50")}>
+        <input
+          type="checkbox"
+          checked={settings.voice_speak_replies}
+          disabled={!settings.google_key_set}
+          onChange={(e) => onChange({ voice_speak_replies: e.target.checked })}
+          className="h-4 w-4 rounded"
+        />
+        <div>
+          <p className="text-sm font-medium">Speak replies aloud</p>
+          <p className="text-xs text-muted-foreground">
+            Read assistant chat replies out loud when they finish
+          </p>
+        </div>
+      </label>
+
+      <Field label="Voice" hint="Studio and Neural2 voices sound the most natural.">
+        <select
+          value={settings.voice_voice_name}
+          disabled={!settings.google_key_set}
+          onChange={(e) => onChange({ voice_voice_name: e.target.value })}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+        >
+          {voices.length === 0 && (
+            <option value={settings.voice_voice_name}>{settings.voice_voice_name}</option>
+          )}
+          {voices.map((v) => (
+            <option key={v.name} value={v.name}>
+              {v.name} ({v.gender})
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      {!settings.google_key_set && (
+        <p className="text-xs text-muted-foreground">
+          Add a Google Cloud API key and save to enable the microphone button in chat and spoken replies.
+        </p>
+      )}
+    </Section>
+  );
+}
 // ── System Health section ──────────────────────────────────────────────
 
 function StatusPill({ status, detail }: { status?: string; detail?: string }) {
@@ -1441,9 +1534,12 @@ export function SettingsPage() {
         theme: "system",
         timezone: "UTC",
         notifications_email_enabled: false,
+        voice_speak_replies: false,
+        voice_voice_name: "en-US-Neural2-C",
         openai_key_set: false,
         anthropic_key_set: false,
         voyage_key_set: false,
+        google_key_set: false,
         ...localSettings,
       };
 
@@ -1487,6 +1583,7 @@ export function SettingsPage() {
           <TaskModelsSection />
           <AppearanceSection settings={mergedSettings} onChange={handleChange} />
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />
+          <VoiceSection settings={mergedSettings} onChange={handleChange} />
           <SystemHealthSection />
           <UpdateSection />
           <ChangelogSection />
