@@ -10,6 +10,8 @@ import {
   listMessages,
   updateConversation,
 } from "@/api/chat";
+import { getSettings } from "@/api/settings";
+import { speakText } from "@/api/voice";
 import { useAuthStore } from "@/stores/authStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -154,6 +156,41 @@ export function ChatPage() {
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
+  // ── Voice ──────────────────────────────────────────────────────────────────────────
+  const { data: appSettings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 60_000,
+  });
+  const voiceEnabled = appSettings?.google_key_set ?? false;
+  // Refs so the WebSocket handler always sees current values
+  const speakRepliesRef = useRef(false);
+  useEffect(() => {
+    speakRepliesRef.current = (appSettings?.voice_speak_replies ?? false) && voiceEnabled;
+  }, [appSettings, voiceEnabled]);
+  const streamBufferRef = useRef("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const playReply = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+    try {
+      const blob = await speakText(text);
+      audioRef.current?.pause();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => URL.revokeObjectURL(url);
+      await audio.play();
+    } catch {
+      // TTS failure should never disrupt the chat
+    }
+  }, []);
+
+  // Stop playback when leaving the page
+  useEffect(() => {
+    return () => audioRef.current?.pause();
+  }, []);
+
   // â”€â”€ Conversation list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: conversations = [] } = useQuery({
     queryKey: ["conversations"],
@@ -222,6 +259,7 @@ export function ChatPage() {
 
         if (msg.type === "token" && msg.content) {
           setStreamingContent((prev) => (prev ?? "") + msg.content);
+          streamBufferRef.current += msg.content;
           // Clear tool activity once the LLM starts responding
           setToolActivities([]);
         } else if (msg.type === "tool_status") {
@@ -244,10 +282,17 @@ export function ChatPage() {
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
           setStreamingContent(null);
           setToolActivities([]);
+          // Speak the reply aloud if enabled in Settings → Voice
+          const finalText = streamBufferRef.current;
+          streamBufferRef.current = "";
+          if (speakRepliesRef.current && finalText) {
+            void playReply(finalText);
+          }
         } else if (msg.type === "error") {
           const detail = (msg as unknown as { detail?: string }).detail ?? "An error occurred.";
           setStreamingContent(null);
           setToolActivities([]);
+          streamBufferRef.current = "";
           // Inject a synthetic error message into the message list so it's visible in the chat bubble
           queryClient.setQueryData<Message[]>(
             ["messages", conversationId],
@@ -446,6 +491,7 @@ export function ChatPage() {
         <ChatInput
           onSend={handleSend}
           disabled={!conversationId && createConvMutation.isPending}
+          voiceEnabled={voiceEnabled}
           placeholder={
             conversationId
               ? "Message Little Gerry…"
