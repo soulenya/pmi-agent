@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v1.4.0 — 2026-06-10
+**Voice — speak to Little Gerry and hear replies (Google Cloud Speech)**
+
+- **Microphone button in chat** — record a message, and the transcript drops into the input box as editable text before sending (`frontend/src/components/chat/ChatInput.tsx`); transcription via `POST /voice/transcribe` (Google Cloud Speech-to-Text, `latest_short` model, automatic punctuation)
+- **Spoken replies** — optional “Speak replies aloud” toggle reads finished assistant chat replies in a natural Neural2/Studio voice; markdown is stripped before synthesis so code and symbols aren't read aloud (`POST /voice/speak`, `backend/services/voice/google_speech.py`)
+- **Voice picker** — new Settings → Voice section with Google Cloud API key entry (OS keyring, never on disk), speak-replies toggle, and a voice dropdown listing the project's available voices premium-first (`GET /voice/voices`)
+- **Privacy posture** — audio is proxied straight to the user's own Google Cloud project and never stored on disk or in the database; voice features are hidden entirely until a Google key is saved (`backend/routers/voice.py`)
+
 ### v1.3.0 — 2026-06-10
 **FDA & ISO document generation wizard in Regulatory Files**
 

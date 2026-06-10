@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 49;
+export const BUILD_NUMBER = 50;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 50,
+    date: "2026-06-10",
+    title: "Talk to Little Gerry — voice input and spoken replies",
+    changes: [
+      "New microphone button in chat: click, speak, click again — your words appear in the message box as editable text before you send",
+      "Optional “Speak replies aloud”: Little Gerry reads chat answers out loud in a natural Google Neural2/Studio voice, selectable in Settings → Voice",
+      "Powered by Google Cloud Speech — audio is processed by your own Google Cloud project (where your Workspace data already lives) and never stored",
+      "Voice features appear only when a Google Cloud API key is saved in Settings → Voice (stored in the OS keychain, like all other keys)",
+    ],
+  },
   {
     build: 49,
     date: "2026-06-10",
