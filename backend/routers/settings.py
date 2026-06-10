@@ -44,6 +44,8 @@ EXPOSED_KEYS = {
     "app.theme",
     "app.timezone",
     "notifications.email_enabled",
+    "voice.speak_replies",
+    "voice.voice_name",
 }
 
 DEFAULTS: dict[str, object] = {
@@ -58,6 +60,8 @@ DEFAULTS: dict[str, object] = {
     "app.theme": "system",
     "app.timezone": "UTC",
     "notifications.email_enabled": False,
+    "voice.speak_replies": False,
+    "voice.voice_name": "en-US-Neural2-C",
 }
 
 
@@ -94,10 +98,13 @@ class SettingsOut(BaseModel):
     theme: str
     timezone: str
     notifications_email_enabled: bool
+    voice_speak_replies: bool
+    voice_voice_name: str
     # API key presence (never expose actual keys)
     openai_key_set: bool
     anthropic_key_set: bool
     voyage_key_set: bool
+    google_key_set: bool
 
 
 class SettingsUpdate(BaseModel):
@@ -108,10 +115,14 @@ class SettingsUpdate(BaseModel):
     embedding_provider: str | None = Field(None, pattern="^(ollama|openai|voyage)$")
     theme: str | None = Field(None, pattern="^(light|dark|system)$")
     timezone: str | None = Field(None, max_length=64)
-    notifications_email_enabled: bool | None = None    # API keys — stored in OS keyring, never in DB
+    notifications_email_enabled: bool | None = None
+    voice_speak_replies: bool | None = None
+    voice_voice_name: str | None = Field(None, min_length=1, max_length=64)
+    # API keys — stored in OS keyring, never in DB
     openai_api_key: str | None = Field(None, min_length=1, max_length=500)
     anthropic_api_key: str | None = Field(None, min_length=1, max_length=500)
     voyage_api_key: str | None = Field(None, min_length=1, max_length=500)
+    google_api_key: str | None = Field(None, min_length=1, max_length=500)
 
 
 class ProfileUpdate(BaseModel):
@@ -146,9 +157,12 @@ async def get_settings(
         theme=str(await _get_setting(db, "app.theme")),
         timezone=str(await _get_setting(db, "app.timezone")),
         notifications_email_enabled=bool(await _get_setting(db, "notifications.email_enabled")),
+        voice_speak_replies=bool(await _get_setting(db, "voice.speak_replies")),
+        voice_voice_name=str(await _get_setting(db, "voice.voice_name")),
         openai_key_set=app_settings.get_api_key("openai") is not None,
         anthropic_key_set=app_settings.get_api_key("anthropic") is not None,
         voyage_key_set=app_settings.get_api_key("voyage") is not None,
+        google_key_set=app_settings.get_api_key("google") is not None,
     )
 
 
@@ -169,6 +183,8 @@ async def update_settings(
         "app.theme": body.theme,
         "app.timezone": body.timezone,
         "notifications.email_enabled": body.notifications_email_enabled,
+        "voice.speak_replies": body.voice_speak_replies,
+        "voice.voice_name": body.voice_voice_name,
     }
     for key, val in db_updates.items():
         if val is not None:
@@ -196,6 +212,8 @@ async def update_settings(
         app_settings.set_api_key("anthropic", body.anthropic_api_key)
     if body.voyage_api_key:
         app_settings.set_api_key("voyage", body.voyage_api_key)
+    if body.google_api_key:
+        app_settings.set_api_key("google", body.google_api_key)
 
     await db.commit()
 
