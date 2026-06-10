@@ -25,6 +25,7 @@ import { listPendingApprovals, listNotifications, listConversations } from "@/ap
 import { listTasks, listProjects } from "@/api/tasks";
 import { listMeetings } from "@/api/meetings";
 import { getTodayBriefing } from "@/api/regulatory";
+import { getGoogleStatus, listGoogleCalendarEvents, type GoogleCalendarEvent } from "@/api/google";
 import type { Task } from "@/types/tasks";
 import type { MeetingNote } from "@/types/meetings";
 
@@ -119,6 +120,27 @@ function MeetingAgendaItem({ meeting }: { meeting: MeetingNote }) {
   );
 }
 
+function formatEventTime(iso: string, timezone: string): string {
+  if (!iso.includes("T")) return "All day";
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: timezone });
+}
+
+function CalendarEventItem({ event, timezone, showDate = false }: { event: GoogleCalendarEvent; timezone: string; showDate?: boolean }) {
+  return (
+    <NavLink to="/calendar" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/40 transition-colors">
+      <CalendarDays className="h-3 w-3 shrink-0 text-sky-500" />
+      <span className="flex-1 min-w-0 text-sm truncate">{event.title}</span>
+      {event.location && (
+        <span className="hidden sm:block shrink-0 max-w-[10rem] truncate text-xs text-muted-foreground/70">{event.location}</span>
+      )}
+      <span className="shrink-0 text-xs text-muted-foreground">
+        {showDate && event.start ? `${formatShortDate(event.start)} · ` : ""}
+        {formatEventTime(event.start, timezone)}
+      </span>
+    </NavLink>
+  );
+}
+
 function WeekTaskRow({ task }: { task: Task }) {
   const days = task.due_date ? daysFromNow(task.due_date) : null;
   return (
@@ -146,6 +168,17 @@ export function DashboardPage() {
   const { data: briefing, isLoading: briefingLoading, refetch: refetchBriefing, isFetching } = useQuery({
     queryKey: ["briefing", "today"], queryFn: () => getTodayBriefing(), staleTime: 5 * 60_000,
   });
+  // ── Google Calendar (only queried when Google is connected) ──────────────
+  const { data: googleStatus } = useQuery({
+    queryKey: ["google-status"], queryFn: getGoogleStatus, staleTime: 5 * 60_000, retry: false,
+  });
+  const { data: calendarEvents = [] } = useQuery({
+    queryKey: ["dashboard-calendar"],
+    queryFn: () => listGoogleCalendarEvents(0, 7),
+    enabled: googleStatus?.connected === true,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 
   const now = new Date();
   const timezone = useTimezone();
@@ -155,7 +188,14 @@ export function DashboardPage() {
     .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime());
   const todayTasks = activeTasks.filter((t) => isToday(t.due_date));
   const todayMeetings = meetings.filter((m) => isToday(m.meeting_date));
-  const agendaItems = todayTasks.length + todayMeetings.length;
+  const todayEvents = calendarEvents
+    .filter((e) => isToday(e.start))
+    .sort((a, b) => a.start.localeCompare(b.start));
+  const upcomingEvents = calendarEvents
+    .filter((e) => !isToday(e.start) && new Date(e.start.includes("T") ? e.start : `${e.start}T00:00:00`) > now)
+    .sort((a, b) => a.start.localeCompare(b.start))
+    .slice(0, 6);
+  const agendaItems = todayTasks.length + todayMeetings.length + todayEvents.length;
   const weekTasks = activeTasks
     .filter((t) => t.due_date && isThisWeek(t.due_date) && !isToday(t.due_date))
     .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
@@ -212,6 +252,7 @@ export function DashboardPage() {
                 <span className="text-xs text-muted-foreground">{agendaItems} item{agendaItems !== 1 ? "s" : ""}</span>
               </div>
               <div className="px-3 py-2 space-y-0.5">
+                {todayEvents.map((e) => <CalendarEventItem key={e.id} event={e} timezone={timezone} />)}
                 {todayTasks.map((t) => <TaskAgendaItem key={t.id} task={t} />)}
                 {todayMeetings.map((m) => <MeetingAgendaItem key={m.id} meeting={m} />)}
               </div>
@@ -244,6 +285,22 @@ export function DashboardPage() {
               )}
             </div>
           </div>
+
+          {/* Upcoming calendar events */}
+          {upcomingEvents.length > 0 && (
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="flex items-center justify-between border-b px-5 py-4">
+                <h2 className="font-semibold flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-sky-500" />
+                  Upcoming Events
+                </h2>
+                <NavLink to="/calendar" className="text-xs text-muted-foreground hover:underline">Calendar &rarr;</NavLink>
+              </div>
+              <div className="px-3 py-2 space-y-0.5">
+                {upcomingEvents.map((e) => <CalendarEventItem key={e.id} event={e} timezone={timezone} showDate />)}
+              </div>
+            </div>
+          )}
 
           {/* Due this week */}
           {weekTasks.length > 0 && (

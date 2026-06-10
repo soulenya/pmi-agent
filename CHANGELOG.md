@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v1.4.1 — 2026-06-10
+**Calendar-aware Dashboard, voice-aware setup wizard, model-recommendation fix**
+
+- **Dashboard scans your calendar** — when Google Workspace is connected, today's Google Calendar events join tasks and meetings in Today's Agenda, and a new “Upcoming Events” card lists the next 7 days with times, locations, and a link to the Calendar page (`frontend/src/pages/DashboardPage.tsx`; uses existing `GET /api/google/calendar/events`, queried only when Google is connected)
+- **Setup wizard: new Voice step** — after the Google Workspace step, the wizard now explains the Google Cloud API key that powers voice (mic + spoken replies), notes that the key likely already exists in the company's Google Cloud project (ask an admin, or Console → APIs & Services → Credentials with Speech-to-Text and Text-to-Speech enabled), and lets you paste and save it right there (`frontend/src/components/SetupWizard.tsx`)
+- **Setup wizard: functionality refresh** — the “Using it” step now covers voice chat, the Generate Document wizard (FDA/ISO templates), Models per Task, and the calendar-aware Dashboard
+- **Fix: recommended-model false negative** — Settings → Models per Task no longer claims “provider key not configured” when the recommended model exists in the catalog under a dated snapshot ID (e.g. recommendation `claude-haiku-4-5` vs catalog `claude-haiku-4-5-20251001`); the ★ marker and active-recommendation badge use the same prefix matching (`frontend/src/pages/SettingsPage.tsx`)
+
 ### v1.4.0 — 2026-06-10
 **Voice — speak to Little Gerry and hear replies (Google Cloud Speech)**
 
