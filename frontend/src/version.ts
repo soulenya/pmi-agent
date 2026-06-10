@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 50;
+export const BUILD_NUMBER = 51;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 51,
+    date: "2026-06-10",
+    title: "Calendar on the Dashboard, smarter setup wizard",
+    changes: [
+      "Dashboard now scans your Google Calendar: today's events appear in Today's Agenda and a new Upcoming Events card shows the next 7 days (only when Google is connected)",
+      "Setup wizard gains a Voice step explaining the Google Cloud API key — including that PMI's company cloud project may already have one — with in-wizard key entry",
+      "Setup wizard's “Using it” tour refreshed to cover voice chat, the Generate Document wizard, per-task models, and the Dashboard",
+      "Fixed Models per Task wrongly showing “provider key not configured” when a recommended model exists under a dated name (e.g. claude-haiku-4-5-20251001)",
+    ],
+  },
   {
     build: 50,
     date: "2026-06-10",
