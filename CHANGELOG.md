@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v1.2.0 — 2026-06-10
+**Per-task model selection, live model catalog, collapsible Settings**
+
+- **Models per Task** — Settings gains a "Models per Task" section letting each general task category (Chat & Agent, Daily Assistant, Briefings, Email Drafting, Meetings, Regulatory, Research) use its own model, with a ★ recommended pick and reason per category. Every category defaults to the global pick; overrides are explicit user choices only — the app never auto-switches models. Backed by a task registry (`backend/services/llm/tasks.py`), per-task settings keys (`llm.task.<task>.provider/model`), task-aware resolution in `get_llm_client(db, task=...)` with safe fallback to the global model when an override's key is removed (`backend/services/llm/router.py`), all eight call sites updated to pass their task, and `GET/PUT /settings/task-models` (`backend/routers/settings.py`). UI in `frontend/src/pages/SettingsPage.tsx` (`TaskModelsSection`)
+- **Live, key-filtered model catalog** — model lists are now discovered live from each provider's API and only providers with an active API key are listed (Ollama: only when the local server is reachable; Voyage embeddings: only with a Voyage key). The catalog is cached in `system_settings` (`llm.model_catalog`), rescanned automatically **weekly** (`_model_catalog_loop` in `backend/main.py`), immediately after a new API key is saved, and on demand via `POST /settings/refresh-models`. Models first seen in the last 14 days are flagged `· NEW` (`backend/services/llm/catalog.py`); `GET /settings/ai-options` is now catalog-driven
+- **Collapsible Settings sections** — every Settings section is now an expandable menu item (like the sidebar) and starts condensed for a cleaner page (`Section` in `frontend/src/pages/SettingsPage.tsx`)
+
 ### v1.1.4 — 2026-06-10
 **Research search fixed + selective Google Drive sync for Regulatory files**
 
