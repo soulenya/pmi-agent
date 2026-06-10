@@ -4,7 +4,7 @@
 
 ## Changelog
 
-### v1.4.5 — 2026-06-10 (unreleased — build 55 on dev/v1.2)
+### v1.4.5 — 2026-06-10
 **Voice Conversation mode**
 
 - **Hands-free voice chat** — a “Voice chat” toggle on the Chat page starts a conversational loop: the mic listens with silence detection (~1.5 s pause ends your turn), the transcript sends automatically, Gerry's reply streams on-screen and is spoken aloud, and when the audio finishes the mic re-opens for your next turn. The mic is fully released while Gerry thinks/speaks (no echo pickup). New `useVoiceConversation` hook (`frontend/src/hooks/useVoiceConversation.ts`) does Web Audio RMS silence detection + segment rollover under the 60 s STT limit; wired into the chat WebSocket done/error frames (`frontend/src/pages/ChatPage.tsx`)
