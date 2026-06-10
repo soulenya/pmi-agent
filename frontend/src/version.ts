@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 52;
+export const BUILD_NUMBER = 53;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 53,
+    date: "2026-06-10",
+    title: "Run now actually runs — scheduled tasks fixed",
+    changes: [
+      "Fixed Run Now on Scheduled Tasks silently doing nothing: long runs were cut off after 2 minutes by the browser's request timeout, so no report was produced and no failure was recorded",
+      "Run Now starts the task in the background and returns immediately — the task card shows a live ⟳ running… status and updates with the result when it finishes",
+      "A task can't be started twice at once, and runs interrupted by an app restart are now marked failed instead of appearing stuck",
+    ],
+  },
   {
     build: 52,
     date: "2026-06-10",
