@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listGeneratedFiles, deleteGeneratedFile, getFileDownloadUrl } from "@/api/files";
+import { listGeneratedFiles, deleteGeneratedFile, fetchGeneratedFileBlob } from "@/api/files";
+import { SaveFileDialog } from "@/components/SaveFileDialog";
 import { Download, Trash2, FileText, Loader2 } from "lucide-react";
 import { useState } from "react";
 
@@ -18,6 +19,7 @@ function formatBytes(bytes: number): string {
 export function GeneratedFilesPage() {
   const qc = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [saveTarget, setSaveTarget] = useState<{ name: string; displayName: string } | null>(null);
 
   const { data: files = [], isLoading } = useQuery({
     queryKey: ["generated-files"],
@@ -69,16 +71,13 @@ export function GeneratedFilesPage() {
                     {file.modified && ` · ${new Date(file.modified * 1000).toLocaleString()}`}
                   </p>
                 </div>
-                <a
-                  href={getFileDownloadUrl(file.name)}
-                  download
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => setSaveTarget({ name: file.name, displayName })}
                   className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs hover:bg-accent transition-colors"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Download
-                </a>
+                </button>
                 {isConfirming ? (
                   <div className="flex items-center gap-1">
                     <button
@@ -107,6 +106,14 @@ export function GeneratedFilesPage() {
             );
           })}
         </div>
+      )}
+
+      {saveTarget && (
+        <SaveFileDialog
+          filename={saveTarget.displayName}
+          getBlob={() => fetchGeneratedFileBlob(saveTarget.name)}
+          onClose={() => setSaveTarget(null)}
+        />
       )}
     </div>
   );

@@ -125,6 +125,11 @@ export function regDownloadUrl(id: string): string {
   return `${BASE}/${id}/download`;
 }
 
+export async function fetchRegFileBlob(id: string): Promise<Blob> {
+  const r = await apiClient.get(`${BASE}/${id}/download`, { responseType: "blob" });
+  return r.data as Blob;
+}
+
 export async function downloadRegFile(id: string, filename: string): Promise<void> {
   const r = await apiClient.get(`${BASE}/${id}/download`, { responseType: "blob" });
   const url = URL.createObjectURL(r.data as Blob);
