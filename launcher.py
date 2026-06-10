@@ -340,6 +340,17 @@ def _start_services() -> None:
         # 0b. Developer checkouts: pull the latest code via git.
         _auto_update()
 
+        # 0c. Always reconcile dependencies with the current code. Installer-based
+        # updates replace the code but never touched the Python venv or node_modules,
+        # so a release that adds a dependency would silently break (e.g. the ddgs
+        # search package). Both commands are fast no-ops when already in sync.
+        _set_status("Checking dependencies...", 0)
+        try:
+            _run("uv sync", cwd=str(BACKEND_DIR))
+            _run("npm install --silent", cwd=str(FRONTEND_DIR))
+        except Exception:
+            _log_error()
+
         # 1. Docker
         _set_status("Checking Docker...", 1)
         if _run("docker info").returncode != 0:
