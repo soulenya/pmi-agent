@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v1.4.4 — 2026-06-10 (unreleased — build 54 on dev/v1.2)
+**Research search fixed + dependency sync on launch**
+
+- **Fix: Research tab returned zero results** — the legacy `duckduckgo-search` package is dead (silently returns no results) and installer-based updates never installed its replacement `ddgs` into the app's Python environment. `web_search` no longer falls back to the dead package: it uses `ddgs` only and logs a clear error if it's missing (`backend/services/research/searcher.py`); `duckduckgo-search` removed from dependencies (`backend/pyproject.toml`)
+- **Launcher reconciles dependencies on every launch** — installer updates replaced code but never touched the Python venv or node_modules, so releases adding a dependency silently broke. The launcher now runs `uv sync` + `npm install` at startup regardless of update path (fast no-ops when current) (`launcher.py`)
+- Note: the installed copy on this machine was hot-fixed by running `uv sync` directly, so Research works there already
+
 ### v1.4.3 — 2026-06-10
 **Scheduled tasks: Run Now fixed**
 
