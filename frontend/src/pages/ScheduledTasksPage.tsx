@@ -54,7 +54,11 @@ export function ScheduledTasksPage() {
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["scheduled-tasks"],
     queryFn: listScheduledTasks,
-    refetchInterval: 30_000,
+    // Poll quickly while a run is in flight so the outcome appears promptly.
+    refetchInterval: (query) =>
+      query.state.data?.some((t) => t.last_run_status === "running")
+        ? 3_000
+        : 30_000,
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["scheduled-tasks"] });
@@ -241,7 +245,9 @@ export function ScheduledTasksPage() {
         <div className="space-y-3">
           {tasks.map((t) => {
             const isConfirming = confirmDelete === t.id;
-            const running = runMutation.isPending && runMutation.variables === t.id;
+            const running =
+              t.last_run_status === "running" ||
+              (runMutation.isPending && runMutation.variables === t.id);
             return (
               <div key={t.id} className="rounded-xl border p-4 space-y-2">
                 <div className="flex items-start justify-between gap-3">
@@ -271,10 +277,16 @@ export function ScheduledTasksPage() {
                       className={
                         t.last_run_status === "success"
                           ? "text-emerald-600"
-                          : "text-destructive"
+                          : t.last_run_status === "running"
+                            ? "text-sky-600"
+                            : "text-destructive"
                       }
                     >
-                      {t.last_run_status === "success" ? "✓ succeeded" : "✗ failed"}
+                      {t.last_run_status === "success"
+                        ? "✓ succeeded"
+                        : t.last_run_status === "running"
+                          ? "⟳ running…"
+                          : "✗ failed"}
                     </span>
                   )}
                   {t.run_count > 0 && <span>{t.run_count} run(s)</span>}
