@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 54;
+export const BUILD_NUMBER = 55;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 55,
+    date: "2026-06-10",
+    title: "Voice conversations — talk with Little Gerry hands-free",
+    changes: [
+      "New Voice chat button in Chat: speak naturally, pause, and Gerry answers out loud — then listens for your reply automatically, no clicking between turns",
+      "A live status banner shows what's happening (listening / got it / thinking / speaking), with an Interrupt button to cut Gerry off mid-sentence and Esc to exit",
+      "Requires the Google Cloud voice key (same one that powers the mic button)",
+    ],
+  },
   {
     build: 54,
     date: "2026-06-10",
