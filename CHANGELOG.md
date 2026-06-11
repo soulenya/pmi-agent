@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v2.0.2 — 2026-06-11
+**Gerry can see your Drive's top-level folders**
+
+- **New `list_shared_drives` agent tool** — exposes the existing `drive_list_shared_drives()` service so agents can enumerate shared (team) drives: the top-level trees (Communications, Knowledge, Compliance, …) that sit beside My Drive and were invisible to `list_drive_folder('root')`. Whitelisted on the House Manager, Executive Assistant, Regulatory, Engineering, QMS and Operations agents
+- **`list_drive_folder` gains `drive_id`** — required by the Drive API to list the root of a shared drive (`corpora='drive'`); the tool description teaches the agent the two-step flow (list drives → browse root)
+- **Bug fix** — `execute_list_drive_folder` was passing `max_results` positionally into the `drive_id` parameter, silently breaking all agent folder listings
+
 ### v2.0.1 — 2026-06-11
 **Galaxy polish — cleaner planets, hover previews, red Gerry**
 

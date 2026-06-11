@@ -341,7 +341,9 @@ TOOL_DEFINITIONS: list[dict] = [
                 "List the contents (files and sub-folders) of a Google Drive folder. "
                 "Use this when the user asks to list, browse, or see what is in a Drive folder. "
                 "Call with no folder_id (or folder_id='root') to list the top-level My Drive. "
-                "Use a folder ID from a previous list_drive_folder result to browse deeper."
+                "Use a folder ID from a previous list_drive_folder result to browse deeper. "
+                "NOTE: top-level folders may live in a SHARED drive — call list_shared_drives first, "
+                "then pass both folder_id and drive_id (= the shared drive's ID) to list its root."
             ),
             "parameters": {
                 "type": "object",
@@ -351,6 +353,10 @@ TOOL_DEFINITIONS: list[dict] = [
                         "description": "Drive folder ID to list. Use 'root' for the top level. Default is 'root'.",
                         "default": "root",
                     },
+                    "drive_id": {
+                        "type": "string",
+                        "description": "Shared drive ID — required when listing the root of a shared drive (use the ID from list_shared_drives for both folder_id and drive_id).",
+                    },
                     "max_results": {
                         "type": "integer",
                         "description": "Max items to return (1–50). Default 50.",
@@ -359,6 +365,20 @@ TOOL_DEFINITIONS: list[dict] = [
                 },
                 "required": [],
             },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_shared_drives",
+            "description": (
+                "List all Google shared (team) drives the account can access — these are the "
+                "top-level drive trees that sit BESIDE My Drive and are invisible to "
+                "list_drive_folder('root'). Use this FIRST when the user asks about top-level "
+                "folders (e.g. Communications, Knowledge, Compliance) that don't appear in My Drive, "
+                "then use list_drive_folder with the returned drive ID to browse inside."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
     {
@@ -932,10 +952,11 @@ async def execute_list_drive_folder(ctx: ToolContext, args: dict[str, Any]) -> s
     if not get_credentials():
         return _google_not_connected()
     folder_id = str(args.get("folder_id", "root")).strip() or "root"
+    drive_id = str(args.get("drive_id", "")).strip() or None
     max_results = min(int(args.get("max_results", 50)), 50)
     try:
         items = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: drive_list_folder(folder_id, max_results)
+            None, lambda: drive_list_folder(folder_id, drive_id=drive_id, max_results=max_results)
         )
     except Exception as exc:
         return f"Drive folder listing failed: {exc}"
@@ -945,6 +966,29 @@ async def execute_list_drive_folder(ctx: ToolContext, args: dict[str, Any]) -> s
     for item in items:
         kind = "[FOLDER]" if item["type"] == "folder" else "[FILE]"
         lines.append(f"{kind} {item['name']}\n  ID: {item['id']}\n  URL: {item['url']}")
+    return "\n\n".join(lines)
+
+
+async def execute_list_shared_drives(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """List all shared (team) drives — the top-level folder trees beside My Drive."""
+    import asyncio
+    from services.google_service import drive_list_shared_drives, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    try:
+        drives = await asyncio.get_event_loop().run_in_executor(
+            None, drive_list_shared_drives
+        )
+    except Exception as exc:
+        return f"Shared drive listing failed: {exc}"
+    if not drives:
+        return "No shared drives found. (Top-level folders may live in My Drive — use list_drive_folder with folder_id='root'.)"
+    lines = [f"Shared drives ({len(drives)} found):\n"]
+    for d in drives:
+        lines.append(
+            f"[SHARED DRIVE] {d['name']}\n  ID: {d['id']}\n"
+            f"  To list its root folders: list_drive_folder with folder_id='{d['id']}' and drive_id='{d['id']}'"
+        )
     return "\n\n".join(lines)
 
 
@@ -1271,6 +1315,7 @@ TOOL_EXECUTORS = {
     "search_drive": execute_search_drive,
     "search_drive_content": execute_search_drive_content,
     "list_drive_folder": execute_list_drive_folder,
+    "list_shared_drives": execute_list_shared_drives,
     "read_drive_file": execute_read_drive_file,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
