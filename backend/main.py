@@ -404,6 +404,9 @@ def create_app() -> FastAPI:
     app.include_router(assistant_router)
     app.include_router(scheduled_tasks_router)
 
+    from routers.agents import router as agents_router
+    app.include_router(agents_router)
+
     # ── WebSocket: real-time chat stream ─────────────────────────────────────
     @app.websocket("/ws/chat/{conversation_id}")
     async def ws_chat(websocket: WebSocket, conversation_id: str) -> None:

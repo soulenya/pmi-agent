@@ -32,7 +32,8 @@ interface PaletteItem {
 
 const ALL_ITEMS: PaletteItem[] = [
   // Navigation
-  { id: "nav-dashboard", label: "Dashboard", group: "Navigation", icon: <LayoutDashboard className="h-4 w-4" />, action: (nav) => nav("/") },
+  { id: "nav-solar", label: "Solar System", group: "Navigation", icon: <LayoutDashboard className="h-4 w-4" />, action: (nav) => nav("/") },
+  { id: "nav-dashboard", label: "Dashboard", group: "Navigation", icon: <LayoutDashboard className="h-4 w-4" />, action: (nav) => nav("/dashboard") },
   { id: "nav-chat", label: "Little Gerry", group: "Navigation", icon: <MessageSquare className="h-4 w-4" />, action: (nav) => nav("/chat") },
   { id: "nav-projects", label: "Projects", group: "Navigation", icon: <FolderOpen className="h-4 w-4" />, action: (nav) => nav("/projects") },
   { id: "nav-tasks", label: "Tasks", group: "Navigation", icon: <FolderKanban className="h-4 w-4" />, action: (nav) => nav("/tasks") },
@@ -46,6 +47,7 @@ const ALL_ITEMS: PaletteItem[] = [
   { id: "nav-notifications", label: "Notifications", group: "Navigation", icon: <Bell className="h-4 w-4" />, action: (nav) => nav("/notifications") },
   { id: "nav-audit", label: "Audit Trail", group: "Navigation", icon: <ScrollText className="h-4 w-4" />, action: (nav) => nav("/audit") },
   { id: "nav-users", label: "User Management", group: "Navigation", icon: <Users className="h-4 w-4" />, action: (nav) => nav("/users") },
+  { id: "nav-agents", label: "Agents", group: "Navigation", icon: <Users className="h-4 w-4" />, action: (nav) => nav("/agents") },
   { id: "nav-settings", label: "Settings", group: "Navigation", icon: <Settings className="h-4 w-4" />, action: (nav) => nav("/settings") },
   // Quick Actions
   { id: "qa-new-chat", label: "New Chat", group: "Quick Actions", icon: <Plus className="h-4 w-4 text-primary" />, action: (nav) => nav("/chat") },
