@@ -27,6 +27,8 @@ import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
 import { GeneratedFilesPage } from "@/pages/GeneratedFilesPage";
 import { ScheduledTasksPage } from "@/pages/ScheduledTasksPage";
 import InvestorPage from "@/pages/InvestorPage";
+import { SolarSystemPage } from "@/pages/SolarSystemPage";
+import { AgentsPage } from "@/pages/AgentsPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
 
@@ -53,7 +55,10 @@ function ThemedApp() {
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
-            <Route index element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+            <Route index element={<ErrorBoundary><SolarSystemPage /></ErrorBoundary>} />
+            <Route path="planet/:planetId" element={<ErrorBoundary><SolarSystemPage /></ErrorBoundary>} />
+            <Route path="dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+            <Route path="agents" element={<ErrorBoundary><AgentsPage /></ErrorBoundary>} />
             <Route path="chat" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
             <Route path="chat/:conversationId" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
             <Route path="approvals" element={<ErrorBoundary><ApprovalsPage /></ErrorBoundary>} />
