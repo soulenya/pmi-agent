@@ -45,6 +45,7 @@ _TOOLS = [
     "list_google_tasks",
     "search_drive",
     "list_drive_folder",
+    "list_shared_drives",
     "read_drive_file",
     "generate_file",
 ]

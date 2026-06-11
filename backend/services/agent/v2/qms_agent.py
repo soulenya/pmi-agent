@@ -39,6 +39,7 @@ _TOOLS = [
     "search_knowledge_base",
     "search_drive",
     "list_drive_folder",
+    "list_shared_drives",
     "read_drive_file",
     "search_drive_content",
     "create_task",

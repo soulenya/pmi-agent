@@ -44,6 +44,7 @@ _TOOLS = [
     "fetch_page",
     "search_drive",
     "list_drive_folder",
+    "list_shared_drives",
     "read_drive_file",
     "search_drive_content",
     "generate_file",
