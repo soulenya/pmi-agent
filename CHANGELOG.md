@@ -4,7 +4,7 @@
 
 ## Changelog
 
-### v1.4.6 — 2026-06-10 (unreleased — builds 56–57 on dev/v1.2)
+### v1.4.6 — 2026-06-10
 **Long generated files fixed + global "Talk with Little Gerry" button**
 
 - **Talk with Little Gerry from anywhere** — a persistent floating button in the bottom-right corner of every page (hidden on Chat, which has its own toggle) starts a hands-free voice session: each session creates a fresh conversation visible in chat history, the reply is spoken aloud, and the mic re-opens for the next turn. Panel shows listening/got it/thinking/speaking phases with Interrupt, a "View conversation" shortcut, and Esc/X to end. Generated-files list auto-refreshes after each reply so files Gerry creates by voice appear immediately. New `frontend/src/components/VoiceAssistant.tsx`, mounted in `AppShell.tsx`; reuses `useVoiceConversation` + the chat WebSocket — no backend changes
