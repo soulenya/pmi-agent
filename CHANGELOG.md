@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v2.0.0 — 2026-06-11
+**Solar-system navigation — the sidebar becomes a galaxy**
+
+- **Infinite-canvas navigation** — the left sidebar is replaced by a solar system rendered between the top bar and the status bar. The Sun is Little Gerry (click → chat/voice); Dashboard and the Daily Assistant orbit close-in as inner satellites; the five categories (Work, Knowledge, Communications, Compliance, Administration) are planets on slow idle orbits; every feature page is a moon. Clicking a planet zooms in (400–700 ms transform/opacity, Framer Motion); clicking a moon opens the page in place. Notification/approval/assistant badge counts appear on the relevant moons and roll up onto their planets
+- **Ancestor rail** — a narrow left rail shows the celestial ancestors of wherever you are (Sun outermost, then the parent planet) as back buttons; **Esc** zooms out one level (ignored while voice, the command palette, a dialog, or a text field is active). The Service menu and the build badge moved from the old sidebar to the bottom of this rail
+- **Deterministic, URL-mirrored nav state** — position in the galaxy is a path (e.g. `knowledge → research`) mirrored to the URL (`/planet/knowledge`, `/research`) via a new zustand `navStore`; the last location is restored after an app restart. All existing flat feature URLs remain canonical, so the command palette, chat-sidebar context, voice navigation and deep links keep working unchanged. The overview lives at `/`; the dashboard moved to `/dashboard`
+- **New Agents directory** — Administration gained an "Agents" moon (`/agents`): a read-only roster of the multi-agent system (supervisor, House Manager custodian, 7 specialists, and the v1 chat executor), generated live from the running code via a new `GET /agents` endpoint — descriptions, surfaces, expandable tool lists, and the active chat model
+- **Reduced motion respected** — orbits pause and zooms become fades under `prefers-reduced-motion`; idle orbits also stop whenever feature content is open (the canvas unmounts)
+
 ### v1.4.9 — 2026-06-11
 **Little Gerry House Manager — voice sessions get an app-wide custodian**
 
