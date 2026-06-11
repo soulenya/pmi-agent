@@ -4,14 +4,12 @@
  * Top:    ancestor celestial objects as back buttons — Sun/system overview
  *         outermost, then the parent planet when inside one. Clicking an
  *         ancestor zooms back out to that level (Esc does the same).
- * Bottom: ServiceMenu and the build badge, relocated from the old sidebar
- *         so no functionality is lost.
+ * Bottom: the build badge, relocated from the old sidebar.
  */
 import { useNavigate, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Orbit } from "lucide-react";
 import { useNavStore } from "@/stores/navStore";
-import { ServiceMenu } from "@/components/ServiceMenu";
 import { BUILD_NUMBER, BUILD_DATE } from "@/version";
 
 export function AncestorRail() {
@@ -72,7 +70,6 @@ export function AncestorRail() {
       <div className="flex-1" />
 
       {/* Relocated from the old sidebar */}
-      <ServiceMenu />
       <NavLink
         to="/settings"
         className="mt-2 rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"

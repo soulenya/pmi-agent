@@ -293,7 +293,7 @@ function SystemOverview({
             key={planet.id}
             radiusPct={planet.orbit * 50}
             angle={planet.angle}
-            duration={120}
+            duration={60}
             paused={reduced}
           >
             <PlanetBody
