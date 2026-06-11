@@ -16,7 +16,12 @@ from services.llm.ollama import StreamChunk
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
-MAX_TOKENS = 4096
+# Streaming calls (chat + tool use, incl. file generation) — generous so long
+# documents produced inside a single tool-call argument are not truncated.
+MAX_TOKENS_STREAM = 32768
+# Non-streaming utility calls; kept lower because the SDK discourages large
+# max_tokens on non-streaming requests (10-minute limit heuristics).
+MAX_TOKENS = 8192
 
 # Some newer Claude models reject the `temperature` parameter ("temperature is
 # deprecated for this model"). We learn which models those are at runtime — the
@@ -109,7 +114,7 @@ class AnthropicClient:
         system, filtered = self._split_messages(messages)
         base_kwargs: dict = {
             "model": self._model,
-            "max_tokens": MAX_TOKENS,
+            "max_tokens": MAX_TOKENS_STREAM,
             "messages": filtered,
         }
         if system:

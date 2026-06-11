@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v1.4.6 — 2026-06-10 (unreleased — build 56 on dev/v1.2)
+**Long generated files no longer truncated**
+
+- **Fix: generated files cut off mid-content** — the Anthropic client capped every response at 4,096 output tokens (~3,000 words), and since `generate_file`/`create_docx` receive the whole document inside one tool-call argument, anything longer was silently truncated by the API. Streaming calls now allow 32,768 output tokens (`MAX_TOKENS_STREAM`); non-streaming utility calls raised to 8,192 (`backend/services/llm/anthropic_client.py`). OpenAI/Ollama clients had no explicit cap and are unchanged
+
 ### v1.4.5 — 2026-06-10
 **Voice Conversation mode**
 
