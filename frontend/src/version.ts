@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 62;
+export const BUILD_NUMBER = 63;
 export const BUILD_DATE = "2026-06-11";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 63,
+    date: "2026-06-11",
+    title: "Gerry can see your Drive's top-level folders",
+    changes: [
+      "New list_shared_drives tool — Little Gerry and the specialists can now list your shared (team) drives, the top-level trees like Communications, Knowledge and Compliance that sit beside My Drive",
+      "list_drive_folder can now browse inside a shared drive's root (new drive_id option)",
+      "Fixed a bug where browsing a Drive folder silently passed the result limit as the drive ID",
+    ],
+  },
   {
     build: 62,
     date: "2026-06-11",
