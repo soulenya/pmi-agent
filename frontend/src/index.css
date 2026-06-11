@@ -87,7 +87,26 @@
     @apply bg-background text-foreground;
   }
 }
+/* ── Solar-system idle orbits ─────────────────────────────────────────────────
+   Continuous rotation for planets/moons; a paired counter-spin keeps the
+   bodies and labels upright. Duration is set inline per body. */
+@keyframes orbit-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
 
+@keyframes orbit-spin-reverse {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+.orbit-spin {
+  animation: orbit-spin var(--orbit-duration, 60s) linear infinite;
+}
+
+.orbit-spin-reverse {
+  animation: orbit-spin-reverse var(--orbit-duration, 60s) linear infinite;
+}
 /* ── "Talk with Little Gerry" call-to-action ──────────────────────────────────
    A very faint pulsing glow plus a slow shimmer sweep urging a click. */
 @keyframes voice-cta-glow {
