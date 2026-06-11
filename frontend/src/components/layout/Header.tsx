@@ -1,13 +1,48 @@
-import { LogOut, User, Search } from "lucide-react";
+import { LogOut, User, Search, AudioLines, Loader2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
+import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import { logout as apiLogout } from "@/api/auth";
+import { getSettings } from "@/api/settings";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
 import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { ChatSidebarToggle } from "./ChatSidebar";
 import { FeedbackButton } from "./FeedbackButton";
+import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   onOpenPalette: () => void;
+}
+
+function VoiceLauncher() {
+  const { data: appSettings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: 60_000,
+  });
+  const voiceEnabled = appSettings?.google_key_set ?? false;
+  const active = useVoiceAssistantStore((s) => s.active);
+  const starting = useVoiceAssistantStore((s) => s.starting);
+  const requestToggle = useVoiceAssistantStore((s) => s.requestToggle);
+
+  if (!voiceEnabled) return null;
+
+  return (
+    <button
+      onClick={requestToggle}
+      disabled={starting}
+      title={active ? "End voice session (Esc)" : "Talk with Little Gerry"}
+      className={cn(
+        "flex items-center gap-2 rounded-full px-4 py-3 text-sm font-medium shadow-lg transition-colors disabled:opacity-60",
+        active
+          ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          : "voice-cta bg-primary text-primary-foreground hover:bg-primary/90",
+      )}
+    >
+      {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <AudioLines className="h-5 w-5" />}
+      <span className="hidden md:inline">{active ? "End voice session" : "Talk with Little Gerry"}</span>
+    </button>
+  );
 }
 
 export function Header({ onOpenPalette }: HeaderProps) {
@@ -25,7 +60,7 @@ export function Header({ onOpenPalette }: HeaderProps) {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-card px-6">
+    <header className="flex h-16 items-center justify-between border-b bg-card px-6">
       {/* ⌘K palette trigger */}
       <button
         onClick={onOpenPalette}
@@ -38,6 +73,9 @@ export function Header({ onOpenPalette }: HeaderProps) {
           Ctrl+K
         </kbd>
       </button>
+
+      {/* Central voice hot button */}
+      <VoiceLauncher />
 
       <div className="flex items-center gap-3">
         {/* Model switcher */}
