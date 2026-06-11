@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 56;
+export const BUILD_NUMBER = 57;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 57,
+    date: "2026-06-10",
+    title: "Talk with Little Gerry from anywhere",
+    changes: [
+      "New floating \"Talk with Little Gerry\" button in the bottom-right corner of every page — ask Gerry to create a file, look something up, or anything else without leaving what you're doing",
+      "Each session starts a fresh conversation that appears in your chat history, with a \"View conversation\" shortcut on the voice panel",
+      "Same hands-free loop as Voice chat: speak, pause, Gerry answers aloud and listens again — with Interrupt and Esc to end",
+    ],
+  },
   {
     build: 56,
     date: "2026-06-10",
