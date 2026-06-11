@@ -91,6 +91,7 @@ _TOOLS = [
     "read_gmail_message",
     "search_drive",
     "list_drive_folder",
+    "list_shared_drives",
     "search_drive_content",
     "read_drive_file",
     "get_calendar_events",
