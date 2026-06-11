@@ -74,49 +74,41 @@ function CountBadge({ count }: { count: number }) {
 
 /**
  * Places children on a circular orbit at `radiusPct` (% of stage half-size)
- * and `angle` degrees, inside a slowly rotating ring. The inner element
+ * and `angle` degrees, inside a continuously rotating ring (plain CSS
+ * keyframes — deliberately NOT gated on prefers-reduced-motion, which froze
+ * the whole system on machines with OS animations off). The inner element
  * counter-rotates so labels stay upright.
  */
 function OrbitBody({
   radiusPct,
   angle,
   duration,
-  paused,
   children,
 }: {
   radiusPct: number;
   angle: number;
   duration: number;
-  paused: boolean;
   children: React.ReactNode;
 }) {
-  const transition = { duration, repeat: Infinity, ease: "linear" as const };
+  const durationStyle = { "--orbit-duration": `${duration}s` } as React.CSSProperties;
 
   return (
     // Static offset to the starting angle…
     <div className="pointer-events-none absolute inset-0" style={{ transform: `rotate(${angle}deg)` }}>
       {/* …then a slow continuous spin around the stage centre. */}
-      <motion.div
-        className="absolute inset-0"
-        animate={paused ? undefined : { rotate: 360 }}
-        transition={paused ? undefined : transition}
-      >
+      <div className="orbit-spin absolute inset-0" style={durationStyle}>
         {/* Body sits at "12 o'clock", radiusPct% of the stage from centre. */}
         <div
           className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2"
           style={{ top: `${50 - radiusPct}%` }}
         >
           {/* Counter-spin keeps the label upright… */}
-          <motion.div
-            className="pointer-events-auto"
-            animate={paused ? undefined : { rotate: -360 }}
-            transition={paused ? undefined : transition}
-          >
+          <div className="orbit-spin-reverse pointer-events-auto" style={durationStyle}>
             {/* …and a static counter-offset cancels the starting angle. */}
             <div style={{ transform: `rotate(${-angle}deg)` }}>{children}</div>
-          </motion.div>
+          </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
@@ -254,10 +246,8 @@ function MoonBody({
 
 function SystemOverview({
   badgeCount,
-  reduced,
 }: {
   badgeCount: (b: BadgeKey | undefined) => number;
-  reduced: boolean;
 }) {
   const navigate = useNavigate();
   return (
@@ -276,7 +266,6 @@ function SystemOverview({
           radiusPct={sat.orbit * 50}
           angle={sat.angle}
           duration={90 + i * 15}
-          paused={reduced}
         >
           <SatelliteBody
             moon={sat}
@@ -294,7 +283,6 @@ function SystemOverview({
             radiusPct={planet.orbit * 50}
             angle={planet.angle}
             duration={60}
-            paused={reduced}
           >
             <PlanetBody
               planet={planet}
@@ -312,11 +300,9 @@ function SystemOverview({
 function PlanetView({
   planet,
   badgeCount,
-  reduced,
 }: {
   planet: Planet;
   badgeCount: (b: BadgeKey | undefined) => number;
-  reduced: boolean;
 }) {
   const navigate = useNavigate();
   const moonOrbit = 33; // % of stage half-size
@@ -346,7 +332,6 @@ function PlanetView({
             radiusPct={moonOrbit}
             angle={angle}
             duration={240}
-            paused={reduced}
           >
             <MoonBody
               moon={moon}
@@ -418,9 +403,9 @@ export function SolarSystemCanvas({ planetId }: { planetId?: string }) {
           {/* Square stage that fits the available area */}
           <div className="relative aspect-square h-[min(92%,92vw)] max-h-full max-w-full">
             {planet ? (
-              <PlanetView planet={planet} badgeCount={badgeCount} reduced={reduced} />
+              <PlanetView planet={planet} badgeCount={badgeCount} />
             ) : (
-              <SystemOverview badgeCount={badgeCount} reduced={reduced} />
+              <SystemOverview badgeCount={badgeCount} />
             )}
           </div>
         </motion.div>
