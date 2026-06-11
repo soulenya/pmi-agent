@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.0.4 — 2026-06-11
+**The planets actually orbit now**
+
+- **Frozen orbits fixed** — `OrbitBody` paused its spin whenever `useReducedMotion()` was true, and Windows reports reduced motion when "Animation effects" is off, so every orbit had been silently static since v2.0.0. The spin is now plain CSS keyframes (`orbit-spin` / `orbit-spin-reverse` with a per-body `--orbit-duration`) and idle orbits always run
+- Zoom transitions between system ↔ planet views still degrade to fades under reduced motion
+
 ### v2.0.3 — 2026-06-11
 **Visible orbits and a reachable service menu**
 
