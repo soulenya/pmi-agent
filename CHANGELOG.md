@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v2.1.0 — 2026-06-11
+**HAL-9000 Little Gerry**
+
+- **New `/gerry` canvas level** — clicking the Sun zooms into a HAL-9000-style red eye (radial gradient core-to-rim, specular highlight) filling the stage. Clicking the eye toggles the voice session directly; CSS animations make it breathe while listening (`hal-listening`) and pulse strongly while speaking (`hal-speaking`, driven by a new `speaking` flag mirrored into `voiceAssistantStore`)
+- **Type is secondary** — a small "Type" pill inside the red opens the classic text chat at `/chat`
+- **Overview Sun polish** — label/subtitle hidden until hover (absolute positioned, fade-in); resting glow tripled (60px → 180px radius, 270px on hover)
+- Esc from the eye zooms back to the overview; `SUN.route` → `/gerry`, `locateRoute` and chat-sidebar labels updated
+
 ### v2.0.4 — 2026-06-11
 **The planets actually orbit now**
 
