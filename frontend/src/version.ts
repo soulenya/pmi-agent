@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 65;
+export const BUILD_NUMBER = 66;
 export const BUILD_DATE = "2026-06-11";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 66,
+    date: "2026-06-11",
+    title: "HAL-9000 Little Gerry",
+    changes: [
+      "Clicking the Sun now zooms into a large HAL-9000-style red eye — click the eye to start or stop a voice session; it breathes while listening and pulses while Gerry speaks",
+      "A small Type button inside the red opens the classic text chat as the secondary option",
+      "On the solar-system overview, the Sun's name stays hidden until you hover over it, and its glow is three times stronger",
+    ],
+  },
   {
     build: 65,
     date: "2026-06-11",
