@@ -4,7 +4,7 @@
 
 ## Changelog
 
-### v1.4.9 (unreleased — in development)
+### v1.4.9 — 2026-06-11
 **Little Gerry House Manager — voice sessions get an app-wide custodian**
 
 - **Voice = House Manager** — every voice session is now pinned to a new `house_manager` agent (conversation `agent_type`), running on the LangGraph v2 supervisor path (forced per-conversation in the WebSocket handler; typed chat is unchanged and stays on the v1 executor). The supervisor now honours pinned conversations and skips LLM routing for them
