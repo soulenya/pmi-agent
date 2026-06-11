@@ -4,6 +4,16 @@
 
 ## Changelog
 
+### v1.4.9 — 2026-06-11
+**Little Gerry House Manager — voice sessions get an app-wide custodian**
+
+- **Voice = House Manager** — every voice session is now pinned to a new `house_manager` agent (conversation `agent_type`), running on the LangGraph v2 supervisor path (forced per-conversation in the WebSocket handler; typed chat is unchanged and stays on the v1 executor). The supervisor now honours pinned conversations and skips LLM routing for them
+- **14 new custodian tools** (`backend/services/agent/custodian_tools.py`, registered into `TOOL_EXECUTORS`): list/read/update/delete conversations, list/rename/delete generated files, update/delete board tasks, full scheduled-task management (create/update/enable/disable/delete), knowledge-base list/delete, app overview, plus read-only views of settings (secrets masked), users, the audit trail and approval history. Settings, user management, regulatory writes, the audit trail and approvals have **no write paths at all**
+- **Delegation** — the House Manager can task any of the 7 specialist agents via a new `delegate_to_agent` tool (depth 1, max 5 per turn) and folds their answers into its spoken reply
+- **Confirmation gates** — destructive actions (any delete, disabling a schedule) require the tool to be re-called with `confirm: true`, which the agent only does after asking the user out loud; Google Drive uploads are gated the same way
+- **v2 path repairs** (latent bugs, first real consumer): `MessageRepository` method names in the supervisor (`list_messages`/`add_message` → `list_for_conversation`/`create`), `google_tokens` → `google_credentials` table (a failed query was poisoning the transaction and silently breaking pinning), supervisor now builds a real LangChain `ChatAnthropic`/`ChatOpenAI` (the in-house client lacks `bind_tools`/`ainvoke`), removed the deprecated `temperature` param, and `BaseAgent._call_tool` now unwraps the lc-tools JSON `args` envelope before dispatch
+- **Voice panel activity** — while thinking, the panel shows what Gerry is doing ("Asking a specialist…", "Searching the web…", "Writing a document…") from `tool_running` frames
+
 ### v1.4.8 — 2026-06-11
 **Voice button promoted to the top bar**
 

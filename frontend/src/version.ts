@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 59;
+export const BUILD_NUMBER = 60;
 export const BUILD_DATE = "2026-06-11";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 60,
+    date: "2026-06-11",
+    title: "Little Gerry House Manager — voice sessions get an app-wide custodian",
+    changes: [
+      "Voice sessions now talk to the House Manager, a custodian agent that oversees the whole app: it can list, read, rename, pin, archive and delete conversations, manage generated files, tasks, schedules and knowledge base documents, and report on settings, users, the audit trail and approvals (those four are strictly read-only)",
+      "The House Manager can delegate work to any specialist agent (research, regulatory, QMS, IR, engineering, operations, executive assistant) and report back — up to five delegations per turn",
+      "Destructive actions (deleting anything, disabling schedules) and Google Drive uploads always require your spoken confirmation first",
+      "The voice panel now shows what Gerry is doing while thinking (\"Asking a specialist…\", \"Searching the web…\")",
+    ],
+  },
   {
     build: 59,
     date: "2026-06-11",

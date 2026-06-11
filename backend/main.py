@@ -470,9 +470,14 @@ def create_app() -> FastAPI:
                     if incoming.type != "human" or not incoming.content.strip():
                         continue
 
-                    # Feature flag: llm.use_langgraph = "true" enables v2 supervisor
+                    # Feature flag: llm.use_langgraph = "true" enables v2 supervisor.
+                    # Conversations pinned to the House Manager (voice sessions)
+                    # always use the v2 path, since that agent only exists there.
                     from routers.settings import _get_setting as _gs
                     _use_lg = str(await _gs(db, "llm.use_langgraph") or "false").lower() == "true"
+                    _conv_agent = getattr(conv.agent_type, "value", conv.agent_type)
+                    if _conv_agent == "house_manager":
+                        _use_lg = True
 
                     # Run the agent in a DETACHED background task with its own DB
                     # session, forwarding frames via a queue. If the client
