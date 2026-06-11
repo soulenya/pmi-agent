@@ -13,6 +13,7 @@ export interface Conversation {
 
 export interface ConversationCreate {
   title?: string;
+  agent_type?: string;
 }
 
 export interface ConversationUpdate {
