@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 60;
+export const BUILD_NUMBER = 61;
 export const BUILD_DATE = "2026-06-11";
 
 export interface ChangelogEntry {
@@ -14,6 +14,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 61,
+    date: "2026-06-11",
+    title: "Solar-system navigation — the sidebar becomes a galaxy",
+    changes: [
+      "The left menu is now a solar system: Little Gerry is the Sun (click to chat or talk), Dashboard and the Daily Assistant orbit close-in, and the five categories — Work, Knowledge, Communications, Compliance, Administration — are planets whose moons are the feature pages",
+      "Click a planet to zoom in, click a moon to open the page; notification and approval counts appear on the relevant moons and roll up onto their planets",
+      "A narrow rail on the left shows where you are (Sun → planet → page) as back buttons, and Esc zooms out one level; the Service menu and build badge moved to the bottom of this rail",
+      "Your position is part of the URL and is restored after a restart; all existing links, the command palette and voice navigation keep working unchanged (Dashboard now lives at /dashboard)",
+      "New Agents page under Administration: a live, read-only directory of the multi-agent system — the supervisor, the House Manager, the seven specialists and the core chat agent, each with its tools and where you meet it",
+      "Orbits pause and zooms become gentle fades if your system prefers reduced motion",
+    ],
+  },
   {
     build: 60,
     date: "2026-06-11",

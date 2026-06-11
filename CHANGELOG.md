@@ -4,7 +4,7 @@
 
 ## Changelog
 
-### v1.5.0 — Unreleased
+### v2.0.0 — 2026-06-11
 **Solar-system navigation — the sidebar becomes a galaxy**
 
 - **Infinite-canvas navigation** — the left sidebar is replaced by a solar system rendered between the top bar and the status bar. The Sun is Little Gerry (click → chat/voice); Dashboard and the Daily Assistant orbit close-in as inner satellites; the five categories (Work, Knowledge, Communications, Compliance, Administration) are planets on slow idle orbits; every feature page is a moon. Clicking a planet zooms in (400–700 ms transform/opacity, Framer Motion); clicking a moon opens the page in place. Notification/approval/assistant badge counts appear on the relevant moons and roll up onto their planets
