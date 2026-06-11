@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v1.4.6 — 2026-06-10
+**Long generated files fixed + global "Talk with Little Gerry" button**
+
+- **Talk with Little Gerry from anywhere** — a persistent floating button in the bottom-right corner of every page (hidden on Chat, which has its own toggle) starts a hands-free voice session: each session creates a fresh conversation visible in chat history, the reply is spoken aloud, and the mic re-opens for the next turn. Panel shows listening/got it/thinking/speaking phases with Interrupt, a "View conversation" shortcut, and Esc/X to end. Generated-files list auto-refreshes after each reply so files Gerry creates by voice appear immediately. New `frontend/src/components/VoiceAssistant.tsx`, mounted in `AppShell.tsx`; reuses `useVoiceConversation` + the chat WebSocket — no backend changes
+- **Fix: generated files cut off mid-content** — the Anthropic client capped every response at 4,096 output tokens (~3,000 words), and since `generate_file`/`create_docx` receive the whole document inside one tool-call argument, anything longer was silently truncated by the API. Streaming calls now allow 32,768 output tokens (`MAX_TOKENS_STREAM`); non-streaming utility calls raised to 8,192 (`backend/services/llm/anthropic_client.py`). OpenAI/Ollama clients had no explicit cap and are unchanged
+
 ### v1.4.5 — 2026-06-10
 **Voice Conversation mode**
 

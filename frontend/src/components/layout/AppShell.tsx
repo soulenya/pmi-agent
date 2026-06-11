@@ -6,6 +6,7 @@ import { StatusBar } from "./StatusBar";
 import { ChatSidebar } from "./ChatSidebar";
 import { useNotificationWS } from "@/hooks/useNotificationWS";
 import { CommandPalette } from "@/components/CommandPalette";
+import { VoiceAssistant } from "@/components/VoiceAssistant";
 import { AppContextProvider } from "@/contexts/AppContext";
 
 export function AppShell() {
@@ -38,6 +39,7 @@ export function AppShell() {
           </div>
           <StatusBar />
         </div>
+        <VoiceAssistant />
       </div>
     </AppContextProvider>
   );
