@@ -20,6 +20,7 @@ const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
 
 const ROUTE_LABELS: Record<string, string> = {
   "/":           "Solar System",
+  "/gerry":      "Little Gerry",
   "/dashboard":  "Dashboard",
   "/agents":     "Agents",
   "/chat":       "Chat",

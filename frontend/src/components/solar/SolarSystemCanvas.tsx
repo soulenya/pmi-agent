@@ -15,6 +15,7 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Keyboard, Loader2 } from "lucide-react";
 import {
   PLANETS,
   SATELLITES,
@@ -26,6 +27,8 @@ import {
 } from "@/lib/solarSystem";
 import { listPendingApprovals, listNotifications } from "@/api/chat";
 import { getPendingSuggestionCount } from "@/api/assistant";
+import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
+import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
 /* Badge counts (same sources as the old sidebar)                      */
@@ -131,17 +134,89 @@ function SunBody({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      title="Talk with Little Gerry"
+      title="Little Gerry"
       className="group absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
     >
-      <div className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-red-400 via-red-500 to-red-700 shadow-[0_0_60px_rgba(239,68,68,0.45)] transition-shadow group-hover:shadow-[0_0_90px_rgba(239,68,68,0.7)]">
+      <div className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-red-400 via-red-500 to-red-700 shadow-[0_0_180px_24px_rgba(239,68,68,0.45)] transition-shadow group-hover:shadow-[0_0_270px_48px_rgba(239,68,68,0.7)]">
         <SUN.icon className="h-9 w-9 text-red-950/80" />
       </div>
-      <div className="mt-2 text-center text-sm font-bold tracking-tight text-foreground">
-        {SUN.label}
+      <div className="pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap text-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+        <div className="text-sm font-bold tracking-tight text-foreground">{SUN.label}</div>
+        <div className="text-[11px] text-muted-foreground">Chat &amp; voice</div>
       </div>
-      <div className="text-center text-[11px] text-muted-foreground">Chat &amp; voice</div>
     </button>
+  );
+}
+
+/**
+ * SunView — Level "gerry": a HAL-9000-style Little Gerry filling the stage.
+ * Click the eye to start/stop a voice session; it pulses while speaking.
+ * Typing is the secondary option — a small button inside the red.
+ */
+function SunView() {
+  const navigate = useNavigate();
+  const active = useVoiceAssistantStore((s) => s.active);
+  const starting = useVoiceAssistantStore((s) => s.starting);
+  const speaking = useVoiceAssistantStore((s) => s.speaking);
+  const requestToggle = useVoiceAssistantStore((s) => s.requestToggle);
+
+  const status = starting
+    ? "Connecting…"
+    : speaking
+      ? "Speaking…"
+      : active
+        ? "Listening…"
+        : "Click to talk";
+
+  return (
+    <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-center">
+      <button
+        type="button"
+        onClick={requestToggle}
+        disabled={starting}
+        title={active ? "End voice session (Esc)" : "Talk with Little Gerry"}
+        className={cn(
+          "hal-eye relative mx-auto flex h-72 w-72 items-center justify-center rounded-full transition-transform hover:scale-[1.02]",
+          speaking && "hal-speaking",
+          active && !speaking && "hal-listening",
+        )}
+        style={{
+          background:
+            "radial-gradient(circle at 50% 42%, #fef2f2 0%, #fca5a5 7%, #ef4444 18%, #b91c1c 38%, #7f1d1d 62%, #450a0a 84%, #1f0707 100%)",
+        }}
+      >
+        {/* HAL specular highlight */}
+        <div className="pointer-events-none absolute left-1/2 top-[16%] h-8 w-16 -translate-x-1/2 rounded-full bg-white/25 blur-md" />
+
+        {starting && (
+          <Loader2 className="absolute h-10 w-10 animate-spin text-red-100/80" />
+        )}
+
+        {/* Secondary: type instead */}
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate("/chat");
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.stopPropagation();
+              navigate("/chat");
+            }
+          }}
+          title="Type instead"
+          className="absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/35 px-3 py-1.5 text-[11px] font-medium text-red-100/90 backdrop-blur-sm transition-colors hover:bg-black/55 hover:text-white"
+        >
+          <Keyboard className="h-3.5 w-3.5" />
+          Type
+        </span>
+      </button>
+
+      <div className="mt-6 text-lg font-bold tracking-tight text-foreground">{SUN.label}</div>
+      <div className="mt-1 text-sm text-muted-foreground">{status}</div>
+    </div>
   );
 }
 
@@ -349,7 +424,13 @@ function PlanetView({
 /* Canvas                                                              */
 /* ------------------------------------------------------------------ */
 
-export function SolarSystemCanvas({ planetId }: { planetId?: string }) {
+export function SolarSystemCanvas({
+  planetId,
+  sunFocus,
+}: {
+  planetId?: string;
+  sunFocus?: boolean;
+}) {
   const reduced = useReducedMotion() ?? false;
   const badgeCount = useBadgeCounts();
   const planet = planetById(planetId);
@@ -395,14 +476,16 @@ export function SolarSystemCanvas({ planetId }: { planetId?: string }) {
 
       <AnimatePresence mode="wait">
         <motion.div
-          key={planet ? planet.id : "system"}
+          key={sunFocus ? "gerry" : planet ? planet.id : "system"}
           className="absolute inset-0 flex items-center justify-center"
           transition={{ duration: 0.55, ease: [0.32, 0.72, 0, 1] }}
           {...zoomIn}
         >
           {/* Square stage that fits the available area */}
           <div className="relative aspect-square h-[min(92%,92vw)] max-h-full max-w-full">
-            {planet ? (
+            {sunFocus ? (
+              <SunView />
+            ) : planet ? (
               <PlanetView planet={planet} badgeCount={badgeCount} />
             ) : (
               <SystemOverview badgeCount={badgeCount} />

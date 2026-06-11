@@ -60,8 +60,10 @@ export function VoiceAssistant() {
   // Mirror session state into the shared store so the header button reflects it
   const setStoreActive = useVoiceAssistantStore((s) => s.setActive);
   const setStoreStarting = useVoiceAssistantStore((s) => s.setStarting);
+  const setStoreSpeaking = useVoiceAssistantStore((s) => s.setSpeaking);
   useEffect(() => setStoreActive(active), [active, setStoreActive]);
   useEffect(() => setStoreStarting(starting), [starting, setStoreStarting]);
+  useEffect(() => setStoreSpeaking(speaking), [speaking, setStoreSpeaking]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
