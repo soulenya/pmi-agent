@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 64;
+export const BUILD_NUMBER = 65;
 export const BUILD_DATE = "2026-06-11";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 65,
+    date: "2026-06-11",
+    title: "The planets actually orbit now",
+    changes: [
+      "Fixed orbits being completely frozen — the animation was silently disabled whenever Windows has 'Animation effects' turned off; planets and moons now always drift on their orbits",
+      "Zoom in/out transitions still soften to fades when your system prefers reduced motion",
+    ],
+  },
   {
     build: 64,
     date: "2026-06-11",
