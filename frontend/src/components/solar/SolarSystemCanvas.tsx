@@ -15,7 +15,6 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { cn } from "@/lib/utils";
 import {
   PLANETS,
   SATELLITES,
@@ -143,8 +142,8 @@ function SunBody({ onClick }: { onClick: () => void }) {
       title="Talk with Little Gerry"
       className="group absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
     >
-      <div className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-yellow-200 via-amber-400 to-orange-500 shadow-[0_0_60px_rgba(251,191,36,0.45)] transition-shadow group-hover:shadow-[0_0_90px_rgba(251,191,36,0.7)]">
-        <SUN.icon className="h-9 w-9 text-amber-900/80" />
+      <div className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-red-400 via-red-500 to-red-700 shadow-[0_0_60px_rgba(239,68,68,0.45)] transition-shadow group-hover:shadow-[0_0_90px_rgba(239,68,68,0.7)]">
+        <SUN.icon className="h-9 w-9 text-red-950/80" />
       </div>
       <div className="mt-2 text-center text-sm font-bold tracking-tight text-foreground">
         {SUN.label}
@@ -194,22 +193,33 @@ function PlanetBody({
       <div className="relative">
         <CountBadge count={count} />
         <div
-          className={cn(
-            "flex items-center justify-center rounded-full bg-gradient-to-br shadow-lg transition-transform group-hover:scale-110",
-            planet.color,
-          )}
+          className="flex items-center justify-center rounded-full bg-foreground shadow-lg transition-transform group-hover:scale-110"
           style={{
             width: size,
             height: size,
             boxShadow: `0 0 24px ${planet.accent}55`,
           }}
         >
-          <planet.icon className="h-2/5 w-2/5 text-white/90" />
+          <planet.icon className="h-2/5 w-2/5" style={{ color: planet.accent }} />
         </div>
       </div>
-      <span className="mt-1.5 whitespace-nowrap text-xs font-semibold text-foreground/90 group-hover:text-foreground">
-        {planet.label}
-      </span>
+
+      {/* Hover preview: name + moons */}
+      <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-max -translate-x-1/2 group-hover:block">
+        <div className="rounded-lg border bg-popover px-3 py-2.5 text-left shadow-xl">
+          <div className="mb-1.5 text-xs font-bold tracking-tight text-popover-foreground">
+            {planet.label}
+          </div>
+          <ul className="space-y-1">
+            {planet.moons.map((moon) => (
+              <li key={moon.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <moon.icon className="h-3 w-3 shrink-0" style={{ color: planet.accent }} />
+                {moon.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </button>
   );
 }
@@ -276,14 +286,14 @@ function SystemOverview({
         </OrbitBody>
       ))}
 
-      {PLANETS.map((planet, i) => {
+      {PLANETS.map((planet) => {
         const planetBadge = planet.moons.reduce((sum, m) => sum + badgeCount(m.badge), 0);
         return (
           <OrbitBody
             key={planet.id}
             radiusPct={planet.orbit * 50}
             angle={planet.angle}
-            duration={180 + i * 60}
+            duration={120}
             paused={reduced}
           >
             <PlanetBody
@@ -318,13 +328,10 @@ function PlanetView({
       {/* Planet at centre */}
       <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 text-center">
         <div
-          className={cn(
-            "mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br shadow-xl",
-            planet.color,
-          )}
+          className="mx-auto flex h-32 w-32 items-center justify-center rounded-full bg-foreground shadow-xl"
           style={{ boxShadow: `0 0 50px ${planet.accent}66` }}
         >
-          <planet.icon className="h-12 w-12 text-white/90" />
+          <planet.icon className="h-12 w-12" style={{ color: planet.accent }} />
         </div>
         <div className="mt-2 text-base font-bold tracking-tight text-foreground">
           {planet.label}

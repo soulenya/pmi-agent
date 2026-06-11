@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v2.0.1 — 2026-06-11
+**Galaxy polish — cleaner planets, hover previews, red Gerry**
+
+- **Theme-inverse planets** — planet bodies are now `bg-foreground` (black in light mode, white in dark mode) with the category accent color moved onto the icon; same treatment on the ancestor-rail planet button. Gradient `color` field removed from the `Planet` model
+- **Hover moon previews** — persistent planet labels removed from the canvas; hovering a planet shows a popover card with the planet name and a list of its moons (icons tinted in the planet's accent)
+- **Little Gerry is always red** — Sun gradient changed amber → red on both the canvas and the rail back-button
+- **Wider orbits** — inner satellites pushed 0.21 → 0.30 of stage radius (Dashboard/Daily Assistant no longer overlap the Sun); planets re-spaced 0.46–0.98
+- **Uniform orbit speed** — all planets revolve at 120 s/rev (was 180–420 s staggered), so the system sweeps like a clock's minute hand
+
 ### v2.0.0 — 2026-06-11
 **Solar-system navigation — the sidebar becomes a galaxy**
 
