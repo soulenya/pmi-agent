@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 55;
+export const BUILD_NUMBER = 56;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 56,
+    date: "2026-06-10",
+    title: "Long generated files no longer cut off",
+    changes: [
+      "Fixed long documents and reports being truncated mid-sentence: the AI's response limit was capped at roughly 3,000 words per file — it's now 8\u00d7 larger, so lengthy reports, plans, and Word documents generate in full",
+    ],
+  },
   {
     build: 55,
     date: "2026-06-10",
