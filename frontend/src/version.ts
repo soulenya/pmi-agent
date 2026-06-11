@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 63;
+export const BUILD_NUMBER = 64;
 export const BUILD_DATE = "2026-06-11";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 64,
+    date: "2026-06-11",
+    title: "Visible orbits and a reachable service menu",
+    changes: [
+      "Planets now sweep around Little Gerry at one revolution per minute — like the second hand of a clock — so the motion is actually perceptible",
+      "The service controls menu (Restart, Update, Stop) moved from the bottom-left rail — where its dropdown was cut off by the window edge — to the top bar next to Search",
+    ],
+  },
   {
     build: 63,
     date: "2026-06-11",
