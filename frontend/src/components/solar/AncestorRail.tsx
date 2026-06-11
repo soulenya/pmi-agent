@@ -30,11 +30,11 @@ export function AncestorRail() {
         className={cn(
           "flex h-10 w-10 items-center justify-center rounded-full transition-all",
           atOverview
-            ? "bg-gradient-to-br from-yellow-200 via-amber-400 to-orange-500 shadow-[0_0_16px_rgba(251,191,36,0.5)]"
-            : "bg-gradient-to-br from-yellow-200/70 via-amber-400/70 to-orange-500/70 opacity-80 hover:opacity-100 hover:shadow-[0_0_16px_rgba(251,191,36,0.5)]",
+            ? "bg-gradient-to-br from-red-400 via-red-500 to-red-700 shadow-[0_0_16px_rgba(239,68,68,0.5)]"
+            : "bg-gradient-to-br from-red-400/70 via-red-500/70 to-red-700/70 opacity-80 hover:opacity-100 hover:shadow-[0_0_16px_rgba(239,68,68,0.5)]",
         )}
       >
-        <Orbit className="h-5 w-5 text-amber-900/80" />
+        <Orbit className="h-5 w-5 text-red-950/80" />
       </button>
 
       {/* Parent planet — shown while inside a planet or one of its moons */}
@@ -44,13 +44,12 @@ export function AncestorRail() {
           onClick={() => navigate(`/planet/${planet.id}`)}
           title={moon ? `Back to ${planet.label} (Esc)` : planet.label}
           className={cn(
-            "mt-3 flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br shadow-md transition-transform hover:scale-110",
-            planet.color,
+            "mt-3 flex h-9 w-9 items-center justify-center rounded-full bg-foreground shadow-md transition-transform hover:scale-110",
             !moon && "ring-2 ring-ring ring-offset-2 ring-offset-card",
           )}
           style={{ boxShadow: `0 0 12px ${planet.accent}55` }}
         >
-          <planet.icon className="h-4 w-4 text-white/90" />
+          <planet.icon className="h-4 w-4" style={{ color: planet.accent }} />
         </button>
       )}
 

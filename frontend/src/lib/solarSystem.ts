@@ -48,9 +48,7 @@ export interface Planet {
   id: string;
   label: string;
   icon: LucideIcon;
-  /** Tailwind classes for the planet body. */
-  color: string;
-  /** Glow / ring accent (CSS color value). */
+  /** Accent color for the icon and glow (CSS color value). */
   accent: string;
   /** Orbit radius as a fraction of the stage radius (0..1). */
   orbit: number;
@@ -74,8 +72,8 @@ export const SUN = {
 } as const;
 
 export const SATELLITES: Satellite[] = [
-  { id: "dashboard", route: "/dashboard", label: "Dashboard", icon: LayoutDashboard, orbit: 0.21, angle: 200 },
-  { id: "assistant", route: "/assistant", label: "Daily Assistant", icon: Sparkles, badge: "assistant", orbit: 0.21, angle: 20 },
+  { id: "dashboard", route: "/dashboard", label: "Dashboard", icon: LayoutDashboard, orbit: 0.3, angle: 200 },
+  { id: "assistant", route: "/assistant", label: "Daily Assistant", icon: Sparkles, badge: "assistant", orbit: 0.3, angle: 20 },
 ];
 
 export const PLANETS: Planet[] = [
@@ -83,9 +81,8 @@ export const PLANETS: Planet[] = [
     id: "work",
     label: "Work",
     icon: FolderOpen,
-    color: "from-sky-400 to-blue-600",
     accent: "#38bdf8",
-    orbit: 0.38,
+    orbit: 0.46,
     angle: 315,
     size: 64,
     moons: [
@@ -100,9 +97,8 @@ export const PLANETS: Planet[] = [
     id: "knowledge",
     label: "Knowledge",
     icon: FileText,
-    color: "from-emerald-400 to-teal-600",
     accent: "#34d399",
-    orbit: 0.55,
+    orbit: 0.59,
     angle: 30,
     size: 58,
     moons: [
@@ -116,9 +112,8 @@ export const PLANETS: Planet[] = [
     id: "communications",
     label: "Communications",
     icon: Mail,
-    color: "from-amber-300 to-orange-500",
     accent: "#fbbf24",
-    orbit: 0.7,
+    orbit: 0.72,
     angle: 105,
     size: 50,
     moons: [
@@ -130,9 +125,8 @@ export const PLANETS: Planet[] = [
     id: "compliance",
     label: "Compliance",
     icon: ShieldCheck,
-    color: "from-rose-400 to-red-600",
     accent: "#fb7185",
-    orbit: 0.84,
+    orbit: 0.85,
     angle: 170,
     size: 56,
     moons: [
@@ -146,9 +140,8 @@ export const PLANETS: Planet[] = [
     id: "administration",
     label: "Administration",
     icon: Settings,
-    color: "from-violet-400 to-purple-600",
     accent: "#a78bfa",
-    orbit: 0.97,
+    orbit: 0.98,
     angle: 250,
     size: 52,
     moons: [
