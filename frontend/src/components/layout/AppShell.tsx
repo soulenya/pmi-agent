@@ -72,7 +72,9 @@ export function AppShell() {
   }, [paletteOpen, voiceActive, location.pathname, navigate]);
 
   const isCanvas =
-    location.pathname === "/" || location.pathname.startsWith("/planet/");
+    location.pathname === "/" ||
+    location.pathname === "/gerry" ||
+    location.pathname.startsWith("/planet/");
 
   return (
     <AppContextProvider>
