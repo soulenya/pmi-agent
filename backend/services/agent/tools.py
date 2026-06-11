@@ -1278,6 +1278,12 @@ TOOL_EXECUTORS = {
     "list_google_tasks": execute_list_google_tasks,
 }
 
+# House Manager custodian tools (registered here so dispatch_tool can run them;
+# only agents whose TOOLS whitelist includes them can actually call them).
+from services.agent.custodian_tools import CUSTODIAN_EXECUTORS  # noqa: E402
+
+TOOL_EXECUTORS.update(CUSTODIAN_EXECUTORS)
+
 
 async def dispatch_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> str:
     """Execute a tool by name and return a string result for the model."""

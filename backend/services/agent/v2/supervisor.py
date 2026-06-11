@@ -106,9 +106,36 @@ class LangGraphSupervisor:
         user_id: uuid.UUID,
         conversation_id: uuid.UUID,
     ) -> "LangGraphSupervisor":
-        from services.llm.router import get_llm_client
-        llm = await get_llm_client(db, task="chat")
+        llm = await cls._build_chat_model(db)
         return cls(llm=llm, db=db, user_id=user_id, conversation_id=conversation_id)
+
+    @staticmethod
+    async def _build_chat_model(db: AsyncSession):
+        """Build a LangChain chat model from the configured provider/model.
+
+        The v2 agents need LangChain's `bind_tools` / `astream` interface,
+        so we construct ChatAnthropic / ChatOpenAI directly rather than
+        reusing the in-house clients from services.llm.router.
+        """
+        from config import settings as app_settings
+        from services.llm.router import resolve_task_llm
+
+        provider, model = await resolve_task_llm(db, task="chat")
+        if provider == "anthropic":
+            from langchain_anthropic import ChatAnthropic
+            key = app_settings.get_api_key("anthropic")
+            if not key:
+                raise RuntimeError("Anthropic API key is not configured.")
+            return ChatAnthropic(model=model, api_key=key, max_tokens=4096)
+        if provider == "openai":
+            from langchain_openai import ChatOpenAI
+            key = app_settings.get_api_key("openai")
+            if not key:
+                raise RuntimeError("OpenAI API key is not configured.")
+            return ChatOpenAI(model=model, api_key=key)
+        raise RuntimeError(
+            f"The agent supervisor requires a cloud LLM provider (got {provider!r})."
+        )
 
     # ── Routing ───────────────────────────────────────────────────────────────
 
@@ -142,6 +169,7 @@ class LangGraphSupervisor:
 
     def _build_agent(self, agent_name: str, ctx):
         from services.agent.v2.executive_assistant import ExecutiveAssistantAgent
+        from services.agent.v2.house_manager import HouseManagerAgent
         from services.agent.v2.research_agent import ResearchAgent
         from services.agent.v2.regulatory_agent import RegulatoryAgent
         from services.agent.v2.qms_agent import QMSAgent
@@ -157,9 +185,27 @@ class LangGraphSupervisor:
             "ir": IRAgent,
             "engineering": EngineeringAgent,
             "operations": OperationsAgent,
+            "house_manager": HouseManagerAgent,
         }
         cls = _MAP.get(agent_name, ExecutiveAssistantAgent)
         return cls(llm=self.llm, ctx=ctx)
+
+    async def _pinned_agent(self) -> str | None:
+        """Return the conversation's pinned agent name, if any (e.g. voice
+        sessions are pinned to the House Manager and skip routing)."""
+        from sqlalchemy import text
+        try:
+            row = await self.db.execute(
+                text("SELECT agent_type FROM conversations WHERE id = :cid"),
+                {"cid": self.conversation_id},
+            )
+            value = row.scalar()
+        except Exception:
+            await self.db.rollback()
+            return None
+        if value and value in ("house_manager", *(_AGENT_DESCRIPTIONS.keys())):
+            return str(value)
+        return None
 
     # ── History loading ───────────────────────────────────────────────────────
 
@@ -167,7 +213,7 @@ class LangGraphSupervisor:
         from repositories.conversation_repo import MessageRepository
         from models.db.enums import MessageRole
         repo = MessageRepository(self.db)
-        msgs = await repo.list_messages(self.conversation_id, limit=limit)
+        msgs = await repo.list_for_conversation(self.conversation_id, limit=limit)
         result = []
         for m in msgs:
             role = "user" if m.role == MessageRole.USER else "assistant"
@@ -178,11 +224,12 @@ class LangGraphSupervisor:
         from sqlalchemy import text
         try:
             row = await self.db.execute(
-                text("SELECT 1 FROM google_tokens WHERE user_id = :uid LIMIT 1"),
+                text("SELECT 1 FROM google_credentials WHERE user_id = :uid LIMIT 1"),
                 {"uid": self.user_id},
             )
             return row.fetchone() is not None
         except Exception:
+            await self.db.rollback()
             return False
 
     # ── Persist messages ──────────────────────────────────────────────────────
@@ -191,13 +238,13 @@ class LangGraphSupervisor:
         from repositories.conversation_repo import MessageRepository
         from models.db.enums import MessageRole
         repo = MessageRepository(self.db)
-        await repo.add_message(
+        await repo.create(
             conversation_id=self.conversation_id,
             role=MessageRole.USER,
             content=user_text,
         )
         if assistant_text.strip():
-            await repo.add_message(
+            await repo.create(
                 conversation_id=self.conversation_id,
                 role=MessageRole.ASSISTANT,
                 content=assistant_text,
@@ -229,8 +276,12 @@ class LangGraphSupervisor:
         history = await self._load_history()
         google_connected = await self._check_google_connected()
 
-        # Route
-        agent_name = await self._route(user_text)
+        # Route — a conversation pinned to a specific agent skips LLM routing
+        agent_name = await self._pinned_agent()
+        if agent_name is None:
+            agent_name = await self._route(user_text)
+        else:
+            logger.info("Conversation pinned to agent: %s", agent_name)
         yield json.dumps({"type": "agent_selected", "agent": agent_name})
 
         # Build agent
