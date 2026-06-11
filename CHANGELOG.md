@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v1.4.7 — 2026-06-10 (unreleased — build 58 on dev/v1.2)
+**Spoken replies skip emojis**
+
+- **Fix: TTS read emojis aloud** ("rocket", "warning sign", …) — `strip_markdown` in `backend/services/voice/google_speech.py` now also removes emoji/pictograph/symbol ranges (incl. ZWJ sequences, flags, variation selectors, arrows) before synthesis. On-screen text is unchanged; accented characters are preserved
+
 ### v1.4.6 — 2026-06-10
 **Long generated files fixed + global "Talk with Little Gerry" button**
 
