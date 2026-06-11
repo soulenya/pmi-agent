@@ -66,7 +66,7 @@ export interface Satellite extends Moon {
 
 export const SUN = {
   id: "gerry",
-  route: "/chat",
+  route: "/gerry",
   label: "Little Gerry",
   icon: MessageSquare,
 } as const;
@@ -170,7 +170,11 @@ export interface NavLocation {
 export function locateRoute(pathname: string): NavLocation {
   if (pathname === "/") return { path: [], isSun: false };
 
-  if (pathname === "/chat" || pathname.startsWith("/chat/")) {
+  if (
+    pathname === "/gerry" ||
+    pathname === "/chat" ||
+    pathname.startsWith("/chat/")
+  ) {
     return { path: ["gerry"], isSun: true };
   }
 

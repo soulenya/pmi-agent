@@ -56,6 +56,7 @@ function ThemedApp() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
             <Route index element={<ErrorBoundary><SolarSystemPage /></ErrorBoundary>} />
+            <Route path="gerry" element={<ErrorBoundary><SolarSystemPage /></ErrorBoundary>} />
             <Route path="planet/:planetId" element={<ErrorBoundary><SolarSystemPage /></ErrorBoundary>} />
             <Route path="dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
             <Route path="agents" element={<ErrorBoundary><AgentsPage /></ErrorBoundary>} />
