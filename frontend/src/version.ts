@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 61;
+export const BUILD_NUMBER = 62;
 export const BUILD_DATE = "2026-06-11";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 62,
+    date: "2026-06-11",
+    title: "Galaxy polish — cleaner planets, hover previews, red Gerry",
+    changes: [
+      "Planets are now black in light mode and white in dark mode, with their category color on the icon",
+      "Planet names no longer float on the canvas — hover over a planet to see its name and a preview of its moons",
+      "Little Gerry is now always red",
+      "Orbits moved outward so Dashboard and the Daily Assistant no longer crowd the Sun",
+      "All planets sweep around Little Gerry at one slow, uniform pace — like the minute hand of a clock",
+    ],
+  },
   {
     build: 61,
     date: "2026-06-11",
