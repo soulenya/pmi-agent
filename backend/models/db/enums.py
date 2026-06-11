@@ -8,6 +8,7 @@ import enum
 
 class AgentType(str, enum.Enum):
     SUPERVISOR = "supervisor"
+    HOUSE_MANAGER = "house_manager"
     EXECUTIVE_ASSISTANT = "executive_assistant"
     RESEARCH = "research"
     REGULATORY = "regulatory"

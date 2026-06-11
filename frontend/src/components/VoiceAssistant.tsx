@@ -22,6 +22,18 @@ import { cn } from "@/lib/utils";
 
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
 
+/** Map tool names to short, human-friendly activity labels for the panel. */
+function friendlyToolLabel(tool: string): string {
+  if (tool === "delegate_to_agent") return "Asking a specialist…";
+  if (tool.startsWith("search_web") || tool === "fetch_page") return "Searching the web…";
+  if (tool.includes("gmail")) return "Checking email…";
+  if (tool.includes("drive")) return "Looking in Drive…";
+  if (tool.includes("calendar")) return "Checking the calendar…";
+  if (tool.includes("knowledge")) return "Searching the knowledge base…";
+  if (tool === "generate_file" || tool === "create_docx") return "Writing a document…";
+  return "Working on it…";
+}
+
 export function VoiceAssistant() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -43,6 +55,7 @@ export function VoiceAssistant() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activity, setActivity] = useState<string | null>(null);
 
   // Mirror session state into the shared store so the header button reflects it
   const setStoreActive = useVoiceAssistantStore((s) => s.setActive);
@@ -116,18 +129,23 @@ export function VoiceAssistant() {
             type: string;
             content?: string;
             detail?: string;
+            tool?: string;
           };
           if (msg.type === "token" && msg.content) {
             streamBufferRef.current += msg.content;
+          } else if (msg.type === "tool_running" && msg.tool) {
+            setActivity(friendlyToolLabel(msg.tool));
           } else if (msg.type === "done") {
             const finalText = streamBufferRef.current;
             streamBufferRef.current = "";
+            setActivity(null);
             queryClient.invalidateQueries({ queryKey: ["conversations"] });
             queryClient.invalidateQueries({ queryKey: ["messages", convId] });
             queryClient.invalidateQueries({ queryKey: ["generated-files"] });
             if (activeRef.current) void playReply(finalText);
           } else if (msg.type === "error") {
             streamBufferRef.current = "";
+            setActivity(null);
             setError(msg.detail ?? "Something went wrong — try again.");
             if (activeRef.current) void voiceStart(); // don't strand the conversation
           }
@@ -168,7 +186,10 @@ export function VoiceAssistant() {
     setError(null);
     setStarting(true);
     try {
-      const conv = await createConversation({ title: "Voice session" });
+      const conv = await createConversation({
+        title: "Voice session",
+        agent_type: "house_manager",
+      });
       setConversationId(conv.id);
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       openSocket(conv.id);
@@ -268,7 +289,7 @@ export function VoiceAssistant() {
         {phase === "thinking" && (
           <>
             <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
-            <span className="text-muted-foreground">Thinking…</span>
+            <span className="text-muted-foreground">{activity ?? "Thinking…"}</span>
           </>
         )}
         {phase === "speaking" && (

@@ -129,6 +129,18 @@ class BaseAgent:
 
     async def _call_tool(self, tool_name: str, args: dict[str, Any]) -> str:
         from services.agent.tools import dispatch_tool
+        # The lc_tools wrappers expose a single string parameter named "args"
+        # carrying a JSON object. Unwrap it so executors get real keyword keys.
+        if set(args.keys()) == {"args"} and isinstance(args.get("args"), str):
+            import json
+            raw = args["args"].strip()
+            if raw.startswith("{"):
+                try:
+                    args = json.loads(raw)
+                except ValueError:
+                    args = {"input": raw}
+            else:
+                args = {"input": raw} if raw else {}
         try:
             return await dispatch_tool(self.ctx, tool_name, args)
         except Exception as exc:
