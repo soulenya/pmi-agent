@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.0.3 — 2026-06-11
+**Visible orbits and a reachable service menu**
+
+- **Planet orbits 120 s → 60 s per revolution** — the minute-hand pace read as static; planets now sweep like a clock's second hand
+- **ServiceMenu relocated to the Header** next to the Search/palette button — the dropdown at the bottom of the ancestor rail opened downward and was clipped by the window edge; the rail now keeps only the build badge at the bottom
+
 ### v2.0.2 — 2026-06-11
 **Gerry can see your Drive's top-level folders**
 
