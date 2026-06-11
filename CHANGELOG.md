@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v1.4.8 — 2026-06-11 (unreleased — build 59 on dev/v1.2)
+**Voice button promoted to the top bar**
+
+- **"Talk with Little Gerry" is now a central feature** — the launcher moved from a floating bottom-right corner button to the center of the top bar, visible on every page (header expanded h-14 → h-16 to fit; button size unchanged). It has a very faint pulsing glow plus a slow shimmer sweep (`.voice-cta` in `index.css`, disabled under `prefers-reduced-motion`). While a session runs the button becomes a red "End voice session" toggle; the live status panel still appears bottom-right. New `frontend/src/stores/voiceAssistantStore.ts` (zustand) bridges the header button and the session manager; `VoiceAssistant.tsx` no longer renders its own launcher (`Header.tsx`, `AppShell.tsx` unchanged)
+
 ### v1.4.7 — 2026-06-11
 **Spoken replies skip emojis**
 

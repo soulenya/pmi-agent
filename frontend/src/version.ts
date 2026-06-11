@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 58;
-export const BUILD_DATE = "2026-06-10";
+export const BUILD_NUMBER = 59;
+export const BUILD_DATE = "2026-06-11";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 59,
+    date: "2026-06-11",
+    title: "Voice button promoted to the top bar",
+    changes: [
+      "The \"Talk with Little Gerry\" button moved from the bottom corner to the center of the top bar — always visible on every page, with a faint pulsing glow and shimmer",
+      "While a session is running the button turns into \"End voice session\"; the live status panel still appears bottom-right",
+    ],
+  },
   {
     build: 58,
     date: "2026-06-10",

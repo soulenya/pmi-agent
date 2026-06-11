@@ -1,14 +1,15 @@
 /**
- * VoiceAssistant — a persistent "Talk with Little Gerry" hot button.
+ * VoiceAssistant — manages the "Talk with Little Gerry" voice session.
  *
- * Floats in the bottom-right corner on every page (except Chat, which has its
- * own in-page voice toggle). Clicking it starts a hands-free voice session in a
- * fresh conversation: speak, pause, Gerry answers out loud, then listens again.
- * The conversation appears in the regular chat history so anything Gerry does
- * (files, tasks, …) is reviewable afterwards.
+ * The launcher button lives in the Header (a central, always-visible feature);
+ * this component listens for toggle requests from the voiceAssistantStore and
+ * renders the session panel bottom-right while a session is running. Each
+ * session is a fresh conversation: speak, pause, Gerry answers out loud, then
+ * listens again. The conversation appears in the regular chat history so
+ * anything Gerry does (files, tasks, …) is reviewable afterwards.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AudioLines, Loader2, MessageSquare, Mic, Volume2, X } from "lucide-react";
 import { createConversation } from "@/api/chat";
@@ -16,12 +17,12 @@ import { getSettings } from "@/api/settings";
 import { speakText } from "@/api/voice";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { useAuthStore } from "@/stores/authStore";
+import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import { cn } from "@/lib/utils";
 
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
 
 export function VoiceAssistant() {
-  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -42,6 +43,12 @@ export function VoiceAssistant() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Mirror session state into the shared store so the header button reflects it
+  const setStoreActive = useVoiceAssistantStore((s) => s.setActive);
+  const setStoreStarting = useVoiceAssistantStore((s) => s.setStarting);
+  useEffect(() => setStoreActive(active), [active, setStoreActive]);
+  useEffect(() => setStoreStarting(starting), [starting, setStoreStarting]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -174,6 +181,21 @@ export function VoiceAssistant() {
       setStarting(false);
     }
   }, [openSocket, queryClient, voiceStart]);
+  const activateRef = useRef(activate);
+  activateRef.current = activate;
+
+  // Header button toggles the session via the store
+  const toggleRequests = useVoiceAssistantStore((s) => s.toggleRequests);
+  const handledToggleRef = useRef(toggleRequests);
+  useEffect(() => {
+    if (toggleRequests === handledToggleRef.current) return;
+    handledToggleRef.current = toggleRequests;
+    if (activeRef.current) {
+      deactivateRef.current();
+    } else {
+      void activateRef.current();
+    }
+  }, [toggleRequests]);
 
   // Interrupt Gerry mid-sentence: stop playback and listen right away
   const interrupt = useCallback(() => {
@@ -200,26 +222,7 @@ export function VoiceAssistant() {
     [],
   );
 
-  if (!voiceEnabled) return null;
-
-  const onChatPage = location.pathname.startsWith("/chat");
-  // Chat has its own in-page voice toggle — hide the launcher there, but keep
-  // the panel visible if a session is already running.
-  if (!active && onChatPage) return null;
-
-  if (!active) {
-    return (
-      <button
-        onClick={() => void activate()}
-        disabled={starting}
-        title="Talk with Little Gerry"
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-60"
-      >
-        {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <AudioLines className="h-5 w-5" />}
-        <span className="hidden sm:inline">Talk with Little Gerry</span>
-      </button>
-    );
-  }
+  if (!voiceEnabled || !active) return null;
 
   const phase =
     voiceStatus === "listening"
