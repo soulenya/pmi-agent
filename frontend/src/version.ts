@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 57;
+export const BUILD_NUMBER = 58;
 export const BUILD_DATE = "2026-06-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 58,
+    date: "2026-06-10",
+    title: "Gerry no longer reads emojis aloud",
+    changes: [
+      "Emojis and symbols (\u2705 \u26a0\ufe0f \ud83d\ude80 \u2192 \u2026) are now stripped from spoken replies, so Gerry won't say things like 'rocket' or 'warning sign' mid-sentence \u2014 they still appear in the on-screen text",
+    ],
+  },
   {
     build: 57,
     date: "2026-06-10",

@@ -75,7 +75,25 @@ def strip_markdown(text: str) -> str:
     out = re.sub(r"(\*\*|__|\*|_|~~)", "", out)                 # emphasis
     out = re.sub(r"^\s*[-*+]\s+", "", out, flags=re.MULTILINE)  # bullets
     out = re.sub(r"^\s*\|.*\|\s*$", "", out, flags=re.MULTILINE)  # table rows
+    out = _EMOJI_RE.sub("", out)                                # emojis & pictographs
     return re.sub(r"\n{3,}", "\n\n", out).strip()
+
+
+# Emoji / pictograph / symbol ranges the TTS engine would otherwise read aloud
+# ("warning sign", "rocket", …). Includes variation selectors, ZWJ, and skin tones.
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F000-\U0001FAFF"  # emoji & pictographs (incl. extended-A)
+    "\U00002600-\U000027BF"  # misc symbols + dingbats (⚠ ✅ ✨ …)
+    "\U00002B00-\U00002BFF"  # arrows & symbols (⬆ ⭐ …)
+    "\U0001F1E6-\U0001F1FF"  # regional indicators (flags)
+    "\U0000FE00-\U0000FE0F"  # variation selectors
+    "\U0000200D"             # zero-width joiner
+    "\U000020E3"             # combining keycap
+    "\U00002190-\U000021FF"  # arrows (→ ⇒ …)
+    "\U00002700-\U000027FF"  # more dingbats
+    "]+",
+)
 
 
 async def transcribe(
