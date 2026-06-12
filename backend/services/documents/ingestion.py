@@ -209,7 +209,7 @@ class DocumentIngestionService:
         if mime_type not in SUPPORTED_MIME_TYPES:
             # Fallback: treat as plain text if extension is .txt/.md
             ext = Path(filename).suffix.lower()
-            if ext in (".txt", ".md", ".csv"):
+            if ext in (".txt", ".md", ".csv", ".json"):
                 mime_type = "text/plain"
             else:
                 raise ValueError(

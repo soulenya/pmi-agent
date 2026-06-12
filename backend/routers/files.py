@@ -4,13 +4,22 @@ Serves files from backend/generated_files/ — created by the AI agent's generat
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from database import get_db
 from dependencies import get_current_user
 from fastapi import Depends
+from models.db.user import User
+from services.documents.ingestion import DocumentIngestionService
+from services.embeddings.service import EmbeddingService, get_embedding_service_db
+
+logger = logging.getLogger(__name__)
 
 _FILES_DIR = Path(__file__).resolve().parent.parent / "generated_files"
 _FILES_DIR.mkdir(exist_ok=True)
@@ -61,3 +70,72 @@ async def delete_file(name: str, _user=Depends(get_current_user)):
         raise HTTPException(404, "File not found")
     p.unlink()
     return {"deleted": name}
+
+
+class ToKnowledgeBaseRequest(BaseModel):
+    title: str | None = None
+
+
+class ToDriveRequest(BaseModel):
+    target_name: str | None = None
+    folder_id: str | None = None
+
+
+@router.post("/{name}/to-knowledge-base", status_code=201)
+async def move_file_to_knowledge_base(
+    name: str,
+    body: ToKnowledgeBaseRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
+):
+    """Ingest a generated file into the Knowledge Base, then remove it (move semantics)."""
+    p = _safe_path(name)
+    if not p.exists():
+        raise HTTPException(404, "File not found")
+
+    raw = p.read_bytes()
+    title = ((body.title if body else None) or p.stem).strip() or p.stem
+
+    svc = DocumentIngestionService(db=db, embedding_svc=embedding_svc)
+    try:
+        doc = await svc.ingest(
+            filename=name,
+            raw_bytes=raw,
+            title=title,
+            category_id=None,
+            is_regulated=False,
+            created_by_id=current_user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    except Exception as exc:
+        logger.exception("Moving generated file %s to knowledge base failed", name)
+        raise HTTPException(500, f"Ingestion failed: {exc}")
+
+    await db.commit()
+    p.unlink(missing_ok=True)
+    return {"document_id": str(doc.id), "title": doc.title, "moved": name}
+
+
+@router.post("/{name}/to-drive")
+async def upload_file_to_drive(
+    name: str,
+    body: ToDriveRequest | None = None,
+    _user=Depends(get_current_user),
+):
+    """Upload a generated file to the user's Google Drive (My Drive root or a folder)."""
+    p = _safe_path(name)
+    if not p.exists():
+        raise HTTPException(404, "File not found")
+
+    from services.google_service import drive_upload_file
+
+    try:
+        return drive_upload_file(
+            str(p),
+            name=(body.target_name if body else None) or None,
+            folder_id=(body.folder_id if body else None) or None,
+        )
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
