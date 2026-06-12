@@ -22,6 +22,15 @@ import { cn } from "@/lib/utils";
 
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
 
+/** Short spoken acknowledgments played immediately after the user speaks. */
+const ACK_PHRASES = [
+  "Okay, I'm on it.",
+  "Let me look into that.",
+  "Sure, one moment.",
+  "Let me check.",
+  "On it.",
+];
+
 /** Map tool names to short, human-friendly activity labels for the panel. */
 function friendlyToolLabel(tool: string): string {
   if (tool === "delegate_to_agent") return "Asking a specialist…";
@@ -70,11 +79,17 @@ export function VoiceAssistant() {
   const streamBufferRef = useRef("");
   const pendingRef = useRef<string | null>(null);
   const sendRef = useRef<(text: string) => void>(() => {});
+  // Acknowledgment playback: cache TTS blobs per phrase; if the final answer
+  // arrives while the ack is still playing, queue it until the ack ends.
+  const ackCacheRef = useRef(new Map<string, Blob>());
+  const ackPlayingRef = useRef(false);
+  const pendingFinalRef = useRef<string | null>(null);
 
   const { status: voiceStatus, start: voiceStart, stop: voiceStop } = useVoiceConversation({
     onTranscript: (text) => {
       setError(null);
       sendRef.current(text);
+      void playAckRef.current();
     },
     onError: (message) => {
       setError(message);
@@ -108,6 +123,43 @@ export function VoiceAssistant() {
     },
     [voiceStart],
   );
+
+  /** Speak a quick "on it" so the user knows Gerry heard them, while he works. */
+  const playAck = useCallback(async () => {
+    const phrase = ACK_PHRASES[Math.floor(Math.random() * ACK_PHRASES.length)];
+    try {
+      let blob = ackCacheRef.current.get(phrase);
+      if (!blob) {
+        blob = await speakText(phrase);
+        ackCacheRef.current.set(phrase, blob);
+      }
+      if (!activeRef.current) return;
+      // If the real answer already arrived, skip the ack entirely.
+      if (pendingFinalRef.current !== null) {
+        const finalText = pendingFinalRef.current;
+        pendingFinalRef.current = null;
+        void playReply(finalText);
+        return;
+      }
+      audioRef.current?.pause();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      ackPlayingRef.current = true;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        ackPlayingRef.current = false;
+        const finalText = pendingFinalRef.current;
+        pendingFinalRef.current = null;
+        if (finalText !== null && activeRef.current) void playReply(finalText);
+      };
+      await audio.play();
+    } catch {
+      ackPlayingRef.current = false;
+    }
+  }, [playReply]);
+  const playAckRef = useRef(playAck);
+  playAckRef.current = playAck;
 
   const openSocket = useCallback(
     (convId: string) => {
@@ -144,7 +196,12 @@ export function VoiceAssistant() {
             queryClient.invalidateQueries({ queryKey: ["conversations"] });
             queryClient.invalidateQueries({ queryKey: ["messages", convId] });
             queryClient.invalidateQueries({ queryKey: ["generated-files"] });
-            if (activeRef.current) void playReply(finalText);
+            if (ackPlayingRef.current) {
+              // Let the acknowledgment finish; its onended plays the answer.
+              pendingFinalRef.current = finalText;
+            } else if (activeRef.current) {
+              void playReply(finalText);
+            }
           } else if (msg.type === "error") {
             streamBufferRef.current = "";
             setActivity(null);
@@ -180,6 +237,8 @@ export function VoiceAssistant() {
     wsRef.current = null;
     streamBufferRef.current = "";
     pendingRef.current = null;
+    ackPlayingRef.current = false;
+    pendingFinalRef.current = null;
   }, [voiceStop]);
   const deactivateRef = useRef(deactivate);
   deactivateRef.current = deactivate;
@@ -224,6 +283,8 @@ export function VoiceAssistant() {
   const interrupt = useCallback(() => {
     audioRef.current?.pause();
     setSpeaking(false);
+    ackPlayingRef.current = false;
+    pendingFinalRef.current = null;
     if (activeRef.current) void voiceStart();
   }, [voiceStart]);
 
