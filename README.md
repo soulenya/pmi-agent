@@ -497,7 +497,7 @@ VITE_WS_BASE=ws://127.0.0.1:8000
 
 ### Google Workspace
 
-OAuth credentials are stored in `backend/google_credentials.json` (Desktop app type) and are **gitignored** — they are bundled into the installer at build time, never committed to source control. The per-user token is written to `backend/google_token.json` after first sign-in and is also gitignored. If you ever rotate the OAuth client secret in Google Cloud, replace `backend/google_credentials.json` locally and rebuild the installer.
+OAuth credentials are stored in `backend/google_credentials.json` (Desktop app type) and are **gitignored** — never committed to source control and **not bundled in the installers**. Add the file once after installing (see `docs/INSTALL.md` → "Google OAuth credentials"); it survives app updates. The per-user token is written to `backend/google_token.json` after first sign-in and is also gitignored. If you ever rotate the OAuth client secret in Google Cloud, distribute the new file privately.
 
 ---
 
@@ -552,7 +552,7 @@ Output: `installer\Output\LittleGerry_Setup.exe`
 - CORS is restricted to localhost origins
 - Google OAuth tokens are stored locally and never transmitted to any third-party service
 - Sign-in is Google SSO only and restricted to approved Workspace domains (`pmi-llc.com`, `precisianmedical.com`); no passwords are stored or transmitted
-- `backend/google_credentials.json` (OAuth client secret) is gitignored and bundled only at installer build time — rotate the secret in Google Cloud if it is ever exposed
+- `backend/google_credentials.json` (OAuth client secret) is gitignored and is not bundled in the installers — users add it after installing (docs/INSTALL.md); rotate the secret in Google Cloud if it is ever exposed
 
 ---
 

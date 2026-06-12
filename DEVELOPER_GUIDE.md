@@ -517,7 +517,7 @@ All frames are JSON strings:
 
 - OAuth 2.0 flow via `google-auth-oauthlib`
 - Credentials stored in `backend/google_token.json` (gitignored)
-- OAuth client config in `backend/google_credentials.json` — **gitignored**; it holds the OAuth client secret, so it is never committed. The installer bundles it from the local working copy at build time (`installer/setup.iss`). If the client secret is rotated in Google Cloud, replace this file locally and rebuild the installer; existing installs keep their own copy (the auto-update `git reset` only touches tracked files).
+- OAuth client config in `backend/google_credentials.json` — **gitignored**; it holds the OAuth client secret, so it is never committed and is **not bundled in the installers**. Users add the file once after installing (see `docs/INSTALL.md` → "Google OAuth credentials"); it survives updates (the auto-update `git reset` only touches tracked files). If the client secret is rotated in Google Cloud, distribute the new file privately.
 - `get_credentials()` — returns valid `Credentials` or `None`; auto-refreshes if expired
 
 ### Scopes requested
@@ -712,7 +712,7 @@ export const CHANGELOG: ChangelogEntry[] = [
 - CORS restricted to localhost origins
 - Google OAuth tokens stored locally; never transmitted to third parties
 - Sign-in is Google SSO only (no passwords) and restricted to approved Workspace domains; accounts auto-provision on first sign-in
-- `backend/google_credentials.json` (OAuth client secret) is gitignored and bundled only at installer build time — rotate the secret in Google Cloud if exposed
+- `backend/google_credentials.json` (OAuth client secret) is gitignored and is not bundled in the installers — users add it after installing (docs/INSTALL.md); rotate the secret in Google Cloud if exposed
 - All AI actions logged immutably in `audit_events` table
 
 ---
