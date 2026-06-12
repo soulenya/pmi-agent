@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v2.1.2 — 2026-06-12
+**macOS groundwork**
+
+- **Platform-aware shortcuts** — new `frontend/src/lib/platform.ts` (`isMac`/`modLabel`/`isModKey`); the chat-sidebar toggle accepts Cmd+/ as well as Ctrl+/, and the Ctrl+K / Ctrl+/ labels render as ⌘ glyphs on macOS (identical output on Windows)
+- **pgvector pinned to a multi-arch digest** — `docker-compose.yml` references `pgvector/pgvector:pg16` by its amd64+arm64 index digest, verified byte-identical to the image existing Windows installs already run
+- **macOS packaging fixes** — `build-macos.sh` adds `NSMicrophoneUsageDescription` to the `.app` Info.plist (macOS hard-kills mic access without it); `install.sh` drops the Homebrew Python and lets uv install Python 3.14 per `backend/.python-version`, matching Windows
+- **New `docs/macos.md`** — architecture map, Developer ID / notarization prerequisites, first-run Keychain & permission prompts, two-step release flow, and the on-hardware verification checklist
+
 ### v2.1.1 — 2026-06-11
 **Voice Gerry sees your Google connection**
 
