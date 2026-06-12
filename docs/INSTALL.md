@@ -8,6 +8,11 @@ Both installers are attached to every GitHub release: <https://github.com/soulen
 | Windows 11 | `LittleGerry_Setup.exe` | Self-signed publisher certificate — install once via `Trust-Little-Gerry.bat` |
 | macOS 12+ (Apple Silicon) | `LittleGerry.pkg` | Currently unsigned — open via right-click → Open (Gatekeeper bypass) |
 
+> **Note:** for security, the installers do **not** include Google OAuth
+> credentials. After installing, follow
+> [Google OAuth credentials](#google-oauth-credentials) below to connect
+> Gmail, Drive, Calendar, and Google sign-in.
+
 ---
 
 ## Windows 11
@@ -85,13 +90,69 @@ First-run permission prompts — click **Allow** for each:
 
 | Prompt | Why |
 |---|---|
-| **Keychain** access | Stores API keys and Google OAuth tokens securely |
+| **Keychain** access | Stores API keys and OAuth tokens securely |
 | **Microphone** | Voice conversations (only asked the first time you use voice) |
 
 If you deny the microphone by accident, re-enable it under
 **System Settings → Privacy & Security → Microphone → Little Gerry**.
 
 Updates are delivered in-app on both platforms.
+
+---
+
+## Google OAuth credentials
+
+Little Gerry connects to Google (sign-in, Gmail, Drive, Calendar, Contacts)
+using an OAuth client file named **`google_credentials.json`**. This file is
+**not** bundled in the installers — you add it once after installing.
+
+### Where the file goes
+
+| Platform | Location |
+|---|---|
+| Windows | `<install folder>\backend\google_credentials.json` |
+| macOS | `~/Applications/Little Gerry/backend/google_credentials.json` |
+
+The file survives app updates — you only do this once per machine.
+
+### Option A — PMI team members (recommended)
+
+Ask your administrator for the company `google_credentials.json` file (it is
+sent privately — never posted publicly). Copy it to the location above, then
+launch Little Gerry and click **Sign in with Google**.
+
+### Option B — Create your own (any Google account)
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com) and sign in.
+2. Create a project: top bar → project picker → **New Project** → name it
+   (e.g. "Little Gerry") → **Create**.
+3. Enable the APIs the app uses: **APIs & Services → Library**, search for and
+   **Enable** each of:
+   - Gmail API
+   - Google Drive API
+   - Google Calendar API
+   - People API (contacts)
+   - Google Sheets API
+   - Google Docs API
+   - Google Tasks API
+4. Configure the consent screen: **APIs & Services → OAuth consent screen**
+   - User type: **External** → Create
+   - Fill in the app name ("Little Gerry") and your email; save through the steps.
+   - Under **Test users**, click **Add users** and add your own Google email.
+     (While the app is in "Testing" mode only listed test users can sign in —
+     that's fine for personal use.)
+5. Create the OAuth client: **APIs & Services → Credentials →
+   Create Credentials → OAuth client ID**
+   - Application type: **Desktop app**
+   - Name: anything → **Create**
+6. Click the **download icon (⬇)** next to the new client to download the JSON.
+7. **Rename** the downloaded file to exactly `google_credentials.json` and move
+   it to the location in the table above.
+8. Launch Little Gerry → **Sign in with Google** (or Settings → Google →
+   **Connect**). Your browser opens for consent — approve all permissions.
+   - You may see *"Google hasn't verified this app"* — click
+     **Advanced → Go to Little Gerry (unsafe)**. This is expected for your own
+     unverified OAuth client.
 
 ---
 
@@ -103,5 +164,9 @@ Updates are delivered in-app on both platforms.
   set; use the Terminal method above.
 - **macOS — app starts but no window appears:** make sure Docker Desktop is
   installed and running, then relaunch.
-- **Either platform — Google features not working:** open
-  **Settings → Google → Connect** inside the app and complete the sign-in.
+- **"google_credentials.json not found" / Google connect fails:** the
+  credentials file is missing — see
+  [Google OAuth credentials](#google-oauth-credentials) above.
+- **Google consent screen says "access blocked":** your email isn't listed as
+  a test user on the OAuth consent screen (Option B step 4), or the required
+  APIs aren't enabled.
