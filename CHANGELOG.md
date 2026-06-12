@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.1.3 — 2026-06-12
+**Delegation works again, morning scan fixed**
+
+- **v2 tool-call arguments dropped** — every v2 tool is exposed as a single string parameter `args` carrying JSON, but only the exact `{"args": "<json object>"}` envelope was unwrapped; when the model sent a real dict, a JSON array, a bare string, or leading whitespace, executors saw empty arguments (`unknown agent ''`) and the model looped on failed `delegate_to_agent`/search retries. New shared `BaseAgent._normalize_tool_args` handles all shapes (base_agent.py, house_manager.py, lc_tools.py); the unknown-agent error now teaches the correct JSON shape so the model self-corrects
+- **Daily assistant scan crashed every run** — `_run_assistant_scan` awaited the FastAPI dependency generator `get_embedding_service_db` (`'async_generator' object can't be awaited`, visible at 07:00 daily in app.log since the embedding refactor); now uses the awaitable `get_embedding_service_for_db`
+
 ### v2.1.2 — 2026-06-12
 **macOS groundwork**
 
