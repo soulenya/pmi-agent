@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v2.1.1 — 2026-06-11
+**Voice Gerry sees your Google connection**
+
+- Fixed v2 voice/house-manager agents reporting "GOOGLE STATUS: NOT CONNECTED" while Settings showed connected: `_check_google_connected` (supervisor.py) and `_delegate_google_connected` (house_manager.py) queried the `google_credentials` DB table, which the OAuth flow never populates (tokens live in `google_token.json`). Both now call `google_service.get_credentials()` — the same source of truth as the Drive/Gmail/Calendar tools and the Settings status endpoint
+
 ### v2.1.0 — 2026-06-11
 **HAL-9000 Little Gerry**
 
