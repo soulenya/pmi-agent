@@ -206,12 +206,10 @@ class HouseManagerAgent(BaseAgent):
         return f"[{agent_name} agent's answer]\n{answer}"
 
     async def _delegate_google_connected(self) -> bool:
-        from sqlalchemy import text
+        # Same source of truth as the tools: google_token.json via
+        # google_service.get_credentials() (the DB table is never written).
+        from services.google_service import get_credentials
         try:
-            row = await self.ctx.db.execute(
-                text("SELECT 1 FROM google_credentials WHERE user_id = :uid LIMIT 1"),
-                {"uid": self.ctx.user_id},
-            )
-            return row.fetchone() is not None
+            return get_credentials() is not None
         except Exception:
             return False
