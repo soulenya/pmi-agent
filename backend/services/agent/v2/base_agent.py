@@ -127,20 +127,48 @@ class BaseAgent:
 
         yield {"type": "done"}
 
-    async def _call_tool(self, tool_name: str, args: dict[str, Any]) -> str:
-        from services.agent.tools import dispatch_tool
-        # The lc_tools wrappers expose a single string parameter named "args"
-        # carrying a JSON object. Unwrap it so executors get real keyword keys.
-        if set(args.keys()) == {"args"} and isinstance(args.get("args"), str):
-            import json
-            raw = args["args"].strip()
-            if raw.startswith("{"):
+    @staticmethod
+    def _normalize_tool_args(args: Any) -> dict[str, Any]:
+        """Normalize LLM tool-call args into a plain kwargs dict.
+
+        The lc_tools wrappers advertise a single string parameter "args"
+        carrying a JSON object, but models send many variations:
+          {"args": "{…}"}   the documented shape (JSON object as a string)
+          {"args": {…}}     a real dict instead of a string
+          {"args": "[…]"}   a JSON array string
+          {"field": …}      the fields at the top level, no envelope
+          "{…}" / ""        a bare string instead of a dict
+        Previously only the first shape was unwrapped — anything else reached
+        the executors with an "args" key they don't know, producing
+        empty-string errors the model couldn't recover from.
+        """
+        import json
+
+        if isinstance(args, str):
+            args = {"args": args}
+        if not isinstance(args, dict):
+            return {}
+        if set(args.keys()) == {"args"}:
+            inner = args["args"]
+            if isinstance(inner, dict):
+                return inner
+            if not isinstance(inner, str):
+                return {}
+            raw = inner.strip()
+            if not raw:
+                return {}
+            if raw[0] in "{[":
                 try:
-                    args = json.loads(raw)
+                    parsed = json.loads(raw)
                 except ValueError:
-                    args = {"input": raw}
-            else:
-                args = {"input": raw} if raw else {}
+                    return {"input": raw}
+                return parsed if isinstance(parsed, dict) else {"input": parsed}
+            return {"input": raw}
+        return args
+
+    async def _call_tool(self, tool_name: str, args: Any) -> str:
+        from services.agent.tools import dispatch_tool
+        args = self._normalize_tool_args(args)
         try:
             return await dispatch_tool(self.ctx, tool_name, args)
         except Exception as exc:

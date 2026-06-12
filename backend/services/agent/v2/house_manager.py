@@ -131,16 +131,12 @@ class HouseManagerAgent(BaseAgent):
         super().__init__(llm, ctx)
         self._delegations_used = 0
 
-    async def _call_tool(self, tool_name: str, args: dict[str, Any]) -> str:
+    async def _call_tool(self, tool_name: str, args: Any) -> str:
         if tool_name == "delegate_to_agent":
-            # Unwrap the lc_tools single-"args" envelope the same way BaseAgent does
-            if set(args.keys()) == {"args"} and isinstance(args.get("args"), str):
-                import json
-                raw = args["args"].strip()
-                try:
-                    args = json.loads(raw) if raw.startswith("{") else {"instruction": raw}
-                except ValueError:
-                    args = {"instruction": raw}
+            args = self._normalize_tool_args(args)
+            # A bare-string call becomes {"input": "..."} — treat it as the instruction
+            if "instruction" not in args and isinstance(args.get("input"), str):
+                args = {**args, "instruction": args["input"]}
             return await self._delegate(args)
         return await super()._call_tool(tool_name, args)
 
@@ -151,7 +147,9 @@ class HouseManagerAgent(BaseAgent):
         if agent_name not in _DELEGATABLE:
             return (
                 f"Error: unknown agent '{agent_name}'. "
-                f"Choose one of: {', '.join(sorted(_DELEGATABLE))}."
+                'Call delegate_to_agent with a JSON object: '
+                '{"agent": "<name>", "instruction": "<self-contained task brief>"}. '
+                f"Agents: {', '.join(sorted(_DELEGATABLE))}."
             )
         if not instruction:
             return "Error: an instruction is required."
