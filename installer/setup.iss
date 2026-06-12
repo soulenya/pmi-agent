@@ -96,7 +96,8 @@ Source: "..\README.md";                     DestDir: "{app}"; Flags: ignoreversi
 Source: "..\launcher.py";                   DestDir: "{app}"; Flags: ignoreversion
 Source: "..\Spaceman on Black BG.png";      DestDir: "{app}"; Flags: ignoreversion
 Source: "..\.gitignore";                   DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "..\backend\google_credentials.json"; DestDir: "{app}\backend"; Flags: ignoreversion skipifsourcedoesntexist
+; google_credentials.json (OAuth client secret) is intentionally NOT bundled —
+; users add it after installing (see docs/INSTALL.md "Google OAuth credentials").
 Source: "..\VERSION";                       DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\update_token.txt";              DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
@@ -105,7 +106,7 @@ Source: "LittleGerry.ico";             DestDir: "{app}\installer"; Flags: ignore
 
 ; Backend
 Source: "..\backend\*"; DestDir: "{app}\backend"; \
-    Excludes: "*.pyc,__pycache__,*.egg-info,.venv,*.log,google_token.json,.env"; \
+    Excludes: "*.pyc,__pycache__,*.egg-info,.venv,*.log,google_token.json,google_credentials.json,.env"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; Frontend source (without node_modules â€” npm install runs during setup)
