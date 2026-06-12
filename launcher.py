@@ -53,6 +53,38 @@ else:
 HEALTH_URL    = "http://127.0.0.1:8000/health"
 APP_URL       = "http://localhost:5173"
 CONTROL_FILE  = BACKEND_DIR / "logs" / "launcher_cmd.txt"
+WINDOW_STATE_FILE = BACKEND_DIR / "logs" / "window_state.json"
+
+
+def _load_window_state() -> dict:
+    """Window geometry saved on the last close (empty dict if none/invalid)."""
+    try:
+        data = json.loads(WINDOW_STATE_FILE.read_text(encoding="utf-8"))
+        w, h = int(data["width"]), int(data["height"])
+        x, y = int(data["x"]), int(data["y"])
+        if w < 900 or h < 600:
+            return {}
+        # Drop positions captured while minimized (Windows reports -32000).
+        if x < -10000 or y < -10000:
+            return {"width": w, "height": h}
+        return {"width": w, "height": h, "x": x, "y": y}
+    except Exception:
+        return {}
+
+
+def _save_window_state(win) -> None:
+    """Persist current window geometry so the next launch restores it."""
+    try:
+        x, y, w, h = win.x, win.y, win.width, win.height
+        if w < 200 or h < 200 or x < -10000 or y < -10000:
+            return  # minimized / bogus geometry — keep the previous state
+        WINDOW_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        WINDOW_STATE_FILE.write_text(
+            json.dumps({"x": x, "y": y, "width": w, "height": h}),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
 
 
 def _no_window_kwargs() -> dict:
@@ -646,11 +678,31 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
 <div class="copy">&copy; Precisian Medical Instruments</div>
 </body></html>"""
 
+    # Restore the window size/position from the last run (centered 1440x900 default).
+    state = _load_window_state()
+    if "x" in state:
+        try:
+            screens = webview.screens
+            min_x = min(s.x for s in screens)
+            min_y = min(s.y for s in screens)
+            max_x = max(s.x + s.width for s in screens)
+            max_y = max(s.y + s.height for s in screens)
+            # If the saved position is fully off every screen (e.g. a monitor
+            # was unplugged), fall back to centering instead.
+            if not (min_x - 100 <= state["x"] <= max_x - 100 and min_y <= state["y"] <= max_y - 100):
+                state.pop("x", None)
+                state.pop("y", None)
+        except Exception:
+            state.pop("x", None)
+            state.pop("y", None)
+
     win = webview.create_window(
         "Little Gerry",
         html=loading_html,
-        width=1440,
-        height=900,
+        width=state.get("width", 1440),
+        height=state.get("height", 900),
+        x=state.get("x"),
+        y=state.get("y"),
         min_size=(900, 600),
         background_color="#000000",
         text_select=True,  # allow selecting/copying text (pywebview disables it by default)
@@ -660,6 +712,7 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
     def _on_closing() -> bool | None:
         """Return False to cancel the close; return None to allow it."""
         global _skip_close_confirm
+        _save_window_state(win)  # remember size/position for the next launch
         if _skip_close_confirm:
             return None  # tray already confirmed — allow
         message = (
