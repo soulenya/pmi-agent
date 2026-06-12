@@ -131,30 +131,21 @@ class BaseAgent:
     def _normalize_tool_args(args: Any) -> dict[str, Any]:
         """Normalize LLM tool-call args into a plain kwargs dict.
 
-        The lc_tools wrappers advertise a single string parameter "args"
+        The lc_tools wrappers advertise a single string parameter "payload"
         carrying a JSON object, but models send many variations:
-          {"args": "{…}"}   the documented shape (JSON object as a string)
-          {"args": {…}}     a real dict instead of a string
-          {"args": "[…]"}   a JSON array string
-          {"field": …}      the fields at the top level, no envelope
-          "{…}" / ""        a bare string instead of a dict
-        Previously only the first shape was unwrapped — anything else reached
-        the executors with an "args" key they don't know, producing
-        empty-string errors the model couldn't recover from.
+          {"payload": "{…}"}    the documented shape (JSON object as a string)
+          {"payload": {…}}      a real dict instead of a string
+          {"v__args": […]}      LangChain's mangled schema for a param named
+                                 "args" (the pre-v2.1.5 wrappers) — the value
+                                 arrives as a single-element array
+          {"args": …}           older envelope name
+          {"field": …}          the fields at the top level, no envelope
+          "{…}" / ""            a bare string instead of a dict
         """
         import json
 
-        if isinstance(args, str):
-            args = {"args": args}
-        if not isinstance(args, dict):
-            return {}
-        if set(args.keys()) == {"args"}:
-            inner = args["args"]
-            if isinstance(inner, dict):
-                return inner
-            if not isinstance(inner, str):
-                return {}
-            raw = inner.strip()
+        def _from_string(raw: str) -> dict[str, Any]:
+            raw = raw.strip()
             if not raw:
                 return {}
             if raw[0] in "{[":
@@ -164,6 +155,26 @@ class BaseAgent:
                     return {"input": raw}
                 return parsed if isinstance(parsed, dict) else {"input": parsed}
             return {"input": raw}
+
+        if isinstance(args, str):
+            return _from_string(args)
+        if not isinstance(args, dict):
+            return {}
+        if len(args) == 1:
+            key, inner = next(iter(args.items()))
+            if key in ("payload", "args", "v__args", "input"):
+                # v__args arrives as a list — unwrap a single element
+                if isinstance(inner, list):
+                    if not inner:
+                        return {}
+                    inner = inner[0] if len(inner) == 1 else inner
+                if isinstance(inner, dict):
+                    return inner
+                if isinstance(inner, str):
+                    return _from_string(inner)
+                if inner is None:
+                    return {}
+                return {"input": inner}
         return args
 
     async def _call_tool(self, tool_name: str, args: Any) -> str:

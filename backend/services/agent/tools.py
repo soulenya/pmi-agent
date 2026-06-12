@@ -1366,5 +1366,6 @@ async def dispatch_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> st
         logger.exception("Tool %s raised", name)
         return f"Tool '{name}' failed: {exc}"
     if isinstance(result, str) and result.startswith("Error:"):
-        logger.info("Tool %s returned error (args keys=%s): %s", name, sorted(args), result[:200])
+        # WARNING so it reaches app.log (the file handler drops INFO)
+        logger.warning("Tool %s returned error (args keys=%s): %s", name, sorted(args), result[:200])
     return result

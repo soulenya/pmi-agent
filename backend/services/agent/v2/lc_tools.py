@@ -95,11 +95,15 @@ def make_lc_tools(ctx) -> list:
     for tool_name, doc in _TOOL_DOCS.items():
         # We need a closure to capture tool_name
         def _make(name: str, description: str):
+            # NOTE: the parameter MUST NOT be called "args" — LangChain's schema
+            # generation treats that as a reserved name and silently rewrites it
+            # to "v__args" with type array, which broke every tool call (the
+            # model could only ever send {"v__args": [...]}).
             @lc_tool(name, description=description)
-            async def _tool(args: str = "") -> str:
-                """Execute a PMI agent tool."""
+            async def _tool(payload: str = "") -> str:
+                """payload: a JSON object string with this tool's fields, e.g. '{"query": "..."}'."""
                 import json
-                raw = args.strip() if isinstance(args, str) else args
+                raw = payload.strip() if isinstance(payload, str) else payload
                 if isinstance(raw, dict):
                     parsed = raw
                 elif raw and raw[0] in "{[":
