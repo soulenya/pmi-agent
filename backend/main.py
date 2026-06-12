@@ -196,10 +196,10 @@ async def _drive_sync_loop() -> None:
 async def _run_assistant_scan() -> None:
     """Run one daily-assistant scan and push any resulting notifications."""
     from services.assistant import daily_scan
-    from services.embeddings.service import get_embedding_service_db
+    from services.embeddings.service import get_embedding_service_for_db
 
     async for db in get_db():
-        embedding_svc = await get_embedding_service_db(db)
+        embedding_svc = await get_embedding_service_for_db(db)
         summary = await daily_scan.run_daily_scan(db, embedding_svc)
         for n in summary.get("notifications", []):
             await notification_manager.push(

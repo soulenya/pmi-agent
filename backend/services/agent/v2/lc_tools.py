@@ -99,10 +99,18 @@ def make_lc_tools(ctx) -> list:
             async def _tool(args: str = "") -> str:
                 """Execute a PMI agent tool."""
                 import json
-                try:
-                    parsed = json.loads(args) if args.strip().startswith("{") else {"input": args}
-                except Exception:
-                    parsed = {"input": args}
+                raw = args.strip() if isinstance(args, str) else args
+                if isinstance(raw, dict):
+                    parsed = raw
+                elif raw and raw[0] in "{[":
+                    try:
+                        parsed = json.loads(raw)
+                    except Exception:
+                        parsed = {"input": raw}
+                    if not isinstance(parsed, dict):
+                        parsed = {"input": parsed}
+                else:
+                    parsed = {"input": raw} if raw else {}
                 return await dispatch_tool(ctx, name, parsed)
             return _tool
 
