@@ -9,9 +9,8 @@
 #  Prerequisites installed automatically:
 #    - Homebrew (if missing)
 #    - Docker Desktop  (runs the PostgreSQL + pgvector database)
-#    - Python 3.12+
 #    - Node.js 20 LTS
-#    - uv  (Python package manager)
+#    - uv  (Python package manager; uv installs Python 3.14 itself)
 #
 #  Run from the project root:
 #       bash scripts/install.sh
@@ -82,9 +81,10 @@ brew_if_missing() {  # brew_if_missing <formula> <check-cmd> <label>
 }
 
 brew_cask_if_missing "docker"   "docker" "Docker Desktop"
-brew_if_missing      "python@3.13" "python3" "Python 3.13"
 brew_if_missing      "node@20"   "node"   "Node.js 20 LTS"
 brew_if_missing      "uv"        "uv"     "uv (Python package manager)"
+# Python itself is managed by uv (backend/.python-version pins 3.14, matching
+# the Windows build) — `uv sync` downloads a native arm64 interpreter as needed.
 
 # ────────────────────────────────────────────────────────────────────────────
 step "Step 2 of 7 - Starting Docker Desktop"

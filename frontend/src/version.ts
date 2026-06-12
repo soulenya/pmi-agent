@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 67;
-export const BUILD_DATE = "2026-06-11";
+export const BUILD_NUMBER = 68;
+export const BUILD_DATE = "2026-06-12";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 68,
+    date: "2026-06-12",
+    title: "macOS groundwork",
+    changes: [
+      "Keyboard shortcuts now respect your platform — Cmd+K and Cmd+/ work on a Mac, and the labels show ⌘ instead of Ctrl there (Windows is unchanged)",
+      "The Postgres database image is pinned to an exact multi-platform version so Windows and Apple Silicon Macs run the identical database",
+      "macOS build scripts gained the microphone permission text required for voice sessions, and the install script now uses the same Python version as Windows",
+    ],
+  },
   {
     build: 67,
     date: "2026-06-11",
