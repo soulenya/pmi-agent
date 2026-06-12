@@ -221,15 +221,13 @@ class LangGraphSupervisor:
         return result
 
     async def _check_google_connected(self) -> bool:
-        from sqlalchemy import text
+        # Must match what the Drive/Gmail/Calendar tools actually use: the
+        # shared google_token.json checked by google_service.get_credentials().
+        # (The google_credentials DB table is never populated by the OAuth flow.)
+        from services.google_service import get_credentials
         try:
-            row = await self.db.execute(
-                text("SELECT 1 FROM google_credentials WHERE user_id = :uid LIMIT 1"),
-                {"uid": self.user_id},
-            )
-            return row.fetchone() is not None
+            return get_credentials() is not None
         except Exception:
-            await self.db.rollback()
             return False
 
     # ── Persist messages ──────────────────────────────────────────────────────

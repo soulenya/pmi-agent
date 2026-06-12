@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 66;
+export const BUILD_NUMBER = 67;
 export const BUILD_DATE = "2026-06-11";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 67,
+    date: "2026-06-11",
+    title: "Voice Gerry sees your Google connection",
+    changes: [
+      "Fixed voice sessions claiming Google Drive was not connected even when Settings showed it connected — the voice agents were checking a credentials table that is never written; they now use the same token check as the Drive tools and Settings",
+    ],
+  },
   {
     build: 66,
     date: "2026-06-11",
