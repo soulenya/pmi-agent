@@ -1,6 +1,9 @@
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    # pgvector 16 — pinned to the multi-arch (amd64 + arm64) index digest so
+    # Windows and Apple Silicon Macs run the exact same image, natively.
+    # This is the same digest the existing Windows installs already run.
+    image: pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
     container_name: pmi_postgres
     restart: unless-stopped
     environment:

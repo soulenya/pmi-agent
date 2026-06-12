@@ -10,6 +10,7 @@ import { ServiceMenu } from "@/components/ServiceMenu";
 import { ChatSidebarToggle } from "./ChatSidebar";
 import { FeedbackButton } from "./FeedbackButton";
 import { cn } from "@/lib/utils";
+import { modLabel } from "@/lib/platform";
 
 interface HeaderProps {
   onOpenPalette: () => void;
@@ -67,12 +68,12 @@ export function Header({ onOpenPalette }: HeaderProps) {
         <button
           onClick={onOpenPalette}
           className="flex items-center gap-2 rounded-md border bg-muted px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-          title="Open command palette (Ctrl+K)"
+          title={`Open command palette (${modLabel("K")})`}
         >
           <Search className="h-3.5 w-3.5" />
           <span className="hidden sm:inline text-xs">Search…</span>
           <kbd className="hidden sm:flex h-5 items-center rounded bg-background border px-1.5 text-[10px] font-medium ml-1">
-            Ctrl+K
+            {modLabel("K")}
           </kbd>
         </button>
 

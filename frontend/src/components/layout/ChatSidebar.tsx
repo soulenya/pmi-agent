@@ -15,6 +15,7 @@ import { createConversation, listConversations, listMessages } from "@/api/chat"
 import { useAuthStore } from "@/stores/authStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
 import { cn } from "@/lib/utils";
+import { modLabel } from "@/lib/platform";
 
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
 
@@ -60,7 +61,7 @@ export function ChatSidebarToggle() {
   return (
     <button
       onClick={toggle}
-      title={open ? "Close Little Gerry (Ctrl+/)" : "Open Little Gerry (Ctrl+/)"}
+      title={open ? `Close Little Gerry (${modLabel("/")})` : `Open Little Gerry (${modLabel("/")})`}
       className={cn(
         "flex items-center justify-center rounded-md p-2 transition-colors",
         open ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent"
@@ -89,10 +90,10 @@ export function ChatSidebar() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
 
-  // Keyboard shortcut Ctrl+/
+  // Keyboard shortcut Ctrl+/ (Cmd+/ on macOS)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.ctrlKey && e.key === "/") { e.preventDefault(); toggle(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "/") { e.preventDefault(); toggle(); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
