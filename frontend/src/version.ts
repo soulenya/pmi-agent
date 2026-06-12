@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 69;
+export const BUILD_NUMBER = 70;
 export const BUILD_DATE = "2026-06-12";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 70,
+    date: "2026-06-12",
+    title: "Search tools accept plain-text arguments",
+    changes: [
+      "Fixed the \"empty query\" loop — when Gerry sent a search or read request as plain text instead of structured fields, the tools rejected it even though the text was right there; plain text now maps onto each tool's main parameter (search query, page URL, file ID, …)",
+      "Tool failures are now written to the log with their argument shapes, so glitches like this can be diagnosed instead of being invisible",
+    ],
+  },
   {
     build: 69,
     date: "2026-06-12",
