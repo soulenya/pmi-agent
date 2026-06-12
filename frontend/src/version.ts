@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 72;
+export const BUILD_NUMBER = 73;
 export const BUILD_DATE = "2026-06-12";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 73,
+    date: "2026-06-12",
+    title: "The window remembers where you left it",
+    changes: [
+      "Little Gerry now reopens at the same size and position it had when you closed it; if the saved spot is on a monitor that's no longer connected, it falls back to a centered window",
+    ],
+  },
   {
     build: 72,
     date: "2026-06-12",

@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v2.1.7 — 2026-06-12
+**The window remembers where you left it**
+
+- **Window size/position persistence** — the launcher saves the window's geometry to `backend/logs/window_state.json` on close (including tray Stop and restart/update paths) and restores it on the next launch; minimized geometry (-32000) is ignored, sizes below the 900×600 minimum are discarded, and a position that's fully off every connected screen (monitor unplugged) falls back to a centered 1440×900 window
+
 ### v2.1.6 — 2026-06-12
 **Voice Gerry acknowledges, answers briefly, checks the knowledge base first**
 
