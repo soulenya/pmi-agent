@@ -25,3 +25,36 @@ export async function fetchGeneratedFileBlob(name: string): Promise<Blob> {
   const r = await apiClient.get(`/api/files/${encodeURIComponent(name)}`, { responseType: "blob" });
   return r.data as Blob;
 }
+
+export interface KbMoveResult {
+  document_id: string;
+  title: string;
+  moved: string;
+}
+
+/** Ingest a generated file into the Knowledge Base and remove it from generated files. */
+export async function moveGeneratedFileToKB(name: string, title: string): Promise<KbMoveResult> {
+  const r = await apiClient.post<KbMoveResult>(
+    `/api/files/${encodeURIComponent(name)}/to-knowledge-base`,
+    { title },
+  );
+  return r.data;
+}
+
+export interface DriveUploadInfo {
+  id: string;
+  name: string;
+  url: string;
+}
+
+/** Upload a generated file to the user's Google Drive (My Drive root). */
+export async function uploadGeneratedFileToDrive(
+  name: string,
+  targetName: string,
+): Promise<DriveUploadInfo> {
+  const r = await apiClient.post<DriveUploadInfo>(
+    `/api/files/${encodeURIComponent(name)}/to-drive`,
+    { target_name: targetName },
+  );
+  return r.data;
+}

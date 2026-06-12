@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v2.1.5 — 2026-06-12
+**Tool calls fixed at the root, file actions, living orbits**
+
+- **True root cause of the tool-argument failures** — the v2 `@lc_tool` wrappers declared their single parameter as `args`, a name LangChain treats as reserved and silently rewrites in the advertised JSON schema to `v__args` typed as *array*; the model therefore could never send `{"query": ...}` no matter what (v2.1.3/v2.1.4 patched the receiving side while the schema itself was broken). Parameter renamed to `payload` (schema verified correct on the wire), `_normalize_tool_args` accepts legacy `v__args` list shapes, and a live model round-trip confirms payload → normalize → `_PRIMARY_ARG` → query. Tool-error logging raised INFO → WARNING so it reaches the installed app.log (file handler drops INFO)
+- **Generated Files → Knowledge Base / Drive** — new `POST /api/files/{name}/to-knowledge-base` (ingests the file into the KB, then removes it — move semantics; `.json` now accepted as text) and `POST /api/files/{name}/to-drive` (uploads via `drive_upload_file` with the clean display name); the Files page gains Knowledge and Drive buttons with per-file progress and a result banner with an Open-in-Drive link
+- **Moons in the main orbit** — `MiniMoonRing` renders each planet's moons orbiting it in the Level-0 overview (icon-only, 36s period, counter-rotation keeps icons upright); hovering a moon shows its label over it, clicking navigates to the feature; the planet hover popup shrinks to just the name
+- **Shuttle cursor** — new `ShuttleCursor` component replaces the pointer inside the solar-system canvas with an SVG NASA-shuttle that smoothly rotates nose-first into the movement direction (shortest-path lerp, rAF + direct style writes, zero re-renders) and emits fading engine-trail dots; native cursor hidden via `.space-cursor-zone`; skipped under `prefers-reduced-motion`
+
 ### v2.1.4 — 2026-06-12
 **Search tools accept plain-text arguments**
 
