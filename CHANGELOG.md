@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.1.4 — 2026-06-12
+**Search tools accept plain-text arguments**
+
+- **"Empty query" loop fixed** — v2.1.3's normalizer correctly converts a plain-text tool argument into `{"input": "<text>"}`, but executors only read their specific key (`query`, `url`, `file_id`, …), so calls like `search_knowledge_base("NAR contract discussion")` still failed with `Error: query must not be empty`. `dispatch_tool` now remaps `input` onto each tool's primary parameter via a `_PRIMARY_ARG` map (6 search tools, `fetch_page`, `read_gmail_message`, `read_drive_file`, `list_drive_folder`, `read_google_sheet`); explicit keys always win
+- **Tool errors now logged** — executor exceptions and `Error:` results log with the argument keys; previously they went only to the model, leaving app.log empty and this bug class undiagnosable
+
 ### v2.1.3 — 2026-06-12
 **Delegation works again, morning scan fixed**
 
