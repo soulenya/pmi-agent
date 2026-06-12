@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 70;
+export const BUILD_NUMBER = 71;
 export const BUILD_DATE = "2026-06-12";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 71,
+    date: "2026-06-12",
+    title: "Tool calls fixed at the root, file actions, living orbits",
+    changes: [
+      "Found and fixed the true root cause of every \"Gerry's tools come back empty\" loop — the framework silently advertised a broken parameter schema to the model, so structured arguments could never arrive; searches, reads, and delegation now receive their arguments correctly",
+      "Generated Files: each file now has Knowledge and Drive buttons — move a file into the Knowledge Base (ingested and searchable, then removed from the list) or upload it straight to Google Drive with an Open-in-Drive link",
+      "The main solar system now shows each planet's moons orbiting it — icons only, with the name appearing over a moon when you hover; moons are clickable shortcuts",
+      "In the space views the mouse is now a NASA-style shuttle that turns nose-first into your direction of travel and leaves a brief engine trail (disabled when reduced motion is on)",
+    ],
+  },
   {
     build: 70,
     date: "2026-06-12",
