@@ -28,6 +28,7 @@ import {
 import { listPendingApprovals, listNotifications } from "@/api/chat";
 import { getPendingSuggestionCount } from "@/api/assistant";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
+import { ShuttleCursor } from "@/components/solar/ShuttleCursor";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -271,23 +272,70 @@ function PlanetBody({
         </div>
       </div>
 
-      {/* Hover preview: name + moons */}
+      {/* Hover preview: planet name (its moons orbit visibly with their own labels) */}
       <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-max -translate-x-1/2 group-hover:block">
-        <div className="rounded-lg border bg-popover px-3 py-2.5 text-left shadow-xl">
-          <div className="mb-1.5 text-xs font-bold tracking-tight text-popover-foreground">
+        <div className="rounded-lg border bg-popover px-3 py-1.5 text-center shadow-xl">
+          <div className="text-xs font-bold tracking-tight text-popover-foreground">
             {planet.label}
           </div>
-          <ul className="space-y-1">
-            {planet.moons.map((moon) => (
-              <li key={moon.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <moon.icon className="h-3 w-3 shrink-0" style={{ color: planet.accent }} />
-                {moon.label}
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
     </button>
+  );
+}
+
+/**
+ * MiniMoonRing — the planet's moons orbiting it in the Level-0 system
+ * overview. Each moon shows only its icon; hovering reveals the label
+ * directly over the moon. Rendered as a sibling of PlanetBody (buttons
+ * cannot nest) and centred on the planet circle.
+ */
+function MiniMoonRing({
+  planet,
+  size,
+  onMoonClick,
+}: {
+  planet: Planet;
+  size: number;
+  onMoonClick: (moon: Moon) => void;
+}) {
+  const ring = size + 60; // ring diameter in px
+  const duration = { "--orbit-duration": "36s" } as React.CSSProperties;
+
+  return (
+    <div
+      className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      style={{ width: ring, height: ring }}
+      aria-hidden={false}
+    >
+      <div className="absolute inset-0 rounded-full border border-border/30" />
+      <div className="orbit-spin absolute inset-0" style={duration}>
+        {planet.moons.map((moon, i) => {
+          const angle = (360 / planet.moons.length) * i;
+          return (
+            <div key={moon.id} className="absolute inset-0" style={{ transform: `rotate(${angle}deg)` }}>
+              <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
+                <div className="orbit-spin-reverse" style={duration}>
+                  <div style={{ transform: `rotate(${-angle}deg)` }}>
+                    <button
+                      type="button"
+                      onClick={() => onMoonClick(moon)}
+                      className="group/moon pointer-events-auto relative flex h-5 w-5 items-center justify-center rounded-full border border-border bg-card shadow transition-transform hover:scale-125"
+                    >
+                      <moon.icon className="h-3 w-3" style={{ color: planet.accent }} />
+                      {/* Hover label, shown over the moon */}
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-40 mb-1 -translate-x-1/2 whitespace-nowrap rounded border bg-popover px-1.5 py-0.5 text-[10px] font-medium text-popover-foreground opacity-0 shadow-lg transition-opacity duration-150 group-hover/moon:opacity-100">
+                        {moon.label}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -359,12 +407,19 @@ function SystemOverview({
             angle={planet.angle}
             duration={60}
           >
-            <PlanetBody
-              planet={planet}
-              count={planetBadge}
-              size={planet.size}
-              onClick={() => navigate(`/planet/${planet.id}`)}
-            />
+            <div className="relative">
+              <MiniMoonRing
+                planet={planet}
+                size={planet.size}
+                onMoonClick={(moon) => navigate(moon.route)}
+              />
+              <PlanetBody
+                planet={planet}
+                count={planetBadge}
+                size={planet.size}
+                onClick={() => navigate(`/planet/${planet.id}`)}
+              />
+            </div>
           </OrbitBody>
         );
       })}
@@ -493,6 +548,9 @@ export function SolarSystemCanvas({
           </div>
         </motion.div>
       </AnimatePresence>
+
+      {/* Spaceship cursor with engine trail — space views only. */}
+      {!reduced && <ShuttleCursor />}
     </div>
   );
 }

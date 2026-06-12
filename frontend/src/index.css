@@ -106,7 +106,33 @@
 
 .orbit-spin-reverse {
   animation: orbit-spin-reverse var(--orbit-duration, 60s) linear infinite;
-}/* ── Little Gerry HAL eye (Sun zoom level) ────────────────────────────────────
+}
+
+/* ── Shuttle cursor (space views) ───────────────────────────────────────────
+   The native cursor is hidden inside the solar-system canvas and replaced
+   by the ShuttleCursor component; engine exhaust dots fade out quickly. */
+.space-cursor-zone,
+.space-cursor-zone * {
+  cursor: none !important;
+}
+
+.shuttle-trail-dot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  margin-top: -2.5px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(147, 197, 253, 0.95), rgba(59, 130, 246, 0.35));
+  pointer-events: none;
+  animation: shuttle-trail 0.55s ease-out forwards;
+}
+
+@keyframes shuttle-trail {
+  from { opacity: 0.85; transform: scale(1); }
+  to   { opacity: 0;    transform: scale(0.15); }
+}
+/* ── Little Gerry HAL eye (Sun zoom level) ────────────────────────────────────
    Steady deep-red glow at rest, a slow breath while listening, and a
    strong pulse synced to speech playback. */
 .hal-eye {
