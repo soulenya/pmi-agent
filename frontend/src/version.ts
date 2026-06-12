@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 68;
+export const BUILD_NUMBER = 69;
 export const BUILD_DATE = "2026-06-12";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 69,
+    date: "2026-06-12",
+    title: "Delegation works again, morning scan fixed",
+    changes: [
+      "Fixed Gerry repeatedly failing to hand work to specialists (\"the delegation tool is stripping the agent field\") — tool arguments sent in slightly different shapes were being dropped before they reached the tools; all shapes are now accepted",
+      "When a delegation call is malformed, the error now shows the correct format so Gerry fixes it on the next try instead of looping",
+      "Fixed the daily assistant scan, which had been silently crashing every morning — reminders and suggestions from the 7:00 AM scan will run again",
+    ],
+  },
   {
     build: 68,
     date: "2026-06-12",
