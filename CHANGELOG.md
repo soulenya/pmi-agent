@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v2.1.6 — 2026-06-12
+**Voice Gerry acknowledges, answers briefly, checks the knowledge base first**
+
+- **Spoken acknowledgment** — VoiceAssistant.tsx speaks a random short ack ("Okay, I'm on it", "Let me check", …) immediately after transcription while the agent works; TTS blobs cached per phrase; if the final answer arrives mid-ack it queues until the ack's `onended` (or the ack is skipped when the answer is already ready); Interrupt/deactivate clear ack state
+- **Concise answer format** — house_manager prompt's SPOKEN-REPLY STYLE is now strict: answer only, never recap process or tools; mandated shapes "Based on my research in X, …" / "After looking through X, I found …" / "… I couldn't find anything because …"; 1–3 sentences unless detail is requested
+- **Knowledge base first** — new RESEARCH ORDER section in the house_manager prompt (KB → Drive/Gmail/web/specialists; generated documents grounded in KB content first); research_agent workflow reordered so search_knowledge_base is step 1, web second
+
 ### v2.1.5 — 2026-06-12
 **Tool calls fixed at the root, file actions, living orbits**
 
