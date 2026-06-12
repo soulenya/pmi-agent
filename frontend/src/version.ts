@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 71;
+export const BUILD_NUMBER = 72;
 export const BUILD_DATE = "2026-06-12";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 72,
+    date: "2026-06-12",
+    title: "Voice Gerry acknowledges, answers briefly, checks the knowledge base first",
+    changes: [
+      "After you speak, Gerry immediately says a short acknowledgment (\"Okay, I'm on it\", \"Let me check\") while he works — no more silent waiting; if the answer is ready before the acknowledgment finishes, it plays right after",
+      "Spoken answers are now short and to the point — \"Based on my research in X, …\" / \"After looking through X, I found …\" / \"… I couldn't find anything because …\" — no process recaps, one to three sentences unless you ask for detail",
+      "Research and document generation now always start with the PMI knowledge base; Drive, email, the web, and specialists come after",
+    ],
+  },
   {
     build: 71,
     date: "2026-06-12",
