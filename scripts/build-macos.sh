@@ -87,6 +87,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key>  <string>12.0</string>
   <key>LSUIElement</key>             <false/>
   <key>NSHighResolutionCapable</key> <true/>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Little Gerry uses the microphone for voice conversations with the AI assistant.</string>
 </dict>
 </plist>
 PLIST
