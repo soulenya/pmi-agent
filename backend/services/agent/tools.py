@@ -17,6 +17,7 @@ Tools receive a ToolContext rather than direct DB sessions so the caller
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import uuid
@@ -32,6 +33,8 @@ from models.db.task import Task
 from repositories.conversation_repo import ApprovalRepository
 from repositories.document_repo import DocumentChunkRepository
 from services.embeddings.service import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 
 # ── Tool context ──────────────────────────────────────────────────────────────
@@ -1330,12 +1333,38 @@ from services.agent.custodian_tools import CUSTODIAN_EXECUTORS  # noqa: E402
 TOOL_EXECUTORS.update(CUSTODIAN_EXECUTORS)
 
 
+# When a model passes its single string argument as plain text instead of a
+# JSON object, the v2 normalizer delivers it as {"input": "<text>"}. Map that
+# onto each tool's primary parameter so e.g. search_knowledge_base("NAR contract")
+# works instead of failing with "Error: query must not be empty."
+_PRIMARY_ARG = {
+    "search_knowledge_base": "query",
+    "search_web": "query",
+    "search_gmail": "query",
+    "search_drive": "query",
+    "search_drive_content": "query",
+    "search_contacts": "query",
+    "fetch_page": "url",
+    "read_gmail_message": "message_id",
+    "read_drive_file": "file_id",
+    "list_drive_folder": "folder_id",
+    "read_google_sheet": "spreadsheet_id",
+}
+
+
 async def dispatch_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> str:
     """Execute a tool by name and return a string result for the model."""
     executor = TOOL_EXECUTORS.get(name)
     if executor is None:
         return f"Unknown tool: {name}"
+    primary = _PRIMARY_ARG.get(name)
+    if primary and primary not in args and isinstance(args.get("input"), str):
+        args = {**args, primary: args["input"]}
     try:
-        return await executor(ctx, args)
+        result = await executor(ctx, args)
     except Exception as exc:
+        logger.exception("Tool %s raised", name)
         return f"Tool '{name}' failed: {exc}"
+    if isinstance(result, str) and result.startswith("Error:"):
+        logger.info("Tool %s returned error (args keys=%s): %s", name, sorted(args), result[:200])
+    return result
