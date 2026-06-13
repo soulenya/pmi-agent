@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v2.1.9 — 2026-06-13
+**Long conversations no longer break**
+
+- **Anthropic prefill 400 fixed** — `MessageRepository.list_for_conversation` ordered `created_at ASC LIMIT 40`, returning the *oldest* 40 messages; in conversations longer than the window the just-saved user turn was dropped and the history could end on an assistant turn, which prefill-unsupported Claude models reject with "the conversation must end with a user message". Added a `most_recent` option (newest N rows, returned chronologically); the v1 executor, v2 supervisor, and scheduler now request it, and both agent history builders trim leading non-user messages so the window also *starts* on a user turn. Bonus: long chats now feed the model recent context instead of the oldest messages
+
 ### v2.1.8 — 2026-06-13
 **Setup wizard fits the screen, shuttle cursor works on Windows**
 

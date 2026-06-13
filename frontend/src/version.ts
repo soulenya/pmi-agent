@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 74;
+export const BUILD_NUMBER = 75;
 export const BUILD_DATE = "2026-06-13";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 75,
+    date: "2026-06-13",
+    title: "Long conversations no longer break",
+    changes: [
+      "Fixed an error that could stop Gerry from replying in long conversations (\"the conversation must end with a user message\"); he now always uses your most recent messages instead of the oldest ones, so replies keep working and stay on-topic no matter how long the chat gets",
+    ],
+  },
   {
     build: 74,
     date: "2026-06-13",
