@@ -225,7 +225,7 @@ export function SetupWizard({ onComplete }: Props) {
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="flex w-full max-w-2xl flex-col rounded-xl border bg-card shadow-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border bg-card shadow-2xl">
         {/* Header */}
         <div className="border-b px-6 py-5">
           <div className="flex items-center gap-2">
@@ -259,7 +259,7 @@ export function SetupWizard({ onComplete }: Props) {
         </div>
 
         {/* Body */}
-        <div className="min-h-[20rem] px-6 py-6">
+        <div className="min-h-[20rem] flex-1 overflow-y-auto px-6 py-6">
           {/* ── 0 Welcome ─────────────────────────────────────────────────── */}
           {step === 0 && (
             <div className="space-y-4">

@@ -25,6 +25,12 @@ export function ShuttleCursor() {
 
     parent.classList.add("space-cursor-zone");
 
+    // Honor reduced-motion for the gratuitous engine trail only; the ship itself
+    // always renders so the custom cursor is present on every platform.
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
     const s = {
       x: -100,
       y: -100,
@@ -80,7 +86,7 @@ export function ShuttleCursor() {
 
         if (dist > 2 && now - s.lastTrail > 28) {
           s.lastTrail = now;
-          spawnTrail();
+          if (!reduceMotion) spawnTrail();
         }
       } else {
         s.x = s.tx;
