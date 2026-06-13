@@ -549,8 +549,11 @@ export function SolarSystemCanvas({
         </motion.div>
       </AnimatePresence>
 
-      {/* Spaceship cursor with engine trail — space views only. */}
-      {!reduced && <ShuttleCursor />}
+      {/* Spaceship cursor with engine trail — space views only. Always mounted
+          (even under reduced motion, where the engine trail is suppressed) so the
+          custom cursor appears on Windows 11 machines that report reduced motion
+          when system "Animation effects" are turned off. */}
+      <ShuttleCursor />
     </div>
   );
 }
