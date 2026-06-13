@@ -213,7 +213,12 @@ class LangGraphSupervisor:
         from repositories.conversation_repo import MessageRepository
         from models.db.enums import MessageRole
         repo = MessageRepository(self.db)
-        msgs = await repo.list_for_conversation(self.conversation_id, limit=limit)
+        msgs = await repo.list_for_conversation(self.conversation_id, limit=limit, most_recent=True)
+        # The most-recent window can begin mid-conversation on an assistant turn;
+        # drop leading non-user messages so the history starts on a user turn
+        # (Anthropic requires the first message to use the user role).
+        while msgs and msgs[0].role != MessageRole.USER:
+            msgs.pop(0)
         result = []
         for m in msgs:
             role = "user" if m.role == MessageRole.USER else "assistant"

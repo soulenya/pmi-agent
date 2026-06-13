@@ -124,7 +124,7 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
             pass
 
         # Read back the most recent assistant message as the run output.
-        msgs = await msg_repo.list_for_conversation(conv.id, limit=200)
+        msgs = await msg_repo.list_for_conversation(conv.id, limit=200, most_recent=True)
         assistant_msgs = [m for m in msgs if m.role == MessageRole.ASSISTANT]
         output = assistant_msgs[-1].content if assistant_msgs else ""
         if not output:
