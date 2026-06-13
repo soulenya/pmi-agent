@@ -105,7 +105,30 @@ class MessageRepository:
         conversation_id: uuid.UUID,
         limit: int = 100,
         before_id: uuid.UUID | None = None,
+        most_recent: bool = False,
     ) -> list[Message]:
+        """Return messages for a conversation in chronological (oldest→newest) order.
+
+        With ``most_recent=True`` the *newest* ``limit`` messages are selected
+        (then returned oldest→newest). This matters for agent history: a plain
+        ``ORDER BY created_at ASC LIMIT n`` returns the OLDEST ``n`` messages, so
+        in a long conversation the just-saved user turn would be dropped and the
+        window could end on an assistant message — which Anthropic rejects with
+        "the conversation must end with a user message" on models that disallow
+        assistant prefill. ``most_recent`` is ignored when paginating via
+        ``before_id``.
+        """
+        if most_recent and before_id is None:
+            # Take the newest `limit` rows, then restore chronological order.
+            stmt = (
+                select(Message)
+                .where(Message.conversation_id == conversation_id)
+                .order_by(Message.created_at.desc())
+                .limit(limit)
+            )
+            result = await self.db.execute(stmt)
+            return list(reversed(result.scalars().all()))
+
         stmt = (
             select(Message)
             .where(Message.conversation_id == conversation_id)

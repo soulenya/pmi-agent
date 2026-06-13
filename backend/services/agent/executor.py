@@ -394,7 +394,7 @@ class AgentExecutor:
         """Load conversation history and return Ollama message list."""
         msg_repo = MessageRepository(self.db)
         history = await msg_repo.list_for_conversation(
-            self.conversation_id, limit=40
+            self.conversation_id, limit=40, most_recent=True
         )
 
         today = datetime.now(timezone.utc).strftime("%B %d, %Y")
@@ -429,9 +429,14 @@ class AgentExecutor:
             {"role": "system", "content": SYSTEM_PROMPT.format(today=today) + google_note}
         ]
 
-        for msg in history:
-            if msg.role in (MessageRole.USER, MessageRole.ASSISTANT):
-                messages.append({"role": msg.role, "content": msg.content})
+        # The most-recent window can begin mid-conversation on an assistant turn;
+        # skip leading non-user messages so the conversation starts on a user
+        # turn (Anthropic requires the first message to use the user role).
+        relevant = [m for m in history if m.role in (MessageRole.USER, MessageRole.ASSISTANT)]
+        while relevant and relevant[0].role != MessageRole.USER:
+            relevant.pop(0)
+        for msg in relevant:
+            messages.append({"role": msg.role, "content": msg.content})
 
         # The latest user message is already in history (just committed),
         # but list_for_conversation returns all including it — so no need to re-add.
