@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 73;
-export const BUILD_DATE = "2026-06-12";
+export const BUILD_NUMBER = 74;
+export const BUILD_DATE = "2026-06-13";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 74,
+    date: "2026-06-13",
+    title: "Setup wizard fits the screen, shuttle cursor works on Windows",
+    changes: [
+      "The setup wizard no longer grows past the window on taller steps — the content scrolls and the Back/Next buttons always stay visible",
+      "The spaceship mouse cursor now appears on Windows 11 even when system animation effects are turned off; the engine trail is the only part skipped when reduced motion is on",
+    ],
+  },
   {
     build: 73,
     date: "2026-06-12",

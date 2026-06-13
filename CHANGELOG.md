@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.1.8 — 2026-06-13
+**Setup wizard fits the screen, shuttle cursor works on Windows**
+
+- **Setup wizard overflow fixed** — the onboarding card is now capped at `90vh` with a scrollable body (`flex-1 overflow-y-auto`), so tall steps (AI Agents / Roles) no longer push the footer off-screen; the Back/Next buttons stay pinned and reachable (`frontend/src/components/SetupWizard.tsx`)
+- **Shuttle cursor on Windows 11** — the spaceship cursor was gated behind `!prefers-reduced-motion`, which Windows 11 reports when "Animation effects" are off, so the cursor never mounted (and the native arrow showed because the cursor-hiding class only applies when the ship mounts). The ship now always renders; reduced motion only suppresses the engine trail (`SolarSystemCanvas.tsx` mounts `<ShuttleCursor/>` unconditionally, trail-spawn guarded by a `matchMedia` check in `ShuttleCursor.tsx`)
+
 ### v2.1.7 — 2026-06-12
 **The window remembers where you left it**
 
