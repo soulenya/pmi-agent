@@ -1,0 +1,48 @@
+name: Build macOS installer
+
+# Builds the macOS .pkg on a GitHub-hosted Mac runner and attaches it to the
+# release. Triggers automatically when publish-release.ps1 (run from Windows)
+# creates a new GitHub Release, so every release ends up with BOTH the Windows
+# .exe and the macOS .pkg without needing a MacBook in the loop.
+#
+# It can also be run manually (workflow_dispatch) to back-fill the .pkg onto an
+# existing release — e.g. v2.1.9, which was published without a macOS asset.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach the .pkg to (e.g. v2.1.9)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout repo at the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Build macOS .pkg
+        run: bash scripts/build-macos.sh
+
+      - name: Upload .pkg to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.tag.outputs.tag }}" installer/Output/LittleGerry.pkg --clobber
