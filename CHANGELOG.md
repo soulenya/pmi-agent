@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.3.0 — 2026-06-14
+**Precisian Defender — a hidden arcade mini-game on the solar-system page**
+
+- **New game** — a small asteroid now orbits the main solar-system overview; clicking it launches "Precisian Defender", a Maelstrom/Asteroids-style game that plays inside the existing screen (`frontend/src/components/solar/PrecisianDefender.tsx`). The ShuttleCursor is the defender — click (or hold) to fire from the ship's nose. Asteroids fly in from the window edges toward Little Gerry (the Sun) and split when shot; UFOs periodically arrive and fire an information-stealing beam at Little Gerry or a planet. Little Gerry has an integrity bar that drops when threats reach the core or a UFO completes a steal; at 0% it's game over. Scoring mirrors Maelstrom (smaller rocks score more; UFOs 500). High score persists in `localStorage`. Esc or the End Game button exits; while playing, the canvas captures input so planet/moon/sun navigation underneath is blocked
+- **Weapon power-ups** — destroyed asteroids and UFOs can drop a floating power-up the ship collects on contact: **Full Auto** (rapid held fire), **Spread** (4-bolt fan), and **Seekers** (homing missiles that steer toward the nearest threat). Each lasts ~11 seconds with an on-screen countdown badge before reverting to the default blaster
+
 ### v2.2.0 — 2026-06-14
 **Gerry never reports work he didn't actually do (anti-fabrication guardrails)**
 
