@@ -11,7 +11,7 @@
  * user prefers reduced motion. Idle orbits pause automatically because the
  * canvas unmounts whenever feature content is open.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -29,6 +29,7 @@ import { listPendingApprovals, listNotifications } from "@/api/chat";
 import { getPendingSuggestionCount } from "@/api/assistant";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import { ShuttleCursor } from "@/components/solar/ShuttleCursor";
+import { AsteroidLauncher, PrecisianDefender } from "@/components/solar/PrecisianDefender";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -369,8 +370,10 @@ function MoonBody({
 
 function SystemOverview({
   badgeCount,
+  onStartGame,
 }: {
   badgeCount: (b: BadgeKey | undefined) => number;
+  onStartGame: () => void;
 }) {
   const navigate = useNavigate();
   return (
@@ -382,6 +385,11 @@ function SystemOverview({
       ))}
 
       <SunBody onClick={() => navigate(SUN.route)} />
+
+      {/* Precisian Defender launcher — a small asteroid on its own orbit */}
+      <OrbitBody radiusPct={0.39 * 50} angle={135} duration={50}>
+        <AsteroidLauncher onStart={onStartGame} />
+      </OrbitBody>
 
       {SATELLITES.map((sat, i) => (
         <OrbitBody
@@ -490,6 +498,10 @@ export function SolarSystemCanvas({
   const badgeCount = useBadgeCounts();
   const planet = planetById(planetId);
 
+  // Precisian Defender mini-game — only available on the system overview.
+  const [gameActive, setGameActive] = useState(false);
+  const showGame = gameActive && !planet && !sunFocus;
+
   // Deterministic starfield, generated once.
   const stars = useMemo(
     () =>
@@ -543,11 +555,15 @@ export function SolarSystemCanvas({
             ) : planet ? (
               <PlanetView planet={planet} badgeCount={badgeCount} />
             ) : (
-              <SystemOverview badgeCount={badgeCount} />
+              <SystemOverview badgeCount={badgeCount} onStartGame={() => setGameActive(true)} />
             )}
           </div>
         </motion.div>
       </AnimatePresence>
+
+      {/* Precisian Defender overlay — covers the system and captures clicks so
+          planet/moon/sun navigation is blocked while the game is running. */}
+      {showGame && <PrecisianDefender onExit={() => setGameActive(false)} />}
 
       {/* Spaceship cursor with engine trail — space views only. Always mounted
           (even under reduced motion, where the engine trail is suppressed) so the
