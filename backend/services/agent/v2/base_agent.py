@@ -14,6 +14,8 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
+from services.agent.guardrails import HONESTY_CONTRACT
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,7 +57,9 @@ class BaseAgent:
             "Do NOT fabricate any Google Workspace data. "
             "Tell the user to connect via Settings → Google Integration."
         )
-        return SystemMessage(content=self.SYSTEM_PROMPT.format(today=today) + google_note)
+        return SystemMessage(
+            content=self.SYSTEM_PROMPT.format(today=today) + google_note + HONESTY_CONTRACT
+        )
 
     async def run(
         self,
