@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 76;
+export const BUILD_NUMBER = 77;
 export const BUILD_DATE = "2026-06-14";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 77,
+    date: "2026-06-14",
+    title: "Precisian Defender — protect Little Gerry!",
+    changes: [
+      "New hidden arcade game: click the little asteroid orbiting the solar-system page to launch \"Precisian Defender\". Your spaceship cursor is the defender — click or hold to fire, blast incoming asteroids and the information-stealing UFOs, and keep Little Gerry's integrity above zero. Press Esc or End Game to leave. Your high score is saved",
+      "Weapon power-ups drop from destroyed enemies — grab Full Auto for rapid fire, Spread for a wide fan of shots, or Seekers for homing missiles that chase down threats. Each lasts a few seconds and shows a countdown",
+    ],
+  },
   {
     build: 76,
     date: "2026-06-14",
