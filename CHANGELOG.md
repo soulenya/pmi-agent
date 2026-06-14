@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v2.2.0 — 2026-06-14
+**Gerry never reports work he didn't actually do (anti-fabrication guardrails)**
+
+- **Honesty & verification contract** — a shared `HONESTY_CONTRACT` (`backend/services/agent/guardrails.py`) is now appended to the v1 executor system prompt and every v2 specialist + House Manager voice agent (via `base_agent._system_message`). It forbids claiming an artifact exists without a real tool result this turn, forbids inventing IDs/emails/phone numbers/links, mandates an explicit "Not in records" for missing values, and requires honest per-item status on batch work
+- **Code-level read-back verification** — the artifact-producing tools that previously emitted fabricated "done" reports now confirm reality before reporting success (`backend/services/agent/tools.py`): `generate_file` re-stats the written file (errors if missing/empty), `create_docx` re-opens the saved file as a valid `.docx` (errors if missing/empty/corrupt), and `upload_to_drive` calls `drive_get_metadata(file_id)` to confirm the upload is actually retrievable on Drive (and not trashed) — so a success message can only contain an independently verified id/link. `create_task` already returned a real DB-assigned id and was left unchanged
+- **Why** — a conversation export showed early "done" reports with fabricated Google Drive file IDs (and invented phone numbers) posted before any real work ran. Prompt rules guide behavior; the read-back layer makes a fabricated file/upload success structurally impossible because the only ids/links available come from verified reads
+
 ### v2.1.9 — 2026-06-13
 **Long conversations no longer break**
 

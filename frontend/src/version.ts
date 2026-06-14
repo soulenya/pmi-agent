@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 75;
-export const BUILD_DATE = "2026-06-13";
+export const BUILD_NUMBER = 76;
+export const BUILD_DATE = "2026-06-14";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 76,
+    date: "2026-06-14",
+    title: "Gerry never reports work he didn't actually do",
+    changes: [
+      "Gerry will no longer say a file, document, or upload is done unless it really happened — he now double-checks that each file was actually saved (and that uploads truly landed in Google Drive) before telling you it's finished, and he reports an honest failure if something didn't work",
+      "Gerry no longer makes up details like file links, email addresses, or phone numbers; when something isn't in his sources he now says so instead of guessing",
+    ],
+  },
   {
     build: 75,
     date: "2026-06-13",

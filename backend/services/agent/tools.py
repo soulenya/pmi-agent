@@ -1201,8 +1201,17 @@ async def execute_generate_file(ctx: ToolContext, args: dict[str, Any]) -> str:
     _GENERATED_FILES_DIR.mkdir(exist_ok=True)
     uid_prefix = uuid.uuid4().hex[:8]
     safe_name = f"{uid_prefix}_{filename}"
-    (_GENERATED_FILES_DIR / safe_name).write_text(content, encoding="utf-8")
-    return f"File created: /api/files/{safe_name}"
+    out_path = _GENERATED_FILES_DIR / safe_name
+    out_path.write_text(content, encoding="utf-8")
+
+    # Read-back verification: confirm the file actually landed on disk before
+    # reporting success, so a silent write failure can never be reported as done.
+    if not out_path.is_file():
+        return "Error: file was not created — nothing was written to disk. Treat as failed."
+    written = out_path.stat().st_size
+    if content and written == 0:
+        return "Error: file was created empty despite having content. Treat as failed."
+    return f"File created and verified ({written} bytes): /api/files/{safe_name}"
 
 
 def _add_markdown_runs(paragraph, text: str) -> None:
@@ -1258,15 +1267,28 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     _GENERATED_FILES_DIR.mkdir(exist_ok=True)
     uid_prefix = uuid.uuid4().hex[:8]
     safe_name = f"{uid_prefix}_{filename}"
-    document.save(str(_GENERATED_FILES_DIR / safe_name))
-    return f"Word document created: /api/files/{safe_name}"
+    out_path = _GENERATED_FILES_DIR / safe_name
+    document.save(str(out_path))
+
+    # Read-back verification: confirm the .docx exists and is a valid, openable
+    # document before reporting success — never claim a document that isn't real.
+    if not out_path.is_file() or out_path.stat().st_size == 0:
+        return "Error: Word document was not created on disk. Treat as failed."
+    try:
+        docx.Document(str(out_path))  # re-open to prove it's a valid .docx
+    except Exception as exc:  # noqa: BLE001 — report a corrupt write honestly
+        return f"Error: Word document was written but is not a valid file ({exc}). Treat as failed."
+    return (
+        f"Word document created and verified ({out_path.stat().st_size} bytes): "
+        f"/api/files/{safe_name}"
+    )
 
 
 async def execute_upload_to_drive(ctx: ToolContext, args: dict[str, Any]) -> str:
     """Upload a generated file to the user's Google Drive."""
     import asyncio
 
-    from services.google_service import drive_upload_file
+    from services.google_service import drive_get_metadata, drive_upload_file
 
     filename = str(args.get("filename", "")).strip()
     if not filename:
@@ -1291,9 +1313,27 @@ async def execute_upload_to_drive(ctx: ToolContext, args: dict[str, Any]) -> str
     except Exception as exc:  # noqa: BLE001 — surface a readable message to the model
         return f"Drive upload failed: {exc}"
 
+    # Read-back verification: confirm Drive actually has the file by fetching its
+    # metadata with the returned id. Without a real, confirmed id we never report
+    # a successful upload (this is exactly what prevents fabricated Drive links).
+    file_id = str(result.get("id", "")).strip()
+    if not file_id:
+        return "Drive upload failed: no file id was returned. Treat as failed."
+    try:
+        meta = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_get_metadata(file_id)
+        )
+    except Exception as exc:  # noqa: BLE001 — report verification failure honestly
+        return f"Drive upload could not be verified ({exc}). Treat as unconfirmed."
+    if meta is None or meta.get("trashed"):
+        return (
+            "Drive upload could not be verified — the file is not retrievable on "
+            "Drive after upload. Treat as failed; do not report it as uploaded."
+        )
+
     return (
-        f"Uploaded '{result.get('name', drive_name)}' to Google Drive. "
-        f"Link: {result.get('url', '(no link returned)')}"
+        f"Uploaded and verified '{meta.get('name', drive_name)}' on Google Drive "
+        f"(id={file_id}). Link: {meta.get('url') or result.get('url') or '(no link returned)'}"
     )
 
 
