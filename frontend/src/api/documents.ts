@@ -191,6 +191,13 @@ export interface ManifestImportResult {
   failed_count: number;
 }
 
+export interface ManifestSaveResult {
+  count: number;
+  directory: string;
+  json_path: string;
+  md_path: string;
+}
+
 /** Match locally-uploaded documents to their Drive original and link them. */
 export async function linkUploadsToDrive(): Promise<LinkToDriveResult> {
   const { data } = await apiClient.post<ApiResponse<LinkToDriveResult>>(
@@ -203,6 +210,19 @@ export async function linkUploadsToDrive(): Promise<LinkToDriveResult> {
 export async function exportManifest(): Promise<KbManifest> {
   const { data } = await apiClient.get<ApiResponse<KbManifest>>(
     "/documents/manifest",
+  );
+  return data.data!;
+}
+
+/**
+ * Write the KB manifest (JSON + Markdown) to the user's Downloads folder.
+ *
+ * The app runs in a desktop webview where browser blob downloads silently fail,
+ * so the backend writes the files directly and returns where they landed.
+ */
+export async function saveManifest(): Promise<ManifestSaveResult> {
+  const { data } = await apiClient.post<ApiResponse<ManifestSaveResult>>(
+    "/documents/manifest/save",
   );
   return data.data!;
 }
