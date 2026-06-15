@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v2.5.1 — 2026-06-15
+**Fix: macOS app closed instantly on launch**
+
+- **Root cause** — the `Little Gerry.app` launcher stub `exec`'d `Start Little Gerry.command` directly. A double-clicked `.app` is started by launchd with **no controlling terminal**, so the first-run setup ran invisibly and, on a fresh Mac without `uv` installed yet, hit `exit 1` under `set -euo pipefail` — the app process died instantly with no window (`scripts/build-macos.sh` launch stub)
+- **Fix 1 — visible flow** — the launcher stub now `exec open -a Terminal "Start Little Gerry.command"`, so the one-time setup runs in a real Terminal window (matching the Windows installer experience)
+- **Fix 2 — bootstrap prerequisites** — first run now delegates to `scripts/install.sh`, which installs any missing prerequisites (Homebrew, Docker Desktop, Node, uv), brings up PostgreSQL, runs migrations, seeds the admin user, and installs frontend deps. Previously the Start command assumed `uv`/Docker/Node already existed and aborted if they didn't (`Start Little Gerry.command`)
+- **Fix 3 — readable failures** — added a `pause_on_fail` EXIT trap so a failed setup keeps the Terminal window open with the error and a logs pointer instead of vanishing
+
 ### v2.5.0 — 2026-06-15
 **Share the Knowledge Base via a portable manifest**
 
