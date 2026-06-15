@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v2.5.0 — 2026-06-15
+**Share the Knowledge Base via a portable manifest**
+
+- **Manifest export** — new `GET /documents/manifest` returns a versioned manifest of every Drive-linked document (title, category *name*, regulated flag, Drive `source_id`, `drive_url`, mime type, file name). The frontend **Share KB → Export manifest** action saves a one-click `littlegerry-kb.json` and a readable `littlegerry-kb.md` table with a Drive link per document (`frontend/src/pages/DocumentsPage.tsx`)
+- **Manifest import** — new `POST /documents/manifest/import` re-imports every listed document straight from Drive via the shared `import_drive_file` helper (`backend/services/documents/drive_import.py`), resolving categories by **name** with `DocumentCategoryRepository.get_or_create` and isolating each item in a `begin_nested()` savepoint so one failure can't poison the batch. Byte-identical files already present are skipped (`DuplicateDocumentError`). Imported documents stay linked to their Drive source, so **Check for updates** keeps working
+- **Link uploads to Drive** — new `POST /documents/link-to-drive` scans locally-uploaded documents that have no Drive source and matches them to the original file on Drive by exact name (`drive_find_file_matches` in `backend/services/google_service.py`), accepting a confident single/size-unique match and reporting the ambiguous and not-found remainder (`list_unlinked_uploads` / `list_drive_linked` in `backend/repositories/document_repo.py`)
+- **Frontend** — new **Share KB** toolbar button opens a modal with the three actions, client-side file download/upload, and result summaries (`frontend/src/api/documents.ts` adds `linkUploadsToDrive`, `exportManifest`, `importManifest`)
+- **Install** — Windows `.exe` (signed) and macOS `.pkg` (signed & notarized) build automatically on release
+
 ### v2.4.0 — 2026-06-15
 **Duplicate detection for the Knowledge Base**
 

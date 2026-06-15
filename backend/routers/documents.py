@@ -134,6 +134,218 @@ async def scan_duplicates(
     )
 
 
+# ── Drive linking + Knowledge Base manifest (share/portability) ────────────────
+
+def _choose_drive_match(matches: list[dict], size: int | None) -> dict | None:
+    """Pick a confident Drive match for a local upload, else None (ambiguous).
+
+    A single name-exact candidate is accepted (size differences just mean a newer
+    revision, which "Check for updates" will surface). With multiple candidates we
+    only auto-link when exactly one matches the file size.
+    """
+    if not matches:
+        return None
+    if len(matches) == 1:
+        return matches[0]
+    if size is not None:
+        size_matches = [m for m in matches if m.get("size") == size]
+        if len(size_matches) == 1:
+            return size_matches[0]
+    return None
+
+
+@router.post("/link-to-drive", response_model=ApiResponse[dict])
+async def link_uploads_to_drive(
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> ApiResponse[dict]:
+    """Match locally-uploaded documents to their Google Drive original and link them.
+
+    For each active document that isn't already linked to a Drive source, search
+    Drive for a file with the same name; when a confident match is found, record
+    the Drive source linkage so the document becomes update-trackable and can be
+    shared via a KB manifest. Content is left untouched (it's the same file).
+    """
+    import services.google_service as gs
+    from datetime import datetime, timezone
+    from services.documents.sync import parse_drive_time
+
+    if not gs.get_credentials():
+        raise HTTPException(status_code=401, detail="Google account not connected.")
+
+    repo = DocumentRepository(db)
+    candidates = await repo.list_unlinked_uploads()
+    linked: list[dict] = []
+    ambiguous: list[dict] = []
+    not_found: list[dict] = []
+    now = datetime.now(timezone.utc)
+
+    for doc in candidates:
+        name = doc.file_name or ""
+        if not name:
+            continue
+        try:
+            matches = gs.drive_find_file_matches(name)
+        except Exception as exc:  # noqa: BLE001 - report, keep scanning
+            ambiguous.append({"id": str(doc.id), "title": doc.title, "reason": f"Drive search failed: {exc}"})
+            continue
+
+        chosen = _choose_drive_match(matches, doc.file_size_bytes)
+        if chosen is None:
+            if matches:
+                ambiguous.append({
+                    "id": str(doc.id),
+                    "title": doc.title,
+                    "file_name": name,
+                    "candidates": len(matches),
+                })
+            else:
+                not_found.append({"id": str(doc.id), "title": doc.title, "file_name": name})
+            continue
+
+        doc.source_type = "google_drive"
+        doc.source_id = chosen["id"]
+        doc.source_name = chosen["name"]
+        doc.source_modified_at = parse_drive_time(chosen.get("modified", ""))
+        doc.last_synced_at = now
+        doc.last_checked_at = now
+        doc.sync_status = "current"
+        doc.sync_detail = None
+        linked.append({
+            "id": str(doc.id),
+            "title": doc.title,
+            "drive_url": f"https://drive.google.com/open?id={chosen['id']}",
+        })
+
+    await db.commit()
+    return ApiResponse.ok({
+        "scanned": len(candidates),
+        "linked": linked,
+        "ambiguous": ambiguous,
+        "not_found": not_found,
+        "linked_count": len(linked),
+        "ambiguous_count": len(ambiguous),
+        "not_found_count": len(not_found),
+    })
+
+
+@router.get("/manifest", response_model=ApiResponse[dict])
+async def export_manifest(
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> ApiResponse[dict]:
+    """Export a portable manifest of every Drive-linked Knowledge Base document.
+
+    The manifest carries each document's Drive file id (so recipients re-import
+    from the shared source and keep update tracking) plus title, category name,
+    and regulated flag. Locally-uploaded documents with no Drive link are not
+    included — run "Link to Drive" first to bring them in.
+    """
+    from datetime import datetime, timezone
+
+    repo = DocumentRepository(db)
+    cat_repo = DocumentCategoryRepository(db)
+    cats = {c.id: c.name for c in await cat_repo.list()}
+    docs = await repo.list_drive_linked()
+
+    items = [
+        {
+            "title": d.title,
+            "category": cats.get(d.category_id),
+            "is_regulated": d.is_regulated,
+            "source_id": d.source_id,
+            "source_name": d.source_name or d.file_name,
+            "drive_url": f"https://drive.google.com/open?id={d.source_id}",
+            "mime_type": d.mime_type,
+            "file_name": d.file_name,
+        }
+        for d in docs
+    ]
+    return ApiResponse.ok({
+        "version": 1,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "count": len(items),
+        "items": items,
+    })
+
+
+class ManifestImportItem(BaseModel):
+    source_id: str
+    title: str | None = None
+    category: str | None = None
+    is_regulated: bool = False
+
+
+class ManifestImportRequest(BaseModel):
+    items: list[ManifestImportItem]
+    force: bool = False
+
+
+@router.post("/manifest/import", response_model=ApiResponse[dict])
+async def import_manifest(
+    req: ManifestImportRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
+) -> ApiResponse[dict]:
+    """Import every document listed in a KB manifest from Google Drive.
+
+    Categories are matched by name (created if missing) so they carry across
+    different users' databases. Byte-identical documents already present are
+    skipped (unless ``force``); per-item failures are reported, not fatal.
+    """
+    import services.google_service as gs
+    from services.documents.drive_import import import_drive_file
+
+    if not gs.get_credentials():
+        raise HTTPException(status_code=401, detail="Google account not connected.")
+
+    cat_repo = DocumentCategoryRepository(db)
+    # Pre-resolve categories by name once, in the outer transaction.
+    cat_cache: dict[str, UUID] = {}
+    for name in {i.category for i in req.items if i.category}:
+        cat = await cat_repo.get_or_create(name)
+        cat_cache[name] = cat.id
+    await db.flush()
+
+    imported: list[dict] = []
+    skipped: list[dict] = []
+    failed: list[dict] = []
+
+    for item in req.items:
+        cat_id = cat_cache.get(item.category) if item.category else None
+        try:
+            async with db.begin_nested():
+                doc = await import_drive_file(
+                    db=db,
+                    embedding_svc=embedding_svc,
+                    file_id=item.source_id,
+                    title=item.title,
+                    category_id=cat_id,
+                    is_regulated=item.is_regulated,
+                    created_by_id=current_user.id,
+                    force=req.force,
+                )
+            imported.append({"id": str(doc.id), "title": doc.title})
+        except DuplicateDocumentError as exc:
+            skipped.append({
+                "title": item.title or item.source_id,
+                "existing": exc.existing.title,
+            })
+        except Exception as exc:  # noqa: BLE001 - report per item, keep going
+            failed.append({"title": item.title or item.source_id, "error": str(exc)})
+
+    await db.commit()
+    return ApiResponse.ok({
+        "imported": imported,
+        "skipped": skipped,
+        "failed": failed,
+        "imported_count": len(imported),
+        "skipped_count": len(skipped),
+        "failed_count": len(failed),
+    })
+
+
 @router.post(
     "/upload",
     response_model=ApiResponse[DocumentOut],

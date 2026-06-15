@@ -23,6 +23,20 @@ class DocumentCategoryRepository(BaseRepository[DocumentCategory]):
         )
         return result.scalar_one_or_none()
 
+    async def get_or_create(self, name: str) -> DocumentCategory:
+        """Return the category with this name, creating it if it doesn't exist.
+
+        Used when importing a KB manifest so categories are preserved by name
+        across different users' databases (where category UUIDs differ).
+        """
+        existing = await self.get_by_name(name)
+        if existing is not None:
+            return existing
+        cat = DocumentCategory(name=name)
+        self.session.add(cat)
+        await self.session.flush()
+        return cat
+
 
 class DocumentRepository(BaseRepository[Document]):
     def __init__(self, session: AsyncSession) -> None:
@@ -57,6 +71,36 @@ class DocumentRepository(BaseRepository[Document]):
             )
         )
         return result.scalar_one_or_none()
+
+    async def list_drive_linked(self) -> list[Document]:
+        """All active documents linked to a Google Drive source (for manifest export)."""
+        result = await self.session.execute(
+            select(Document)
+            .where(
+                Document.deleted_at.is_(None),
+                Document.source_type == "google_drive",
+                Document.source_id.is_not(None),
+            )
+            .order_by(Document.title.asc())
+        )
+        return list(result.scalars().all())
+
+    async def list_unlinked_uploads(self) -> list[Document]:
+        """Active documents NOT linked to a Drive source but with a file name.
+
+        These are candidates for re-linking to their Drive original so they
+        become update-trackable and exportable in a manifest.
+        """
+        result = await self.session.execute(
+            select(Document)
+            .where(
+                Document.deleted_at.is_(None),
+                Document.source_id.is_(None),
+                Document.file_name.is_not(None),
+            )
+            .order_by(Document.created_at.desc())
+        )
+        return list(result.scalars().all())
 
     async def find_active_by_checksum(
         self, checksum: str, *, exclude_id: UUID | None = None

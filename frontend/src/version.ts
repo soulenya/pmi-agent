@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 78;
+export const BUILD_NUMBER = 79;
 export const BUILD_DATE = "2026-06-15";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 79,
+    date: "2026-06-15",
+    title: "Share your Knowledge Base with teammates",
+    changes: [
+      "New \"Share KB\" button on the Knowledge Base page bundles your library into a portable manifest. Export it and Little Gerry saves two files — a one-click littlegerry-kb.json and a readable littlegerry-kb.md table with a Google Drive link for every document — so a teammate who has access to the same Drive files can rebuild your whole Knowledge Base in seconds",
+      "\"Import manifest\" rebuilds a shared Knowledge Base straight from Drive: pick the littlegerry-kb.json file and Little Gerry re-imports every document, skipping any identical files you already have. Because each document stays linked to its Drive source, \"Check for updates\" keeps working on the imported library too",
+      "\"Link uploads to Drive\" matches documents you uploaded from your computer to the same file on your Drive, so previously-uploaded files become update-trackable and shareable in a manifest",
+    ],
+  },
   {
     build: 78,
     date: "2026-06-15",
