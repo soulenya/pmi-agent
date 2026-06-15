@@ -15,6 +15,22 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
+# If anything fails, keep the Terminal window open so the error is readable
+# instead of the window vanishing instantly.
+pause_on_fail() {
+  local rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo
+    echo "  ===================================================="
+    echo "   Little Gerry stopped (exit code $rc)."
+    echo "   Logs: $DIR/backend/logs/"
+    echo "  ===================================================="
+    echo "  Press Return to close this window..."
+    read -r _ || true
+  fi
+}
+trap pause_on_fail EXIT
+
 # Put Homebrew + user tools on PATH (Apple Silicon brew lives in /opt/homebrew).
 export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
@@ -50,36 +66,21 @@ if [ ! -x "$VENV_PY" ]; then
   echo
   echo "  ===================================================="
   echo "   Little Gerry - First Run Setup"
-  echo "   This takes 2-5 minutes. Please wait..."
+  echo "   Installing prerequisites (Homebrew, Docker, Node, uv),"
+  echo "   the database, and app dependencies."
+  echo "   This can take several minutes the first time. Please wait..."
   echo "  ===================================================="
   echo
 
-  if ! command -v uv >/dev/null 2>&1; then
-    echo "  [ERROR] 'uv' was not found. Run scripts/install.sh first." >&2
+  if [ ! -f "$DIR/scripts/install.sh" ]; then
+    echo "  [ERROR] scripts/install.sh is missing — cannot complete setup." >&2
     exit 1
   fi
 
-  echo "  [Setup 1/5] Installing Python dependencies..."
-  rm -rf "$DIR/backend/.venv"
-  ( cd "$DIR/backend" && uv sync )
-
-  echo "  [Setup 2/5] Creating backend .env..."
-  if [ ! -f "$DIR/backend/.env" ] && [ -f "$DIR/backend/.env.example" ]; then
-    cp "$DIR/backend/.env.example" "$DIR/backend/.env"
-  fi
-
-  echo "  [Setup 3/5] Starting database and running migrations..."
-  start_database
-  ( cd "$DIR/backend" && "$VENV_PY" -m alembic upgrade head )
-
-  echo "  [Setup 4/5] Installing frontend dependencies..."
-  ( cd "$DIR/frontend" && npm install )
-
-  echo "  [Setup 5/5] Creating frontend .env..."
-  if [ ! -f "$DIR/frontend/.env" ]; then
-    printf 'VITE_API_BASE=http://127.0.0.1:8000\nVITE_WS_BASE=ws://127.0.0.1:8000\n' \
-      > "$DIR/frontend/.env"
-  fi
+  # install.sh installs any missing prerequisites (Homebrew, Docker Desktop,
+  # Node, uv), brings up PostgreSQL, runs migrations, seeds the admin user, and
+  # installs frontend deps. It is idempotent, so re-running it is safe.
+  bash "$DIR/scripts/install.sh"
 
   echo
   echo "  ===================================================="

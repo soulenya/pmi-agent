@@ -95,10 +95,18 @@ PLIST
 
 cat > "$APP_DIR/Contents/MacOS/launch" <<'STUB'
 #!/bin/bash
-# Little Gerry.app launcher stub — runs the Start command from the install dir.
+# Little Gerry.app launcher stub.
+#
+# A double-clicked .app is started by launchd with NO controlling terminal, so
+# running the setup flow here directly would hide all output and silently die on
+# the first error (e.g. a fresh Mac without `uv` yet). Instead we open Terminal
+# and run the Start command there, so the one-time install flow (Homebrew, Docker,
+# uv, database, dependencies) is visible and interactive.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # .../Contents/MacOS
 APPROOT="$(cd "$HERE/../../.." && pwd)"                  # install dir (parent of the .app)
-exec "$APPROOT/Start Little Gerry.command"
+START="$APPROOT/Start Little Gerry.command"
+chmod +x "$START" 2>/dev/null || true
+exec open -a Terminal "$START"
 STUB
 chmod +x "$APP_DIR/Contents/MacOS/launch"
 
