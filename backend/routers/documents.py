@@ -241,6 +241,58 @@ async def export_manifest(
     and regulated flag. Locally-uploaded documents with no Drive link are not
     included — run "Link to Drive" first to bring them in.
     """
+    manifest = await _build_manifest(db)
+    return ApiResponse.ok(manifest)
+
+
+@router.post("/manifest/save", response_model=ApiResponse[dict])
+async def save_manifest(
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> ApiResponse[dict]:
+    """Write the KB manifest to the user's Downloads folder and return the paths.
+
+    The app runs inside a desktop webview where a browser-style blob download
+    silently fails (especially WKWebView on macOS), so the backend — which runs
+    on the same machine in this local-first app — writes the files directly.
+    """
+    import json as _json
+    from pathlib import Path
+
+    manifest = await _build_manifest(db)
+    if manifest["count"] == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "empty_manifest",
+                "message": "No Drive-linked documents to export yet. Run \u201cLink uploads to Drive\u201d first.",
+            },
+        )
+
+    downloads = Path.home() / "Downloads"
+    target_dir = downloads if downloads.is_dir() else Path.home()
+    json_path = target_dir / "littlegerry-kb.json"
+    md_path = target_dir / "littlegerry-kb.md"
+
+    try:
+        json_path.write_text(_json.dumps(manifest, indent=2), encoding="utf-8")
+        md_path.write_text(_manifest_markdown(manifest), encoding="utf-8")
+    except OSError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "write_failed", "message": f"Couldn't save the manifest: {exc}"},
+        ) from exc
+
+    return ApiResponse.ok({
+        "count": manifest["count"],
+        "directory": str(target_dir),
+        "json_path": str(json_path),
+        "md_path": str(md_path),
+    })
+
+
+async def _build_manifest(db: AsyncSession) -> dict:
+    """Assemble the portable KB manifest dict from Drive-linked documents."""
     from datetime import datetime, timezone
 
     repo = DocumentRepository(db)
@@ -261,12 +313,37 @@ async def export_manifest(
         }
         for d in docs
     ]
-    return ApiResponse.ok({
+    return {
         "version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "count": len(items),
         "items": items,
-    })
+    }
+
+
+def _manifest_markdown(manifest: dict) -> str:
+    """Human-readable Markdown table of the manifest with a Drive link per row."""
+    count = manifest["count"]
+    lines = [
+        "# Little Gerry \u2014 Knowledge Base manifest",
+        "",
+        f"Generated {manifest['generated_at']} \u00b7 {count} document{'' if count == 1 else 's'}.",
+        "",
+        "**To import:** open Little Gerry \u2192 Knowledge Base \u2192 **Share KB \u2192 Import manifest**, "
+        "and choose the `littlegerry-kb.json` file. \u201cCheck for updates\u201d keeps working "
+        "because each document stays linked to its Google Drive source.",
+        "",
+        "| # | Document | Category | Regulated | Drive link |",
+        "|---|----------|----------|-----------|------------|",
+    ]
+    for i, it in enumerate(manifest["items"], start=1):
+        cat = it.get("category") or "\u2014"
+        reg = "Yes" if it.get("is_regulated") else "\u2014"
+        title = (it.get("title") or "").replace("|", "\\|")
+        lines.append(f"| {i} | {title} | {cat} | {reg} | [open]({it['drive_url']}) |")
+    lines.append("")
+    return "\n".join(lines)
+
 
 
 class ManifestImportItem(BaseModel):
