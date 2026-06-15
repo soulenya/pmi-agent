@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+import re
 import threading
+import urllib.request
 import uuid as _uuid
 from pathlib import Path
 
@@ -36,6 +39,58 @@ _SSO_SCOPES = [
     "https://www.googleapis.com/auth/userinfo.profile",
 ]
 _CREDS_FILE = Path(__file__).parent.parent / "google_credentials.json"
+
+# Company-hosted google_credentials.json, used by the "Download credentials"
+# button on the login page so teammates don't have to find the backend folder
+# or rename the file by hand. Set this to a Google Drive "Anyone with the link"
+# share URL (or a plain HTTPS URL) pointing at the OAuth client JSON. An
+# environment variable wins over the baked-in constant when both are present.
+#
+#   Example: "https://drive.google.com/file/d/1AbCxyz.../view?usp=sharing"
+GOOGLE_CREDENTIALS_DOWNLOAD_URL = "https://drive.google.com/file/d/1qfh3eQU0p10yOyfENBpuguRwDvNfOPel/view?usp=sharing"
+
+
+def _credentials_download_url() -> str:
+    """The configured company credentials URL (env var overrides the constant)."""
+    return (os.environ.get("GOOGLE_CREDENTIALS_URL") or GOOGLE_CREDENTIALS_DOWNLOAD_URL).strip()
+
+
+def _to_direct_download_url(url: str) -> str:
+    """Turn a Google Drive share link into a direct-download URL.
+
+    Plain (non-Drive) URLs and already-direct ``uc?export=download`` links are
+    returned unchanged. A credentials JSON is tiny, so Drive serves it directly
+    without the large-file virus-scan interstitial.
+    """
+    # Already a direct download endpoint — leave it alone.
+    if "uc?export=download" in url or "drive.google.com/uc" in url:
+        return url
+    # Extract the file id from /file/d/<ID>/... or ...?id=<ID> share URLs.
+    m = re.search(r"/file/d/([A-Za-z0-9_-]+)", url) or re.search(r"[?&]id=([A-Za-z0-9_-]+)", url)
+    if m:
+        return f"https://drive.google.com/uc?export=download&id={m.group(1)}"
+    return url
+
+
+def _validate_oauth_client(raw: bytes) -> dict:
+    """Parse + validate that ``raw`` is a Google OAuth client JSON.
+
+    Returns the parsed dict on success; raises ValueError otherwise.
+    """
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("The downloaded file is not valid JSON.") from exc
+    if not isinstance(data, dict):
+        raise ValueError("The downloaded file is not a Google credentials file.")
+    section = data.get("installed") or data.get("web")
+    if not isinstance(section, dict) or not section.get("client_id") or not section.get("client_secret"):
+        raise ValueError(
+            "That doesn't look like a Google OAuth client file "
+            "(missing client_id / client_secret)."
+        )
+    return data
+
 
 # In-memory store keyed by auth_id (UUID string):
 #   {"status": "pending" | "done" | "error", "email": str, "error_msg": str}
@@ -146,6 +201,70 @@ async def google_initiate() -> dict:
     thread = threading.Thread(target=_run_sso_flow, args=(auth_id,), daemon=True)
     thread.start()
     return {"auth_id": auth_id}
+
+
+@router.get("/credentials-status")
+async def credentials_status() -> dict:
+    """Whether the Google OAuth client file is present, and if a download is offered.
+
+    Unauthenticated on purpose: the login page runs before anyone is signed in.
+    """
+    return {
+        "present": _CREDS_FILE.exists(),
+        "download_available": bool(_credentials_download_url()),
+    }
+
+
+@router.post("/credentials/fetch")
+async def fetch_credentials() -> dict:
+    """Download the company google_credentials.json and place it in backend/.
+
+    Pulls the file from the configured company URL (a Drive "Anyone with the
+    link" share or a plain HTTPS URL), validates it's a real OAuth client, and
+    writes it to the backend folder so the user can sign in immediately — no
+    manual file move or rename. Unauthenticated (pre-login).
+    """
+    url = _credentials_download_url()
+    if not url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "not_configured",
+                "message": "No company credentials URL is configured for this build.",
+            },
+        )
+
+    download_url = _to_direct_download_url(url)
+    try:
+        req = urllib.request.Request(download_url, headers={"User-Agent": "LittleGerry"})
+        with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310 (trusted company URL)
+            raw = resp.read(2 * 1024 * 1024)  # cap at 2 MB; a client file is < 1 KB
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "download_failed",
+                "message": f"Couldn't download the credentials file: {exc}",
+            },
+        ) from exc
+
+    try:
+        _validate_oauth_client(raw)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "invalid_credentials", "message": str(exc)},
+        ) from exc
+
+    try:
+        _CREDS_FILE.write_bytes(raw)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "write_failed", "message": f"Couldn't save the credentials file: {exc}"},
+        ) from exc
+
+    return {"ok": True, "path": str(_CREDS_FILE)}
 
 
 @router.get("/google/poll/{auth_id}")
