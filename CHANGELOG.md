@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v2.5.2 — 2026-06-15
+**Fix: "Export manifest" reported success but saved nothing**
+
+- **Root cause** — the export used a browser `Blob` + `a.download` click to save `littlegerry-kb.json` / `littlegerry-kb.md`. Inside the pywebview desktop window that download is silently dropped (especially WKWebView on macOS), so the success toast fired but no file ever hit disk
+- **Fix** — new `POST /documents/manifest/save` endpoint writes both files directly to the user's `~/Downloads` folder (this is a local-first app, so the backend runs on the same machine) and returns the saved paths; the confirmation message now names the destination folder (`backend/routers/documents.py`, `frontend/src/api/documents.ts`, `frontend/src/pages/DocumentsPage.tsx`)
+- Manifest assembly + Markdown rendering refactored into shared `_build_manifest` / `_manifest_markdown` backend helpers; the unused client-side blob/Markdown builders were removed
+
 ### v2.5.1 — 2026-06-15
 **Fix: macOS app closed instantly on launch**
 

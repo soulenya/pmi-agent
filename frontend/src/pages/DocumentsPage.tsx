@@ -13,7 +13,7 @@ import {
   dismissDocumentUpdate,
   scanDuplicates,
   linkUploadsToDrive,
-  exportManifest,
+  saveManifest,
   importManifest,
 } from "@/api/documents";
 import type { DuplicateScanResult } from "@/api/documents";
@@ -647,39 +647,6 @@ function DuplicatesModal({
 
 // â”€â”€ Share Knowledge Base (Drive link + manifest) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function downloadTextFile(filename: string, content: string, mime: string) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function buildManifestMarkdown(m: KbManifest): string {
-  const lines = [
-    "# Little Gerry — Knowledge Base manifest",
-    "",
-    `Generated ${new Date(m.generated_at).toLocaleString()} · ${m.count} document${m.count === 1 ? "" : "s"}.`,
-    "",
-    "**To import:** open Little Gerry → Knowledge Base → **Share KB → Import manifest**, and choose the `littlegerry-kb.json` file. \"Check for updates\" keeps working because each document stays linked to its Google Drive source.",
-    "",
-    "| # | Document | Category | Regulated | Drive link |",
-    "|---|----------|----------|-----------|------------|",
-  ];
-  m.items.forEach((it, i) => {
-    const cat = it.category ?? "—";
-    const reg = it.is_regulated ? "Yes" : "—";
-    const safeTitle = it.title.replace(/\|/g, "\\|");
-    lines.push(`| ${i + 1} | ${safeTitle} | ${cat} | ${reg} | [open](${it.drive_url}) |`);
-  });
-  lines.push("");
-  return lines.join("\n");
-}
-
 function ShareKbModal({
   connected,
   onClose,
@@ -723,14 +690,10 @@ function ShareKbModal({
     setExportError("");
     setExportMsg("");
     try {
-      const m = await exportManifest();
-      if (m.count === 0) {
-        setExportMsg("No Drive-linked documents to export yet. Run \u201cLink uploads to Drive\u201d first.");
-        return;
-      }
-      downloadTextFile("littlegerry-kb.json", JSON.stringify(m, null, 2), "application/json");
-      downloadTextFile("littlegerry-kb.md", buildManifestMarkdown(m), "text/markdown");
-      setExportMsg(`Exported ${m.count} document${m.count === 1 ? "" : "s"} — saved littlegerry-kb.json and littlegerry-kb.md.`);
+      const r = await saveManifest();
+      setExportMsg(
+        `Exported ${r.count} document${r.count === 1 ? "" : "s"} \u2014 saved littlegerry-kb.json and littlegerry-kb.md to ${r.directory}.`,
+      );
     } catch (e) {
       setExportError(getErrorMessage(e));
     } finally {
