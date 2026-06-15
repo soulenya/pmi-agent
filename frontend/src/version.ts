@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 80;
+export const BUILD_NUMBER = 81;
 export const BUILD_DATE = "2026-06-15";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 81,
+    date: "2026-06-15",
+    title: "Fix: Export manifest now actually saves the files",
+    changes: [
+      "Share KB → Export manifest reported success but no files appeared, because the desktop app window can't perform a normal browser download. Little Gerry now writes littlegerry-kb.json and littlegerry-kb.md straight to your Downloads folder, and the confirmation tells you exactly where they were saved",
+    ],
+  },
   {
     build: 80,
     date: "2026-06-15",
