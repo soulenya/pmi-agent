@@ -132,58 +132,24 @@ async def drive_import(
     embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
 ):
     """Fetch a Google Drive file and ingest it into the Knowledge Base."""
-    from services.documents.ingestion import DocumentIngestionService, DuplicateDocumentError
+    from services.documents.ingestion import DuplicateDocumentError
+    from services.documents.drive_import import import_drive_file
     from uuid import UUID as _UUID
 
     if not gs.get_credentials():
         raise HTTPException(401, "Google account not connected.")
-    try:
-        drive_file_data = gs.drive_get_content(req.file_id)
-    except Exception as exc:
-        raise HTTPException(400, f"Could not read Drive file: {exc}")
 
-    from pathlib import Path as _Path
-
-    content = drive_file_data.get("content", "")
-    name = drive_file_data.get("name", "drive_file.txt")
-    mime = drive_file_data.get("type", "text/plain")
-    drive_raw_bytes = drive_file_data.get("raw_bytes")
-    drive_extension = drive_file_data.get("extension", "")
     cat_id = _UUID(req.category_id) if req.category_id else None
-
-    if drive_raw_bytes:
-        # Binary file (PDF/DOCX): hand the raw bytes to the ingestion service so
-        # it extracts text with the same robust parser used for uploads
-        # (PyMuPDF for PDF, python-docx for DOCX). This avoids the weaker
-        # pre-extraction that made Drive imports fail on files that uploaded fine.
-        filename = _Path(name).stem + drive_extension
-        raw_bytes = drive_raw_bytes
-    else:
-        # Google-native (Docs/Sheets/Slides) or text files arrive as plain text.
-        if not content.strip():
-            raise HTTPException(
-                422,
-                f"Could not extract text from '{name}' ({mime}). "
-                "Supported types: Google Docs/Sheets/Slides, PDFs, Word documents, and plain text files.",
-            )
-        ext_map = {
-            "application/vnd.google-apps.document":     ".txt",
-            "application/vnd.google-apps.spreadsheet":  ".csv",
-            "application/vnd.google-apps.presentation": ".txt",
-            "text/plain": ".txt", "text/csv": ".csv",
-            "text/markdown": ".md", "application/json": ".json",
-        }
-        ext = ext_map.get(mime, ".txt")
-        filename = _Path(name).stem + ext
-        raw_bytes = content.encode("utf-8")
-
-    svc = DocumentIngestionService(db=db, embedding_svc=embedding_svc)
     try:
-        doc = await svc.ingest(
-            filename=filename, raw_bytes=raw_bytes,
-            title=req.title or name, category_id=cat_id,
-            is_regulated=req.is_regulated, created_by_id=current_user.id,
-            allow_duplicate=req.force,
+        doc = await import_drive_file(
+            db=db,
+            embedding_svc=embedding_svc,
+            file_id=req.file_id,
+            title=req.title,
+            category_id=cat_id,
+            is_regulated=req.is_regulated,
+            created_by_id=current_user.id,
+            force=req.force,
         )
     except DuplicateDocumentError as exc:
         existing = exc.existing
@@ -203,28 +169,16 @@ async def drive_import(
                 },
             },
         )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
     except Exception as exc:
         raise HTTPException(500, f"Ingestion failed: {exc}")
-
-    # Record source linkage so the document can be checked for updates later.
-    from datetime import datetime, timezone
-    from services.documents.sync import parse_drive_time
-
-    now = datetime.now(timezone.utc)
-    doc.source_type = "google_drive"
-    doc.source_id = req.file_id
-    doc.source_name = name
-    doc.source_modified_at = parse_drive_time(drive_file_data.get("modified", ""))
-    doc.last_synced_at = now
-    doc.last_checked_at = now
-    doc.sync_status = "current"
-    doc.sync_detail = None
 
     await db.commit()
     return {
         "id": str(doc.id), "title": doc.title, "filename": doc.file_name,
         "status": doc.status, "drive_file_id": req.file_id,
-        "drive_url": drive_file_data.get("url", ""),
+        "drive_url": f"https://drive.google.com/open?id={req.file_id}",
     }
 
 

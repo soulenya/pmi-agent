@@ -151,3 +151,80 @@ export async function scanDuplicates(): Promise<DuplicateScanResult> {
   );
   return data.data!;
 }
+
+// ── Knowledge Base sharing (Drive link + manifest) ────────────────────────────
+
+export interface LinkToDriveResult {
+  scanned: number;
+  linked: { id: string; title: string; drive_url: string }[];
+  ambiguous: { id: string; title: string; file_name?: string; candidates?: number; reason?: string }[];
+  not_found: { id: string; title: string; file_name?: string }[];
+  linked_count: number;
+  ambiguous_count: number;
+  not_found_count: number;
+}
+
+export interface KbManifestItem {
+  title: string;
+  category: string | null;
+  is_regulated: boolean;
+  source_id: string;
+  source_name: string | null;
+  drive_url: string;
+  mime_type: string | null;
+  file_name: string | null;
+}
+
+export interface KbManifest {
+  version: number;
+  generated_at: string;
+  count: number;
+  items: KbManifestItem[];
+}
+
+export interface ManifestImportResult {
+  imported: { id: string; title: string }[];
+  skipped: { title: string; existing: string }[];
+  failed: { title: string; error: string }[];
+  imported_count: number;
+  skipped_count: number;
+  failed_count: number;
+}
+
+/** Match locally-uploaded documents to their Drive original and link them. */
+export async function linkUploadsToDrive(): Promise<LinkToDriveResult> {
+  const { data } = await apiClient.post<ApiResponse<LinkToDriveResult>>(
+    "/documents/link-to-drive",
+  );
+  return data.data!;
+}
+
+/** Export a portable manifest of every Drive-linked Knowledge Base document. */
+export async function exportManifest(): Promise<KbManifest> {
+  const { data } = await apiClient.get<ApiResponse<KbManifest>>(
+    "/documents/manifest",
+  );
+  return data.data!;
+}
+
+/** Import documents listed in a KB manifest (re-imports from Drive). */
+export async function importManifest(
+  items: KbManifestItem[],
+  force = false,
+): Promise<ManifestImportResult> {
+  const payload = {
+    items: items.map((i) => ({
+      source_id: i.source_id,
+      title: i.title,
+      category: i.category,
+      is_regulated: i.is_regulated,
+    })),
+    force,
+  };
+  const { data } = await apiClient.post<ApiResponse<ManifestImportResult>>(
+    "/documents/manifest/import",
+    payload,
+  );
+  return data.data!;
+}
+
