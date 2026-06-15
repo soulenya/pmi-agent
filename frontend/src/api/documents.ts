@@ -40,13 +40,14 @@ export async function getDocument(id: string): Promise<Document> {
 
 export async function uploadDocument(
   file: File,
-  meta: { title: string; category_id?: string | null; is_regulated?: boolean },
+  meta: { title: string; category_id?: string | null; is_regulated?: boolean; force?: boolean },
 ): Promise<Document> {
   const form = new FormData();
   form.append("file", file);
   form.append("title", meta.title);
   if (meta.category_id) form.append("category_id", meta.category_id);
   form.append("is_regulated", String(meta.is_regulated ?? false));
+  form.append("force", String(meta.force ?? false));
 
   const { data } = await apiClient.post<ApiResponse<Document>>(
     "/documents/upload",
@@ -128,4 +129,25 @@ export async function semanticSearch(
     req,
   );
   return data.data ?? [];
+}
+
+// ── Duplicate detection ───────────────────────────────────────────────────────
+
+export interface DuplicateGroup {
+  checksum: string;
+  count: number;
+  documents: Document[];
+}
+
+export interface DuplicateScanResult {
+  groups: DuplicateGroup[];
+  group_count: number;
+  redundant_count: number;
+}
+
+export async function scanDuplicates(): Promise<DuplicateScanResult> {
+  const { data } = await apiClient.get<ApiResponse<DuplicateScanResult>>(
+    "/documents/duplicates",
+  );
+  return data.data!;
 }

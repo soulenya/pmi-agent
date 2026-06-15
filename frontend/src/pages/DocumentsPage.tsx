@@ -11,7 +11,9 @@ import {
   checkDocumentUpdates,
   applyDocumentUpdate,
   dismissDocumentUpdate,
+  scanDuplicates,
 } from "@/api/documents";
+import type { DuplicateScanResult } from "@/api/documents";
 import type { Document, DocumentChunk } from "@/types/documents";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { DriveBrowser } from "@/components/google/DriveBrowser";
@@ -35,6 +37,8 @@ import {
   DownloadCloud,
   AlertTriangle,
   Check,
+  Files,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import axios from "axios";
@@ -48,11 +52,30 @@ function getErrorMessage(e: unknown): string {
     const detail = e.response.data?.detail;
     if (typeof detail === "string") return detail;
     if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;
+    if (detail && typeof detail === "object" && typeof detail.message === "string")
+      return detail.message;
     if (typeof e.response.data?.message === "string") return e.response.data.message;
     return `Request failed (${e.response.status})`;
   }
   if (e instanceof Error) return e.message;
   return "Unknown error";
+}
+
+// â”€â”€ Detect a duplicate-document 409 conflict and pull out the existing doc â”€â”€
+interface DuplicateExisting {
+  id: string;
+  title: string;
+  file_name: string | null;
+  created_at: string | null;
+}
+function getDuplicateConflict(e: unknown): DuplicateExisting | null {
+  if (axios.isAxiosError(e) && e.response?.status === 409) {
+    const detail = e.response.data?.detail;
+    if (detail && typeof detail === "object" && detail.code === "duplicate_document") {
+      return detail.existing as DuplicateExisting;
+    }
+  }
+  return null;
 }
 
 // â”€â”€ Status badge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -508,6 +531,107 @@ function DocumentRow({
   );
 }
 
+// â”€â”€ Duplicate scan modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function DuplicatesModal({
+  result,
+  onClose,
+  onDeleted,
+}: {
+  result: DuplicateScanResult;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await deleteDocument(id);
+      onDeleted();
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b p-5">
+          <div className="flex items-center gap-2">
+            <Files className="h-5 w-5 text-amber-500" />
+            <h2 className="text-lg font-bold">Duplicate scan</h2>
+          </div>
+          <button onClick={onClose} className="rounded p-1 hover:bg-accent">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {result.group_count === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-6 py-12 text-center text-muted-foreground">
+            <CheckCircle2 className="h-8 w-8 text-green-500" />
+            <p className="text-sm">No duplicates found — every document is unique.</p>
+          </div>
+        ) : (
+          <>
+            <p className="border-b px-5 py-3 text-sm text-muted-foreground">
+              Found {result.group_count} duplicate group
+              {result.group_count === 1 ? "" : "s"} ({result.redundant_count} redundant
+              cop{result.redundant_count === 1 ? "y" : "ies"}). The oldest copy in each
+              group is kept; delete the extras you don’t need.
+            </p>
+            <div className="flex-1 space-y-4 overflow-y-auto p-5">
+              {result.groups.map((group) => (
+                <div key={group.checksum} className="rounded-lg border">
+                  {group.documents.map((d, idx) => (
+                    <div
+                      key={d.id}
+                      className={cn(
+                        "flex items-center justify-between gap-3 px-4 py-3",
+                        idx > 0 && "border-t",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{d.title}</p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {d.file_name ?? "—"}
+                          {d.created_at && <span> · added {timeAgo(d.created_at)}</span>}
+                        </p>
+                      </div>
+                      {idx === 0 ? (
+                        <span className="shrink-0 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">
+                          Original
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleDelete(d.id)}
+                          disabled={deletingId === d.id}
+                          className="flex shrink-0 items-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-50"
+                        >
+                          {deletingId === d.id
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <Trash2 className="h-3.5 w-3.5" />}
+                          Delete copy
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div className="flex justify-end border-t p-4">
+          <button onClick={onClose} className="rounded-md border px-4 py-2 text-sm font-medium">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function DocumentsPage() {
@@ -522,6 +646,14 @@ export function DocumentsPage() {
   const [editDoc, setEditDoc] = useState<Document | null>(null);
   const [viewDoc, setViewDoc] = useState<Document | null>(null);
   const [uploadError, setUploadError] = useState("");
+  // Pending upload + duplicate-conflict state (for the "upload anyway" override).
+  const [pendingUpload, setPendingUpload] = useState<{
+    file: File;
+    meta: { title: string; category_id?: string | null; is_regulated: boolean };
+  } | null>(null);
+  const [dupConflict, setDupConflict] = useState<DuplicateExisting | null>(null);
+  // Manual duplicate scan.
+  const [showDuplicates, setShowDuplicates] = useState(false);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["document-categories"],
@@ -542,14 +674,31 @@ export function DocumentsPage() {
       meta,
     }: {
       file: File;
-      meta: { title: string; category_id?: string | null; is_regulated: boolean };
+      meta: { title: string; category_id?: string | null; is_regulated: boolean; force?: boolean };
     }) => uploadDocument(file, meta),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       setShowUpload(false);
       setUploadError("");
+      setPendingUpload(null);
+      setDupConflict(null);
     },
-    onError: (e: Error) => setUploadError(getErrorMessage(e)),
+    onError: (e: Error, variables) => {
+      const existing = getDuplicateConflict(e);
+      if (existing) {
+        // Stash the attempt so the user can choose to import anyway.
+        setPendingUpload({ file: variables.file, meta: variables.meta });
+        setDupConflict(existing);
+        setUploadError("");
+      } else {
+        setUploadError(getErrorMessage(e));
+      }
+    },
+  });
+
+  const scanDuplicatesMutation = useMutation<DuplicateScanResult, Error>({
+    mutationFn: scanDuplicates,
+    onSuccess: () => setShowDuplicates(true),
   });
 
   const deleteMutation = useMutation({
@@ -671,6 +820,66 @@ export function DocumentsPage() {
         />
       )}
 
+      {/* Duplicate-on-upload confirmation */}
+      {dupConflict && pendingUpload && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-xl border bg-card p-6 shadow-xl">
+            <div className="mb-3 flex items-center gap-2">
+              <Copy className="h-5 w-5 text-amber-500" />
+              <h2 className="text-lg font-bold">Possible duplicate</h2>
+            </div>
+            <p className="mb-2 text-sm text-muted-foreground">
+              This file is byte-for-byte identical to a document already in the
+              Knowledge Base:
+            </p>
+            <p className="mb-4 rounded-md border bg-background px-3 py-2 text-sm font-medium">
+              {dupConflict.title}
+              {dupConflict.created_at && (
+                <span className="ml-1 font-normal text-muted-foreground">
+                  · added {timeAgo(dupConflict.created_at)}
+                </span>
+              )}
+            </p>
+            <p className="mb-5 text-xs text-muted-foreground">
+              Importing again keeps a second copy. Most of the time you can skip it.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setDupConflict(null); setPendingUpload(null); }}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+              >
+                Skip (don’t import)
+              </button>
+              <button
+                onClick={() =>
+                  uploadMutation.mutate({
+                    file: pendingUpload.file,
+                    meta: { ...pendingUpload.meta, force: true },
+                  })
+                }
+                disabled={uploadMutation.isPending}
+                className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+              >
+                {uploadMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                Import anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate scan results */}
+      {showDuplicates && scanDuplicatesMutation.data && (
+        <DuplicatesModal
+          result={scanDuplicatesMutation.data}
+          onClose={() => setShowDuplicates(false)}
+          onDeleted={() => {
+            queryClient.invalidateQueries({ queryKey: ["documents"] });
+            scanDuplicatesMutation.mutate();
+          }}
+        />
+      )}
+
       {/* Delete confirmation */}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -768,6 +977,17 @@ export function DocumentsPage() {
                 Import from Drive
               </button>
             )}
+            <button
+              onClick={() => scanDuplicatesMutation.mutate()}
+              disabled={scanDuplicatesMutation.isPending}
+              className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+              title="Scan the Knowledge Base for byte-identical duplicate files"
+            >
+              {scanDuplicatesMutation.isPending
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Files className="h-4 w-4" />}
+              Find duplicates
+            </button>
             <button
               onClick={() => setShowUpload(true)}
               className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"

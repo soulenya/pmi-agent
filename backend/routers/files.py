@@ -16,7 +16,7 @@ from database import get_db
 from dependencies import get_current_user
 from fastapi import Depends
 from models.db.user import User
-from services.documents.ingestion import DocumentIngestionService
+from services.documents.ingestion import DocumentIngestionService, DuplicateDocumentError
 from services.embeddings.service import EmbeddingService, get_embedding_service_db
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,7 @@ async def delete_file(name: str, _user=Depends(get_current_user)):
 
 class ToKnowledgeBaseRequest(BaseModel):
     title: str | None = None
+    force: bool = False
 
 
 class ToDriveRequest(BaseModel):
@@ -106,6 +107,25 @@ async def move_file_to_knowledge_base(
             category_id=None,
             is_regulated=False,
             created_by_id=current_user.id,
+            allow_duplicate=bool(body.force) if body else False,
+        )
+    except DuplicateDocumentError as exc:
+        existing = exc.existing
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "duplicate_document",
+                "message": (
+                    f"This file is already in the Knowledge Base as \u201c{existing.title}\u201d. "
+                    f"Import again only if you intend to keep a copy."
+                ),
+                "existing": {
+                    "id": str(existing.id),
+                    "title": existing.title,
+                    "file_name": existing.file_name,
+                    "created_at": existing.created_at.isoformat() if existing.created_at else None,
+                },
+            },
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc))
