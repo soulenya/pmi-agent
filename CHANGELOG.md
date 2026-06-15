@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v2.4.0 — 2026-06-15
+**Duplicate detection for the Knowledge Base**
+
+- **Pre-import dedupe check** — uploading a document, importing from Google Drive, or moving a generated file into the Knowledge Base now computes a SHA-256 of the file bytes and rejects byte-identical re-imports with a `409 Conflict` that names the existing document (`backend/services/documents/ingestion.py` raises a new `DuplicateDocumentError`; `find_active_by_checksum` in `backend/repositories/document_repo.py`). All three ingest routes (`/documents/upload`, `/google/drive/import`, `/files/{name}/to-knowledge-base`) accept a `force`/`allow_duplicate` flag so the user can intentionally keep a second copy
+- **Manual duplicate scan** — new `GET /documents/duplicates` endpoint groups active documents that share an identical SHA-256 (`find_duplicate_groups`), oldest-first, returning the redundant-copy count
+- **Frontend** — the Knowledge Base upload flow now pauses on a duplicate and offers **Skip** or **Import anyway**; a new **Find duplicates** toolbar button opens a scan modal that groups identical files, marks the oldest as **Original**, and lets you **Delete copy** on the extras (`frontend/src/pages/DocumentsPage.tsx`, `frontend/src/api/documents.ts`)
+- **Docs** — `docs/INSTALL.md` updated to reflect the now signed & notarized macOS `.pkg`; `USER_GUIDE.md` gained Windows + macOS install steps and an "Avoiding duplicates" section
+
 ### v2.3.0 — 2026-06-14
 **Precisian Defender — a hidden arcade mini-game on the solar-system page**
 

@@ -121,6 +121,7 @@ class DriveImportRequest(BaseModel):
     title: str
     category_id: str | None = None
     is_regulated: bool = False
+    force: bool = False
 
 
 @router.post("/drive/import")
@@ -131,7 +132,7 @@ async def drive_import(
     embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
 ):
     """Fetch a Google Drive file and ingest it into the Knowledge Base."""
-    from services.documents.ingestion import DocumentIngestionService
+    from services.documents.ingestion import DocumentIngestionService, DuplicateDocumentError
     from uuid import UUID as _UUID
 
     if not gs.get_credentials():
@@ -182,6 +183,25 @@ async def drive_import(
             filename=filename, raw_bytes=raw_bytes,
             title=req.title or name, category_id=cat_id,
             is_regulated=req.is_regulated, created_by_id=current_user.id,
+            allow_duplicate=req.force,
+        )
+    except DuplicateDocumentError as exc:
+        existing = exc.existing
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "duplicate_document",
+                "message": (
+                    f"This file is already in the Knowledge Base as \u201c{existing.title}\u201d. "
+                    f"Import again only if you intend to keep a copy."
+                ),
+                "existing": {
+                    "id": str(existing.id),
+                    "title": existing.title,
+                    "file_name": existing.file_name,
+                    "created_at": existing.created_at.isoformat() if existing.created_at else None,
+                },
+            },
         )
     except Exception as exc:
         raise HTTPException(500, f"Ingestion failed: {exc}")

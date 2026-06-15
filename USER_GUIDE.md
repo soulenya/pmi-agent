@@ -52,9 +52,31 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 
 ### Installation
 
-1. Run **`LittleGerry_Setup.exe`** (or double-click **`Install Little Gerry.bat`** if you have a clean clone)
-2. The installer sets up Docker, PostgreSQL, and all required services automatically
-3. Launch using the **Little Gerry desktop shortcut** or **`Start Little Gerry.bat`**
+Little Gerry ships as a native installer for **Windows 11** and **macOS (Apple
+Silicon)**. Both installers are attached to every release at
+<https://github.com/soulenya/pmi-agent/releases/latest>. For full step-by-step
+instructions (including trusting the publisher and adding Google credentials),
+see [docs/INSTALL.md](docs/INSTALL.md).
+
+**Windows 11**
+
+1. Download **`Trust-Little-Gerry.bat`** and right-click → **Run as
+   administrator** (one-time, so Windows trusts the publisher).
+2. Run **`LittleGerry_Setup.exe`** and follow the wizard.
+3. Launch from the **Start Menu** or **desktop shortcut**.
+
+**macOS (Apple Silicon, macOS 12+)**
+
+1. Download **`LittleGerry.pkg`** — it is signed & notarized, so double-click
+   and follow the installer (everything installs per-user to
+   `~/Applications/Little Gerry`, no admin password needed).
+2. On a fresh Mac only, run the one-time prerequisites installer:
+   `bash "$HOME/Applications/Little Gerry/scripts/install.sh"`.
+3. Launch **Little Gerry.app** from `~/Applications/Little Gerry`.
+
+The installer sets up Docker, PostgreSQL, and all required services
+automatically. Updates are delivered in-app on both platforms.
+
 
 ### Starting and Stopping
 
@@ -192,7 +214,21 @@ The Knowledge Base is Little Gerry's long-term memory about PMI and VACTOR.
 
 On the Documents page, use **Import from Drive** to search your Drive and pull files directly into the Knowledge Base.
 
+### Avoiding duplicates
+
+Little Gerry detects when you try to add a file that is byte-for-byte identical to
+one already in the Knowledge Base:
+
+- **On upload or Drive import:** if the file is a duplicate, Little Gerry pauses
+  and shows which existing document it matches. Choose **Skip** to leave things
+  as they are, or **Import anyway** if you intentionally want a second copy.
+- **Manual scan:** click **Find duplicates** in the Knowledge Base toolbar to
+  scan everything already stored. Matching files are grouped together — the
+  oldest copy in each group is marked **Original**, and you can **Delete copy**
+  on the extras to clean up.
+
 > **Important:** Make sure your embedding provider (Voyage AI) is configured in Settings before uploading documents.
+
 
 ---
 

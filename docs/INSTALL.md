@@ -6,7 +6,7 @@ Both installers are attached to every GitHub release: <https://github.com/soulen
 | Platform | Asset | Trust mechanism |
 |---|---|---|
 | Windows 11 | `LittleGerry_Setup.exe` | Self-signed publisher certificate — install once via `Trust-Little-Gerry.bat` |
-| macOS 12+ (Apple Silicon) | `LittleGerry.pkg` | Currently unsigned — open via right-click → Open (Gatekeeper bypass) |
+| macOS 12+ (Apple Silicon) | `LittleGerry.pkg` | Signed & notarized with an Apple Developer ID — opens normally |
 
 > **Note:** for security, the installers do **not** include Google OAuth
 > credentials. After installing, follow
@@ -47,28 +47,18 @@ delivered in-app — no need to revisit this page.
 
 ## macOS (Apple Silicon, macOS 12 or later)
 
-### 1. Open the installer past Gatekeeper
+### 1. Install
 
-The `.pkg` is currently **unsigned** (Apple Developer ID signing is pending),
-so macOS blocks a normal double-click with *"cannot be opened because it is
-from an unidentified developer."* Use any one of these:
+The `.pkg` is **signed and notarized** with an Apple Developer ID, so it opens
+normally — just double-click **`LittleGerry.pkg`** and follow the installer
+wizard. Everything is installed **per-user** to `~/Applications/Little Gerry` —
+no admin password is required.
 
-- **Right-click method (easiest):** in Finder, Control-click (right-click)
-  `LittleGerry.pkg` → **Open** → click **Open** in the dialog.
-- **System Settings method:** double-click the .pkg (it gets blocked), then go to
-  **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**.
-- **Terminal method:**
-  ```bash
-  xattr -d com.apple.quarantine ~/Downloads/LittleGerry.pkg
-  open ~/Downloads/LittleGerry.pkg
-  ```
+> If you downloaded the file through an unusual path and macOS still shows a
+> Gatekeeper warning, Control-click (right-click) `LittleGerry.pkg` in Finder →
+> **Open** → **Open**.
 
-### 2. Install
-
-Follow the installer wizard. Everything is installed **per-user** to
-`~/Applications/Little Gerry` — no admin password is required.
-
-### 3. Install prerequisites (fresh Mac only, one-time)
+### 2. Install prerequisites (fresh Mac only, one-time)
 
 Little Gerry needs Docker Desktop, Node.js 20, and uv. On a Mac that has never
 run Little Gerry before, run this once in Terminal:
@@ -81,7 +71,7 @@ This installs Homebrew (if missing) and all prerequisites, starts the
 database, and prepares the app. Skip this step if the prerequisites are
 already present.
 
-### 4. Launch
+### 3. Launch
 
 Open **Little Gerry.app** inside `~/Applications/Little Gerry`
 (drag it to the Dock for quick access).
@@ -160,8 +150,9 @@ launch Little Gerry and click **Sign in with Google**.
 
 - **Windows — installer flagged by antivirus:** run `Trust-Little-Gerry.bat`
   as administrator first, then re-run the installer.
-- **macOS — ".pkg is damaged and can't be opened":** the quarantine flag is
-  set; use the Terminal method above.
+- **macOS — Gatekeeper warning on a signed build:** Control-click the `.pkg` →
+  **Open**, or clear quarantine with
+  `xattr -d com.apple.quarantine ~/Downloads/LittleGerry.pkg`.
 - **macOS — app starts but no window appears:** make sure Docker Desktop is
   installed and running, then relaunch.
 - **"google_credentials.json not found" / Google connect fails:** the

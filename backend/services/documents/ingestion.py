@@ -50,6 +50,16 @@ SUPPORTED_MIME_TYPES = {
 }
 
 
+class DuplicateDocumentError(Exception):
+    """Raised when a file being ingested is byte-identical (same SHA-256) to an
+    existing active Knowledge Base document. Carries the existing document so the
+    caller can tell the user what it duplicates (and offer an override)."""
+
+    def __init__(self, existing: Document) -> None:
+        self.existing = existing
+        super().__init__(f"Duplicate of existing document {existing.id}")
+
+
 # ── Text extraction helpers ───────────────────────────────────────────────────
 
 def _extract_text_pdf(raw: bytes) -> str:
@@ -199,10 +209,13 @@ class DocumentIngestionService:
         category_id: UUID | None,
         is_regulated: bool,
         created_by_id: UUID,
+        allow_duplicate: bool = False,
     ) -> Document:
         """
         Full ingestion pipeline.  Returns the persisted Document.
         Raises ValueError on unsupported MIME type.
+        Raises DuplicateDocumentError when an identical file already exists and
+        allow_duplicate is False.
         """
         # 1. Detect MIME type
         mime_type, _ = mimetypes.guess_type(filename)
@@ -219,6 +232,12 @@ class DocumentIngestionService:
 
         # 2. Checksum
         checksum = hashlib.sha256(raw_bytes).hexdigest()
+
+        # 2a. Duplicate guard — block byte-identical re-imports unless overridden.
+        if not allow_duplicate:
+            existing = await self._doc_repo.find_active_by_checksum(checksum)
+            if existing is not None:
+                raise DuplicateDocumentError(existing)
 
         # 3. Persist Document row (status = processing)
         extension = Path(filename).suffix.lower() or ".bin"
