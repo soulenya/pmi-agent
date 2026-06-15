@@ -58,6 +58,54 @@ class DocumentRepository(BaseRepository[Document]):
         )
         return result.scalar_one_or_none()
 
+    async def find_active_by_checksum(
+        self, checksum: str, *, exclude_id: UUID | None = None
+    ) -> Document | None:
+        """Return the oldest active (non-deleted) document with this SHA-256, if any.
+
+        Used for duplicate detection before ingesting a new file.
+        """
+        if not checksum:
+            return None
+        q = select(Document).where(
+            Document.checksum_sha256 == checksum,
+            Document.deleted_at.is_(None),
+        )
+        if exclude_id is not None:
+            q = q.where(Document.id != exclude_id)
+        q = q.order_by(Document.created_at.asc()).limit(1)
+        result = await self.session.execute(q)
+        return result.scalar_one_or_none()
+
+    async def find_duplicate_groups(self) -> list[list[Document]]:
+        """Return groups of active documents that share an identical SHA-256.
+
+        Each returned list has 2+ documents (same byte content), ordered oldest
+        first so callers can treat the first as the original to keep. Used by the
+        manual duplicate scan.
+        """
+        dup_checksums = (
+            select(Document.checksum_sha256)
+            .where(
+                Document.deleted_at.is_(None),
+                Document.checksum_sha256.is_not(None),
+            )
+            .group_by(Document.checksum_sha256)
+            .having(func.count() > 1)
+        )
+        result = await self.session.execute(
+            select(Document)
+            .where(
+                Document.deleted_at.is_(None),
+                Document.checksum_sha256.in_(dup_checksums),
+            )
+            .order_by(Document.checksum_sha256, Document.created_at.asc())
+        )
+        groups: dict[str, list[Document]] = {}
+        for doc in result.scalars().all():
+            groups.setdefault(doc.checksum_sha256, []).append(doc)
+        return [g for g in groups.values() if len(g) > 1]
+
     async def soft_delete(self, doc_id: UUID) -> bool:
         from datetime import datetime, timezone
 

@@ -31,7 +31,7 @@ from models.schemas.documents import (
     DocumentUpdate,
 )
 from repositories.document_repo import DocumentCategoryRepository, DocumentRepository, DocumentChunkRepository
-from services.documents.ingestion import DocumentIngestionService
+from services.documents.ingestion import DocumentIngestionService, DuplicateDocumentError
 from services.embeddings.service import (
     EmbeddingService,
     get_embedding_service_db,
@@ -51,6 +51,23 @@ MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
 def _doc_out(doc) -> DocumentOut:
     return DocumentOut.model_validate(doc)
+
+
+def _duplicate_detail(existing) -> dict:
+    """409 payload describing the existing document a new upload duplicates."""
+    return {
+        "code": "duplicate_document",
+        "message": (
+            f"This file is already in the Knowledge Base as \u201c{existing.title}\u201d. "
+            f"Import again only if you intend to keep a copy."
+        ),
+        "existing": {
+            "id": str(existing.id),
+            "title": existing.title,
+            "file_name": existing.file_name,
+            "created_at": existing.created_at.isoformat() if existing.created_at else None,
+        },
+    }
 
 
 # ── Categories ────────────────────────────────────────────────────────────────
@@ -87,6 +104,36 @@ async def list_documents(
     )
 
 
+@router.get("/duplicates", response_model=ApiResponse[dict])
+async def scan_duplicates(
+    db: AsyncSession = Depends(get_db),
+    _current_user: User = Depends(get_current_user),
+) -> ApiResponse[dict]:
+    """Manual duplicate scan.
+
+    Groups active documents by SHA-256 and returns every group with 2+ members
+    (byte-identical files). Each group is ordered oldest-first so the first entry
+    is the original to keep.
+    """
+    groups = await DocumentRepository(db).find_duplicate_groups()
+    out_groups = [
+        {
+            "checksum": group[0].checksum_sha256,
+            "count": len(group),
+            "documents": [_doc_out(d) for d in group],
+        }
+        for group in groups
+    ]
+    redundant = sum(len(g) - 1 for g in groups)
+    return ApiResponse.ok(
+        {
+            "groups": out_groups,
+            "group_count": len(out_groups),
+            "redundant_count": redundant,
+        }
+    )
+
+
 @router.post(
     "/upload",
     response_model=ApiResponse[DocumentOut],
@@ -97,6 +144,7 @@ async def upload_document(
     title: str = Form(...),
     category_id: UUID | None = Form(None),
     is_regulated: bool = Form(False),
+    force: bool = Form(False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
@@ -117,6 +165,12 @@ async def upload_document(
             category_id=category_id,
             is_regulated=is_regulated,
             created_by_id=current_user.id,
+            allow_duplicate=force,
+        )
+    except DuplicateDocumentError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=_duplicate_detail(exc.existing),
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))

@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 77;
-export const BUILD_DATE = "2026-06-14";
+export const BUILD_NUMBER = 78;
+export const BUILD_DATE = "2026-06-15";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 78,
+    date: "2026-06-15",
+    title: "No more duplicate documents in the Knowledge Base",
+    changes: [
+      "Little Gerry now catches duplicate files before they pile up: if you upload or import a document that's identical to one already in the Knowledge Base, she pauses and shows which existing document it matches so you can Skip it or Import anyway",
+      "New \"Find duplicates\" button on the Knowledge Base page scans everything you've already stored, groups identical files together, marks the original to keep, and lets you delete the extra copies in one click",
+    ],
+  },
   {
     build: 77,
     date: "2026-06-14",

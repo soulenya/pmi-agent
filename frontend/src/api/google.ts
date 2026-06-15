@@ -65,9 +65,10 @@ export async function driveImportToKnowledgeBase(
   title: string,
   category_id?: string,
   is_regulated = false,
+  force = false,
 ): Promise<DriveImportResult> {
   const r = await apiClient.post<DriveImportResult>(`${G}/drive/import`, {
-    file_id, title, category_id, is_regulated,
+    file_id, title, category_id, is_regulated, force,
   });
   return r.data;
 }
