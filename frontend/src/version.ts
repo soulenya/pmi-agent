@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 81;
+export const BUILD_NUMBER = 82;
 export const BUILD_DATE = "2026-06-15";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 82,
+    date: "2026-06-15",
+    title: "Download company Google credentials from the sign-in screen",
+    changes: [
+      "If this computer doesn't have the company google_credentials.json yet, the sign-in screen now shows a 'Download credentials' button. One click fetches the file from the company's shared link and places it in the right folder automatically, then enables sign-in — no manual file copying needed",
+      "If no shared link is configured, the sign-in screen shows the exact folder to drop the file into for both Windows and macOS",
+    ],
+  },
   {
     build: 81,
     date: "2026-06-15",

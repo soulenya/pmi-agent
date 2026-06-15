@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { googleInitiate, googlePoll } from "@/api/auth";
+import { googleInitiate, googlePoll, getCredentialsStatus, fetchCredentials } from "@/api/auth";
+import type { CredentialsStatus } from "@/api/auth";
 import { useAuthStore } from "@/stores/authStore";
 import { SetupWizard } from "@/components/SetupWizard";
 import { cn } from "@/lib/utils";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Download } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 
@@ -41,6 +42,19 @@ function useBackendStatus(): BackendStatus {
   return status;
 }
 
+/** Pull a human-readable message out of an axios error whose detail may be an object. */
+function credErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const detail = err.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (detail && typeof detail === "object" && "message" in detail) {
+      return String((detail as { message: unknown }).message);
+    }
+    if (!err.response) return "Could not reach the backend.";
+  }
+  return "Couldn't download the credentials. Please try again.";
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { setTokens, setUser } = useAuthStore();
@@ -51,6 +65,35 @@ export function LoginPage() {
   const [showSetup, setShowSetup] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const authIdRef = useRef<string | null>(null);
+
+  // Company Google OAuth credentials (the file needed before anyone can sign in).
+  const [creds, setCreds] = useState<CredentialsStatus | null>(null);
+  const [fetchingCreds, setFetchingCreds] = useState(false);
+  const [credError, setCredError] = useState<string | null>(null);
+
+  // Once the backend is up, check whether the OAuth client file is present.
+  useEffect(() => {
+    if (backendStatus !== "ready") return;
+    let cancelled = false;
+    getCredentialsStatus()
+      .then((s) => { if (!cancelled) setCreds(s); })
+      .catch(() => { if (!cancelled) setCreds(null); });
+    return () => { cancelled = true; };
+  }, [backendStatus]);
+
+  async function handleDownloadCreds() {
+    setCredError(null);
+    setFetchingCreds(true);
+    try {
+      await fetchCredentials();
+      const s = await getCredentialsStatus();
+      setCreds(s);
+    } catch (err) {
+      setCredError(credErrorMessage(err));
+    } finally {
+      setFetchingCreds(false);
+    }
+  }
 
   function stopPolling() {
     if (pollRef.current) {
@@ -124,6 +167,10 @@ export function LoginPage() {
 
   const buttonDisabled = ssoState === "waiting" || backendStatus !== "ready";
 
+  // Credentials are "missing" only once the backend has confirmed their absence.
+  const credentialsMissing = backendStatus === "ready" && creds !== null && !creds.present;
+  const signInDisabled = buttonDisabled || credentialsMissing;
+
   return (
     <>
       {showSetup && <SetupWizard onComplete={() => navigate("/")} />}
@@ -147,14 +194,66 @@ export function LoginPage() {
           {backendStatus === "down"     && "Backend not reachable — retrying…"}
         </div>
 
+        {/* Missing-credentials helper: download the company OAuth client file. */}
+        {credentialsMissing && (
+          <div className="mb-6 rounded-md border border-amber-300 bg-amber-50 px-3 py-3 text-xs dark:border-amber-700/50 dark:bg-amber-900/20">
+            <p className="mb-2 font-medium text-amber-800 dark:text-amber-300">
+              This computer doesn&apos;t have the company Google credentials yet.
+            </p>
+            {creds?.download_available ? (
+              <>
+                <p className="mb-3 text-amber-700 dark:text-amber-400/90">
+                  Download them once to enable sign-in. Little Gerry places the file
+                  in the right folder for you — no manual move needed.
+                </p>
+                <button
+                  onClick={handleDownloadCreds}
+                  disabled={fetchingCreds}
+                  className={cn(
+                    "flex w-full items-center justify-center gap-2 rounded-md border border-amber-400 bg-background px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm transition-opacity dark:text-amber-300",
+                    fetchingCreds ? "opacity-60 cursor-not-allowed" : "hover:bg-accent",
+                  )}
+                >
+                  {fetchingCreds ? (
+                    <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                  ) : (
+                    <Download className="h-4 w-4 shrink-0" />
+                  )}
+                  {fetchingCreds ? "Downloading…" : "Download credentials"}
+                </button>
+                {credError && (
+                  <p className="mt-2 text-destructive">{credError}</p>
+                )}
+              </>
+            ) : (
+              <div className="text-amber-700 dark:text-amber-400/90">
+                <p className="mb-1">
+                  Ask your administrator for the company{" "}
+                  <span className="font-mono">google_credentials.json</span> file and place it here:
+                </p>
+                <ul className="ml-4 list-disc space-y-0.5">
+                  <li>
+                    <span className="font-medium">Windows:</span>{" "}
+                    <span className="font-mono">%LOCALAPPDATA%\Little Gerry\backend</span>
+                  </li>
+                  <li>
+                    <span className="font-medium">macOS:</span>{" "}
+                    <span className="font-mono">~/Applications/Little Gerry/backend</span>
+                  </li>
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Sign-in button */}
         <button
           onClick={handleSignIn}
-          disabled={buttonDisabled}
+          disabled={signInDisabled}
           className={cn(
             "w-full flex items-center justify-center gap-3 rounded-md border bg-background px-4 py-2.5 text-sm font-semibold shadow-sm transition-opacity",
-            buttonDisabled && "opacity-60 cursor-not-allowed",
-            !buttonDisabled && "hover:bg-accent",
+            signInDisabled && "opacity-60 cursor-not-allowed",
+            !signInDisabled && "hover:bg-accent",
           )}
         >
           {ssoState === "waiting" ? (
@@ -168,6 +267,8 @@ export function LoginPage() {
             ? "Waiting for backend…"
             : backendStatus === "down"
             ? "Backend not ready"
+            : credentialsMissing
+            ? "Download credentials to continue"
             : "Sign in with Google"}
         </button>
 

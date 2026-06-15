@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v2.5.3 — 2026-06-15
+**Download company Google credentials from the sign-in screen**
+
+- New: when a computer is missing `google_credentials.json`, the sign-in screen shows a **Download credentials** button that fetches the file from the company's shared Drive link and places it in the backend folder automatically, then enables sign-in (`frontend/src/pages/LoginPage.tsx`, `frontend/src/api/auth.ts`)
+- New backend endpoints (both pre-auth): `GET /auth/credentials-status` reports whether the file is present and whether a download source is configured; `POST /auth/credentials/fetch` downloads (20s timeout, 2 MB cap), validates it is a real OAuth client (`installed`/`web` with client id + secret), and writes it to `backend/google_credentials.json` (`backend/routers/auth.py`)
+- The download source is baked into the build via `GOOGLE_CREDENTIALS_DOWNLOAD_URL` and can be overridden with the `GOOGLE_CREDENTIALS_URL` env var; Google Drive share links are normalized to a direct download automatically
+- If no source is configured, the sign-in screen shows the exact folder to drop the file into for both Windows and macOS
+
 ### v2.5.2 — 2026-06-15
 **Fix: "Export manifest" reported success but saved nothing**
 
