@@ -189,7 +189,14 @@ fi
 # ── 7. Notarize + staple (only when a notary profile is configured) ─────────
 if [ -n "${DEVELOPER_ID_INSTALLER:-}" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
   info "Submitting to Apple notary service (profile: $NOTARY_PROFILE)..."
-  xcrun notarytool submit "$FINAL_PKG" --keychain-profile "$NOTARY_PROFILE" --wait
+  # In CI the profile is stored in a throwaway keychain (NOTARY_KEYCHAIN); locally
+  # it lives in the default credential store and no --keychain flag is needed.
+  if [ -n "${NOTARY_KEYCHAIN:-}" ]; then
+    xcrun notarytool submit "$FINAL_PKG" --keychain-profile "$NOTARY_PROFILE" \
+      --keychain "$NOTARY_KEYCHAIN" --wait
+  else
+    xcrun notarytool submit "$FINAL_PKG" --keychain-profile "$NOTARY_PROFILE" --wait
+  fi
   info "Stapling notarization ticket..."
   xcrun stapler staple "$FINAL_PKG"
 else

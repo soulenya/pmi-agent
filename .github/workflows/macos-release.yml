@@ -85,11 +85,14 @@ jobs:
       - name: Store notarization credentials
         if: env.MACOS_CERT_P12_BASE64 != '' && env.MACOS_NOTARY_APPLE_ID != ''
         run: |
+          # Store the notary profile in the default credential store (not the
+          # throwaway signing keychain) so it is found by `notarytool submit
+          # --keychain-profile` with no --keychain flag — which is what older
+          # tags' build-macos.sh use when this workflow back-fills their .pkg.
           xcrun notarytool store-credentials "littlegerry" \
             --apple-id "$MACOS_NOTARY_APPLE_ID" \
             --team-id "$MACOS_NOTARY_TEAM_ID" \
-            --password "$MACOS_NOTARY_PASSWORD" \
-            --keychain "$LG_KEYCHAIN_PATH"
+            --password "$MACOS_NOTARY_PASSWORD"
           echo "NOTARY_PROFILE=littlegerry" >> "$GITHUB_ENV"
 
       - name: Build macOS .pkg
