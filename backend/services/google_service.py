@@ -407,6 +407,40 @@ def drive_upload_bytes(
     }
 
 
+def drive_find_file_matches(name: str, max_results: int = 25) -> list[dict]:
+    """Find non-trashed Drive files whose name EXACTLY equals ``name``.
+
+    Returns candidates with id, name, size (int|None), type, modified, url —
+    newest first. Used to relink locally-uploaded Knowledge Base documents to
+    their Drive original so they become update-trackable and shareable.
+    """
+    svc = _build("drive", "v3")
+    safe = name.replace("\\", "\\\\").replace("'", "\\'")
+    resp = svc.files().list(
+        q=f"name = '{safe}' and trashed=false",
+        pageSize=max_results,
+        orderBy="modifiedTime desc",
+        fields="files(id,name,size,mimeType,modifiedTime,webViewLink)",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        corpora="allDrives",
+    ).execute()
+    out: list[dict] = []
+    for f in resp.get("files", []):
+        sz = f.get("size")
+        out.append(
+            {
+                "id": f["id"],
+                "name": f["name"],
+                "size": int(sz) if sz is not None else None,
+                "type": f.get("mimeType", ""),
+                "modified": f.get("modifiedTime", ""),
+                "url": f.get("webViewLink", ""),
+            }
+        )
+    return out
+
+
 def drive_search_by_name(name_contains: str, max_results: int = 25) -> list[dict]:
     """Find Drive files whose name contains ``name_contains`` (newest first).
 

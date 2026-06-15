@@ -12,8 +12,17 @@ import {
   applyDocumentUpdate,
   dismissDocumentUpdate,
   scanDuplicates,
+  linkUploadsToDrive,
+  exportManifest,
+  importManifest,
 } from "@/api/documents";
 import type { DuplicateScanResult } from "@/api/documents";
+import type {
+  LinkToDriveResult,
+  KbManifest,
+  KbManifestItem,
+  ManifestImportResult,
+} from "@/api/documents";
 import type { Document, DocumentChunk } from "@/types/documents";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { DriveBrowser } from "@/components/google/DriveBrowser";
@@ -39,6 +48,10 @@ import {
   Check,
   Files,
   Copy,
+  Share2,
+  Link2,
+  Download,
+  FileUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import axios from "axios";
@@ -632,6 +645,272 @@ function DuplicatesModal({
   );
 }
 
+// â”€â”€ Share Knowledge Base (Drive link + manifest) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function downloadTextFile(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function buildManifestMarkdown(m: KbManifest): string {
+  const lines = [
+    "# Little Gerry — Knowledge Base manifest",
+    "",
+    `Generated ${new Date(m.generated_at).toLocaleString()} · ${m.count} document${m.count === 1 ? "" : "s"}.`,
+    "",
+    "**To import:** open Little Gerry → Knowledge Base → **Share KB → Import manifest**, and choose the `littlegerry-kb.json` file. \"Check for updates\" keeps working because each document stays linked to its Google Drive source.",
+    "",
+    "| # | Document | Category | Regulated | Drive link |",
+    "|---|----------|----------|-----------|------------|",
+  ];
+  m.items.forEach((it, i) => {
+    const cat = it.category ?? "—";
+    const reg = it.is_regulated ? "Yes" : "—";
+    const safeTitle = it.title.replace(/\|/g, "\\|");
+    lines.push(`| ${i + 1} | ${safeTitle} | ${cat} | ${reg} | [open](${it.drive_url}) |`);
+  });
+  lines.push("");
+  return lines.join("\n");
+}
+
+function ShareKbModal({
+  connected,
+  onClose,
+  onChanged,
+}: {
+  connected: boolean;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const [linking, setLinking] = useState(false);
+  const [linkResult, setLinkResult] = useState<LinkToDriveResult | null>(null);
+  const [linkError, setLinkError] = useState("");
+
+  const [exporting, setExporting] = useState(false);
+  const [exportMsg, setExportMsg] = useState("");
+  const [exportError, setExportError] = useState("");
+
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ManifestImportResult | null>(null);
+  const [importError, setImportError] = useState("");
+
+  const handleLink = async () => {
+    setLinking(true);
+    setLinkError("");
+    setLinkResult(null);
+    try {
+      const r = await linkUploadsToDrive();
+      setLinkResult(r);
+      if (r.linked_count > 0) onChanged();
+    } catch (e) {
+      setLinkError(getErrorMessage(e));
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError("");
+    setExportMsg("");
+    try {
+      const m = await exportManifest();
+      if (m.count === 0) {
+        setExportMsg("No Drive-linked documents to export yet. Run \u201cLink uploads to Drive\u201d first.");
+        return;
+      }
+      downloadTextFile("littlegerry-kb.json", JSON.stringify(m, null, 2), "application/json");
+      downloadTextFile("littlegerry-kb.md", buildManifestMarkdown(m), "text/markdown");
+      setExportMsg(`Exported ${m.count} document${m.count === 1 ? "" : "s"} — saved littlegerry-kb.json and littlegerry-kb.md.`);
+    } catch (e) {
+      setExportError(getErrorMessage(e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImportFile = async (file: File) => {
+    setImporting(true);
+    setImportError("");
+    setImportResult(null);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as KbManifest;
+      const items = Array.isArray(parsed?.items) ? (parsed.items as KbManifestItem[]) : null;
+      if (!items || items.length === 0) {
+        setImportError("That file doesn't look like a Little Gerry KB manifest (no items found).");
+        return;
+      }
+      const r = await importManifest(items, false);
+      setImportResult(r);
+      if (r.imported_count > 0) onChanged();
+    } catch (e) {
+      if (e instanceof SyntaxError) {
+        setImportError("Couldn't read that file — it isn't valid JSON.");
+      } else {
+        setImportError(getErrorMessage(e));
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+      <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b p-5">
+          <div className="flex items-center gap-2">
+            <Share2 className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-bold">Share Knowledge Base</h2>
+          </div>
+          <button onClick={onClose} className="rounded p-1 hover:bg-accent">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-5 overflow-y-auto p-5">
+          {!connected && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Connect your Google account in Settings to link documents to Drive
+                and import a manifest. Exporting works without it.
+              </span>
+            </div>
+          )}
+
+          {/* 1. Link uploads to Drive */}
+          <section className="rounded-lg border p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <Link2 className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">1 · Link uploads to Drive</h3>
+            </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Matches documents you uploaded from your computer to the same file on
+              your Google Drive (by name). Linked documents become update-trackable
+              and can be shared in a manifest.
+            </p>
+            <button
+              onClick={handleLink}
+              disabled={linking || !connected}
+              className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+            >
+              {linking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+              {linking ? "Scanning…" : "Scan & link"}
+            </button>
+            {linkError && <p className="mt-2 text-xs text-destructive">{linkError}</p>}
+            {linkResult && (
+              <div className="mt-3 space-y-1 text-xs">
+                <p className="font-medium text-foreground">
+                  Linked {linkResult.linked_count} of {linkResult.scanned} unlinked document
+                  {linkResult.scanned === 1 ? "" : "s"}.
+                </p>
+                {linkResult.ambiguous_count > 0 && (
+                  <p className="text-amber-700">
+                    {linkResult.ambiguous_count} need a manual choice (multiple Drive matches).
+                  </p>
+                )}
+                {linkResult.not_found_count > 0 && (
+                  <p className="text-muted-foreground">
+                    {linkResult.not_found_count} had no matching file on Drive.
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* 2. Export manifest */}
+          <section className="rounded-lg border p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <Download className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">2 · Export manifest</h3>
+            </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Saves <code className="rounded bg-muted px-1">littlegerry-kb.json</code> (for
+              one-click import) and a readable{" "}
+              <code className="rounded bg-muted px-1">littlegerry-kb.md</code> list with a
+              Drive link per document. Share these with a teammate who has access to the
+              same Drive files.
+            </p>
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {exporting ? "Exporting…" : "Export manifest"}
+            </button>
+            {exportError && <p className="mt-2 text-xs text-destructive">{exportError}</p>}
+            {exportMsg && <p className="mt-2 text-xs text-muted-foreground">{exportMsg}</p>}
+          </section>
+
+          {/* 3. Import manifest */}
+          <section className="rounded-lg border p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <FileUp className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">3 · Import manifest</h3>
+            </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Choose a <code className="rounded bg-muted px-1">littlegerry-kb.json</code> file
+              to import every document from Drive into your Knowledge Base. Identical files
+              you already have are skipped automatically.
+            </p>
+            <button
+              onClick={() => importInputRef.current?.click()}
+              disabled={importing || !connected}
+              className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+            >
+              {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
+              {importing ? "Importing…" : "Choose manifest file"}
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleImportFile(f);
+                e.target.value = "";
+              }}
+            />
+            {importError && <p className="mt-2 text-xs text-destructive">{importError}</p>}
+            {importResult && (
+              <div className="mt-3 space-y-1 text-xs">
+                <p className="font-medium text-foreground">
+                  Imported {importResult.imported_count}, skipped {importResult.skipped_count} duplicate
+                  {importResult.skipped_count === 1 ? "" : "s"}
+                  {importResult.failed_count > 0 ? `, ${importResult.failed_count} failed` : ""}.
+                </p>
+                {importResult.failed.slice(0, 5).map((f) => (
+                  <p key={f.title} className="text-destructive">
+                    {f.title}: {f.error}
+                  </p>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="flex justify-end border-t p-4">
+          <button onClick={onClose} className="rounded-md border px-4 py-2 text-sm font-medium">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // â”€â”€ Main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function DocumentsPage() {
@@ -654,6 +933,8 @@ export function DocumentsPage() {
   const [dupConflict, setDupConflict] = useState<DuplicateExisting | null>(null);
   // Manual duplicate scan.
   const [showDuplicates, setShowDuplicates] = useState(false);
+  // Share / manifest modal.
+  const [showShareKb, setShowShareKb] = useState(false);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["document-categories"],
@@ -880,6 +1161,15 @@ export function DocumentsPage() {
         />
       )}
 
+      {/* Share Knowledge Base (Drive link + manifest) */}
+      {showShareKb && (
+        <ShareKbModal
+          connected={!!googleStatus?.connected}
+          onClose={() => setShowShareKb(false)}
+          onChanged={() => queryClient.invalidateQueries({ queryKey: ["documents"] })}
+        />
+      )}
+
       {/* Delete confirmation */}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -987,6 +1277,14 @@ export function DocumentsPage() {
                 ? <Loader2 className="h-4 w-4 animate-spin" />
                 : <Files className="h-4 w-4" />}
               Find duplicates
+            </button>
+            <button
+              onClick={() => setShowShareKb(true)}
+              className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+              title="Link documents to Drive and export/import a shareable manifest"
+            >
+              <Share2 className="h-4 w-4" />
+              Share KB
             </button>
             <button
               onClick={() => setShowUpload(true)}
