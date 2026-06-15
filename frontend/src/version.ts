@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 79;
+export const BUILD_NUMBER = 80;
 export const BUILD_DATE = "2026-06-15";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 80,
+    date: "2026-06-15",
+    title: "Fix: macOS app closed instantly instead of starting up",
+    changes: [
+      "On a Mac, double-clicking Little Gerry after installing the .pkg quit immediately with no setup window. It now opens a Terminal and runs the first-run setup in full view — installing its prerequisites (Homebrew, Docker Desktop, Node, uv), starting the database, applying migrations, and installing dependencies — just like the Windows installer flow",
+      "If first-run setup hits a problem, the Terminal window now stays open with the error and a pointer to the logs instead of vanishing, so it's clear what to fix",
+    ],
+  },
   {
     build: 79,
     date: "2026-06-15",
