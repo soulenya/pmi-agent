@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 82;
-export const BUILD_DATE = "2026-06-15";
+export const BUILD_NUMBER = 83;
+export const BUILD_DATE = "2026-06-16";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 83,
+    date: "2026-06-16",
+    title: "External links now open in your real browser",
+    changes: [
+      "Clicking a link to an outside website (for example a source link in a chat answer) used to load that page inside the Little Gerry window, which has no back, forward, refresh, or address bar — leaving you stuck. Those links now open in your normal web browser instead, so the app window always stays on Little Gerry. Links inside the app and file downloads are unaffected",
+    ],
+  },
   {
     build: 82,
     date: "2026-06-15",
