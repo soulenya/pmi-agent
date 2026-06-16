@@ -40,9 +40,14 @@ class Conversation(Base):
     agent_runs: Mapped[list[AgentRun]] = relationship(
         "AgentRun", back_populates="conversation"
     )
+    attachments: Mapped[list[ConversationAttachment]] = relationship(
+        "ConversationAttachment", back_populates="conversation",
+        cascade="all, delete-orphan", order_by="ConversationAttachment.created_at"
+    )
 
     def __repr__(self) -> str:
         return f"<Conversation id={self.id} title={self.title!r}>"
+
 
 
 class AgentRun(Base):
@@ -130,3 +135,48 @@ class Message(Base):
 
     def __repr__(self) -> str:
         return f"<Message id={self.id} role={self.role} conv={self.conversation_id}>"
+
+
+class ConversationAttachment(Base):
+    """A reference/working file attached to a conversation.
+
+    Unlike Knowledge Base documents these are NOT chunked or embedded — the
+    extracted plain text is stored alongside the row and injected into the
+    model's context for the conversation. The original bytes are kept
+    Fernet-encrypted on disk so the user can re-download the file.
+    """
+
+    __tablename__ = "conversation_attachments"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    file_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    file_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Relative path of the encrypted original under STORAGE_ROOT/chat-attachments.
+    stored_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Extracted plain text injected into the conversation context.
+    extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    char_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+    )
+
+    conversation: Mapped[Conversation] = relationship(
+        "Conversation", back_populates="attachments"
+    )
+
+    def __repr__(self) -> str:
+        return f"<ConversationAttachment id={self.id} name={self.file_name!r}>"
+

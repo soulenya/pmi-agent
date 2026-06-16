@@ -54,6 +54,18 @@ export interface SendMessageRequest {
   conversation_id?: string;
 }
 
+// ── Conversation attachments (reference files) ────────────────────────────────
+
+export interface ChatAttachment {
+  id: string;
+  conversation_id: string;
+  file_name: string;
+  mime_type: string | null;
+  file_size_bytes: number | null;
+  char_count: number;
+  created_at: string;
+}
+
 // ── Approvals ─────────────────────────────────────────────────────────────────
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
