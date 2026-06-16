@@ -98,7 +98,19 @@ jobs:
       - name: Build macOS .pkg
         # DEVELOPER_ID_INSTALLER / NOTARY_PROFILE are set above only when secrets
         # exist; build-macos.sh signs + notarizes when present, else builds unsigned.
-        run: bash scripts/build-macos.sh
+        env:
+          UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+        run: |
+          # Bake the read-only auto-update token into the payload. It is gitignored
+          # (never in the checkout), so without this the installed .pkg has no token
+          # and silently skips the auto-updater — Macs would never self-update.
+          if [ -n "$UPDATE_TOKEN" ]; then
+            printf '%s' "$UPDATE_TOKEN" > update_token.txt
+            echo "  Wrote update_token.txt for the installed-copy auto-updater."
+          else
+            echo "::warning::UPDATE_TOKEN secret is empty — the .pkg will NOT auto-update."
+          fi
+          bash scripts/build-macos.sh
 
       - name: Upload .pkg to the release
         env:
