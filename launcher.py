@@ -128,26 +128,34 @@ def _set_status(text: str, step: int | None = None) -> None:
             pass
 
 
-def _run(cmd: str, cwd: str | None = None) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        cmd, cwd=cwd, shell=True,
-        capture_output=True, **_no_window_kwargs(),
-    )
+def _run(cmd: str, cwd: str | None = None, timeout: float | None = None) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(
+            cmd, cwd=cwd, shell=True,
+            capture_output=True, timeout=timeout, **_no_window_kwargs(),
+        )
+    except subprocess.TimeoutExpired:
+        # Treat a timeout like a failed command — callers only inspect
+        # returncode/stdout, and this keeps shutdown from ever blocking.
+        return subprocess.CompletedProcess(cmd, 124, b"", b"")
+    except Exception:
+        return subprocess.CompletedProcess(cmd, 1, b"", b"")
 
 
 def _kill_port(port: int) -> None:
     if IS_WINDOWS:
-        r = _run(f'netstat -aon | findstr ":{port} "')
+        r = _run(f'netstat -aon | findstr ":{port} "', timeout=10)
         for line in r.stdout.decode(errors="ignore").splitlines():
             parts = line.split()
             if len(parts) >= 5 and f":{port}" in parts[1]:
-                _run(f"taskkill /f /pid {parts[4]}")
+                _run(f"taskkill /f /pid {parts[4]}", timeout=10)
     else:
         # macOS / Unix: find the PID(s) bound to the port and kill them.
-        r = _run(f"lsof -ti tcp:{port}")
+        r = _run(f"lsof -ti tcp:{port}", timeout=10)
         for pid in r.stdout.decode(errors="ignore").split():
             if pid.strip():
-                _run(f"kill -9 {pid.strip()}")
+                _run(f"kill -9 {pid.strip()}", timeout=10)
+
 
 
 def _health_ok() -> bool:
@@ -470,6 +478,19 @@ def _start_services() -> None:
 
 # ── stop all ─────────────────────────────────────────────────────────────────
 
+def _force_exit_after(seconds: float) -> None:
+    """Safety net so the user never has to force quit.
+
+    Teardown can briefly block (most often a sluggish ``docker stop`` on
+    macOS). We start this watchdog right before shutdown begins; if the normal
+    ``os._exit(0)`` hasn't fired within the grace period, this one does.
+    """
+    def _kill() -> None:
+        time.sleep(seconds)
+        os._exit(0)
+    threading.Thread(target=_kill, daemon=True).start()
+
+
 def _stop_all() -> None:
     for p in _procs:
         try:
@@ -478,7 +499,10 @@ def _stop_all() -> None:
             pass
     _kill_port(8000)
     _kill_port(5173)
-    _run("docker stop pmi_postgres")
+    # Bounded so a slow/unresponsive Docker can't hang shutdown. ``-t 3`` gives
+    # Postgres a 3 s grace period; the outer timeout caps the whole call.
+    _run("docker stop -t 3 pmi_postgres", timeout=15)
+
 
 
 # ── control-file command handler (called from poll thread) ──────────────────
@@ -489,6 +513,7 @@ def _handle_control_cmd(cmd: str) -> None:
         threading.Thread(target=_restart_services, daemon=True).start()
     elif cmd == "stop":
         _skip_close_confirm = True
+        _force_exit_after(12)  # guarantee exit even if teardown blocks
         if _win_ref:
             try:
                 _win_ref.destroy()
@@ -803,6 +828,7 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
         webview.start(_after_start, win, debug=False)
 
     # Reached here only when the window is closed
+    _force_exit_after(12)  # guarantee exit even if teardown blocks
     _stop_all()
     if icon is not None:
         icon.stop()

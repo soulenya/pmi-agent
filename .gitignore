@@ -79,3 +79,7 @@ installer/cert/LittleGerry-Signing.pfx
 # Auto-update token — read-only GitHub PAT baked into installers at build time.
 # NEVER commit. Lives only on the build machine and inside built installers.
 update_token.txt
+
+# Local-only helper scripts that contain baked-in secrets (e.g. the macOS
+# token installer handed to teammates privately). NEVER commit.
+local/
