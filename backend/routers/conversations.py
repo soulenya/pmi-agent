@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -13,6 +14,7 @@ from models.db.enums import MessageRole
 from models.db.user import User
 from models.schemas.conversations import (
     ApprovalOut,
+    ChatAttachmentOut,
     ConversationCreate,
     ConversationOut,
     ConversationUpdate,
@@ -22,6 +24,7 @@ from models.schemas.conversations import (
 )
 from repositories.conversation_repo import (
     ApprovalRepository,
+    ConversationAttachmentRepository,
     ConversationRepository,
     MessageRepository,
     NotificationRepository,
@@ -113,6 +116,141 @@ async def list_messages(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found.")
     msg_repo = MessageRepository(db)
     return await msg_repo.list_for_conversation(conv_id, limit=limit, before_id=before_id)
+
+
+# ── Conversation attachments (reference files) ────────────────────────────────
+
+async def _require_conversation(conv_id: uuid.UUID, user: User, db: AsyncSession):
+    conv = await ConversationRepository(db).get(conv_id, user.id)
+    if conv is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found."
+        )
+    return conv
+
+
+@router.get("/{conv_id}/attachments", response_model=list[ChatAttachmentOut])
+async def list_attachments(
+    conv_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[ChatAttachmentOut]:
+    await _require_conversation(conv_id, current_user, db)
+    return await ConversationAttachmentRepository(db).list_for_conversation(conv_id)
+
+
+@router.post(
+    "/{conv_id}/attachments",
+    response_model=ChatAttachmentOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_attachment(
+    conv_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ChatAttachmentOut:
+    from services import chat_attachments as ca
+
+    await _require_conversation(conv_id, current_user, db)
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="The file is empty."
+        )
+    if len(raw) > ca.MAX_ATTACHMENT_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds the {ca.MAX_ATTACHMENT_BYTES // (1024 * 1024)} MB limit.",
+        )
+
+    file_name = file.filename or "attachment"
+    try:
+        mime_type = ca.resolve_mime_type(file_name, file.content_type)
+    except ca.UnsupportedAttachmentError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=str(exc)
+        )
+
+    try:
+        text = ca.extract_text(raw, mime_type)
+    except Exception as exc:  # noqa: BLE001 — surface extraction failure to the user
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Could not read text from this file: {exc}",
+        )
+
+    repo = ConversationAttachmentRepository(db)
+    att = await repo.create(
+        conversation_id=conv_id,
+        file_name=file_name,
+        mime_type=mime_type,
+        file_size_bytes=len(raw),
+        stored_path=None,
+        extracted_text=text,
+        char_count=len(text),
+        created_by=current_user.id,
+    )
+    # Persist the encrypted original under the attachment id, then record its path.
+    stored_name = ca.store_attachment_bytes(att.id, raw, file_name)
+    att.stored_path = stored_name
+    await db.commit()
+    await db.refresh(att)
+    return att
+
+
+@router.get("/{conv_id}/attachments/{attachment_id}/download")
+async def download_attachment(
+    conv_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    from io import BytesIO
+
+    from services import chat_attachments as ca
+
+    await _require_conversation(conv_id, current_user, db)
+    att = await ConversationAttachmentRepository(db).get(attachment_id, conv_id)
+    if att is None or not att.stored_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found."
+        )
+    try:
+        data = ca.decrypt_attachment(att.stored_path)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The stored file could not be read.",
+        )
+    return StreamingResponse(
+        BytesIO(data),
+        media_type=att.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{att.file_name}"'},
+    )
+
+
+@router.delete("/{conv_id}/attachments/{attachment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_attachment(
+    conv_id: uuid.UUID,
+    attachment_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    from services import chat_attachments as ca
+
+    await _require_conversation(conv_id, current_user, db)
+    repo = ConversationAttachmentRepository(db)
+    att = await repo.get(attachment_id, conv_id)
+    if att is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found."
+        )
+    stored = att.stored_path
+    await repo.delete(att)
+    await db.commit()
+    ca.delete_stored_attachment(stored)
 
 
 # ── Approvals ─────────────────────────────────────────────────────────────────

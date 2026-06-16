@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 83;
-export const BUILD_DATE = "2026-06-16";
+export const BUILD_NUMBER = 84;
+export const BUILD_DATE = "2026-06-17";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 84,
+    date: "2026-06-17",
+    title: "Attach reference files to a conversation",
+    changes: [
+      "You can now attach files to a chat using the new 'Attach file' button just above the message box. Little Gerry reads those files and uses them as reference while you talk in that conversation — handy for documents you're editing or want answers about without adding them to the Knowledge Base",
+      "Attached files stay with that one conversation, are stored encrypted on this computer, and can be removed any time by clicking the × on the file. Supported types: PDF, Word (.docx), plain text, Markdown, and CSV",
+    ],
+  },
   {
     build: 83,
     date: "2026-06-16",

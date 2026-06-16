@@ -37,6 +37,21 @@ class ConversationUpdate(BaseModel):
     is_archived: bool | None = None
 
 
+# ── Conversation attachments (reference files) ────────────────────────────────
+
+class ChatAttachmentOut(BaseModel):
+    id: uuid.UUID
+    conversation_id: uuid.UUID
+    file_name: str
+    mime_type: str | None
+    file_size_bytes: int | None
+    char_count: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+
 # ── Message ───────────────────────────────────────────────────────────────────
 
 class MessageOut(BaseModel):
