@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.6.2 — 2026-06-17
+**Fix: macOS exit could stall and require Force Quit**
+
+- On macOS, closing Little Gerry ran the teardown (`_stop_all`) synchronously on the main thread after the window closed. `docker stop pmi_postgres` used Docker's default 10s SIGTERM grace period (longer when Docker Desktop is sluggish), and no shutdown subprocess call had a timeout — so a slow/hung `docker`/`lsof` left the process alive with no window, forcing a Force Quit
+- Fix (`launcher.py`): `_run()` now takes a `timeout` and never raises; `_kill_port` calls are bounded (10s); `docker stop -t 3 pmi_postgres` is capped at 15s; and a `_force_exit_after(12)` watchdog is started before teardown in both exit paths (window close + tray/in-app Stop) so the process always exits promptly even if a step blocks
+
 ### v2.6.1 — 2026-06-17
 **Fix: phantom "untitled" conversations**
 
