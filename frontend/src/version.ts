@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 85;
+export const BUILD_NUMBER = 86;
 export const BUILD_DATE = "2026-06-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 86,
+    date: "2026-06-17",
+    title: "Fix: exiting could stall on Mac (had to force quit)",
+    changes: [
+      "On macOS, quitting Little Gerry could hang with the window gone but the app still running, forcing a Force Quit. Shutdown is now bounded with timeouts and a safety net that always closes the app, so exiting is quick and clean",
+    ],
+  },
   {
     build: 85,
     date: "2026-06-17",
