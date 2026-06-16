@@ -10,7 +10,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.approval import ApprovalIntent
-from models.db.conversation import Conversation, Message
+from models.db.conversation import Conversation, ConversationAttachment, Message
 from models.db.enums import ApprovalStatus, MessageRole
 from models.db.notification import Notification
 
@@ -141,6 +141,62 @@ class MessageRepository:
             stmt = stmt.where(Message.created_at < sub)
         result = await self.db.execute(stmt)
         return list(result.scalars())
+
+
+class ConversationAttachmentRepository:
+    def __init__(self, db: AsyncSession) -> None:
+        self.db = db
+
+    async def create(
+        self,
+        conversation_id: uuid.UUID,
+        file_name: str,
+        mime_type: str | None,
+        file_size_bytes: int | None,
+        stored_path: str | None,
+        extracted_text: str | None,
+        char_count: int,
+        created_by: uuid.UUID | None = None,
+    ) -> ConversationAttachment:
+        att = ConversationAttachment(
+            conversation_id=conversation_id,
+            file_name=file_name,
+            mime_type=mime_type,
+            file_size_bytes=file_size_bytes,
+            stored_path=stored_path,
+            extracted_text=extracted_text,
+            char_count=char_count,
+            created_by=created_by,
+        )
+        self.db.add(att)
+        await self.db.flush()
+        await self.db.refresh(att)
+        return att
+
+    async def list_for_conversation(
+        self, conversation_id: uuid.UUID
+    ) -> list[ConversationAttachment]:
+        result = await self.db.execute(
+            select(ConversationAttachment)
+            .where(ConversationAttachment.conversation_id == conversation_id)
+            .order_by(ConversationAttachment.created_at.asc())
+        )
+        return list(result.scalars())
+
+    async def get(
+        self, attachment_id: uuid.UUID, conversation_id: uuid.UUID
+    ) -> ConversationAttachment | None:
+        result = await self.db.execute(
+            select(ConversationAttachment).where(
+                ConversationAttachment.id == attachment_id,
+                ConversationAttachment.conversation_id == conversation_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def delete(self, att: ConversationAttachment) -> None:
+        await self.db.delete(att)
+        await self.db.flush()
 
 
 class ApprovalRepository:

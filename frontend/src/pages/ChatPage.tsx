@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines, Volume2 } from "lucide-react";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { AttachmentBar } from "@/components/chat/AttachmentBar";
 import {
   createConversation,
   listConversations,
@@ -634,6 +635,9 @@ export function ChatPage() {
             </button>
           </div>
         )}
+
+        {/* Reference-file attachments (not part of the Knowledge Base) */}
+        {conversationId && <AttachmentBar conversationId={conversationId} />}
 
         {/* Input */}
         <ChatInput

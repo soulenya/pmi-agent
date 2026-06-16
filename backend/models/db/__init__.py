@@ -5,7 +5,7 @@ from models.db.assistant import AssistantSuggestion
 from models.db.audit import AuditEvent
 from models.db.base import Base
 from models.db.briefing import Briefing
-from models.db.conversation import AgentRun, Conversation, Message
+from models.db.conversation import AgentRun, Conversation, ConversationAttachment, Message
 from models.db.document import Document, DocumentCategory, DocumentChunk
 from models.db.email_draft import EmailDraft
 from models.db.feedback import Feedback
@@ -31,6 +31,7 @@ __all__ = [
     "Conversation",
     "AgentRun",
     "Message",
+    "ConversationAttachment",
     "ApprovalIntent",
     "Project",
     "Task",
