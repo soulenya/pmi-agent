@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.6.1 — 2026-06-17
+**Fix: phantom "untitled" conversations**
+
+- The Little Gerry slide-out chat panel created an empty conversation every time it opened, because the "ensure an active conversation" effect acted on the conversations query's placeholder empty array before the list had loaded — and React StrictMode (the installed app serves the frontend via the Vite dev server) ran the effect twice, producing them in pairs. Over time this left dozens of zero-message `untitled conversation` rows the user never started
+- Fix (`frontend/src/components/layout/ChatSidebar.tsx`): the effect now waits for `isFetched` before acting, selects the most recent existing conversation instead of creating one, and a ref guard prevents StrictMode from double-creating. At most one conversation is ever created, and only for a genuinely empty account
+
 ### v2.6.0 — 2026-06-17
 **Attach reference files to a conversation**
 
