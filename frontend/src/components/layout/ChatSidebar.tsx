@@ -100,7 +100,7 @@ export function ChatSidebar() {
   }, [toggle]);
 
   // Conversations list
-  const { data: conversations = [] } = useQuery({
+  const { data: conversations = [], isFetched: conversationsFetched } = useQuery({
     queryKey: ["conversations"],
     queryFn: listConversations,
     enabled: open,
@@ -116,15 +116,39 @@ export function ChatSidebar() {
     },
   });
 
-  // Ensure we have an active conversation when open
+  // Guard against React StrictMode running this effect twice on mount, which
+  // would otherwise create two empty conversations back-to-back.
+  const ensuringConvRef = useRef(false);
+
+  // Ensure we have an active conversation when open.
   useEffect(() => {
-    if (!open) return;
-    if (!activeConversationId && conversations.length === 0 && !createMutation.isPending) {
-      createMutation.mutate();
-    } else if (!activeConversationId && conversations.length > 0) {
+    // Wait until the list has actually loaded. useQuery returns an empty array
+    // as a placeholder before the fetch resolves; acting on that placeholder is
+    // what spawned dozens of empty "untitled" conversations (one per sidebar
+    // open, doubled by StrictMode).
+    if (!open || !conversationsFetched || activeConversationId) return;
+
+    if (conversations.length > 0) {
       setActiveConversationId(conversations[0].id);
+      return;
     }
-  }, [open, activeConversationId, conversations, createMutation, setActiveConversationId]);
+
+    // Genuinely no conversations exist yet — create exactly one.
+    if (ensuringConvRef.current || createMutation.isPending) return;
+    ensuringConvRef.current = true;
+    createMutation.mutate(undefined, {
+      onSettled: () => {
+        ensuringConvRef.current = false;
+      },
+    });
+  }, [
+    open,
+    conversationsFetched,
+    activeConversationId,
+    conversations,
+    createMutation,
+    setActiveConversationId,
+  ]);
 
   // Load messages when conversation changes
   useEffect(() => {

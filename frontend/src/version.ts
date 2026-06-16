@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 84;
+export const BUILD_NUMBER = 85;
 export const BUILD_DATE = "2026-06-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 85,
+    date: "2026-06-17",
+    title: "Fix: stop creating empty 'untitled' conversations",
+    changes: [
+      "Opening the Little Gerry side panel could quietly create one or more blank 'untitled conversation' entries you never started, cluttering your history. That no longer happens — the panel now reuses your most recent conversation and only ever creates a new one when you genuinely have none",
+    ],
+  },
   {
     build: 84,
     date: "2026-06-17",
