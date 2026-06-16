@@ -634,6 +634,28 @@ def _make_tray(win=None):
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
+class _JsApi:
+    """JavaScript bridge exposed to the React app as ``window.pywebview.api``."""
+
+    def open_external(self, url: str) -> bool:
+        """Open a URL in the user's default system browser.
+
+        The embedded webview has no navigation chrome, so the frontend routes
+        every external link here instead of navigating the app window.
+        """
+        try:
+            if not isinstance(url, str):
+                return False
+            if not (url.startswith("http://") or url.startswith("https://")):
+                return False  # only real web links — never file:// or scripts
+            import webbrowser
+            webbrowser.open(url)
+            return True
+        except Exception:
+            _log_error()
+            return False
+
+
 def main() -> None:
     global _win_ref
     import webview
@@ -706,8 +728,18 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
         min_size=(900, 600),
         background_color="#000000",
         text_select=True,  # allow selecting/copying text (pywebview disables it by default)
+        js_api=_JsApi(),   # exposes window.pywebview.api.open_external for system-browser links
     )
     _win_ref = win
+
+    # Belt-and-braces: if any external link slips past the frontend handler,
+    # pywebview should still open it in the system browser rather than navigating
+    # the chrome-less app window.
+    try:
+        webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
+    except Exception:
+        pass
+
 
     def _on_closing() -> bool | None:
         """Return False to cancel the close; return None to allow it."""

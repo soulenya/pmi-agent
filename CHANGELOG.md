@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v2.5.4 — 2026-06-16
+**External links now open in the system browser**
+
+- The desktop window has no browser chrome (no back/forward/refresh/address bar). Previously, clicking a link to an outside website — e.g. a source link inside a chat answer rendered by ReactMarkdown with no `target="_blank"` — navigated the embedded webview away from the React app, stranding the user with no way back
+- Fix: a global capture-phase click handler (`frontend/src/lib/externalLinks.ts`, wired in `frontend/src/main.tsx`) intercepts clicks on links to real external hosts and opens them in the user's default browser via a new `window.pywebview.api.open_external` bridge (`launcher.py` `_JsApi`), falling back to `window.open`. Links to the app (localhost) and the local backend (`127.0.0.1`) and file downloads are left untouched
+- Defense in depth: the launcher also sets pywebview `OPEN_EXTERNAL_LINKS_IN_BROWSER = True`
+
 ### v2.5.3 — 2026-06-15
 **Download company Google credentials from the sign-in screen**
 
