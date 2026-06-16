@@ -293,12 +293,21 @@ class LangGraphSupervisor:
         # Append current user message to history for the agent
         messages = history + [{"role": "user", "content": user_text}]
 
+        # Conversation reference-file attachments → injected into the system prompt.
+        try:
+            from services.chat_attachments import build_attachments_context
+            attach_ctx = await build_attachments_context(self.db, self.conversation_id)
+        except Exception:
+            logger.exception("Failed to build attachment context")
+            attach_ctx = ""
+
         # Stream
         full_response_parts: list[str] = []
         async for frame in agent.run(
             messages=messages,
             today=today,
             google_connected=google_connected,
+            extra_system_context=attach_ctx,
         ):
             frame_type = frame.get("type", "")
 

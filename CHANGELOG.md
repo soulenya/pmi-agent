@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v2.6.0 — 2026-06-17
+**Attach reference files to a conversation**
+
+- New: an **Attach file** button above the chat input lets you add reference/working files to a single conversation. The agent reads their contents and uses them as context for that conversation only — without adding them to the Knowledge Base (no chunking, no embeddings, not searchable elsewhere)
+- Files are stored encrypted on disk (Fernet, in `~/.pmi-agent/documents/chat-attachments/`) with their extracted text kept on the row; they can be removed any time via the × on each chip. Supported types reuse the ingestion pipeline: PDF, Word `.docx`, plain text, Markdown, CSV. Per-file/total character budgets keep large files from blowing the prompt
+- Backend: new `conversation_attachments` table (Alembic migration `010`), `ConversationAttachment` model + `ConversationAttachmentRepository`, `services/chat_attachments.py` (encrypt/store/extract/`build_attachments_context`), and four endpoints on the conversations router (`GET`/`POST`/`DELETE` plus `…/download`). The attachment context is injected into the system prompt for **both** agent paths (v1 `executor.py` and v2 supervisor/`base_agent`)
+- Frontend: `api/attachments.ts`, `types/chat.ts` `ChatAttachment`, and `components/chat/AttachmentBar.tsx` (TanStack Query list/upload/delete) wired into `ChatPage` above the input
+
 ### v2.5.4 — 2026-06-16
 **External links now open in the system browser**
 

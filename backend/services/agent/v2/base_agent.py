@@ -47,7 +47,9 @@ class BaseAgent:
         allowed = set(self.TOOLS)
         return [t for t in all_tools if t.name in allowed]
 
-    def _system_message(self, today: str, google_connected: bool) -> SystemMessage:
+    def _system_message(
+        self, today: str, google_connected: bool, extra_context: str = ""
+    ) -> SystemMessage:
         google_note = (
             "\nGOOGLE STATUS: Connected. "
             "Call Google tools immediately when the user asks about Drive, Gmail, Calendar, or Contacts."
@@ -58,7 +60,10 @@ class BaseAgent:
             "Tell the user to connect via Settings → Google Integration."
         )
         return SystemMessage(
-            content=self.SYSTEM_PROMPT.format(today=today) + google_note + HONESTY_CONTRACT
+            content=self.SYSTEM_PROMPT.format(today=today)
+            + google_note
+            + HONESTY_CONTRACT
+            + (extra_context or "")
         )
 
     async def run(
@@ -67,6 +72,7 @@ class BaseAgent:
         today: str,
         google_connected: bool,
         max_rounds: int | None = None,
+        extra_system_context: str = "",
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
         Async generator — yields dicts:
@@ -79,7 +85,7 @@ class BaseAgent:
         if max_rounds is None:
             from config import settings
             max_rounds = settings.agent_max_tool_rounds
-        lc_messages = [self._system_message(today, google_connected)]
+        lc_messages = [self._system_message(today, google_connected, extra_system_context)]
         for m in messages:
             role = m.get("role", "")
             content = m.get("content", "")

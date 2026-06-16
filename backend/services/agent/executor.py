@@ -433,6 +433,15 @@ class AgentExecutor:
             }
         ]
 
+        # Inject any conversation reference-file attachments into the system prompt.
+        try:
+            from services.chat_attachments import build_attachments_context
+            attach_ctx = await build_attachments_context(self.db, self.conversation_id)
+            if attach_ctx:
+                messages[0]["content"] += attach_ctx
+        except Exception:  # noqa: BLE001 — attachments are best-effort context
+            logger.exception("Failed to build attachment context")
+
         # The most-recent window can begin mid-conversation on an assistant turn;
         # skip leading non-user messages so the conversation starts on a user
         # turn (Anthropic requires the first message to use the user role).
