@@ -363,6 +363,32 @@ async def _execute_approved_action(
             await db.commit()
             return {"status": "executed", "action": "create_calendar_event", **result}
 
+        if itype == "odoo_write":
+            from sqlalchemy import select as _select
+            from models.db.odoo import OdooConnection
+            from services import odoo_service as _odoo
+
+            conn = (await db.execute(
+                _select(OdooConnection).where(OdooConnection.user_id == current_user.id)
+            )).scalar_one_or_none()
+            if conn is None:
+                return {"status": "error", "detail": "No Odoo connection is configured."}
+            action = str(payload.get("action") or "")
+            params = payload.get("params") or {}
+            api_key = _odoo.decrypt_secret(conn.api_key_encrypted)
+            result = await _odoo.execute_write(
+                conn.url, conn.database, conn.username, api_key, action, params
+            )
+            await audit.log(
+                "approval.action_executed",
+                actor_id=current_user.id,
+                entity_type="approval_intent",
+                entity_id=intent.id,
+                payload={"intent_type": itype, "action": action, "result": result},
+            )
+            await db.commit()
+            return {"status": "executed", "action": f"odoo:{action}", **result}
+
         # All other types: approved but no automated execution
         return {
             "status": "no_action",

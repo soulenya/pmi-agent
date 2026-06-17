@@ -9,7 +9,8 @@ Phase 1 — read-only:
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -20,6 +21,7 @@ from database import get_db
 from dependencies import get_current_user
 from models.db.odoo import OdooConnection
 from models.db.user import User
+from repositories.conversation_repo import ApprovalRepository
 from services import odoo_service as odoo
 from services.documents.ingestion import DocumentIngestionService, DuplicateDocumentError
 from services.embeddings.service import EmbeddingService, get_embedding_service_db
@@ -56,6 +58,17 @@ class IngestResult(BaseModel):
     imported: int
     skipped: int
     failed: int
+
+
+class ProposeActionRequest(BaseModel):
+    action: str = Field(..., description="Write action key, e.g. 'confirm_quotation'")
+    params: dict[str, Any] = Field(default_factory=dict, description="Action parameters")
+
+
+class ProposeActionResult(BaseModel):
+    approval_id: str
+    title: str
+    risk_level: str
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -235,3 +248,34 @@ async def odoo_ingest(
             failed += 1
     await db.commit()
     return IngestResult(imported=imported, skipped=skipped, failed=failed)
+
+
+@router.post("/actions/propose", response_model=ProposeActionResult)
+async def propose_action(
+    body: ProposeActionRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Queue an Odoo write action for human approval.
+
+    Nothing is written to Odoo here — this creates a pending ApprovalIntent that
+    executes only when the user approves it on the Approvals page.
+    """
+    await _load_conn(db, user)  # ensure Odoo is connected before proposing
+    try:
+        odoo.validate_write(body.action, body.params)
+    except odoo.OdooError as exc:
+        raise HTTPException(400, str(exc))
+
+    title, description = odoo.describe_write(body.action, body.params)
+    intent = await ApprovalRepository(db).create(
+        user_id=user.id,
+        intent_type="odoo_write",
+        intent_title=title[:500],
+        intent_description=description,
+        intent_payload={"action": body.action, "params": body.params},
+        risk_level=odoo.default_risk(body.action),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=72),
+    )
+    await db.commit()
+    return ProposeActionResult(approval_id=str(intent.id), title=title, risk_level=intent.risk_level)

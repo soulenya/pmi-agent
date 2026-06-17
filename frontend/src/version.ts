@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 91;
+export const BUILD_NUMBER = 92;
 export const BUILD_DATE = "2026-06-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 92,
+    date: "2026-06-17",
+    title: "Take action in Odoo — with your approval",
+    changes: [
+      "Little Gerry can now make changes in Odoo, but never on its own: every write becomes a pending approval you review and approve first",
+      "Supported actions: confirm a quotation, register an invoice payment, create a CRM lead, log an internal note, update a record's fields, and create a contact",
+      "Added quick action buttons in the Odoo browser — confirm a quotation or register a payment straight from the table",
+      "The Daily Assistant can now offer a one-click ‘Confirm quotation’ or ‘Register payment’ on its Odoo alerts, and Gerry can propose Odoo changes in chat — all routed through the approval queue",
+    ],
+  },
   {
     build: 91,
     date: "2026-06-17",
