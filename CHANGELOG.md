@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v2.6.3 — 2026-06-17
+**The solar system comes alive when you step away**
+
+- New ambient idle behaviour on the home (system overview) view: after 30s of no input, tiny "space dots" stream in from off-screen and play one of six randomly-chosen scenarios around the live planets/moons/sun — **colonize** (build colonies + orbital platforms), **Dyson sphere** (assemble a lattice around Little Gerry), **war** (invaders vs. system defenders, perpetual), **migration** (a swarm gravity-slingshots around Little Gerry leaving trails), **terraform** (worlds bloom with life), **trade** (glowing hyperlanes between bodies)
+- Any user input (move/click/scroll/key/touch) disperses the scene — everything is pushed radially outward from Little Gerry and fades — then the 30s idle timer resets
+- Purely cosmetic: the layer is a `pointer-events:none` canvas that reads the live celestial-body positions each frame, so navigation is unaffected and it only runs on the overview (auto-stops inside a planet/Gerry/mini-game). Reduced-motion users get only the two calmest scenarios
+
 ### v2.6.2 — 2026-06-17
 **Fix: macOS exit could stall and require Force Quit**
 
