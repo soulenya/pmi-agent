@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v2.6.9 — 2026-06-17
+**New mini-game — Precisian Sweeper (space Minesweeper)**
+
+- Added a second arcade game alongside Precisian Defender on the solar-system overview: a hazard beacon now orbits Little Gerry, and clicking it launches **Precisian Sweeper**, a space-themed Minesweeper
+- The classic grid is reskinned as a sensor sweep of a minefield: cells are **sectors** you scan, mines are cloaked **proximity mines**, numbers are **hazards detected nearby**, and flags are **warning beacons**
+- Three difficulty tiers — **Inner System** (9×9, 10 mines), **Asteroid Belt** (16×16, 40), and **Deep Space** (16×30, 99) — with **best time per tier** persisted to `localStorage`
+- First-click-safe seeding, flood-fill reveal, mines-left counter, and a timer; win shows "Sector cleared", loss shows "Hull breach"
+- Controls: left-click reveals, right-click or long-press plants a beacon, Esc or End Game exits; only available on the system overview (not planet/sun views)
+
 ### v2.6.8 — 2026-06-17
 **Take action in Odoo — behind the approval queue (Phase 3)**
 
