@@ -30,6 +30,7 @@ import { getPendingSuggestionCount } from "@/api/assistant";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import { ShuttleCursor } from "@/components/solar/ShuttleCursor";
 import { AsteroidLauncher, PrecisianDefender } from "@/components/solar/PrecisianDefender";
+import { MineLauncher, PrecisianSweeper } from "@/components/solar/PrecisianSweeper";
 import { IdleSystemLayer } from "@/components/solar/IdleSystemLayer";
 import { cn } from "@/lib/utils";
 
@@ -384,10 +385,12 @@ function MoonBody({
 function SystemOverview({
   badgeCount,
   onStartGame,
+  onStartSweeper,
   idleEnabled,
 }: {
   badgeCount: (b: BadgeKey | undefined) => number;
   onStartGame: () => void;
+  onStartSweeper: () => void;
   idleEnabled: boolean;
 }) {
   const navigate = useNavigate();
@@ -407,6 +410,11 @@ function SystemOverview({
       {/* Precisian Defender launcher — a small asteroid on its own orbit */}
       <OrbitBody radiusPct={0.39 * 50} angle={135} duration={50}>
         <AsteroidLauncher onStart={onStartGame} />
+      </OrbitBody>
+
+      {/* Precisian Sweeper launcher — a hazard beacon on its own orbit */}
+      <OrbitBody radiusPct={0.46 * 50} angle={300} duration={70}>
+        <MineLauncher onStart={onStartSweeper} />
       </OrbitBody>
 
       {SATELLITES.map((sat, i) => (
@@ -520,6 +528,10 @@ export function SolarSystemCanvas({
   const [gameActive, setGameActive] = useState(false);
   const showGame = gameActive && !planet && !sunFocus;
 
+  // Precisian Sweeper mini-game — also only on the system overview.
+  const [sweeperActive, setSweeperActive] = useState(false);
+  const showSweeper = sweeperActive && !planet && !sunFocus;
+
   // Deterministic starfield, generated once.
   const stars = useMemo(
     () =>
@@ -576,7 +588,8 @@ export function SolarSystemCanvas({
               <SystemOverview
                 badgeCount={badgeCount}
                 onStartGame={() => setGameActive(true)}
-                idleEnabled={!showGame}
+                onStartSweeper={() => setSweeperActive(true)}
+                idleEnabled={!showGame && !showSweeper}
               />
             )}
           </div>
@@ -586,6 +599,9 @@ export function SolarSystemCanvas({
       {/* Precisian Defender overlay — covers the system and captures clicks so
           planet/moon/sun navigation is blocked while the game is running. */}
       {showGame && <PrecisianDefender onExit={() => setGameActive(false)} />}
+
+      {/* Precisian Sweeper overlay — covers the system while the game runs. */}
+      {showSweeper && <PrecisianSweeper onExit={() => setSweeperActive(false)} />}
 
       {/* Spaceship cursor with engine trail — space views only. Always mounted
           (even under reduced motion, where the engine trail is suppressed) so the
