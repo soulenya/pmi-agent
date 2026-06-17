@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v2.6.7 — 2026-06-17
+**Odoo gets smart — Daily Assistant alerts & searchable records**
+
+- The Daily Assistant now scans connected Odoo ERP and surfaces recommended tasks for: overdue **customer invoices**, aging **quotations** (draft/sent), overdue **vendor bills**, and **low product stock** — each with a one-click "Create task" that carries the right title, description, priority, and due date, plus a deep link back into Odoo
+- Odoo alerts use the same dedup/dismiss/undo flow as the rest of the Daily Assistant, and never block the Google scan if Odoo is unreachable
+- Added **"Import to Knowledge Base"** controls in the Odoo browser — import all visible rows or a single record. Imported records become AI-searchable across Little Gerry's global search and chat; byte-identical re-imports are skipped automatically
+
 ### v2.6.6 — 2026-06-17
 **New Odoo planet — read your ERP data**
 
