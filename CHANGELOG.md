@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.6.4 — 2026-06-17
+**Fix: idle scenes are now actually random**
+
+- The idle solar-system animation almost always played the same one or two scenarios. Root cause: scenario selection was gated on `prefers-reduced-motion`, and Windows reports reduced-motion as true whenever "Animation effects" is off — pinning the layer to just `terraform` + `migrate` (the same reason the orbits themselves are deliberately not gated on it)
+- Fix (`IdleSystemLayer.tsx`): removed the reduced-motion gate so all six scenarios are always eligible, and added a no-immediate-repeat rule so the same scenario can't play twice in a row
+
 ### v2.6.3 — 2026-06-17
 **The solar system comes alive when you step away**
 
