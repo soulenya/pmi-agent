@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 86;
+export const BUILD_NUMBER = 87;
 export const BUILD_DATE = "2026-06-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 87,
+    date: "2026-06-17",
+    title: "The solar system comes alive when you step away",
+    changes: [
+      "After 30 seconds of inactivity on the home view, tiny space dots drift in from off-screen and play out one of six random scenarios around Little Gerry's solar system — colonizing the worlds, building a Dyson sphere, waging a perpetual war, migrating past on a gravity slingshot, terraforming the planets, or weaving glowing trade routes",
+      "The moment you move the mouse, click, scroll, or type, everything is swept outward away from Little Gerry and the system returns to normal",
+    ],
+  },
   {
     build: 86,
     date: "2026-06-17",
