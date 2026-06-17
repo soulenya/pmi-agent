@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 92;
+export const BUILD_NUMBER = 93;
 export const BUILD_DATE = "2026-06-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 93,
+    date: "2026-06-17",
+    title: "New mini-game — Precisian Sweeper",
+    changes: [
+      "Added a second arcade game to the solar system: click the hazard beacon orbiting Little Gerry to play Precisian Sweeper, a space-themed Minesweeper",
+      "Sweep the minefield around Little Gerry across three difficulties — Inner System, Asteroid Belt, and Deep Space — with your best time saved for each",
+      "Left-click to scan a sector, right-click or long-press to plant a warning beacon, and Esc or End Game to exit",
+    ],
+  },
   {
     build: 92,
     date: "2026-06-17",
