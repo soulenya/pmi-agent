@@ -37,6 +37,7 @@ _TOOLS = [
     "create_task",
     "get_tasks",
     "request_approval",
+    "propose_odoo_write",
     "get_pending_approvals",
     "search_gmail",
     "read_gmail_message",

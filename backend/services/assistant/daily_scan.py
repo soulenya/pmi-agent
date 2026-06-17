@@ -571,7 +571,7 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
                 summary=a["summary"],
                 source_type=a["source_type"],
                 source_url=a.get("source_url"),
-                payload={"task": a.get("task"), "odoo": True},
+                payload={"task": a.get("task"), "odoo_action": a.get("action"), "odoo": True},
             )
 
     # 7. Persist + create notifications

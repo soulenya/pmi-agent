@@ -10,6 +10,9 @@ import {
   CheckCircle2,
   AlertCircle,
   BookPlus,
+  CheckCheck,
+  CreditCard,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -19,7 +22,9 @@ import {
   getOdooModels,
   getOdooData,
   ingestOdoo,
+  proposeOdooAction,
   type OdooConnectRequest,
+  type OdooWriteAction,
 } from "@/api/odoo";
 
 // The Odoo instance is shared org-wide; only the API key differs per user.
@@ -157,6 +162,23 @@ function DataBrowser() {
     .map((r) => r.id)
     .filter((id): id is number => typeof id === "number");
 
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+
+  const propose = useMutation({
+    mutationFn: (input: { action: OdooWriteAction; params: Record<string, unknown> }) =>
+      proposeOdooAction(input.action, input.params),
+    onMutate: () => setActionMsg(null),
+    onSuccess: (res) =>
+      setActionMsg(
+        `Queued for approval: “${res.title}” (${res.risk_level} risk). ` +
+          "Approve it on the Approvals page to run it.",
+      ),
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { detail?: string } } };
+      setActionMsg(err.response?.data?.detail ?? "Could not queue the action.");
+    },
+  });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -218,6 +240,13 @@ function DataBrowser() {
         </div>
       )}
 
+      {actionMsg && (
+        <div className="flex items-start gap-2 rounded-md border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm text-violet-700 dark:text-violet-300">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{actionMsg}</span>
+        </div>
+      )}
+
       {dataErr && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -254,16 +283,52 @@ function DataBrowser() {
                       </td>
                     ))}
                     <td className="px-3 py-2 text-right">
-                      {typeof row.id === "number" && (
-                        <button
-                          onClick={() => ingestRows.mutate([row.id as number])}
-                          disabled={ingestRows.isPending}
-                          title="Import this record to the Knowledge Base"
-                          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-                        >
-                          <BookPlus className="h-4 w-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end gap-1">
+                        {selectedKey === "sales" && typeof row.id === "number" && (
+                          <button
+                            onClick={() =>
+                              propose.mutate({
+                                action: "confirm_quotation",
+                                params: { order_id: row.id, order_name: row.name },
+                              })
+                            }
+                            disabled={propose.isPending}
+                            title="Confirm this quotation (needs your approval)"
+                            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                          >
+                            <CheckCheck className="h-4 w-4" />
+                          </button>
+                        )}
+                        {selectedKey === "invoices" && typeof row.id === "number" && (
+                          <button
+                            onClick={() =>
+                              propose.mutate({
+                                action: "register_payment",
+                                params: {
+                                  move_id: row.id,
+                                  move_name: row.name,
+                                  amount: row.amount_residual,
+                                },
+                              })
+                            }
+                            disabled={propose.isPending}
+                            title="Register a payment for this invoice (needs your approval)"
+                            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                          >
+                            <CreditCard className="h-4 w-4" />
+                          </button>
+                        )}
+                        {typeof row.id === "number" && (
+                          <button
+                            onClick={() => ingestRows.mutate([row.id as number])}
+                            disabled={ingestRows.isPending}
+                            title="Import this record to the Knowledge Base"
+                            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                          >
+                            <BookPlus className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

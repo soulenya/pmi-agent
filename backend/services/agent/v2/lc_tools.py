@@ -15,6 +15,13 @@ _TOOL_DOCS = {
     "search_knowledge_base": "Semantic search over uploaded PMI internal documents. Use for regulatory docs, SOPs, device specs, meeting notes.",
     "create_task": "Create a new task in the PMI task tracker (Kanban board). Auto-approved.",
     "request_approval": "Submit an irreversible action for human approval before execution. Required for emails, calendar events, and any external write.",
+    "propose_odoo_write": (
+        'Propose a WRITE to the connected Odoo ERP (queues an approval; never writes directly). '
+        'JSON fields: {"action": "confirm_quotation"|"register_payment"|"create_lead"|"log_note"|"update_field"|"create_contact", '
+        '"params": object}. params by action: confirm_quotation {order_id}; register_payment {move_id, amount?}; '
+        'create_lead {name, contact_name?, email_from?, phone?, expected_revenue?, description?}; '
+        'log_note {model, record_id, body}; update_field {model, record_id, values}; create_contact {name, email?, phone?, city?}.'
+    ),
     "get_pending_approvals": "List all pending approval requests waiting for human review.",
     "get_tasks": "List tasks from the PMI task tracker with optional status/priority filters.",
     "get_regulatory_status": "Get the current regulatory filing status and compliance overview for the VACTOR program.",
