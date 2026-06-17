@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v2.6.6 — 2026-06-17
+**New Odoo planet — read your ERP data**
+
+- Added a new **Odoo** planet (orange) to the solar system, with an Odoo ERP page at `/odoo`
+- Connect a single Odoo account via API key (Fernet-encrypted at rest). The org URL (`https://precisian-medical-instruments.odoo.com`), database (`precisian-medical-instruments`), and per-user login (`<google-login>@precisianmedical.com`) are pre-filled — the user only pastes an API key
+- Browse live, read-only data for 8 curated datasets: Customers & Contacts, Sales Orders, Invoices & Accounting, Products & Inventory, CRM Leads, Purchase Orders, Manufacturing Orders, Employees — with per-model search and refresh
+- Backend: `OdooConnection` model + migration `012`, `odoo_service` (XML-RPC over `xmlrpc.client`, offloaded to threads via `asyncio.to_thread`), `odoo_integration` router (`/api/odoo/status|connect|disconnect|models|data/{key}`)
+- This is Phase 1 (connection + reads). Daily Assistant feed, Knowledge Base ingestion, global Search, and write-back (behind approvals) are planned follow-ups
+
 ### v2.6.5 — 2026-06-17
 **Daily Assistant stops nagging about things you've handled**
 
