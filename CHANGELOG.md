@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v2.6.5 — 2026-06-17
+**Daily Assistant stops nagging about things you've handled**
+
+- Before creating a task, follow-up, note, or meeting import, the Daily Assistant now checks whether it already produced a suggestion for that source. If you've already turned it into a task/note/follow-up (suggestion accepted or still pending), it won't recommend it again
+- Dismissals are now tracked with a `dismissal_count`. A single dismissal resurfaces the suggestion on the next scan (protects against accidental dismissal); only after **two** dismissals is it permanently suppressed (`DISMISS_SUPPRESS_THRESHOLD = 2`)
+- Added a confirm step to the Dismiss button and an Undo affordance (8s) backed by a new `POST /assistant/suggestions/{id}/undo-dismiss` endpoint
+- Backend: new `dismissal_count` column on `assistant_suggestions` (migration `011`), reworked `daily_scan` dedup/resurface helpers (`_prior`, `_is_blocked`, `_skip_before_work`, async `_add`), and dismiss now increments the count
+
 ### v2.6.4 — 2026-06-17
 **Fix: idle scenes are now actually random**
 

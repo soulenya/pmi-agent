@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -58,6 +58,13 @@ class AssistantSuggestion(Base):
     result_entity_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     result_entity_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
+    )
+
+    # How many times the user has dismissed this source's suggestion. A single
+    # dismissal lets the item resurface on the next scan (guards against an
+    # accidental dismissal); reaching the suppression threshold stops it for good.
+    dismissal_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
     )
 
     created_at: Mapped[datetime] = mapped_column(

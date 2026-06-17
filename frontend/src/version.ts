@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 88;
+export const BUILD_NUMBER = 89;
 export const BUILD_DATE = "2026-06-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 89,
+    date: "2026-06-17",
+    title: "Daily Assistant stops nagging about things you've handled",
+    changes: [
+      "The Daily Assistant no longer re-recommends an item once you've already turned it into a task, note, or follow-up",
+      "If you dismiss a suggestion twice it won't come back — but a single dismissal now resurfaces it once, so an accidental dismissal won't silently lose a recommendation",
+      "Dismissing now asks you to confirm, and an Undo button appears for a few seconds afterward in case you change your mind",
+    ],
+  },
   {
     build: 88,
     date: "2026-06-17",

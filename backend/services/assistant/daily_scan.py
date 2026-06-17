@@ -46,6 +46,11 @@ SETTING_LAST_RUN = "assistant_scan.last_run"
 DEFAULT_ENABLED = True
 DEFAULT_HOUR = 7
 
+# A source's suggestion is only suppressed for good once it has been dismissed
+# at least this many times. A single dismissal lets it resurface on the next
+# scan, protecting against an accidental dismissal.
+DISMISS_SUPPRESS_THRESHOLD = 2
+
 _IMPORTABLE_EXT = (".pdf", ".docx", ".doc", ".txt", ".md")
 
 _NOTIF_TYPE = {
@@ -235,11 +240,62 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
     seen: set[tuple[str, str]] = set()
     new_suggestions: list[AssistantSuggestion] = []
 
-    def _add(kind: str, source_id: str, **fields) -> AssistantSuggestion | None:
+    async def _prior(kind: str, source_id: str) -> AssistantSuggestion | None:
+        """The existing suggestion row for this source (any status), if any."""
+        return (
+            await db.execute(
+                select(AssistantSuggestion).where(
+                    AssistantSuggestion.user_id == user.id,
+                    AssistantSuggestion.kind == kind,
+                    AssistantSuggestion.source_id == source_id,
+                )
+            )
+        ).scalar_one_or_none()
+
+    def _is_blocked(prior: AssistantSuggestion | None) -> bool:
+        """Whether an existing row should suppress a fresh recommendation.
+
+        Blocks when the user already acted on it — it is still pending, or was
+        accepted (a task/note/follow-up was already created) — or has dismissed
+        it at least ``DISMISS_SUPPRESS_THRESHOLD`` times. A single dismissal does
+        not block, so an accidentally dismissed item resurfaces once.
+        """
+        if prior is None:
+            return False
+        if prior.status in ("pending", "accepted"):
+            return True
+        if (
+            prior.status == "dismissed"
+            and (prior.dismissal_count or 0) >= DISMISS_SUPPRESS_THRESHOLD
+        ):
+            return True
+        return False
+
+    async def _skip_before_work(kind: str, source_id: str) -> bool:
+        """Pre-check for expensive imports: skip when already seen or blocked."""
+        if (kind, source_id) in seen:
+            return True
+        return _is_blocked(await _prior(kind, source_id))
+
+    async def _add(kind: str, source_id: str, **fields) -> AssistantSuggestion | None:
         key = (kind, source_id)
         if key in seen:
             return None
         seen.add(key)
+        prior = await _prior(kind, source_id)
+        if _is_blocked(prior):
+            return None
+        if prior is not None:
+            # Dismissed fewer than the threshold → resurface the same row with
+            # refreshed content instead of inserting a duplicate (the
+            # (user, kind, source_id) triple is unique). The dismissal_count is
+            # preserved so a second dismissal still suppresses it for good.
+            for field, value in fields.items():
+                setattr(prior, field, value)
+            prior.status = "pending"
+            prior.resolved_at = None
+            new_suggestions.append(prior)
+            return prior
         s = AssistantSuggestion(
             user_id=user.id,
             kind=kind,
@@ -250,20 +306,6 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         db.add(s)
         new_suggestions.append(s)
         return s
-
-    async def _exists(kind: str, source_id: str) -> bool:
-        if (kind, source_id) in seen:
-            return True
-        row = (
-            await db.execute(
-                select(AssistantSuggestion.id).where(
-                    AssistantSuggestion.user_id == user.id,
-                    AssistantSuggestion.kind == kind,
-                    AssistantSuggestion.source_id == source_id,
-                )
-            )
-        ).first()
-        return row is not None
 
     # 1. Gather Gmail context
     sent: list[dict] = []
@@ -321,9 +363,7 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         mid = str(fu.get("email_id") or "").strip()
         if not mid or mid not in email_by_id:
             continue
-        if await _exists("followup_email", mid):
-            continue
-        _add(
+        await _add(
             "followup_email",
             mid,
             title=str(fu.get("title") or "Follow up on email")[:500],
@@ -341,8 +381,6 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         src_conv = str(tr.get("source_conversation_id") or "").strip()
         ref = src_email or src_conv or title
         source_id = f"{ref}|{title}"[:255]
-        if await _exists("task_recommendation", source_id):
-            continue
         src_type = (
             "gmail_message" if src_email else "chat_conversation" if src_conv else "llm"
         )
@@ -352,7 +390,7 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         priority = str(tr.get("priority") or "medium").lower()
         if priority not in ("low", "medium", "high", "critical"):
             priority = "medium"
-        _add(
+        await _add(
             "task_recommendation",
             source_id,
             title=f"Create task: {title}"[:500],
@@ -386,10 +424,10 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         if days > 2:
             continue
         tid = str(t.get("id") or "")
-        if not tid or await _exists("followup_task", tid):
+        if not tid:
             continue
         label = "overdue" if due_dt < now else "due soon"
-        _add(
+        await _add(
             "followup_task",
             tid,
             title=f"Google Task {label}: {t.get('title', '')}"[:500],
@@ -427,7 +465,7 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
             if not data:
                 continue
             src_id = f"{mid}:{att.get('attachment_id', '')}"[:255]
-            if await _exists("meeting_import", src_id):
+            if await _skip_before_work("meeting_import", src_id):
                 continue
             doc = await _ingest(
                 db, embedding_svc, user.id, fn, data,
@@ -435,7 +473,7 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
             )
             if doc is None:
                 continue
-            _add(
+            await _add(
                 "meeting_import",
                 src_id,
                 title=f"Imported summary: {fn}"[:500],
@@ -459,7 +497,7 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         logger.info("Assistant scan: Gemini-doc search failed (%s)", exc)
     for f in gem_docs:
         fid = str(f.get("id") or "")
-        if not fid or await _exists("meeting_import", fid):
+        if not fid or await _skip_before_work("meeting_import", fid):
             continue
         try:
             content_data = gs.drive_get_content(fid)
@@ -492,7 +530,7 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
             await db.flush()
         except Exception:
             pass
-        _add(
+        await _add(
             "meeting_import",
             fid,
             title=f"Imported Gemini notes: {name}"[:500],
