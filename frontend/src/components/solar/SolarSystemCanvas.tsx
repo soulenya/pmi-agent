@@ -30,6 +30,7 @@ import { getPendingSuggestionCount } from "@/api/assistant";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import { ShuttleCursor } from "@/components/solar/ShuttleCursor";
 import { AsteroidLauncher, PrecisianDefender } from "@/components/solar/PrecisianDefender";
+import { IdleSystemLayer } from "@/components/solar/IdleSystemLayer";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -139,7 +140,11 @@ function SunBody({ onClick }: { onClick: () => void }) {
       title="Little Gerry"
       className="group absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
     >
-      <div className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-red-400 via-red-500 to-red-700 shadow-[0_0_180px_24px_rgba(239,68,68,0.45)] transition-shadow group-hover:shadow-[0_0_270px_48px_rgba(239,68,68,0.7)]">
+      <div
+        data-idle-body="sun"
+        data-idle-color="#ef4444"
+        className="flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-red-400 via-red-500 to-red-700 shadow-[0_0_180px_24px_rgba(239,68,68,0.45)] transition-shadow group-hover:shadow-[0_0_270px_48px_rgba(239,68,68,0.7)]"
+      >
         <SUN.icon className="h-9 w-9 text-red-950/80" />
       </div>
       <div className="pointer-events-none absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap text-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
@@ -235,7 +240,11 @@ function SatelliteBody({
     <button type="button" onClick={onClick} className="group relative flex flex-col items-center">
       <div className="relative">
         <CountBadge count={count} />
-        <div className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card shadow-md transition-transform group-hover:scale-110">
+        <div
+          data-idle-body="satellite"
+          data-idle-color="#ef4444"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card shadow-md transition-transform group-hover:scale-110"
+        >
           <moon.icon className="h-5 w-5 text-primary" />
         </div>
       </div>
@@ -262,6 +271,8 @@ function PlanetBody({
       <div className="relative">
         <CountBadge count={count} />
         <div
+          data-idle-body="planet"
+          data-idle-color={planet.accent}
           className="flex items-center justify-center rounded-full bg-foreground shadow-lg transition-transform group-hover:scale-110"
           style={{
             width: size,
@@ -321,6 +332,8 @@ function MiniMoonRing({
                     <button
                       type="button"
                       onClick={() => onMoonClick(moon)}
+                      data-idle-body="moon"
+                      data-idle-color={planet.accent}
                       className="group/moon pointer-events-auto relative flex h-5 w-5 items-center justify-center rounded-full border border-border bg-card shadow transition-transform hover:scale-125"
                     >
                       <moon.icon className="h-3 w-3" style={{ color: planet.accent }} />
@@ -371,13 +384,18 @@ function MoonBody({
 function SystemOverview({
   badgeCount,
   onStartGame,
+  idleEnabled,
 }: {
   badgeCount: (b: BadgeKey | undefined) => number;
   onStartGame: () => void;
+  idleEnabled: boolean;
 }) {
   const navigate = useNavigate();
   return (
     <div className="relative h-full w-full">
+      {/* Ambient idle behaviour — random "space dots" scenarios after 30s of
+          no input; any input disperses them outward. */}
+      <IdleSystemLayer enabled={idleEnabled} />
       {/* Orbit rings */}
       <OrbitRing radiusPct={SATELLITES[0].orbit * 50} />
       {PLANETS.map((p) => (
@@ -555,7 +573,11 @@ export function SolarSystemCanvas({
             ) : planet ? (
               <PlanetView planet={planet} badgeCount={badgeCount} />
             ) : (
-              <SystemOverview badgeCount={badgeCount} onStartGame={() => setGameActive(true)} />
+              <SystemOverview
+                badgeCount={badgeCount}
+                onStartGame={() => setGameActive(true)}
+                idleEnabled={!showGame}
+              />
             )}
           </div>
         </motion.div>
