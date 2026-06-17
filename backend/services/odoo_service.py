@@ -12,12 +12,16 @@ support (create/write) will be added later behind the approval flow.
 from __future__ import annotations
 
 import asyncio
+import logging
 import xmlrpc.client
+from datetime import date, timedelta
 from typing import Any
 
 from cryptography.fernet import Fernet
 
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 
 # ── Errors ───────────────────────────────────────────────────────────────────
@@ -231,3 +235,251 @@ async def search_read(
         _search_read_sync, url, database, username, api_key, key, search, limit
     )
     return {"key": key, "label": cfg["label"], "model": cfg["model"], "fields": cfg["fields"], "rows": rows}
+
+
+# ── Knowledge Base ingestion helpers ─────────────────────────────────────────
+
+def _m2o_name(value: Any) -> str:
+    """Render an Odoo many2one ``[id, "Name"]`` (or ``False``) as text."""
+    if isinstance(value, (list, tuple)) and len(value) > 1:
+        return str(value[1])
+    return ""
+
+
+def _field_text(value: Any) -> str:
+    if value is False or value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        return _m2o_name(value)
+    return str(value)
+
+
+def record_to_text(key: str, row: dict[str, Any]) -> tuple[str, str]:
+    """Turn one Odoo record into ``(title, body)`` for KB ingestion."""
+    cfg = MODEL_CONFIG[key]
+    primary = _field_text(row.get("name")) or _field_text(row.get(cfg["fields"][0])) or f"#{row.get('id')}"
+    title = f"{cfg['label'][:-1] if cfg['label'].endswith('s') else cfg['label']}: {primary}"
+    lines = [f"Odoo {cfg['model']} record from {cfg['label']}.", ""]
+    for field in cfg["fields"]:
+        rendered = _field_text(row.get(field))
+        if rendered:
+            label = field.replace("_id", "").replace("_", " ").title()
+            lines.append(f"{label}: {rendered}")
+    return title[:500], "\n".join(lines)
+
+
+def _read_records_sync(
+    url: str,
+    database: str,
+    username: str,
+    api_key: str,
+    key: str,
+    ids: list[int] | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    cfg = MODEL_CONFIG[key]
+    url = _normalize_url(url)
+    uid = _authenticate(url, database, username, api_key)
+    domain: list[Any] = list(cfg.get("domain", []))
+    if ids:
+        domain = domain + [["id", "in", ids]]
+    return _execute_kw(
+        url,
+        database,
+        uid,
+        api_key,
+        cfg["model"],
+        "search_read",
+        [domain],
+        {"fields": cfg["fields"], "limit": max(1, min(limit, 200)), "order": cfg.get("order", "")},
+    )
+
+
+async def read_records(
+    url: str,
+    database: str,
+    username: str,
+    api_key: str,
+    key: str,
+    ids: list[int] | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Read specific records (by id) or the first ``limit`` of a dataset."""
+    return await asyncio.to_thread(
+        _read_records_sync, url, database, username, api_key, key, ids, limit
+    )
+
+
+# ── Daily Assistant alert rules ──────────────────────────────────────────────
+
+def _money(value: Any) -> str:
+    try:
+        return f"{float(value):,.2f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _form_url(url: str, model: str, rid: Any) -> str:
+    return f"{url}/web#id={rid}&model={model}&view_type=form"
+
+
+def _alerts_sync(
+    url: str,
+    database: str,
+    username: str,
+    api_key: str,
+    low_stock_threshold: float,
+    draft_age_days: int,
+) -> list[dict[str, Any]]:
+    """Run the business-rule queries that feed the Daily Assistant.
+
+    Each rule is isolated so a missing Odoo module (or field) only drops that
+    one rule rather than failing the whole scan.
+    """
+    url = _normalize_url(url)
+    uid = _authenticate(url, database, username, api_key)
+    today = date.today()
+    today_str = today.isoformat()
+    alerts: list[dict[str, Any]] = []
+
+    def _read(model: str, domain: list[Any], fields: list[str], order: str, limit: int) -> list[dict[str, Any]]:
+        return _execute_kw(
+            url, database, uid, api_key, model, "search_read",
+            [domain], {"fields": fields, "order": order, "limit": limit},
+        )
+
+    # 1. Overdue customer invoices
+    try:
+        for r in _read(
+            "account.move",
+            [["move_type", "=", "out_invoice"], ["state", "=", "posted"],
+             ["payment_state", "in", ["not_paid", "partial"]],
+             ["invoice_date_due", "<", today_str]],
+            ["name", "partner_id", "invoice_date_due", "amount_residual"],
+            "invoice_date_due asc", 5,
+        ):
+            partner = _m2o_name(r.get("partner_id"))
+            due = _field_text(r.get("invoice_date_due"))
+            amt = _money(r.get("amount_residual"))
+            alerts.append({
+                "source_id": f"odoo_overdue_invoice_{r['id']}",
+                "source_type": "odoo_invoice",
+                "title": f"Overdue invoice {r.get('name')} — {partner}"[:500],
+                "summary": f"{partner} has an overdue balance of {amt} (due {due}).",
+                "source_url": _form_url(url, "account.move", r["id"]),
+                "task": {
+                    "title": f"Follow up on overdue invoice {r.get('name')} ({partner})"[:500],
+                    "description": f"Customer {partner} owes {amt}, due {due}. Reach out about payment.",
+                    "priority": "high",
+                    "due_in_days": 0,
+                },
+            })
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Odoo alert rule overdue_invoice failed: %s", exc)
+
+    # 2. Quotations / sales orders awaiting confirmation, aging
+    try:
+        cutoff = (today - timedelta(days=draft_age_days)).isoformat()
+        for r in _read(
+            "sale.order",
+            [["state", "in", ["draft", "sent"]], ["date_order", "<", cutoff]],
+            ["name", "partner_id", "date_order", "amount_total"],
+            "date_order asc", 5,
+        ):
+            partner = _m2o_name(r.get("partner_id"))
+            amt = _money(r.get("amount_total"))
+            when = _field_text(r.get("date_order"))[:10]
+            alerts.append({
+                "source_id": f"odoo_draft_sale_{r['id']}",
+                "source_type": "odoo_sale",
+                "title": f"Quotation {r.get('name')} awaiting confirmation — {partner}"[:500],
+                "summary": f"Quotation {r.get('name')} for {partner} ({amt}) has been open since {when}.",
+                "source_url": _form_url(url, "sale.order", r["id"]),
+                "task": {
+                    "title": f"Confirm or follow up on quotation {r.get('name')} ({partner})"[:500],
+                    "description": f"Quotation for {partner}, total {amt}, created {when}. Confirm it or chase the customer.",
+                    "priority": "medium",
+                    "due_in_days": 2,
+                },
+            })
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Odoo alert rule draft_sale failed: %s", exc)
+
+    # 3. Overdue vendor bills
+    try:
+        for r in _read(
+            "account.move",
+            [["move_type", "=", "in_invoice"], ["state", "=", "posted"],
+             ["payment_state", "in", ["not_paid", "partial"]],
+             ["invoice_date_due", "<", today_str]],
+            ["name", "partner_id", "invoice_date_due", "amount_residual"],
+            "invoice_date_due asc", 5,
+        ):
+            vendor = _m2o_name(r.get("partner_id"))
+            due = _field_text(r.get("invoice_date_due"))
+            amt = _money(r.get("amount_residual"))
+            alerts.append({
+                "source_id": f"odoo_overdue_bill_{r['id']}",
+                "source_type": "odoo_bill",
+                "title": f"Overdue vendor bill {r.get('name')} — {vendor}"[:500],
+                "summary": f"Bill from {vendor} of {amt} is past due ({due}).",
+                "source_url": _form_url(url, "account.move", r["id"]),
+                "task": {
+                    "title": f"Pay overdue vendor bill {r.get('name')} ({vendor})"[:500],
+                    "description": f"Bill from {vendor}, balance {amt}, due {due}.",
+                    "priority": "high",
+                    "due_in_days": 0,
+                },
+            })
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Odoo alert rule overdue_bill failed: %s", exc)
+
+    # 4. Low product stock — qty_available is computed, so filter in Python.
+    try:
+        rows = _read(
+            "product.product",
+            [["type", "=", "product"]],
+            ["name", "default_code", "qty_available"],
+            "name asc", 200,
+        )
+        low = [
+            r for r in rows
+            if isinstance(r.get("qty_available"), (int, float)) and r["qty_available"] < low_stock_threshold
+        ]
+        low.sort(key=lambda r: r["qty_available"])
+        for r in low[:5]:
+            code = _field_text(r.get("default_code"))
+            qty = r.get("qty_available")
+            label = r.get("name") + (f" [{code}]" if code else "")
+            alerts.append({
+                "source_id": f"odoo_low_stock_{r['id']}",
+                "source_type": "odoo_product",
+                "title": f"Low stock: {label} ({qty} on hand)"[:500],
+                "summary": f"{label} is down to {qty} units on hand (below {low_stock_threshold:g}).",
+                "source_url": _form_url(url, "product.product", r["id"]),
+                "task": {
+                    "title": f"Restock {label} (only {qty} left)"[:500],
+                    "description": f"{label} has {qty} units on hand, below the threshold of {low_stock_threshold:g}. Consider reordering.",
+                    "priority": "medium",
+                    "due_in_days": 3,
+                },
+            })
+    except Exception as exc:  # noqa: BLE001
+        logger.info("Odoo alert rule low_stock failed: %s", exc)
+
+    return alerts
+
+
+async def fetch_alerts(
+    url: str,
+    database: str,
+    username: str,
+    api_key: str,
+    low_stock_threshold: float = 5,
+    draft_age_days: int = 3,
+) -> list[dict[str, Any]]:
+    """Return Daily Assistant alert candidates derived from Odoo business rules."""
+    return await asyncio.to_thread(
+        _alerts_sync, url, database, username, api_key, low_stock_threshold, draft_age_days
+    )
+

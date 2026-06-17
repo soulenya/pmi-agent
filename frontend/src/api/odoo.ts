@@ -62,3 +62,21 @@ export async function getOdooData(
   });
   return res.data;
 }
+
+export interface OdooIngestResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+}
+
+export async function ingestOdoo(
+  key: string,
+  opts?: { ids?: number[]; limit?: number },
+): Promise<OdooIngestResult> {
+  const res = await apiClient.post(`${PREFIX}/ingest`, {
+    key,
+    ids: opts?.ids,
+    limit: opts?.limit ?? 50,
+  });
+  return res.data;
+}

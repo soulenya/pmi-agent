@@ -31,10 +31,12 @@ from config import settings as app_settings
 from models.db.assistant import AssistantSuggestion
 from models.db.conversation import Conversation, Message
 from models.db.enums import NotificationType
+from models.db.odoo import OdooConnection
 from models.db.settings import SystemSetting
 from models.db.user import User
 from repositories.conversation_repo import NotificationRepository
 from services import google_service as gs
+from services import odoo_service as odoo
 
 logger = logging.getLogger(__name__)
 
@@ -541,6 +543,36 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
             result_entity_type="document",
             result_entity_id=doc.id,
         )
+
+    # 6.5 Odoo ERP business alerts
+    # If the user has connected Odoo, surface overdue invoices/bills, aging
+    # quotations, and low stock as recommended tasks (same accept/dismiss flow).
+    try:
+        conn = (
+            await db.execute(
+                select(OdooConnection).where(OdooConnection.user_id == user.id)
+            )
+        ).scalar_one_or_none()
+    except Exception as exc:
+        conn = None
+        logger.info("Assistant scan: Odoo connection lookup failed (%s)", exc)
+    if conn is not None:
+        try:
+            api_key = odoo.decrypt_secret(conn.api_key_encrypted)
+            alerts = await odoo.fetch_alerts(conn.url, conn.database, conn.username, api_key)
+        except Exception as exc:
+            alerts = []
+            logger.info("Assistant scan: Odoo alert fetch failed (%s)", exc)
+        for a in alerts:
+            await _add(
+                "task_recommendation",
+                a["source_id"],
+                title=a["title"],
+                summary=a["summary"],
+                source_type=a["source_type"],
+                source_url=a.get("source_url"),
+                payload={"task": a.get("task"), "odoo": True},
+            )
 
     # 7. Persist + create notifications
     await db.flush()
