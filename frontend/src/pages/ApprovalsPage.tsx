@@ -104,12 +104,17 @@ function ApprovalCard({ intent, onResolve }: {
           {executionResult.status === "error" && executionResult.detail != null && (
             <p className="text-destructive/80 text-xs">{String(executionResult.detail)}</p>
           )}
+          {executionResult.status === "executed" && executionResult.detail != null && (
+            <p className="text-green-600/80">{String(executionResult.detail)}</p>
+          )}
           {executionResult.status === "executed" && executionResult.message_id != null && (
             <p className="text-green-600/80">Message ID: {String(executionResult.message_id)}</p>
           )}
           {executionResult.status === "executed" && executionResult.url != null && (
             <a href={String(executionResult.url)} target="_blank" rel="noopener noreferrer"
-               className="text-primary underline">Open in Google ↗</a>
+               className="text-primary underline">
+              {String(executionResult.action ?? "").startsWith("odoo:") ? "Open in Odoo ↗" : "Open in Google ↗"}
+            </a>
           )}
         </div>
       )}
