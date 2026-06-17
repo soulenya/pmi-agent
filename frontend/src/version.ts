@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 90;
+export const BUILD_NUMBER = 91;
 export const BUILD_DATE = "2026-06-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 91,
+    date: "2026-06-17",
+    title: "Odoo gets smart — alerts in your Daily Assistant & searchable records",
+    changes: [
+      "The Daily Assistant now watches your Odoo ERP and recommends tasks for overdue customer invoices, aging quotations, overdue vendor bills, and low product stock",
+      "Added \u201cImport to Knowledge Base\u201d buttons in the Odoo browser \u2014 import all visible records or a single row so Little Gerry can search and answer questions about them",
+    ],
+  },
   {
     build: 90,
     date: "2026-06-17",
