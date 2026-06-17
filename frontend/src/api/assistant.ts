@@ -20,6 +20,7 @@ export interface AssistantSuggestion {
   payload: Record<string, unknown>;
   result_entity_type?: string | null;
   result_entity_id?: string | null;
+  dismissal_count: number;
   created_at: string;
   resolved_at?: string | null;
 }
@@ -80,6 +81,13 @@ export async function acceptSuggestion(id: string): Promise<AcceptResult> {
 
 export async function dismissSuggestion(id: string): Promise<AcceptResult> {
   const resp = await apiClient.post<AcceptResult>(`/assistant/suggestions/${id}/dismiss`);
+  return resp.data;
+}
+
+export async function undoDismissSuggestion(id: string): Promise<AcceptResult> {
+  const resp = await apiClient.post<AcceptResult>(
+    `/assistant/suggestions/${id}/undo-dismiss`,
+  );
   return resp.data;
 }
 

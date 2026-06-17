@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Sparkles,
   Mail,
@@ -11,11 +11,13 @@ import {
   ExternalLink,
   Play,
   Clock,
+  Undo2,
 } from "lucide-react";
 import {
   listSuggestions,
   acceptSuggestion,
   dismissSuggestion,
+  undoDismissSuggestion,
   getAssistantSettings,
   updateAssistantSettings,
   triggerAssistantScan,
@@ -71,6 +73,7 @@ function SuggestionCard({
 }) {
   const meta = KIND_META[suggestion.kind];
   const Icon = meta.icon;
+  const [confirming, setConfirming] = useState(false);
   const task = (suggestion.payload?.task ?? null) as
     | { priority?: string; due_in_days?: number | null }
     | null;
@@ -118,14 +121,37 @@ function SuggestionCard({
           <Check className="h-4 w-4" />
           {meta.accept}
         </button>
-        <button
-          disabled={busy}
-          onClick={onDismiss}
-          className="flex items-center gap-1.5 rounded-md border px-4 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
-        >
-          <X className="h-4 w-4" />
-          {meta.dismiss}
-        </button>
+        {confirming ? (
+          <>
+            <button
+              disabled={busy}
+              onClick={() => {
+                setConfirming(false);
+                onDismiss();
+              }}
+              className="flex items-center gap-1.5 rounded-md bg-destructive px-4 py-1.5 text-sm font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              <X className="h-4 w-4" />
+              Confirm {meta.dismiss.toLowerCase()}
+            </button>
+            <button
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+              className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button
+            disabled={busy}
+            onClick={() => setConfirming(true)}
+            className="flex items-center gap-1.5 rounded-md border px-4 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+            {meta.dismiss}
+          </button>
+        )}
         {suggestion.source_url && (
           <a
             href={suggestion.source_url}
@@ -145,6 +171,13 @@ function SuggestionCard({
 export function AssistantPage() {
   const queryClient = useQueryClient();
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+  // Short-lived undo affordance shown after a dismissal.
+  const [undo, setUndo] = useState<{ id: string; title: string } | null>(null);
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+  }, []);
 
   const { data: suggestions = [], isLoading } = useQuery({
     queryKey: ["assistant", "suggestions", "pending"],
@@ -162,9 +195,27 @@ export function AssistantPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assistant"] }),
   });
 
+  const showUndo = (id: string, title: string) => {
+    if (undoTimer.current) clearTimeout(undoTimer.current);
+    setUndo({ id, title });
+    undoTimer.current = setTimeout(() => setUndo(null), 8000);
+  };
+
   const dismissMutation = useMutation({
-    mutationFn: (id: string) => dismissSuggestion(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assistant"] }),
+    mutationFn: (s: AssistantSuggestion) => dismissSuggestion(s.id),
+    onSuccess: (_res, s) => {
+      queryClient.invalidateQueries({ queryKey: ["assistant"] });
+      showUndo(s.id, s.title);
+    },
+  });
+
+  const undoMutation = useMutation({
+    mutationFn: (id: string) => undoDismissSuggestion(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assistant"] });
+      if (undoTimer.current) clearTimeout(undoTimer.current);
+      setUndo(null);
+    },
   });
 
   const settingsMutation = useMutation({
@@ -275,9 +326,25 @@ export function AssistantPage() {
           suggestion={s}
           busy={busy}
           onAccept={() => acceptMutation.mutate(s.id)}
-          onDismiss={() => dismissMutation.mutate(s.id)}
+          onDismiss={() => dismissMutation.mutate(s)}
         />
       ))}
+
+      {undo && (
+        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border bg-card px-4 py-2.5 text-sm shadow-lg">
+          <span className="max-w-[16rem] truncate text-muted-foreground">
+            Dismissed “{undo.title}”
+          </span>
+          <button
+            onClick={() => undoMutation.mutate(undo.id)}
+            disabled={undoMutation.isPending}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          >
+            <Undo2 className="h-4 w-4" />
+            Undo
+          </button>
+        </div>
+      )}
     </div>
   );
 }

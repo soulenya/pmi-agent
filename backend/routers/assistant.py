@@ -48,6 +48,7 @@ class SuggestionOut(BaseModel):
     payload: dict[str, Any]
     result_entity_type: str | None = None
     result_entity_id: uuid.UUID | None = None
+    dismissal_count: int = 0
     created_at: datetime
     resolved_at: datetime | None = None
 
@@ -216,9 +217,34 @@ async def dismiss_suggestion(
             pass
 
     s.status = "dismissed"
+    s.dismissal_count = (s.dismissal_count or 0) + 1
     s.resolved_at = datetime.now(timezone.utc)
     await db.commit()
     return AcceptResult(status="dismissed", suggestion_id=s.id)
+
+
+@router.post("/suggestions/{suggestion_id}/undo-dismiss", response_model=AcceptResult)
+async def undo_dismiss_suggestion(
+    suggestion_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revert an accidental dismissal back to pending.
+
+    Decrements the dismissal counter so the undo also undoes the "dismissed
+    twice → suppress forever" progression. (A dismissed ``meeting_import`` may
+    have removed its imported document; that document is re-imported by the next
+    scan when the suggestion resurfaces, not here.)
+    """
+    s = await _get_owned(db, user, suggestion_id)
+    if s.status != "dismissed":
+        raise HTTPException(409, f"Suggestion is {s.status}, not dismissed")
+
+    s.status = "pending"
+    s.dismissal_count = max(0, (s.dismissal_count or 0) - 1)
+    s.resolved_at = None
+    await db.commit()
+    return AcceptResult(status="pending", suggestion_id=s.id)
 
 
 # ── manual scan ───────────────────────────────────────────────────────────
