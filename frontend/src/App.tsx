@@ -24,6 +24,7 @@ import { UsersPage } from "@/pages/UsersPage";
 import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
 import { CalendarPage } from "@/pages/CalendarPage";
 import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
+import OdooIntegrationPage from "@/pages/OdooIntegrationPage";
 import { GeneratedFilesPage } from "@/pages/GeneratedFilesPage";
 import { ScheduledTasksPage } from "@/pages/ScheduledTasksPage";
 import InvestorPage from "@/pages/InvestorPage";
@@ -80,6 +81,7 @@ function ThemedApp() {
             <Route path="users" element={<ErrorBoundary><UsersPage /></ErrorBoundary>} />
             <Route path="calendar" element={<ErrorBoundary><CalendarPage /></ErrorBoundary>} />
             <Route path="google" element={<ErrorBoundary><GoogleIntegrationPage /></ErrorBoundary>} />
+            <Route path="odoo" element={<ErrorBoundary><OdooIntegrationPage /></ErrorBoundary>} />
             <Route path="files" element={<ErrorBoundary><GeneratedFilesPage /></ErrorBoundary>} />
             <Route path="investor" element={<ErrorBoundary><InvestorPage /></ErrorBoundary>} />
           </Route>

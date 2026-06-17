@@ -12,6 +12,7 @@ from models.db.feedback import Feedback
 from models.db.google import GoogleCredential, GoogleSyncState
 from models.db.meeting import MeetingNote
 from models.db.notification import Notification
+from models.db.odoo import OdooConnection
 from models.db.regulatory import CAPA, RegulatoryDocument, RegulatoryNode, RiskItem
 from models.db.research import ResearchReport, ResearchSource
 from models.db.scheduled_task import ScheduledTask
@@ -52,4 +53,5 @@ __all__ = [
     "Feedback",
     "AssistantSuggestion",
     "ScheduledTask",
+    "OdooConnection",
 ]

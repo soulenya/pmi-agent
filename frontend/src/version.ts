@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 89;
+export const BUILD_NUMBER = 90;
 export const BUILD_DATE = "2026-06-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 90,
+    date: "2026-06-17",
+    title: "New Odoo planet — read your ERP data",
+    changes: [
+      "Added a new Odoo planet to the solar system. Connect your Odoo ERP with an API key and browse live customers, sales orders, invoices, products & inventory, CRM leads, purchase orders, manufacturing orders, and employees right inside Little Gerry",
+      "The company, database, and your login are filled in automatically — you just paste an API key from your Odoo profile",
+    ],
+  },
   {
     build: 89,
     date: "2026-06-17",
