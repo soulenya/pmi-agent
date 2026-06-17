@@ -162,6 +162,47 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "propose_odoo_write",
+            "description": (
+                "Propose a WRITE to the connected Odoo ERP. This NEVER writes directly — "
+                "it queues a pending approval the user must approve. Use for: confirming a "
+                "quotation, registering an invoice payment, creating a CRM lead, logging an "
+                "internal note on a record, updating fields on a record, or creating a contact."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "confirm_quotation",
+                            "register_payment",
+                            "create_lead",
+                            "log_note",
+                            "update_field",
+                            "create_contact",
+                        ],
+                        "description": "Which Odoo write to perform.",
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": (
+                            "Action parameters. confirm_quotation: {order_id}. "
+                            "register_payment: {move_id, amount?}. "
+                            "create_lead: {name, contact_name?, email_from?, phone?, expected_revenue?, description?}. "
+                            "log_note: {model, record_id, body}. "
+                            "update_field: {model, record_id, values:{field:value}}. "
+                            "create_contact: {name, email?, phone?, city?}."
+                        ),
+                    },
+                },
+                "required": ["action", "params"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_pending_approvals",
             "description": "Retrieve a list of pending approval requests awaiting human decision.",
             "parameters": {
@@ -730,6 +771,44 @@ async def execute_request_approval(ctx: ToolContext, args: dict[str, Any]) -> st
         f"Approval request submitted: \"{title}\" "
         f"[risk={risk_level}, id={intent.id}, expires in {expires_hours}h]. "
         "Waiting for human review before this action can proceed."
+    )
+
+
+async def execute_propose_odoo_write(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from sqlalchemy import select
+    from models.db.odoo import OdooConnection
+    from services import odoo_service as odoo
+
+    action = str(args.get("action", "")).strip()
+    params = args.get("params") or {}
+    if not isinstance(params, dict):
+        return "Error: 'params' must be an object."
+
+    conn = (await ctx.db.execute(
+        select(OdooConnection).where(OdooConnection.user_id == ctx.user_id)
+    )).scalar_one_or_none()
+    if conn is None:
+        return "Error: Odoo is not connected. Ask the user to connect it on the Odoo page first."
+
+    try:
+        odoo.validate_write(action, params)
+    except odoo.OdooError as exc:
+        return f"Error: {exc}"
+
+    title, description = odoo.describe_write(action, params)
+    intent = await ApprovalRepository(ctx.db).create(
+        user_id=ctx.user_id,
+        intent_type="odoo_write",
+        intent_title=title[:500],
+        intent_description=description,
+        intent_payload={"action": action, "params": params},
+        risk_level=odoo.default_risk(action),
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=72),
+    )
+    return (
+        f"Odoo action queued for approval: \"{title}\" "
+        f"[risk={intent.risk_level}, id={intent.id}]. "
+        "It will run only after the user approves it on the Approvals page."
     )
 
 
@@ -1344,6 +1423,7 @@ TOOL_EXECUTORS = {
     "search_knowledge_base": execute_search_knowledge_base,
     "create_task": execute_create_task,
     "request_approval": execute_request_approval,
+    "propose_odoo_write": execute_propose_odoo_write,
     "get_pending_approvals": execute_get_pending_approvals,
     "get_tasks": execute_get_tasks,
     "get_regulatory_status": execute_get_regulatory_status,

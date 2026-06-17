@@ -80,3 +80,25 @@ export async function ingestOdoo(
   });
   return res.data;
 }
+
+export type OdooWriteAction =
+  | "confirm_quotation"
+  | "register_payment"
+  | "create_lead"
+  | "log_note"
+  | "update_field"
+  | "create_contact";
+
+export interface OdooProposeResult {
+  approval_id: string;
+  title: string;
+  risk_level: string;
+}
+
+export async function proposeOdooAction(
+  action: OdooWriteAction,
+  params: Record<string, unknown>,
+): Promise<OdooProposeResult> {
+  const res = await apiClient.post(`${PREFIX}/actions/propose`, { action, params });
+  return res.data;
+}

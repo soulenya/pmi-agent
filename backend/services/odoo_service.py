@@ -373,6 +373,11 @@ def _alerts_sync(
                     "priority": "high",
                     "due_in_days": 0,
                 },
+                "action": {
+                    "name": "register_payment",
+                    "label": "Register payment",
+                    "params": {"move_id": r["id"], "move_name": r.get("name"), "amount": r.get("amount_residual")},
+                },
             })
     except Exception as exc:  # noqa: BLE001
         logger.info("Odoo alert rule overdue_invoice failed: %s", exc)
@@ -400,6 +405,11 @@ def _alerts_sync(
                     "description": f"Quotation for {partner}, total {amt}, created {when}. Confirm it or chase the customer.",
                     "priority": "medium",
                     "due_in_days": 2,
+                },
+                "action": {
+                    "name": "confirm_quotation",
+                    "label": "Confirm quotation",
+                    "params": {"order_id": r["id"], "order_name": r.get("name")},
                 },
             })
     except Exception as exc:  # noqa: BLE001
@@ -481,5 +491,204 @@ async def fetch_alerts(
     """Return Daily Assistant alert candidates derived from Odoo business rules."""
     return await asyncio.to_thread(
         _alerts_sync, url, database, username, api_key, low_stock_threshold, draft_age_days
+    )
+
+
+# ── Write actions (Phase 3 — every write goes through the approval flow) ──────
+# Nothing here executes until a human approves the resulting ApprovalIntent.
+
+WRITE_ACTIONS: dict[str, dict[str, Any]] = {
+    "confirm_quotation": {"label": "Confirm quotation", "risk": "medium", "required": ["order_id"]},
+    "register_payment": {"label": "Register invoice payment", "risk": "high", "required": ["move_id"]},
+    "create_lead": {"label": "Create CRM lead", "risk": "medium", "required": ["name"]},
+    "log_note": {"label": "Log internal note", "risk": "low", "required": ["model", "record_id", "body"]},
+    "update_field": {"label": "Update record fields", "risk": "medium", "required": ["model", "record_id", "values"]},
+    "create_contact": {"label": "Create contact", "risk": "medium", "required": ["name"]},
+}
+
+# Defence-in-depth allow-list for the generic log_note / update_field actions.
+_WRITABLE_MODELS = {
+    "sale.order", "account.move", "crm.lead", "res.partner",
+    "product.product", "product.template", "purchase.order",
+    "mrp.production", "hr.employee",
+}
+
+
+def write_catalog() -> list[dict[str, str]]:
+    """Expose the available write actions (for the frontend / agent)."""
+    return [{"action": k, "label": v["label"], "risk": v["risk"]} for k, v in WRITE_ACTIONS.items()]
+
+
+def default_risk(action: str) -> str:
+    return WRITE_ACTIONS.get(action, {}).get("risk", "medium")
+
+
+def validate_write(action: str, params: dict[str, Any]) -> None:
+    """Raise :class:`OdooError` if the action is unknown or params are invalid."""
+    cfg = WRITE_ACTIONS.get(action)
+    if cfg is None:
+        raise OdooError(f"Unknown Odoo write action '{action}'.")
+    missing = [k for k in cfg["required"] if params.get(k) in (None, "", [], {})]
+    if missing:
+        raise OdooError(f"Missing required field(s) for {action}: {', '.join(missing)}.")
+    if action in ("log_note", "update_field") and params.get("model") not in _WRITABLE_MODELS:
+        raise OdooError(f"Writes to model '{params.get('model')}' are not permitted.")
+    if action == "update_field" and not isinstance(params.get("values"), dict):
+        raise OdooError("update_field requires a 'values' object.")
+
+
+def describe_write(action: str, params: dict[str, Any]) -> tuple[str, str]:
+    """Human-readable ``(title, description)`` for the approval card."""
+    if action == "confirm_quotation":
+        name = params.get("order_name") or f"#{params.get('order_id')}"
+        return (
+            f"Confirm quotation {name}",
+            f"Confirm sales quotation {name} in Odoo, turning it into a confirmed sales order.",
+        )
+    if action == "register_payment":
+        name = params.get("move_name") or f"#{params.get('move_id')}"
+        amt = params.get("amount")
+        amt_str = f" of {_money(amt)}" if amt else ""
+        return (
+            f"Register payment for {name}",
+            f"Register a payment{amt_str} against invoice {name} in Odoo and reconcile it.",
+        )
+    if action == "create_lead":
+        who = f" for {params.get('contact_name')}" if params.get("contact_name") else ""
+        return (
+            f"Create CRM lead: {params.get('name')}",
+            f"Create a new CRM lead/opportunity '{params.get('name')}'{who} in Odoo.",
+        )
+    if action == "log_note":
+        return (
+            f"Log note on {params.get('model')} #{params.get('record_id')}",
+            f"Post an internal note to {params.get('model')} record #{params.get('record_id')} in Odoo:\n\n{params.get('body')}",
+        )
+    if action == "update_field":
+        vals = params.get("values") or {}
+        pretty = ", ".join(f"{k} → {v}" for k, v in vals.items())
+        return (
+            f"Update {params.get('model')} #{params.get('record_id')}",
+            f"Update fields on {params.get('model')} record #{params.get('record_id')} in Odoo: {pretty}.",
+        )
+    if action == "create_contact":
+        extra = f" ({params.get('email')})" if params.get("email") else ""
+        return (
+            f"Create contact: {params.get('name')}",
+            f"Create a new contact '{params.get('name')}'{extra} in Odoo.",
+        )
+    return WRITE_ACTIONS.get(action, {}).get("label", action), ""
+
+
+def _execute_write_sync(
+    url: str,
+    database: str,
+    username: str,
+    api_key: str,
+    action: str,
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    validate_write(action, params)
+    url = _normalize_url(url)
+    uid = _authenticate(url, database, username, api_key)
+
+    def kw(model: str, method: str, args: list[Any], kwargs: dict[str, Any] | None = None) -> Any:
+        return _execute_kw(url, database, uid, api_key, model, method, args, kwargs)
+
+    if action == "confirm_quotation":
+        oid = int(params["order_id"])
+        kw("sale.order", "action_confirm", [[oid]])
+        rows = kw("sale.order", "read", [[oid]], {"fields": ["name", "state"]})
+        r = rows[0] if rows else {}
+        return {
+            "detail": f"Quotation {r.get('name', oid)} is now '{r.get('state')}'.",
+            "record_id": oid,
+            "url": _form_url(url, "sale.order", oid),
+        }
+
+    if action == "register_payment":
+        mid = int(params["move_id"])
+        ctx = {"active_model": "account.move", "active_ids": [mid]}
+        vals: dict[str, Any] = {}
+        if params.get("journal_id"):
+            vals["journal_id"] = int(params["journal_id"])
+        if params.get("amount"):
+            vals["amount"] = float(params["amount"])
+        wizard_id = kw("account.payment.register", "create", [vals], {"context": ctx})
+        kw("account.payment.register", "action_create_payments", [[wizard_id]])
+        rows = kw("account.move", "read", [[mid]], {"fields": ["name", "payment_state", "amount_residual"]})
+        r = rows[0] if rows else {}
+        return {
+            "detail": f"Payment registered on {r.get('name', mid)} — state '{r.get('payment_state')}', residual {_money(r.get('amount_residual'))}.",
+            "record_id": mid,
+            "url": _form_url(url, "account.move", mid),
+        }
+
+    if action == "create_lead":
+        vals = {"name": params["name"]}
+        for f in ("contact_name", "email_from", "phone", "description"):
+            if params.get(f):
+                vals[f] = params[f]
+        if params.get("expected_revenue") not in (None, ""):
+            try:
+                vals["expected_revenue"] = float(params["expected_revenue"])
+            except (TypeError, ValueError):
+                pass
+        new_id = kw("crm.lead", "create", [vals])
+        return {
+            "detail": f"Created CRM lead '{params['name']}' (#{new_id}).",
+            "record_id": new_id,
+            "url": _form_url(url, "crm.lead", new_id),
+        }
+
+    if action == "log_note":
+        model = str(params["model"])
+        rid = int(params["record_id"])
+        kw(model, "message_post", [[rid]], {"body": str(params["body"])})
+        return {
+            "detail": f"Note posted to {model} #{rid}.",
+            "record_id": rid,
+            "url": _form_url(url, model, rid),
+        }
+
+    if action == "update_field":
+        model = str(params["model"])
+        rid = int(params["record_id"])
+        values = dict(params["values"])
+        kw(model, "write", [[rid], values])
+        return {
+            "detail": f"Updated {model} #{rid} ({', '.join(values)}).",
+            "record_id": rid,
+            "url": _form_url(url, model, rid),
+        }
+
+    if action == "create_contact":
+        vals = {"name": params["name"]}
+        for f in ("email", "phone", "city"):
+            if params.get(f):
+                vals[f] = params[f]
+        if params.get("is_company") is not None:
+            vals["is_company"] = bool(params["is_company"])
+        new_id = kw("res.partner", "create", [vals])
+        return {
+            "detail": f"Created contact '{params['name']}' (#{new_id}).",
+            "record_id": new_id,
+            "url": _form_url(url, "res.partner", new_id),
+        }
+
+    raise OdooError(f"Unhandled write action '{action}'.")
+
+
+async def execute_write(
+    url: str,
+    database: str,
+    username: str,
+    api_key: str,
+    action: str,
+    params: dict[str, Any],
+) -> dict[str, Any]:
+    """Execute an approved Odoo write action. Raises :class:`OdooError` on failure."""
+    return await asyncio.to_thread(
+        _execute_write_sync, url, database, username, api_key, action, params
     )
 

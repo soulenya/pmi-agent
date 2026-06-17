@@ -4,6 +4,17 @@
 
 ## Changelog
 
+### v2.6.8 — 2026-06-17
+**Take action in Odoo — behind the approval queue (Phase 3)**
+
+- Little Gerry can now **write** to Odoo, but never autonomously: every change is created as a **pending ApprovalIntent** and only executes after you approve it on the Approvals page
+- Supported write actions: **confirm a quotation** (`sale.order`), **register an invoice payment** (`account.move` payment-register wizard), **create a CRM lead** (`crm.lead`), **log an internal note** on any record (`message_post`), **update a record's fields** (generic `write`, allow-listed models), and **create a contact** (`res.partner`)
+- Three ways to initiate a write — all funnel through the same approval queue:
+  - **Odoo browser buttons**: confirm a quotation or register a payment per-row from the data table
+  - **Daily Assistant**: aging-quotation and overdue-invoice alerts now carry a one-click "Confirm quotation" / "Register payment" that submits for approval
+  - **Gerry chat**: new `propose_odoo_write` agent tool lets Gerry propose Odoo changes during a conversation
+- Approval cards show the Odoo result and an "Open in Odoo" link; execution failures never roll back the approval decision and are audit-logged
+
 ### v2.6.7 — 2026-06-17
 **Odoo gets smart — Daily Assistant alerts & searchable records**
 

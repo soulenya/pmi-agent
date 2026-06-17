@@ -12,6 +12,7 @@ import {
   Play,
   Clock,
   Undo2,
+  ShieldCheck,
 } from "lucide-react";
 import {
   listSuggestions,
@@ -24,6 +25,7 @@ import {
   type AssistantSuggestion,
   type SuggestionKind,
 } from "@/api/assistant";
+import { proposeOdooAction, type OdooWriteAction } from "@/api/odoo";
 import { cn } from "@/lib/utils";
 
 const KIND_META: Record<
@@ -77,6 +79,26 @@ function SuggestionCard({
   const task = (suggestion.payload?.task ?? null) as
     | { priority?: string; due_in_days?: number | null }
     | null;
+  const odooAction = (suggestion.payload?.odoo_action ?? null) as
+    | { name: OdooWriteAction; label?: string; params: Record<string, unknown> }
+    | null;
+  const [proposing, setProposing] = useState(false);
+  const [approvalMsg, setApprovalMsg] = useState<string | null>(null);
+
+  const submitForApproval = async () => {
+    if (!odooAction) return;
+    setProposing(true);
+    setApprovalMsg(null);
+    try {
+      const res = await proposeOdooAction(odooAction.name, odooAction.params);
+      setApprovalMsg(`Queued: “${res.title}” — approve it on the Approvals page.`);
+    } catch (e) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      setApprovalMsg(err.response?.data?.detail ?? "Could not queue the action.");
+    } finally {
+      setProposing(false);
+    }
+  };
 
   return (
     <div className="rounded-xl border bg-card p-5 shadow-sm">
@@ -121,6 +143,17 @@ function SuggestionCard({
           <Check className="h-4 w-4" />
           {meta.accept}
         </button>
+        {odooAction && (
+          <button
+            disabled={busy || proposing || approvalMsg !== null}
+            onClick={submitForApproval}
+            title="Send this Odoo action to the approval queue"
+            className="flex items-center gap-1.5 rounded-md border border-violet-500/50 px-4 py-1.5 text-sm font-medium text-violet-600 hover:bg-violet-500/10 disabled:opacity-50 dark:text-violet-300"
+          >
+            <ShieldCheck className="h-4 w-4" />
+            {odooAction.label ?? "Submit for approval"}
+          </button>
+        )}
         {confirming ? (
           <>
             <button
@@ -164,6 +197,9 @@ function SuggestionCard({
           </a>
         )}
       </div>
+      {approvalMsg && (
+        <p className="mt-2 text-xs text-violet-600 dark:text-violet-300">{approvalMsg}</p>
+      )}
     </div>
   );
 }
