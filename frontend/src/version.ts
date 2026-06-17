@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 87;
+export const BUILD_NUMBER = 88;
 export const BUILD_DATE = "2026-06-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 88,
+    date: "2026-06-17",
+    title: "Idle scenes are now actually random",
+    changes: [
+      "The idle solar-system animation was almost always showing the same one or two scenarios. It was accidentally limited whenever Windows 'Animation effects' were turned off — now all six scenarios are equally likely, and the same one never plays twice in a row",
+    ],
+  },
   {
     build: 87,
     date: "2026-06-17",

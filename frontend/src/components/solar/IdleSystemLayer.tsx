@@ -186,9 +186,12 @@ export function IdleSystemLayer({ enabled }: { enabled: boolean }) {
     if (!ctxOrNull) return;
     const ctx = ctxOrNull;
 
-    const reduced =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // NOTE: scenario selection is deliberately NOT gated on
+    // prefers-reduced-motion. Windows reports reduced-motion as true whenever
+    // "Animation effects" is off, which would silently pin the idle layer to
+    // just two scenarios (the same reason the orbits aren't gated either).
+
+    let lastScenario: Scenario | null = null;
 
     const state: State = {
       scenario: "colonize",
@@ -237,7 +240,13 @@ export function IdleSystemLayer({ enabled }: { enabled: boolean }) {
     }
 
     function beginScenario(w: number, h: number): void {
-      state.scenario = reduced ? pick(["terraform", "migrate"]) : pick(SCENARIOS);
+      // Pick uniformly from all six, but never the same one twice in a row.
+      const choices =
+        lastScenario === null
+          ? SCENARIOS
+          : SCENARIOS.filter((s) => s !== lastScenario);
+      state.scenario = pick(choices);
+      lastScenario = state.scenario;
       state.phase = "running";
       state.t = 0;
       state.disperseT = 0;
