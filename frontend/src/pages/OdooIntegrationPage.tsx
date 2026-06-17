@@ -9,6 +9,7 @@ import {
   Search as SearchIcon,
   CheckCircle2,
   AlertCircle,
+  BookPlus,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -17,6 +18,7 @@ import {
   disconnectOdoo,
   getOdooModels,
   getOdooData,
+  ingestOdoo,
   type OdooConnectRequest,
 } from "@/api/odoo";
 
@@ -136,6 +138,25 @@ function DataBrowser() {
 
   const dataErr = error as { response?: { data?: { detail?: string } } } | null;
 
+  const [ingestMsg, setIngestMsg] = useState<string | null>(null);
+
+  const ingestRows = useMutation({
+    mutationFn: (ids?: number[]) => ingestOdoo(selectedKey as string, { ids }),
+    onMutate: () => setIngestMsg(null),
+    onSuccess: (res) =>
+      setIngestMsg(
+        `Imported ${res.imported} to the Knowledge Base` +
+          (res.skipped ? `, ${res.skipped} already imported` : "") +
+          (res.failed ? `, ${res.failed} failed` : "") +
+          ".",
+      ),
+    onError: () => setIngestMsg("Import failed. Please try again."),
+  });
+
+  const allIds = (data?.rows ?? [])
+    .map((r) => r.id)
+    .filter((id): id is number => typeof id === "number");
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -145,6 +166,7 @@ function DataBrowser() {
             onClick={() => {
               setActiveKey(m.key);
               setSearch("");
+              setIngestMsg(null);
             }}
             className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
               m.key === selectedKey
@@ -157,7 +179,7 @@ function DataBrowser() {
         ))}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 max-w-sm">
           <SearchIcon className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -174,7 +196,27 @@ function DataBrowser() {
           <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           Refresh
         </button>
+        <button
+          onClick={() => ingestRows.mutate(allIds.length ? allIds : undefined)}
+          disabled={ingestRows.isPending || !data || data.rows.length === 0}
+          className="flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+          title="Add the rows shown below to the Knowledge Base so they're searchable"
+        >
+          {ingestRows.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <BookPlus className="h-4 w-4" />
+          )}
+          Import all to Knowledge Base
+        </button>
       </div>
+
+      {ingestMsg && (
+        <div className="flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{ingestMsg}</span>
+        </div>
+      )}
 
       {dataErr && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -193,12 +235,13 @@ function DataBrowser() {
                     {prettyField(f)}
                   </th>
                 ))}
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody>
               {data.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={data.fields.length} className="px-3 py-6 text-center text-muted-foreground">
+                  <td colSpan={data.fields.length + 1} className="px-3 py-6 text-center text-muted-foreground">
                     No records found.
                   </td>
                 </tr>
@@ -210,6 +253,18 @@ function DataBrowser() {
                         {renderCell(row[f])}
                       </td>
                     ))}
+                    <td className="px-3 py-2 text-right">
+                      {typeof row.id === "number" && (
+                        <button
+                          onClick={() => ingestRows.mutate([row.id as number])}
+                          disabled={ingestRows.isPending}
+                          title="Import this record to the Knowledge Base"
+                          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                        >
+                          <BookPlus className="h-4 w-4" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}
