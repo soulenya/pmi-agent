@@ -36,6 +36,7 @@ from routers.meetings import router as meetings_router
 from routers.emails import router as emails_router
 from routers.update import router as update_router
 from routers.google_integration import router as google_router
+from routers.odoo_integration import router as odoo_router
 from routers.files import router as files_router
 from routers.feedback import router as feedback_router
 from routers.assistant import router as assistant_router
@@ -399,6 +400,7 @@ def create_app() -> FastAPI:
     app.include_router(emails_router)
     app.include_router(update_router)
     app.include_router(google_router)
+    app.include_router(odoo_router)
     app.include_router(files_router)
     app.include_router(feedback_router)
     app.include_router(assistant_router)

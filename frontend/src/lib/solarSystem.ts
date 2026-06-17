@@ -29,6 +29,7 @@ import {
   CalendarClock,
   Globe,
   TrendingUp,
+  Boxes,
   Sparkles,
   Bot,
   type LucideIcon,
@@ -119,6 +120,18 @@ export const PLANETS: Planet[] = [
     moons: [
       { id: "emails", route: "/emails", label: "Email Drafts", icon: Mail },
       { id: "google", route: "/google", label: "Google Workspace", icon: Globe },
+    ],
+  },
+  {
+    id: "odoo",
+    label: "Odoo",
+    icon: Boxes,
+    accent: "#fb923c",
+    orbit: 0.66,
+    angle: 235,
+    size: 54,
+    moons: [
+      { id: "odoo", route: "/odoo", label: "Odoo ERP", icon: Boxes },
     ],
   },
   {
