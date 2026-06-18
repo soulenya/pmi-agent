@@ -29,7 +29,7 @@ from dependencies import get_current_user, require_regulatory_write
 from models.db.regulatory import RegulatoryNode
 from models.db.user import User
 from routers.regulatory_files import NodeOut, _dedupe_name, _get_folder, _store_path, _to_out
-from services.embeddings.service import EmbeddingService, get_embedding_service
+from services.embeddings.service import get_embedding_service_for_db
 from services.regulatory.docgen import markdown_to_docx_bytes
 from services.regulatory.generator import generate_markdown, recommend_formatting
 from services.regulatory.templates import REG_TEMPLATES, get_template
@@ -129,7 +129,6 @@ async def generate(
     body: GenerateRequest,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_regulatory_write),
-    embedding_svc: EmbeddingService = Depends(get_embedding_service),
 ) -> GenerateOut:
     """Generate the document and save it as an editable file in the regulatory store."""
     template = get_template(body.template_key)
@@ -141,6 +140,11 @@ async def generate(
 
     title = body.title.strip()
     sections = [s.strip() for s in body.sections if s.strip()] or list(template.default_sections)
+
+    # Use the DB-aware embedding service so the KB query is embedded with the same
+    # provider/model the documents were ingested with — otherwise auto-populate
+    # finds no knowledge-base matches and falls back to [FILL IN] placeholders.
+    embedding_svc = await get_embedding_service_for_db(db)
 
     try:
         content = await generate_markdown(
