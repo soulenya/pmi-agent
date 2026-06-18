@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 94;
+export const BUILD_NUMBER = 95;
 export const BUILD_DATE = "2026-06-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 95,
+    date: "2026-06-18",
+    title: "Odoo connect no longer kicks you to the login screen",
+    changes: [
+      "Fixed a bug where a failed Odoo connection (wrong database, email, or API key) would bounce you back to the Google sign-in screen instead of showing the error",
+      "The Odoo page now displays the actual reason a connection failed so you can correct it",
+      "Fixed token refresh so an expired session is renewed automatically instead of signing you out",
+    ],
+  },
   {
     build: 94,
     date: "2026-06-18",
