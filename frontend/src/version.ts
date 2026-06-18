@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 93;
-export const BUILD_DATE = "2026-06-17";
+export const BUILD_NUMBER = 94;
+export const BUILD_DATE = "2026-06-18";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 94,
+    date: "2026-06-18",
+    title: "Smoother install on fresh Windows PCs",
+    changes: [
+      "The installer now checks for the Microsoft Visual C++ runtime and installs it automatically when missing — fixing a first-run error on brand-new Windows machines",
+      "Each prerequisite is detected first and only installed if it isn't already on the machine, so nothing already present gets reinstalled",
+    ],
+  },
   {
     build: 93,
     date: "2026-06-17",
