@@ -119,7 +119,10 @@ async def odoo_connect(
     try:
         info = await odoo.test_connection(body.url, body.database, body.username, body.api_key)
     except odoo.OdooAuthError as exc:
-        raise HTTPException(401, str(exc))
+        # Odoo rejected the credentials. Use 400 (not 401) so the frontend shows
+        # the message on the form instead of treating it as an expired app
+        # session and logging the user out.
+        raise HTTPException(400, str(exc))
     except odoo.OdooError as exc:
         raise HTTPException(400, str(exc))
 
@@ -197,7 +200,8 @@ async def odoo_data(
             conn.url, conn.database, conn.username, api_key, key, search, limit
         )
     except odoo.OdooAuthError as exc:
-        raise HTTPException(401, str(exc))
+        # 400 (not 401): a stored-key auth failure must not log the user out.
+        raise HTTPException(400, str(exc))
     except odoo.OdooError as exc:
         raise HTTPException(400, str(exc))
 
@@ -223,7 +227,8 @@ async def odoo_ingest(
             conn.url, conn.database, conn.username, api_key, body.key, body.ids, body.limit
         )
     except odoo.OdooAuthError as exc:
-        raise HTTPException(401, str(exc))
+        # 400 (not 401): a stored-key auth failure must not log the user out.
+        raise HTTPException(400, str(exc))
     except odoo.OdooError as exc:
         raise HTTPException(400, str(exc))
 
