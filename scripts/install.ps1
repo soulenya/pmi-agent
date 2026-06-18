@@ -12,6 +12,10 @@
       - Python 3.14+
       - Node.js 20 LTS
       - uv (Python package manager)
+      - Microsoft Visual C++ Redistributable (x64) - required by native
+        Python extensions such as greenlet; missing on fresh Windows installs
+
+    Each prerequisite is detected first and only installed if absent.
 
     Note: Ollama (local LLM) is NOT installed here.
     It runs on a separate dedicated server. Configure the server URL
@@ -84,6 +88,27 @@ function Install-WingetPackage {
     }
 }
 
+# ── Visual C++ Redistributable detection ──────────────────────────────────────
+# The x64 VC++ 2015-2022 runtime registers under this key (Installed = 1). It
+# provides vcruntime140.dll / msvcp140.dll, which native Python extensions like
+# greenlet (_greenlet.pyd) link against. A clean Windows install lacks it, which
+# makes SQLAlchemy's async engine fail at migration time with
+# "DLL load failed while importing _greenlet".
+function Test-VCRedist {
+    foreach ($key in @(
+        "HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
+    )) {
+        try {
+            $entry = Get-ItemProperty -Path $key -ErrorAction Stop
+            if ($entry.Installed -eq 1) { return $true }
+        } catch {
+            # Key absent - keep checking the other location.
+        }
+    }
+    return $false
+}
+
 # ── PATH refresh helper ───────────────────────────────────────────────────────
 function Update-SessionPath {
     $machinePath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine")
@@ -140,6 +165,20 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
 Install-WingetPackage -Name "Docker Desktop"  -Id "Docker.DockerDesktop"  -TestCmd "docker"
 Install-WingetPackage -Name "Python 3.14"      -Id "Python.Python.3.14"    -TestCmd "python"
 Install-WingetPackage -Name "Node.js 20 LTS"   -Id "OpenJS.NodeJS.LTS"     -TestCmd "node"
+
+# Microsoft Visual C++ Redistributable (x64) - detected via registry, not a
+# command, so it needs its own check. Required by greenlet/SQLAlchemy at runtime.
+if (Test-VCRedist) {
+    Write-OK "Visual C++ Redistributable (x64) already installed"
+} else {
+    Write-Info "Installing Microsoft Visual C++ Redistributable (x64) via winget..."
+    winget install --id "Microsoft.VCRedist.2015+.x64" --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
+    if (Test-VCRedist) {
+        Write-OK "Visual C++ Redistributable (x64) installed"
+    } else {
+        Write-Warn "Visual C++ Redistributable install returned code $LASTEXITCODE - a reboot may be required to finish"
+    }
+}
 
 # uv - install via pip if not present
 Update-SessionPath
