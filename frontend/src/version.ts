@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 95;
+export const BUILD_NUMBER = 96;
 export const BUILD_DATE = "2026-06-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 96,
+    date: "2026-06-18",
+    title: "Regulatory document generation now pulls in your company data",
+    changes: [
+      "Fixed the Generate Document wizard and AI Draft so they search the knowledge base with the same embedding provider your documents were ingested with — previously, if you used OpenAI or Voyage embeddings, the search found nothing and every detail came out as a [FILL IN: …] placeholder",
+      "Generated regulatory documents now auto-populate PMI and VACTOR specifics from the knowledge base as intended",
+    ],
+  },
   {
     build: 95,
     date: "2026-06-18",
