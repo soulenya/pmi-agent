@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.7.0 — 2026-06-18
+**Regulatory document generation now pulls in your company data**
+
+- Fixed the **Generate Document** wizard (`POST /regulatory-templates/generate`) and **AI Draft** (`POST /regulatory/{id}/ai-draft`) so the knowledge-base search embeds the query with the DB-aware embedding service (`get_embedding_service_for_db`) — the same provider/model the documents were ingested with. Previously both used the default Ollama `get_embedding_service`, so on an OpenAI or Voyage embedding configuration the query vector lived in a different space/dimension than the stored chunks; the vector search returned nothing (the exception was swallowed as best-effort), leaving the LLM with only the hardcoded 2-sentence company blurb and turning every detail into a `[FILL IN: …]` placeholder
+- Auto-populate now retrieves real PMI/VACTOR specifics from the knowledge base as intended. Note: the only baked-in company text is a short context string in `generator.py` — for richer auto-population, ingest a company-profile / device-master-record document into the knowledge base
+
 ### v2.6.11 — 2026-06-18
 **Odoo connect no longer bounces you to the login screen**
 

@@ -25,7 +25,7 @@ from models.schemas.regulatory import (
 )
 from repositories.regulatory_repo import CAPARepository, RegulatoryDocRepository, RiskItemRepository
 from repositories.document_repo import DocumentChunkRepository, DocumentRepository
-from services.embeddings.service import EmbeddingService, get_embedding_service
+from services.embeddings.service import get_embedding_service_for_db
 from services.llm.router import get_llm_client
 
 logger = logging.getLogger(__name__)
@@ -114,7 +114,6 @@ async def ai_draft_content(
     doc_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    embedding_svc: EmbeddingService = Depends(get_embedding_service),
 ) -> AIDraftOut:
     """Generate AI-drafted content for a regulatory document using KB context."""
     repo = RegulatoryDocRepository(db)
@@ -122,9 +121,13 @@ async def ai_draft_content(
     if doc is None:
         raise HTTPException(status_code=404, detail="Regulatory document not found.")
 
-    # Search KB for relevant context
+    # Search KB for relevant context. Use the DB-aware embedding service so the
+    # query is embedded with the SAME provider/model the documents were ingested
+    # with — otherwise the vectors live in a different space and the search
+    # returns nothing (no company data gets auto-populated).
     kb_context = ""
     try:
+        embedding_svc = await get_embedding_service_for_db(db)
         query_embedding = await embedding_svc.embed(
             f"{doc.doc_type} {doc.title} {' '.join(doc.related_standards or [])}"
         )
