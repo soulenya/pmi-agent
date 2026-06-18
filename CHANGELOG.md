@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.6.11 — 2026-06-18
+**Odoo connect no longer bounces you to the login screen**
+
+- Fixed a bug where a failed Odoo connection (wrong database, email, or API key) returned HTTP 401, which the frontend mistook for an expired app session — logging the user out to the Google sign-in screen instead of showing the error. The Odoo `connect`, `data`, and `ingest` endpoints now return 400 on an Odoo credential failure, so the real message ("Authentication failed — check the database name, email, and API key.") is shown on the page
+- Fixed the token-refresh URL in the API client (`/api/auth/refresh` → `/auth/refresh`); a real 401 now refreshes the access token automatically instead of failing with a 404 and signing the user out
+
 ### v2.6.10 — 2026-06-18
 **Smoother install on fresh Windows PCs**
 
