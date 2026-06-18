@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.6.10 — 2026-06-18
+**Smoother install on fresh Windows PCs**
+
+- The installer now detects the **Microsoft Visual C++ 2015–2022 Redistributable (x64)** via the registry and installs it automatically only when it's missing — fixing a first-run `alembic upgrade head` crash (`DLL load failed while importing _greenlet`) on brand-new Windows installs that lack `vcruntime140.dll`
+- Reinforces the installer's detect-then-install pattern: every prerequisite (Docker, Python, Node, uv, VC++ runtime) is probed first and skipped when already present; `uv sync` / `npm install` remain idempotent, so existing packages like greenlet are never reinstalled
+
 ### v2.6.9 — 2026-06-17
 **New mini-game — Precisian Sweeper (space Minesweeper)**
 
