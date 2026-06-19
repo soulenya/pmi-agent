@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 97;
+export const BUILD_NUMBER = 98;
 export const BUILD_DATE = "2026-06-19";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 98,
+    date: "2026-06-19",
+    title: "Bank balances now load on more Odoo versions",
+    changes: [
+      "Fixed the Odoo Bank Balance card failing with an 'account.move.line.read_group does not exist' error on newer Odoo versions — it now falls back to summing the posted account lines directly, so balances load regardless of your Odoo version",
+    ],
+  },
   {
     build: 97,
     date: "2026-06-19",

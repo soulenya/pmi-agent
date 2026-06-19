@@ -42,6 +42,10 @@ Thumbs.db
 # Encrypted document storage — never commit user files
 .pmi-agent/
 
+# Split / working document sets (large source PDFs — keep out of git)
+mil-std-810h-split/
+/MIL-STD-810H.pdf
+
 # Alembic env overrides
 backend/migrations/versions/*.pyc
 
