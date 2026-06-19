@@ -71,6 +71,19 @@ class ProposeActionResult(BaseModel):
     risk_level: str
 
 
+class BankAccountBalance(BaseModel):
+    journal: str
+    type: str
+    account: str
+    balance: float
+
+
+class BankBalanceResponse(BaseModel):
+    accounts: list[BankAccountBalance]
+    currency: str
+    total: float
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 async def _load_conn(db: AsyncSession, user: User) -> OdooConnection:
@@ -181,6 +194,23 @@ async def odoo_disconnect(
 async def odoo_models(_user: User = Depends(get_current_user)):
     """List the curated datasets the user can browse."""
     return {"models": odoo.model_catalog()}
+
+
+@router.get("/bank-balance", response_model=BankBalanceResponse)
+async def odoo_bank_balance(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Return current balances for each bank/cash journal in Odoo."""
+    conn = await _load_conn(db, user)
+    api_key = odoo.decrypt_secret(conn.api_key_encrypted)
+    try:
+        return await odoo.bank_balances(conn.url, conn.database, conn.username, api_key)
+    except odoo.OdooAuthError as exc:
+        # 400 (not 401): a stored-key auth failure must not log the user out.
+        raise HTTPException(400, str(exc))
+    except odoo.OdooError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @router.get("/data/{key}")

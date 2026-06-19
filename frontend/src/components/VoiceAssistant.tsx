@@ -14,10 +14,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AudioLines, Loader2, MessageSquare, Mic, Volume2, X } from "lucide-react";
 import { createConversation } from "@/api/chat";
 import { getSettings } from "@/api/settings";
+import { deleteDocument } from "@/api/documents";
 import { speakText } from "@/api/voice";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { useAuthStore } from "@/stores/authStore";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import { cn } from "@/lib/utils";
 
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
@@ -65,6 +67,8 @@ export function VoiceAssistant() {
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activity, setActivity] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ document_id: string; title: string } | null>(null);
+  const [deletingDoc, setDeletingDoc] = useState(false);
 
   // Mirror session state into the shared store so the header button reflects it
   const setStoreActive = useVoiceAssistantStore((s) => s.setActive);
@@ -184,11 +188,22 @@ export function VoiceAssistant() {
             content?: string;
             detail?: string;
             tool?: string;
+            document_id?: string;
+            title?: string;
           };
           if (msg.type === "token" && msg.content) {
             streamBufferRef.current += msg.content;
           } else if (msg.type === "tool_running" && msg.tool) {
             setActivity(friendlyToolLabel(msg.tool));
+          } else if (msg.type === "confirm_delete") {
+            // Gerry requested KB document deletion — show the final popup.
+            // Nothing is deleted until the user confirms here.
+            if (msg.document_id) {
+              setPendingDelete({
+                document_id: msg.document_id,
+                title: msg.title ?? "this document",
+              });
+            }
           } else if (msg.type === "done") {
             const finalText = streamBufferRef.current;
             streamBufferRef.current = "";
@@ -308,6 +323,24 @@ export function VoiceAssistant() {
 
   if (!voiceEnabled || !active) return null;
 
+  const deleteModal = pendingDelete ? (
+    <ConfirmDeleteModal
+      title={pendingDelete.title}
+      busy={deletingDoc}
+      onConfirm={async () => {
+        setDeletingDoc(true);
+        try {
+          await deleteDocument(pendingDelete.document_id);
+          queryClient.invalidateQueries({ queryKey: ["documents"] });
+        } finally {
+          setDeletingDoc(false);
+          setPendingDelete(null);
+        }
+      }}
+      onCancel={() => setPendingDelete(null)}
+    />
+  ) : null;
+
   const phase =
     voiceStatus === "listening"
       ? "listening"
@@ -318,7 +351,8 @@ export function VoiceAssistant() {
           : "thinking";
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-80 rounded-xl border bg-background p-4 shadow-xl">
+    <>
+      <div className="fixed bottom-6 right-6 z-50 w-80 rounded-xl border bg-background p-4 shadow-xl">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <AudioLines className="h-4 w-4 text-primary" />
@@ -383,6 +417,8 @@ export function VoiceAssistant() {
           View conversation
         </button>
       )}
-    </div>
+      </div>
+      {deleteModal}
+    </>
   );
 }

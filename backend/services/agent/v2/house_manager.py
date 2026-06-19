@@ -89,6 +89,7 @@ _TOOLS = [
     "list_scheduled_tasks",
     "manage_scheduled_task",
     "manage_knowledge_base",
+    "request_kb_deletion",
     "get_app_overview",
     # Custodian — read only
     "get_app_settings",

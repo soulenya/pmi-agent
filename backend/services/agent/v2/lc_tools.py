@@ -75,6 +75,12 @@ _TOOL_DOCS = {
         'List or remove knowledge base documents. JSON fields: {"action": "list"|"delete", "document_id": str (UUID, for delete), '
         '"confirm": bool (required true for delete, only after the user explicitly confirms)}.'
     ),
+    "request_kb_deletion": (
+        "Request permanent deletion of a Knowledge Base document. Use ONLY when the user explicitly asks "
+        "to delete/remove a KB document. This does NOT delete anything — it shows the user a final confirm/cancel "
+        "popup and the document is removed only if they confirm there. After calling it, stop and wait for their decision. "
+        'JSON fields: {"document_id": str (UUID, preferred), "query": str (a title/search term if the id is unknown)}.'
+    ),
     "get_app_overview": "Get a one-shot snapshot of the whole app: counts of conversations, tasks, KB documents, scheduled tasks, generated files, pending approvals, and the app version. No arguments needed.",
     "get_app_settings": "READ ONLY: list app settings (secrets are masked). Settings can only be changed by the user in the Settings page.",
     "list_users": "READ ONLY: list user accounts with roles and status. User management is done by the user in Settings.",
