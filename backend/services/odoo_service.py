@@ -274,23 +274,46 @@ def _bank_balances_sync(
         j["default_account_id"][0] for j in journals if j.get("default_account_id")
     ]
 
-    # Sum posted move-line balances per bank/cash GL account in one read_group.
+    # Sum posted move-line balances per bank/cash GL account. Prefer a
+    # server-side read_group; fall back to fetching the lines and summing in
+    # Python on Odoo versions that no longer expose read_group over RPC
+    # (raises "The method 'account.move.line.read_group' does not exist").
     balances_by_account: dict[int, float] = {}
     if account_ids:
-        groups = _execute_kw(
-            url,
-            database,
-            uid,
-            api_key,
-            "account.move.line",
-            "read_group",
-            [[["account_id", "in", account_ids], ["parent_state", "=", "posted"]]],
-            {"fields": ["balance:sum"], "groupby": ["account_id"]},
-        )
-        for g in groups:
-            acct = g.get("account_id")
-            if acct:
-                balances_by_account[acct[0]] = float(g.get("balance") or 0.0)
+        domain = [["account_id", "in", account_ids], ["parent_state", "=", "posted"]]
+        try:
+            groups = _execute_kw(
+                url,
+                database,
+                uid,
+                api_key,
+                "account.move.line",
+                "read_group",
+                [domain],
+                {"fields": ["balance:sum"], "groupby": ["account_id"]},
+            )
+            for g in groups:
+                acct = g.get("account_id")
+                if acct:
+                    balances_by_account[acct[0]] = float(g.get("balance") or 0.0)
+        except OdooError:
+            lines = _execute_kw(
+                url,
+                database,
+                uid,
+                api_key,
+                "account.move.line",
+                "search_read",
+                [domain],
+                {"fields": ["account_id", "balance"]},
+            )
+            for ln in lines:
+                acct = ln.get("account_id")
+                if not acct:
+                    continue
+                balances_by_account[acct[0]] = (
+                    balances_by_account.get(acct[0], 0.0) + float(ln.get("balance") or 0.0)
+                )
 
     # Company currency for display (move-line balances are in company currency).
     company_currency = ""
