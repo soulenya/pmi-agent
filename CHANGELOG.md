@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v2.7.2 — 2026-06-19
+**Odoo bank balances load across more Odoo versions**
+
+- Fixed `GET /api/odoo/bank-balance` failing with `AttributeError: The method 'account.move.line.read_group' does not exist` on Odoo versions that no longer expose `read_group` over RPC. `OdooService._bank_balances_sync` now tries the server-side `read_group` and, on `OdooError`, falls back to `search_read` on `account.move.line` (fields `account_id`, `balance`, domain posted + bank/cash accounts) and sums per-account in Python — same result, version-proof
+
 ### v2.7.1 — 2026-06-19
 **Bank balances on the Odoo page + agent-driven KB deletion behind a confirmation popup**
 
