@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.7.1 — 2026-06-19
+**Bank balances on the Odoo page + agent-driven KB deletion behind a confirmation popup**
+
+- **Odoo bank balances:** added `GET /api/odoo/bank-balance` (`odoo_bank_balance` in `routers/odoo_integration.py`) backed by `OdooService.bank_balances` — it reads `account.journal` (bank/cash), sums posted `account.move.line` balances per journal GL account via one `read_group`, and reports the company currency. The Odoo page now renders a **Bank Balance** card (total available + per-account breakdown + Refresh) above the data browser
+- **Safe KB deletion via the agent:** Little Gerry can now delete a knowledge base document, but only after the user gives final approval in a confirmation popup — the agent never deletes server-side. A new `request_kb_deletion` tool (and the House Manager's `manage_knowledge_base` delete action) sets `ToolContext.pending_confirmation`; both the v1 executor and v2 supervisor emit it as a `confirm_delete` WebSocket frame. The frontend shows a shared `ConfirmDeleteModal` in **both** text chat (`ChatPage`) and the **voice** assistant (`VoiceAssistant`); on Confirm it calls `DELETE /documents/{id}`, on Cancel it dismisses
+
 ### v2.7.0 — 2026-06-18
 **Regulatory document generation now pulls in your company data**
 

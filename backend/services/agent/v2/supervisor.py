@@ -329,6 +329,12 @@ class LangGraphSupervisor:
                     "label": frame.get("label", ""),
                 })
 
+            elif frame_type == "confirm_delete":
+                # A tool staged a confirm/cancel popup — pass it through verbatim
+                # so the client can show it. Deletion happens client-side only
+                # after the user confirms.
+                yield json.dumps(frame)
+
             elif frame_type == "done":
                 # Persist both user message and assistant response
                 full_response = "".join(full_response_parts)

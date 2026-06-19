@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 96;
-export const BUILD_DATE = "2026-06-18";
+export const BUILD_NUMBER = 97;
+export const BUILD_DATE = "2026-06-19";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 97,
+    date: "2026-06-19",
+    title: "Bank balances on the Odoo page, and a safer way to delete knowledge base documents",
+    changes: [
+      "The Odoo page now shows your live bank and cash balances pulled straight from Odoo — a total available figure plus a per-account breakdown, with a Refresh button",
+      "Little Gerry can now delete a knowledge base document for you, but only after you give final approval in a confirmation popup — nothing is removed until you click Delete",
+      "This works in both text chat and the voice assistant, and the agent never deletes anything on its own",
+    ],
+  },
   {
     build: 96,
     date: "2026-06-18",
