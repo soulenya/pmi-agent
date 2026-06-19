@@ -53,6 +53,24 @@ export async function getOdooModels(): Promise<OdooModelInfo[]> {
   return res.data.models;
 }
 
+export interface OdooBankAccountBalance {
+  journal: string;
+  type: string;
+  account: string;
+  balance: number;
+}
+
+export interface OdooBankBalance {
+  accounts: OdooBankAccountBalance[];
+  currency: string;
+  total: number;
+}
+
+export async function getOdooBankBalance(): Promise<OdooBankBalance> {
+  const res = await apiClient.get(`${PREFIX}/bank-balance`);
+  return res.data;
+}
+
 export async function getOdooData(
   key: string,
   opts?: { search?: string; limit?: number },
