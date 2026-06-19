@@ -329,6 +329,14 @@ class AgentExecutor:
                     conversation_id=str(self.conversation_id),
                 ).model_dump_json()
 
+                # If a tool staged a confirm/cancel popup (e.g. KB deletion),
+                # emit it to the client and clear it. The frontend performs the
+                # destructive action only after the user confirms.
+                if tool_ctx.pending_confirmation is not None:
+                    import json as _json
+                    yield _json.dumps(tool_ctx.pending_confirmation)
+                    tool_ctx.pending_confirmation = None
+
                 if _use_prompt_tools:
                     # Inject result as a user message so the model can read it
                     messages.append({"role": "user", "content": f"[Tool result for {tool_name}]:\n{result}\n\nNow answer the user's original question using this data. Do NOT make up any information."})

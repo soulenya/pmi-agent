@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.db.enums import MessageRole, TaskPriority, TaskStatus
 from models.db.task import Task
 from repositories.conversation_repo import ApprovalRepository
-from repositories.document_repo import DocumentChunkRepository
+from repositories.document_repo import DocumentChunkRepository, DocumentRepository
 from services.embeddings.service import EmbeddingService
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,11 @@ class ToolContext:
     user_id: uuid.UUID
     conversation_id: uuid.UUID
     embedding_service: EmbeddingService
+    # When a tool wants the client to show a final confirm/cancel popup before a
+    # destructive action, it sets this to a frame dict (e.g. a "confirm_delete"
+    # payload). The agent loop emits it to the WebSocket and clears it. The
+    # actual deletion happens client-side only after the user confirms.
+    pending_confirmation: dict[str, Any] | None = None
 
 
 # ── Tool schema definitions (sent to Ollama) ──────────────────────────────────
@@ -75,6 +80,35 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "request_kb_deletion",
+            "description": (
+                "Request permanent deletion of a Knowledge Base document. "
+                "Use this ONLY when the user explicitly asks to delete or remove a KB document. "
+                "This does NOT delete anything itself — it shows the user a confirmation popup where "
+                "they give final approval; the document is only removed if they confirm there. "
+                "Identify the document by document_id (preferred — get it from manage_knowledge_base "
+                "list or search_knowledge_base) or by a title/query. After calling this, stop and wait "
+                "for the user's decision; do not call it again for the same document."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "The UUID of the KB document to delete (preferred).",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "A title or search term to identify the document, if the id is unknown.",
+                    },
+                },
+                "required": [],
             },
         },
     },
@@ -704,6 +738,64 @@ async def execute_search_knowledge_base(ctx: ToolContext, args: dict[str, Any]) 
             + ("..." if len(chunk.content) > 600 else "")
         )
     return "\n\n".join(lines)
+
+
+async def execute_request_kb_deletion(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Stage a confirm/cancel popup for deleting a KB document.
+
+    This NEVER deletes anything server-side. It resolves the target document and
+    sets ``ctx.pending_confirmation`` to a ``confirm_delete`` frame, which the
+    agent loop emits to the client. The deletion is performed by the frontend
+    only after the user clicks Confirm in the popup.
+    """
+    from sqlalchemy import select
+    from models.db.document import Document
+
+    repo = DocumentRepository(ctx.db)
+
+    doc = None
+    raw_id = args.get("document_id")
+    if raw_id:
+        try:
+            doc_id = uuid.UUID(str(raw_id))
+        except (ValueError, TypeError):
+            return "Error: document_id is not a valid id. Use manage_knowledge_base list to find the correct id."
+        doc = await repo.get_active(doc_id)
+        if doc is None:
+            return "No active knowledge base document found with that id. It may have already been deleted."
+    else:
+        query = str(args.get("query") or args.get("title") or "").strip()
+        if not query:
+            return "Error: provide a document_id (preferred) or a title/query to identify the document to delete."
+        rows = (
+            await ctx.db.execute(
+                select(Document)
+                .where(Document.deleted_at.is_(None), Document.title.ilike(f"%{query}%"))
+                .order_by(Document.created_at.desc())
+                .limit(10)
+            )
+        ).scalars().all()
+        if not rows:
+            return f'No knowledge base document matches "{query}". Nothing was deleted.'
+        if len(rows) > 1:
+            options = "\n".join(f"- {d.id} | {d.title}" for d in rows)
+            return (
+                "Several documents match. Ask the user which one they mean, then call "
+                "request_kb_deletion again with the exact document_id:\n" + options
+            )
+        doc = rows[0]
+
+    ctx.pending_confirmation = {
+        "type": "confirm_delete",
+        "target": "kb_document",
+        "document_id": str(doc.id),
+        "title": doc.title,
+    }
+    return (
+        f'A confirmation popup is now shown to the user asking them to permanently delete '
+        f'"{doc.title}" from the knowledge base. The document is only removed if they confirm '
+        f"there. Stop and wait for their decision — do not call this tool again for this document."
+    )
 
 
 async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -1421,6 +1513,7 @@ async def execute_upload_to_drive(ctx: ToolContext, args: dict[str, Any]) -> str
 
 TOOL_EXECUTORS = {
     "search_knowledge_base": execute_search_knowledge_base,
+    "request_kb_deletion": execute_request_kb_deletion,
     "create_task": execute_create_task,
     "request_approval": execute_request_approval,
     "propose_odoo_write": execute_propose_odoo_write,
@@ -1459,6 +1552,7 @@ TOOL_EXECUTORS.update(CUSTODIAN_EXECUTORS)
 # works instead of failing with "Error: query must not be empty."
 _PRIMARY_ARG = {
     "search_knowledge_base": "query",
+    "request_kb_deletion": "query",
     "search_web": "query",
     "search_gmail": "query",
     "search_drive": "query",

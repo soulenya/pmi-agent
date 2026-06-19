@@ -5,6 +5,7 @@ import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { AttachmentBar } from "@/components/chat/AttachmentBar";
+import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import {
   createConversation,
   listConversations,
@@ -12,6 +13,7 @@ import {
   updateConversation,
 } from "@/api/chat";
 import { getSettings } from "@/api/settings";
+import { deleteDocument } from "@/api/documents";
 import { speakText } from "@/api/voice";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { useAuthStore } from "@/stores/authStore";
@@ -157,6 +159,8 @@ export function ChatPage() {
   const [wsConnected, setWsConnected] = useState(false);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ document_id: string; title: string } | null>(null);
+  const [deletingDoc, setDeletingDoc] = useState(false);
 
   // ── Voice ──────────────────────────────────────────────────────────────────────────
   const { data: appSettings } = useQuery({
@@ -332,11 +336,13 @@ export function ChatPage() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string) as {
-          type: "token" | "done" | "error" | "tool_status";
+          type: "token" | "done" | "error" | "tool_status" | "confirm_delete";
           content?: string;
           tool_name?: string;
           status?: string;
           label?: string;
+          document_id?: string;
+          title?: string;
         };
 
         if (msg.type === "token" && msg.content) {
@@ -357,6 +363,15 @@ export function ChatPage() {
             }
             return [...prev, { tool_name: frame.tool_name, status: frame.status, label: frame.label }];
           });
+        } else if (msg.type === "confirm_delete") {
+          // An agent requested KB document deletion — show the final popup.
+          // Nothing is deleted until the user confirms here.
+          if (msg.document_id) {
+            setPendingDelete({
+              document_id: msg.document_id,
+              title: msg.title ?? "this document",
+            });
+          }
         } else if (msg.type === "done") {
           // Flush streamed message into real message list
           queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
@@ -651,6 +666,24 @@ export function ChatPage() {
           }
         />
       </div>
+
+      {pendingDelete && (
+        <ConfirmDeleteModal
+          title={pendingDelete.title}
+          busy={deletingDoc}
+          onConfirm={async () => {
+            setDeletingDoc(true);
+            try {
+              await deleteDocument(pendingDelete.document_id);
+              queryClient.invalidateQueries({ queryKey: ["documents"] });
+            } finally {
+              setDeletingDoc(false);
+              setPendingDelete(null);
+            }
+          }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

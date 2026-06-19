@@ -237,6 +237,115 @@ async def search_read(
     return {"key": key, "label": cfg["label"], "model": cfg["model"], "fields": cfg["fields"], "rows": rows}
 
 
+# ── Bank balances ────────────────────────────────────────────────────────────
+
+def _bank_balances_sync(
+    url: str,
+    database: str,
+    username: str,
+    api_key: str,
+) -> dict[str, Any]:
+    """Compute current balances for each bank/cash journal.
+
+    The ``balance`` field on ``account.move.line`` is always stored in the
+    company currency, so we sum the posted move lines for each journal's GL
+    account and report everything (and the grand total) in company currency.
+    """
+    url = _normalize_url(url)
+    uid = _authenticate(url, database, username, api_key)
+
+    journals = _execute_kw(
+        url,
+        database,
+        uid,
+        api_key,
+        "account.journal",
+        "search_read",
+        [[["type", "in", ["bank", "cash"]]]],
+        {
+            "fields": ["name", "type", "default_account_id"],
+            "order": "type desc, name asc",
+        },
+    )
+    if not journals:
+        return {"accounts": [], "currency": "", "total": 0.0}
+
+    account_ids = [
+        j["default_account_id"][0] for j in journals if j.get("default_account_id")
+    ]
+
+    # Sum posted move-line balances per bank/cash GL account in one read_group.
+    balances_by_account: dict[int, float] = {}
+    if account_ids:
+        groups = _execute_kw(
+            url,
+            database,
+            uid,
+            api_key,
+            "account.move.line",
+            "read_group",
+            [[["account_id", "in", account_ids], ["parent_state", "=", "posted"]]],
+            {"fields": ["balance:sum"], "groupby": ["account_id"]},
+        )
+        for g in groups:
+            acct = g.get("account_id")
+            if acct:
+                balances_by_account[acct[0]] = float(g.get("balance") or 0.0)
+
+    # Company currency for display (move-line balances are in company currency).
+    company_currency = ""
+    try:
+        users = _execute_kw(
+            url, database, uid, api_key, "res.users", "read", [[uid]], {"fields": ["company_id"]}
+        )
+        company_id = (
+            users[0]["company_id"][0] if users and users[0].get("company_id") else None
+        )
+        if company_id:
+            comps = _execute_kw(
+                url,
+                database,
+                uid,
+                api_key,
+                "res.company",
+                "read",
+                [[company_id]],
+                {"fields": ["currency_id"]},
+            )
+            cur = comps[0].get("currency_id") if comps else None
+            if cur:
+                company_currency = str(cur[1])
+    except OdooError:
+        pass
+
+    accounts: list[dict[str, Any]] = []
+    total = 0.0
+    for j in journals:
+        acct = j.get("default_account_id")
+        acct_id = acct[0] if acct else None
+        bal = balances_by_account.get(acct_id, 0.0) if acct_id is not None else 0.0
+        accounts.append(
+            {
+                "journal": j.get("name", ""),
+                "type": j.get("type", ""),
+                "account": _m2o_name(j.get("default_account_id")),
+                "balance": round(bal, 2),
+            }
+        )
+        total += bal
+
+    return {
+        "accounts": accounts,
+        "currency": company_currency,
+        "total": round(total, 2),
+    }
+
+
+async def bank_balances(url: str, database: str, username: str, api_key: str) -> dict[str, Any]:
+    """Return ``{accounts, currency, total}`` for all bank/cash journals."""
+    return await asyncio.to_thread(_bank_balances_sync, url, database, username, api_key)
+
+
 # ── Knowledge Base ingestion helpers ─────────────────────────────────────────
 
 def _m2o_name(value: Any) -> str:

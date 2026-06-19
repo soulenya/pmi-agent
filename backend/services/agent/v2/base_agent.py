@@ -131,6 +131,13 @@ class BaseAgent:
 
                 yield {"type": "tool_done", "tool": tool_name, "label": str(result)[:80]}
 
+                # If a tool staged a confirm/cancel popup (e.g. KB deletion),
+                # emit it to the client and clear it. The deletion runs
+                # client-side only after the user confirms.
+                if getattr(self.ctx, "pending_confirmation", None):
+                    yield self.ctx.pending_confirmation
+                    self.ctx.pending_confirmation = None
+
                 lc_messages.append(
                     ToolMessage(content=str(result), tool_call_id=tc_id)
                 )

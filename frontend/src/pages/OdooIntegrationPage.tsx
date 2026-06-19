@@ -13,6 +13,8 @@ import {
   CheckCheck,
   CreditCard,
   ShieldCheck,
+  Landmark,
+  Wallet,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import {
@@ -21,6 +23,7 @@ import {
   disconnectOdoo,
   getOdooModels,
   getOdooData,
+  getOdooBankBalance,
   ingestOdoo,
   proposeOdooAction,
   type OdooConnectRequest,
@@ -118,6 +121,91 @@ function ConnectForm({ onDone }: { onDone: () => void }) {
         {connect.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlugZap className="h-4 w-4" />}
         Connect
       </button>
+    </div>
+  );
+}
+
+// ── Bank balance ─────────────────────────────────────────────────────────────
+
+function formatMoney(amount: number, currency: string): string {
+  const formatted = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+  return currency ? `${formatted} ${currency}` : formatted;
+}
+
+function BankBalance() {
+  const { data, isLoading, isFetching, refetch, error } = useQuery({
+    queryKey: ["odoo-bank-balance"],
+    queryFn: getOdooBankBalance,
+  });
+
+  const err = error as { response?: { data?: { detail?: string } } } | null;
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-card p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <Landmark className="h-5 w-5 text-emerald-500" /> Bank Balance
+        </h2>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
+          title="Refresh balances from Odoo"
+        >
+          <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading balances…
+        </div>
+      ) : err ? (
+        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{err.response?.data?.detail ?? "Could not load bank balances from Odoo."}</span>
+        </div>
+      ) : !data || data.accounts.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No bank or cash accounts were found in Odoo.
+        </p>
+      ) : (
+        <>
+          <div className="rounded-lg border bg-emerald-500/5 px-4 py-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Total available
+            </div>
+            <div className="mt-0.5 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+              {formatMoney(data.total, data.currency)}
+            </div>
+          </div>
+          <div className="divide-y rounded-lg border">
+            {data.accounts.map((a, i) => (
+              <div key={i} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                <div className="flex items-center gap-2.5 text-sm">
+                  <Wallet className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div>
+                    <div className="font-medium">{a.journal}</div>
+                    {a.account && (
+                      <div className="text-xs text-muted-foreground">{a.account}</div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-sm font-semibold tabular-nums">
+                  {formatMoney(a.balance, data.currency)}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Balances reflect posted journal entries and are shown in your company currency.
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -397,6 +485,8 @@ export default function OdooIntegrationPage() {
               Disconnect
             </button>
           </div>
+
+          <BankBalance />
 
           <DataBrowser />
         </>

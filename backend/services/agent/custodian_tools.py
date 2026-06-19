@@ -407,7 +407,7 @@ async def execute_manage_scheduled_task(ctx: "ToolContext", args: dict[str, Any]
 async def execute_manage_knowledge_base(ctx: "ToolContext", args: dict[str, Any]) -> str:
     from models.db.document import Document
     from models.db.enums import DocumentStatus
-    from repositories.document_repo import DocumentChunkRepository, DocumentRepository
+    from repositories.document_repo import DocumentRepository
 
     action = str(args.get("action", "list")).lower()
     repo = DocumentRepository(ctx.db)
@@ -430,12 +430,19 @@ async def execute_manage_knowledge_base(ctx: "ToolContext", args: dict[str, Any]
         doc = await repo.get_active(doc_id)
         if doc is None:
             return "Document not found in the knowledge base."
-        if not args.get("confirm"):
-            return _CONFIRM_MSG
-        chunk_repo = DocumentChunkRepository(ctx.db)
-        await chunk_repo.delete_by_document(doc_id)
-        await repo.soft_delete(doc_id)
-        return f"Removed '{doc.title}' from the knowledge base."
+        # Never delete server-side here. Stage a confirm/cancel popup; the
+        # frontend performs the deletion only after the user confirms.
+        ctx.pending_confirmation = {
+            "type": "confirm_delete",
+            "target": "kb_document",
+            "document_id": str(doc.id),
+            "title": doc.title,
+        }
+        return (
+            f"A confirmation popup is now shown to the user asking them to permanently "
+            f"delete '{doc.title}' from the knowledge base. It is only removed if they "
+            f"confirm there. Stop and wait for their decision."
+        )
 
     return "Error: action must be 'list' or 'delete'. New documents are added via the Documents page or Drive sync."
 
