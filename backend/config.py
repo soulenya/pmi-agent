@@ -72,6 +72,17 @@ class Settings(BaseSettings):
     # notifications. Falls back to all admin users if the email isn't found.
     feedback_recipient_email: str = "morganjkeane@pmi-llc.com"
 
+    # ── Push notifications (APNs) ────────────────────────────────────────────
+    # Token-based (.p8) auth for the iOS app. Leave blank to disable push — the
+    # backend then runs unchanged (the sender becomes a no-op). TestFlight builds
+    # use the PRODUCTION host, so keep apns_use_sandbox False except for local
+    # Xcode debug builds.
+    apns_key_id: str = ""        # 10-char Key ID of the AuthKey .p8
+    apns_team_id: str = ""       # 10-char Apple Developer Team ID
+    apns_bundle_id: str = ""     # app bundle id, used as the APNs topic
+    apns_key_path: str = ""      # path to AuthKey_XXXXXXXXXX.p8
+    apns_use_sandbox: bool = False
+
     # ── Access / onboarding ──────────────────────────────────────────────────
     # The single application owner. On first Google SSO sign-in this email is
     # provisioned as "admin"; every other allowed-domain account is provisioned

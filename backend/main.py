@@ -42,6 +42,7 @@ from routers.feedback import router as feedback_router
 from routers.assistant import router as assistant_router
 from routers.scheduled_tasks import router as scheduled_tasks_router
 from routers.voice import router as voice_router
+from routers.push import router as push_router
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -405,6 +406,7 @@ def create_app() -> FastAPI:
     app.include_router(feedback_router)
     app.include_router(assistant_router)
     app.include_router(scheduled_tasks_router)
+    app.include_router(push_router)
 
     from routers.agents import router as agents_router
     app.include_router(agents_router)
