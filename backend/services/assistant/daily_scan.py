@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+import hashlib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,21 @@ DEFAULT_HOUR = 7
 # at least this many times. A single dismissal lets it resurface on the next
 # scan, protecting against an accidental dismissal.
 DISMISS_SUPPRESS_THRESHOLD = 2
+
+# Two suggestions whose title+summary embeddings are at least this cosine-similar
+# are treated as the same item even when worded differently (and even across
+# different source emails/threads). 0.90 collapses rewordings while leaving
+# genuinely distinct action items separate.
+SEMANTIC_DUP_THRESHOLD = 0.90
+
+# How far back to look for an existing suggestion when checking semantic
+# near-duplicates. Older resolved items shouldn't keep blocking new ones.
+SEMANTIC_DUP_WINDOW_DAYS = 21
+
+# Only the free-text, LLM-worded suggestion kinds get semantic dedup. Structured
+# items (google tasks, meeting imports, Odoo alerts) already have stable source
+# ids, and semantic matching could wrongly merge two distinct ones.
+_SEMANTIC_KINDS = ("followup_email", "task_recommendation")
 
 _IMPORTABLE_EXT = (".pdf", ".docx", ".doc", ".txt", ".md")
 
@@ -87,6 +103,26 @@ async def set_setting(db: AsyncSession, key: str, value: Any, user_id=None) -> N
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    """Cosine similarity of two equal-length vectors; 0.0 on any degenerate input."""
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    if na == 0.0 or nb == 0.0:
+        return 0.0
+    return dot / (na * nb)
+
+
+def _norm_key(text: str) -> str:
+    """Stable short key for a free-text title (for suggestions with no thread /
+    conversation anchor). Normalizes case/punctuation so trivial differences map
+    together; the semantic guard handles larger rewordings."""
+    norm = " ".join("".join(c if c.isalnum() else " " for c in text.lower()).split())
+    return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:16]
 
 
 # ── owner / dedup helpers ─────────────────────────────────────────────────────
@@ -242,6 +278,29 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
     seen: set[tuple[str, str]] = set()
     new_suggestions: list[AssistantSuggestion] = []
 
+    # Embeddings of recently-surfaced suggestions, per kind, for semantic
+    # near-duplicate detection. Populated lazily from the DB (below) and extended
+    # as new suggestions are created during this scan.
+    active_vecs: dict[str, list[tuple[AssistantSuggestion, list[float]]]] = {}
+
+    async def _embed_text(text: str) -> list[float] | None:
+        if not text.strip():
+            return None
+        try:
+            return await embedding_svc.embed(text)
+        except Exception as exc:  # noqa: BLE001 — dedup is best-effort
+            logger.info("Assistant scan: embed failed (%s)", exc)
+            return None
+
+    def _semantic_match(kind: str, vec: list[float]) -> AssistantSuggestion | None:
+        """Closest recent suggestion of this kind at/above the dup threshold, if any."""
+        best, best_sim = None, 0.0
+        for row, rvec in active_vecs.get(kind, []):
+            sim = _cosine(vec, rvec)
+            if sim > best_sim:
+                best_sim, best = sim, row
+        return best if best is not None and best_sim >= SEMANTIC_DUP_THRESHOLD else None
+
     async def _prior(kind: str, source_id: str) -> AssistantSuggestion | None:
         """The existing suggestion row for this source (any status), if any."""
         return (
@@ -279,7 +338,9 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
             return True
         return _is_blocked(await _prior(kind, source_id))
 
-    async def _add(kind: str, source_id: str, **fields) -> AssistantSuggestion | None:
+    async def _add(
+        kind: str, source_id: str, *, dedup_text: str | None = None, **fields
+    ) -> AssistantSuggestion | None:
         key = (kind, source_id)
         if key in seen:
             return None
@@ -297,7 +358,18 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
             prior.status = "pending"
             prior.resolved_at = None
             new_suggestions.append(prior)
+            if dedup_text is not None:
+                vec = await _embed_text(dedup_text)
+                if vec is not None:
+                    active_vecs.setdefault(kind, []).append((prior, vec))
             return prior
+        # No exact-source match: guard against a semantically equivalent item that
+        # was surfaced under a different source id or worded differently.
+        vec: list[float] | None = None
+        if dedup_text is not None:
+            vec = await _embed_text(dedup_text)
+            if vec is not None and _semantic_match(kind, vec) is not None:
+                return None
         s = AssistantSuggestion(
             user_id=user.id,
             kind=kind,
@@ -307,7 +379,30 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         )
         db.add(s)
         new_suggestions.append(s)
+        if vec is not None:
+            active_vecs.setdefault(kind, []).append((s, vec))
         return s
+
+    # Preload recent suggestions (any status) so a reworded item surfaced on an
+    # earlier scan still blocks today's near-duplicate. Embedded once per scan.
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=SEMANTIC_DUP_WINDOW_DAYS)
+        recent = (
+            await db.execute(
+                select(AssistantSuggestion).where(
+                    AssistantSuggestion.user_id == user.id,
+                    AssistantSuggestion.kind.in_(_SEMANTIC_KINDS),
+                    AssistantSuggestion.created_at >= cutoff,
+                )
+            )
+        ).scalars().all()
+        texts = [f"{r.title}\n{r.summary or ''}".strip() for r in recent]
+        if texts:
+            vecs = await embedding_svc.embed_batch(texts)
+            for r, v in zip(recent, vecs):
+                active_vecs.setdefault(r.kind, []).append((r, v))
+    except Exception as exc:  # noqa: BLE001 — dedup preload is best-effort
+        logger.info("Assistant scan: semantic preload failed (%s)", exc)
 
     # 1. Gather Gmail context
     sent: list[dict] = []
@@ -365,14 +460,26 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         mid = str(fu.get("email_id") or "").strip()
         if not mid or mid not in email_by_id:
             continue
+        email = email_by_id.get(mid) or {}
+        # Key on the thread, not the message — otherwise every reply in the same
+        # conversation becomes its own follow-up suggestion.
+        thread_id = str(email.get("thread_id") or "").strip() or mid
+        title = str(fu.get("title") or "Follow up on email")[:500]
+        summary = str(fu.get("summary") or "")
         await _add(
             "followup_email",
-            mid,
-            title=str(fu.get("title") or "Follow up on email")[:500],
-            summary=str(fu.get("summary") or ""),
-            source_type="gmail_message",
-            source_url=f"https://mail.google.com/mail/u/0/#all/{mid}",
-            payload={"task": fu.get("task") or None, "email": email_by_id.get(mid)},
+            f"thread:{thread_id}",
+            dedup_text=f"{title}\n{summary}",
+            title=title,
+            summary=summary,
+            source_type="gmail_thread",
+            source_url=f"https://mail.google.com/mail/u/0/#all/{thread_id}",
+            payload={
+                "task": fu.get("task") or None,
+                "email": email,
+                "message_id": mid,
+                "thread_id": thread_id,
+            },
         )
 
     for tr in (llm_result.get("task_recommendations") or [])[:5]:
@@ -381,28 +488,41 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
             continue
         src_email = str(tr.get("source_email_id") or "").strip()
         src_conv = str(tr.get("source_conversation_id") or "").strip()
-        ref = src_email or src_conv or title
-        source_id = f"{ref}|{title}"[:255]
-        src_type = (
-            "gmail_message" if src_email else "chat_conversation" if src_conv else "llm"
-        )
-        url = (
-            f"https://mail.google.com/mail/u/0/#all/{src_email}" if src_email else None
-        )
+        description = str(tr.get("description") or "")
+        email = email_by_id.get(src_email) if src_email else None
+        thread_id = str((email or {}).get("thread_id") or "").strip() or src_email
+        # Anchor the dedup key on a STABLE reference (thread / conversation /
+        # normalized title) — never the raw LLM title, which is reworded on every
+        # scan and would otherwise spawn a fresh row each time (defeating the
+        # dismissal-suppression counter).
+        if thread_id:
+            anchor = f"thread:{thread_id}"
+            src_type = "gmail_thread"
+            url = f"https://mail.google.com/mail/u/0/#all/{thread_id}"
+        elif src_conv:
+            anchor = f"conv:{src_conv}"
+            src_type = "chat_conversation"
+            url = None
+        else:
+            anchor = f"text:{_norm_key(title)}"
+            src_type = "llm"
+            url = None
+        source_id = anchor[:255]
         priority = str(tr.get("priority") or "medium").lower()
         if priority not in ("low", "medium", "high", "critical"):
             priority = "medium"
         await _add(
             "task_recommendation",
             source_id,
+            dedup_text=f"{title}\n{description}",
             title=f"Create task: {title}"[:500],
-            summary=str(tr.get("description") or ""),
+            summary=description,
             source_type=src_type,
             source_url=url,
             payload={
                 "task": {
                     "title": title,
-                    "description": str(tr.get("description") or ""),
+                    "description": description,
                     "priority": priority,
                     "due_in_days": tr.get("due_in_days"),
                 },
