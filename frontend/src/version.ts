@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 98;
-export const BUILD_DATE = "2026-06-19";
+export const BUILD_NUMBER = 99;
+export const BUILD_DATE = "2026-06-22";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 99,
+    date: "2026-06-22",
+    title: "No more repeated daily-assistant notifications",
+    changes: [
+      "Fixed the daily assistant sending you the same suggestion over and over — follow-ups are now tracked per email conversation instead of per message, so a busy thread no longer turns into a pile of duplicate reminders",
+      "Suggested tasks are now remembered by what they refer to rather than their wording, so once you dismiss one it stays dismissed instead of coming back slightly reworded after each scan",
+      "Added a smart duplicate check that recognises when two suggestions are essentially the same thing phrased differently and quietly skips the repeat",
+    ],
+  },
   {
     build: 98,
     date: "2026-06-19",
