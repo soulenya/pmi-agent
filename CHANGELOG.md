@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v2.7.3 — 2026-06-22
+**Daily assistant no longer sends duplicate / reworded notifications**
+
+- Fixed the daily assistant scan emitting repeated suggestions for the same email thread and the same dismissed task. Three root causes addressed in `services/assistant/daily_scan.py`:
+  - **Follow-ups keyed per-thread, not per-message:** `gmail_search` now surfaces `thread_id`, and follow-up suggestions dedup on `thread:{thread_id}` (source_type `gmail_thread`) instead of the Gmail message id — a busy thread is one suggestion, not one per reply
+  - **Stable task-recommendation dedup key:** `task_recommendation.source_id` no longer includes the LLM-generated title (which reworded every scan, creating a fresh row so `dismissal_count` never accumulated and the 2-dismissal suppression never fired). It now anchors on a stable reference — `thread:{id}` → `conv:{id}` → `text:{normalized-title-hash}` — so dismissals persist
+  - **Semantic near-duplicate guard:** added a best-effort embedding check (cosine ≥ `SEMANTIC_DUP_THRESHOLD` 0.90 over a 21-day window) for `followup_email` / `task_recommendation` so suggestions that are "essentially the same thing worded differently" are skipped, even across different source emails or previously dismissed items. Degrades gracefully when embeddings are unavailable; structured kinds (Google Tasks, meeting imports, Odoo) are excluded to avoid false merges
+
 ### v2.7.2 — 2026-06-19
 **Odoo bank balances load across more Odoo versions**
 

@@ -221,6 +221,7 @@ def gmail_search(query: str, max_results: int = 10) -> list[dict]:
         headers = {h["name"]: h["value"] for h in detail.get("payload", {}).get("headers", [])}
         out.append({
             "id": m["id"],
+            "thread_id": detail.get("threadId", "") or m.get("threadId", ""),
             "from": headers.get("From", ""),
             "to": headers.get("To", ""),
             "subject": headers.get("Subject", ""),
