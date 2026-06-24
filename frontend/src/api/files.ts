@@ -26,6 +26,20 @@ export async function fetchGeneratedFileBlob(name: string): Promise<Blob> {
   return r.data as Blob;
 }
 
+export interface GeneratedFilePreview {
+  name: string;
+  content: string;
+  truncated: boolean;
+}
+
+/** Fetch the extracted plain-text content of a generated file for inline preview. */
+export async function fetchGeneratedFilePreview(name: string): Promise<GeneratedFilePreview> {
+  const r = await apiClient.get<GeneratedFilePreview>(
+    `/api/files/${encodeURIComponent(name)}/preview`,
+  );
+  return r.data;
+}
+
 export interface KbMoveResult {
   document_id: string;
   title: string;

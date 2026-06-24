@@ -83,6 +83,32 @@ class Settings(BaseSettings):
     apns_key_path: str = ""      # path to AuthKey_XXXXXXXXXX.p8
     apns_use_sandbox: bool = False
 
+    # ── Speech-to-Text (Google Cloud STT v2, long meeting audio) ─────────────
+    # Long recordings (>60 s) use the v2 batchRecognize API, which needs a GCS
+    # bucket plus a service account (the app's "google" API key does NOT work
+    # for v2 or GCS). Leave the bucket/credentials blank to disable — the
+    # backend then falls back to the synchronous ≤60 s Google STT path.
+    #   GCP_STT_BUCKET            — GCS bucket for temporary audio uploads
+    #   GCP_SERVICE_ACCOUNT_FILE  — path to the service-account JSON key
+    #                               (optional; ADC is used when blank)
+    #   GCP_PROJECT_ID            — project id (only needed if ADC can't infer it)
+    #   GCP_STT_LOCATION          — STT region (must support the chosen model)
+    #   GCP_STT_MODEL             — recognition model (long, chirp_2, …)
+    #   GCP_STT_LANGUAGE          — BCP-47 language code
+    #   GCP_STT_DIARIZE           — tag speakers (model/region must support it)
+    gcp_stt_bucket: str = "little_gerry_stt"
+    gcp_service_account_file: str = ""
+    gcp_project_id: str = ""
+    # Multi-region (us/eu) is required for speaker diarization in batchRecognize;
+    # single-region locations (e.g. us-central1) reject it.
+    gcp_stt_location: str = "us"
+    gcp_stt_model: str = "long"
+    gcp_stt_language: str = "en-US"
+    # Speaker diarization is off by default: batchRecognize support varies by
+    # model/region and rejects the request where unsupported. Enable only with a
+    # compatible model + location.
+    gcp_stt_diarize: bool = False
+
     # ── Access / onboarding ──────────────────────────────────────────────────
     # The single application owner. On first Google SSO sign-in this email is
     # provisioned as "admin"; every other allowed-domain account is provisioned

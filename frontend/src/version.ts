@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 99;
-export const BUILD_DATE = "2026-06-22";
+export const BUILD_NUMBER = 100;
+export const BUILD_DATE = "2026-06-24";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 100,
+    date: "2026-06-24",
+    title: "Transcribe meeting recordings, and preview generated documents",
+    changes: [
+      "You can now upload a meeting recording on the Meetings page and have it automatically transcribed — even long recordings over an hour — so you can turn a conversation into notes, decisions and action items without typing it up",
+      "The Generate Document wizard now lets you open and preview the finished document right from the final step, instead of hunting for the file afterwards",
+      "Added a Preview button to the Generated Files page so you can read any document Little Gerry created without downloading it first",
+    ],
+  },
   {
     build: 99,
     date: "2026-06-22",
