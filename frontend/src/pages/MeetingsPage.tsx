@@ -14,6 +14,8 @@ import {
   Tag,
   ListChecks,
   FileAudio,
+  BookPlus,
+  Check,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,9 +26,12 @@ import {
   deleteMeeting,
   extractMeetingActions,
   transcribeMeetingAudio,
+  addMeetingToKnowledgeBase,
+  getSttCredentialsStatus,
 } from "@/api/meetings";
 import { createTask } from "@/api/tasks";
 import type { MeetingNote, ExtractedAction } from "@/types/meetings";
+import { SttCredentialsModal } from "@/components/meetings/SttCredentialsModal";
 
 function apiErr(e: unknown, fallback: string): string {
   return (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? fallback;
@@ -180,11 +185,16 @@ function NewMeetingForm({ onClose }: { onClose: () => void }) {
   const [transcribing, setTranscribing] = useState(false);
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingAudioRef = useRef<File | null>(null);
+  const [showCredsModal, setShowCredsModal] = useState(false);
 
-  async function handleAudioUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
+  const credStatusQuery = useQuery({
+    queryKey: ["stt-credentials"],
+    queryFn: getSttCredentialsStatus,
+    staleTime: 60_000,
+  });
+
+  async function doTranscribe(f: File) {
     setTranscribeError(null);
     setTranscribing(true);
     try {
@@ -201,6 +211,20 @@ function NewMeetingForm({ onClose }: { onClose: () => void }) {
     } finally {
       setTranscribing(false);
     }
+  }
+
+  async function handleAudioUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    // Gate: a meeting recording can't be transcribed without the company
+    // transcription key. Prompt to download it first, then resume automatically.
+    if (credStatusQuery.data && !credStatusQuery.data.present) {
+      pendingAudioRef.current = f;
+      setShowCredsModal(true);
+      return;
+    }
+    await doTranscribe(f);
   }
 
   const mutation = useMutation({
@@ -331,6 +355,23 @@ function NewMeetingForm({ onClose }: { onClose: () => void }) {
           Cancel
         </button>
       </div>
+
+      {showCredsModal && (
+        <SttCredentialsModal
+          downloadAvailable={credStatusQuery.data?.download_available ?? false}
+          onClose={() => {
+            setShowCredsModal(false);
+            pendingAudioRef.current = null;
+          }}
+          onReady={async () => {
+            setShowCredsModal(false);
+            await credStatusQuery.refetch();
+            const pending = pendingAudioRef.current;
+            pendingAudioRef.current = null;
+            if (pending) await doTranscribe(pending);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -355,6 +396,10 @@ function MeetingCard({ note }: { note: MeetingNote }) {
   const deleteMutation = useMutation({
     mutationFn: () => deleteMeeting(note.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["meetings"] }),
+  });
+
+  const addToKbMutation = useMutation({
+    mutationFn: () => addMeetingToKnowledgeBase(note.id),
   });
 
   return (
@@ -417,6 +462,26 @@ function MeetingCard({ note }: { note: MeetingNote }) {
               Extract Actions
             </button>
           )}
+          <button
+            onClick={() => addToKbMutation.mutate()}
+            disabled={addToKbMutation.isPending || addToKbMutation.isSuccess}
+            title="Add this meeting to the knowledge base"
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50",
+              addToKbMutation.isSuccess
+                ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                : "bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-500/20",
+            )}
+          >
+            {addToKbMutation.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : addToKbMutation.isSuccess ? (
+              <Check className="h-3 w-3" />
+            ) : (
+              <BookPlus className="h-3 w-3" />
+            )}
+            {addToKbMutation.isSuccess ? "Added to KB" : "Add to KB"}
+          </button>
           <button
             onClick={() => setExpanded((p) => !p)}
             className="rounded-md p-1.5 hover:bg-accent text-muted-foreground"

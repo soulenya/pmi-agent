@@ -309,6 +309,14 @@ async def _model_catalog_loop() -> None:
             logger.exception("Model catalog refresh error")
         await asyncio.sleep(24 * 3600)
 
+# ── Background meeting-capture monitor ──────────────────────────────────────────
+
+async def _meeting_monitor_loop() -> None:
+    """Watch for active video calls and auto-record + transcribe them."""
+    from services.meetings.monitor import meeting_monitor
+
+    await meeting_monitor.run(get_db)
+
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
@@ -330,13 +338,15 @@ async def lifespan(app: FastAPI):
     assistant_task = asyncio.create_task(_assistant_scan_loop())
     scheduler_task = asyncio.create_task(_scheduled_tasks_loop())
     catalog_task = asyncio.create_task(_model_catalog_loop())
+    meeting_task = asyncio.create_task(_meeting_monitor_loop())
     yield
     bg_task.cancel()
     drive_task.cancel()
     assistant_task.cancel()
     scheduler_task.cancel()
     catalog_task.cancel()
-    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task):
+    meeting_task.cancel()
+    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task):
         try:
             await _t
         except asyncio.CancelledError:

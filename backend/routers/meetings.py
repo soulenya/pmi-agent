@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime
@@ -16,12 +17,14 @@ from dependencies import get_current_user
 from models.db.meeting import MeetingNote
 from models.db.task import Task
 from models.db.user import User
+from services.documents.ingestion import DocumentIngestionService
+from services.embeddings.service import get_embedding_service_for_db
 from services.llm.router import get_llm_client
+from services.meetings.monitor import meeting_monitor
 from services.voice import gcs_stt, google_speech
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/meetings", tags=["meetings"])
-
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -59,6 +62,38 @@ class SummarizeRequest(BaseModel):
 class TranscribeAudioOut(BaseModel):
     transcript: str
     provider: str
+
+
+class RecorderStatusOut(BaseModel):
+    enabled: bool
+    supported: bool
+    configured: bool
+    state: str
+    platform: str | None
+    started_at: datetime | None
+    last_meeting_id: uuid.UUID | None
+    last_error: str | None
+
+
+class RecorderToggleIn(BaseModel):
+    enabled: bool
+
+
+class AddToKbOut(BaseModel):
+    document_id: uuid.UUID
+    title: str
+    chunk_count: int
+
+
+class SttCredentialsStatusOut(BaseModel):
+    present: bool
+    download_available: bool
+    configured: bool
+
+
+class SttCredentialsFetchOut(BaseModel):
+    ok: bool
+    path: str
 
 
 # Long recordings go to GCS + STT v2; cap the in-memory upload at 300 MB
@@ -167,7 +202,79 @@ async def list_meetings(
     return [MeetingNoteOut.model_validate(m) for m in result.scalars().all()]
 
 
-@router.post("/transcribe-audio", response_model=TranscribeAudioOut)
+# ── Auto-capture recorder ─────────────────────────────────────────────────────
+
+@router.get("/recorder/status", response_model=RecorderStatusOut)
+async def recorder_status(
+    _user: User = Depends(get_current_user),
+) -> RecorderStatusOut:
+    """Current state of the meeting auto-capture monitor (for the top-bar indicator)."""
+    return RecorderStatusOut.model_validate(meeting_monitor.snapshot())
+
+
+@router.post("/recorder/toggle", response_model=RecorderStatusOut)
+async def recorder_toggle(
+    body: RecorderToggleIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> RecorderStatusOut:
+    """Turn auto meeting capture on/off (persisted across restarts)."""
+    from models.db.settings import SystemSetting
+
+    row = (
+        await db.execute(select(SystemSetting).where(SystemSetting.key == "meetings.autorecord"))
+    ).scalar_one_or_none()
+    if row is None:
+        db.add(SystemSetting(key="meetings.autorecord", value=body.enabled, updated_by=current_user.id))
+    else:
+        row.value = body.enabled
+        row.updated_by = current_user.id
+    await db.commit()
+
+    meeting_monitor.set_enabled(body.enabled)
+    return RecorderStatusOut.model_validate(meeting_monitor.snapshot())
+
+
+@router.get("/stt/credentials-status", response_model=SttCredentialsStatusOut)
+async def stt_credentials_status(
+    _user: User = Depends(get_current_user),
+) -> SttCredentialsStatusOut:
+    """Whether the transcription service-account key is present on this machine.
+
+    Drives the "Download credentials" popup: when ``present`` is false and
+    ``download_available`` is true, the UI offers a one-click download.
+    """
+    return SttCredentialsStatusOut(
+        present=gcs_stt.key_present(),
+        download_available=gcs_stt.download_available(),
+        configured=gcs_stt.is_configured(),
+    )
+
+
+@router.post("/stt/credentials/fetch", response_model=SttCredentialsFetchOut)
+async def stt_credentials_fetch(
+    _user: User = Depends(get_current_user),
+) -> SttCredentialsFetchOut:
+    """Download the company transcription key from the shared Drive link.
+
+    Fetches the ``little_gerry_stt`` service-account JSON, validates it, and
+    writes it next to the backend so transcription works immediately — no manual
+    file move. Mirrors the login page's google_credentials.json download flow.
+    """
+    try:
+        path = await asyncio.to_thread(gcs_stt.download_key)
+    except gcs_stt.SttNotConfiguredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "not_configured", "message": str(exc)},
+        ) from exc
+    except gcs_stt.SttError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={"code": "download_failed", "message": str(exc)},
+        ) from exc
+    return SttCredentialsFetchOut(ok=True, path=str(path))
+
 async def transcribe_audio(
     file: UploadFile = File(...),
     _user: User = Depends(get_current_user),
@@ -299,6 +406,75 @@ async def summarize_meeting(
     await db.commit()
     await db.refresh(meeting)
     return MeetingNoteOut.model_validate(meeting)
+
+
+# ── Add meeting notes to the knowledge base ───────────────────────────────────
+
+def _meeting_to_markdown(meeting: MeetingNote) -> str:
+    """Render a meeting note as Markdown for KB ingestion."""
+    parts = [f"# {meeting.title}", ""]
+    when = meeting.meeting_date or meeting.created_at
+    if when:
+        parts.append(f"**Date:** {when:%B %d, %Y %I:%M %p}")
+    if meeting.attendees:
+        parts.append(f"**Attendees:** {', '.join(meeting.attendees)}")
+    if meeting.tags:
+        parts.append(f"**Tags:** {', '.join(meeting.tags)}")
+    parts.append("")
+    for heading, value in (
+        ("Summary", meeting.summary),
+        ("Decisions", meeting.decisions),
+        ("Action Items", meeting.action_items),
+        ("Next Steps", meeting.next_steps),
+    ):
+        if value:
+            parts.extend([f"## {heading}", value, ""])
+    parts.extend(["## Transcript", meeting.raw_transcript or "(none)"])
+    return "\n".join(parts)
+
+
+@router.post("/{meeting_id}/add-to-kb", response_model=AddToKbOut)
+async def add_meeting_to_kb(
+    meeting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AddToKbOut:
+    """Ingest a meeting note (summary + transcript) into the knowledge base."""
+    result = await db.execute(select(MeetingNote).where(MeetingNote.id == meeting_id))
+    meeting = result.scalar_one_or_none()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    if meeting.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    markdown = _meeting_to_markdown(meeting)
+    safe_title = (meeting.title or "Meeting").strip()[:200]
+
+    embedding_svc = await get_embedding_service_for_db(db)
+    ingestion = DocumentIngestionService(db, embedding_svc)
+    try:
+        doc = await ingestion.ingest(
+            filename=f"{safe_title}.md",
+            raw_bytes=markdown.encode("utf-8"),
+            title=safe_title,
+            category_id=None,
+            is_regulated=False,
+            created_by_id=current_user.id,
+            allow_duplicate=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Meeting KB ingest failed")
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            f"Could not add meeting to the knowledge base: {exc}",
+        ) from exc
+
+    await db.commit()
+    return AddToKbOut(
+        document_id=doc.id,
+        title=doc.title,
+        chunk_count=getattr(doc, "chunk_count", 0) or 0,
+    )
 
 
 # ── Extract action items (structured, user-driven) ────────────────────────────

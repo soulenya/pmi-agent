@@ -73,5 +73,30 @@ export interface ExtractedAction {
   title: string;
 }
 
+export type RecorderState = "idle" | "meeting_detected" | "recording" | "processing";
+
+export interface RecorderStatus {
+  enabled: boolean;
+  supported: boolean;
+  configured: boolean;
+  state: RecorderState;
+  platform: string | null;
+  started_at: string | null;
+  last_meeting_id: string | null;
+  last_error: string | null;
+}
+
+export interface AddToKbResult {
+  document_id: string;
+  title: string;
+  chunk_count: number;
+}
+
+export interface SttCredentialsStatus {
+  present: boolean;
+  download_available: boolean;
+  configured: boolean;
+}
+
 export const EMAIL_TONES = ["professional", "friendly", "formal", "concise", "empathetic", "persuasive"] as const;
 export type EmailTone = typeof EMAIL_TONES[number];

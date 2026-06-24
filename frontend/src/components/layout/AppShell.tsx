@@ -4,6 +4,7 @@ import { AncestorRail } from "@/components/solar/AncestorRail";
 import { Header } from "./Header";
 import { StatusBar } from "./StatusBar";
 import { ChatSidebar } from "./ChatSidebar";
+import { WhatsNewModal } from "./WhatsNewModal";
 import { useNotificationWS } from "@/hooks/useNotificationWS";
 import { CommandPalette } from "@/components/CommandPalette";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
@@ -97,6 +98,7 @@ export function AppShell() {
           <StatusBar />
         </div>
         <VoiceAssistant />
+        <WhatsNewModal />
       </div>
     </AppContextProvider>
   );

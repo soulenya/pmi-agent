@@ -4,6 +4,9 @@ import type {
   MeetingNoteCreate,
   SummarizeRequest,
   ExtractedAction,
+  RecorderStatus,
+  AddToKbResult,
+  SttCredentialsStatus,
   EmailDraft,
   EmailDraftCreate,
   EmailDraftUpdate,
@@ -58,6 +61,35 @@ export async function transcribeMeetingAudio(
 
 export async function extractMeetingActions(id: string): Promise<ExtractedAction[]> {
   const resp = await apiClient.post<ExtractedAction[]>(`/meetings/${id}/extract-actions`, {});
+  return resp.data;
+}
+
+// ── Auto-capture recorder ──────────────────────────────────────────────────────
+
+export async function getRecorderStatus(): Promise<RecorderStatus> {
+  const resp = await apiClient.get<RecorderStatus>("/meetings/recorder/status");
+  return resp.data;
+}
+
+export async function setRecorderEnabled(enabled: boolean): Promise<RecorderStatus> {
+  const resp = await apiClient.post<RecorderStatus>("/meetings/recorder/toggle", { enabled });
+  return resp.data;
+}
+
+export async function addMeetingToKnowledgeBase(id: string): Promise<AddToKbResult> {
+  const resp = await apiClient.post<AddToKbResult>(`/meetings/${id}/add-to-kb`, {});
+  return resp.data;
+}
+
+// ── Transcription credentials ──────────────────────────────────────────────────
+
+export async function getSttCredentialsStatus(): Promise<SttCredentialsStatus> {
+  const resp = await apiClient.get<SttCredentialsStatus>("/meetings/stt/credentials-status");
+  return resp.data;
+}
+
+export async function fetchSttCredentials(): Promise<{ ok: boolean; path: string }> {
+  const resp = await apiClient.post<{ ok: boolean; path: string }>("/meetings/stt/credentials/fetch");
   return resp.data;
 }
 

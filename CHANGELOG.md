@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v2.7.5 — 2026-06-24
+**Automatic meeting capture, transcription-key popup, and a What's New popup**
+
+- **Automatic meeting capture:** Little Gerry now detects when you're in a Zoom, Microsoft Teams, Google Meet or Webex meeting and — once enabled from the new top-bar status pill — records the call (system audio + mic, mixed to 16 kHz mono), transcribes it via Google STT v2, and writes a structured summary (decisions, action items, next steps) into a new meeting note. New backend services `services/meetings/{detector,recorder,monitor}.py` (Windows audio capture via `soundcard`, meeting detection via `psutil` + window titles), a background monitor loop in `main.py`, persisted on/off toggle in `SystemSetting` `meetings.autorecord`, and endpoints `GET/POST /meetings/recorder/status|toggle`. Capture is off by default and degrades gracefully when audio devices aren't available.
+- **Meeting-detected popup + status indicator:** the top bar shows a live "Little Gerry is: Listening & Transcribing / Ready to record / Off" pill (`MeetingRecorderIndicator.tsx`) you can click to toggle, and a one-shot popup offers to start capturing when a meeting is detected
+- **Add a meeting to the knowledge base:** new `POST /meetings/{id}/add-to-kb` and an **Add to KB** button on each meeting card ingest the note (with summary, decisions and action items) into the knowledge base
+- **Download transcription credentials popup:** uploading a recording on a machine that lacks the `little_gerry_stt` service-account key now offers a one-click **Download credentials** popup (`SttCredentialsModal.tsx`) that fetches and validates the key from the company's shared Drive link, mirroring the login page's `google_credentials.json` flow. New backend helpers (`gcs_stt.key_present/download_available/download_key`) and endpoints `GET /meetings/stt/credentials-status`, `POST /meetings/stt/credentials/fetch`.
+- **What's New popup:** after every update the app shows a short popup listing the new changes (`WhatsNewModal.tsx`), tracked against the last build the user acknowledged in `localStorage` so it appears once per update and never on a fresh install
+
 ### v2.7.4 — 2026-06-24
 **Meeting-recording transcription, plus document previews**
 
