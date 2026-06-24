@@ -3,17 +3,66 @@ import {
   listGeneratedFiles,
   deleteGeneratedFile,
   fetchGeneratedFileBlob,
+  fetchGeneratedFilePreview,
   moveGeneratedFileToKB,
   uploadGeneratedFileToDrive,
 } from "@/api/files";
 import { SaveFileDialog } from "@/components/SaveFileDialog";
-import { BookPlus, CloudUpload, Download, ExternalLink, Trash2, FileText, Loader2 } from "lucide-react";
+import { BookPlus, CloudUpload, Download, ExternalLink, Eye, Trash2, FileText, Loader2, X } from "lucide-react";
 import { useState } from "react";
 
 function stripUuidPrefix(name: string): string {
   return name
     .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[-_]/i, "")
     .replace(/^[0-9a-f]{8}_/i, "");
+}
+
+const PREVIEWABLE_EXTENSIONS = [".txt", ".md", ".markdown", ".csv", ".json", ".docx"];
+
+function canPreview(name: string): boolean {
+  const lower = name.toLowerCase();
+  return PREVIEWABLE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+function apiErr(e: unknown, fallback: string): string {
+  return (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? fallback;
+}
+
+function PreviewModal({ name, displayName, onClose }: { name: string; displayName: string; onClose: () => void }) {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["generated-file-preview", name],
+    queryFn: () => fetchGeneratedFilePreview(name),
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex h-[80vh] w-full max-w-3xl flex-col rounded-xl border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b px-5 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <FileText className="h-5 w-5 shrink-0 text-primary" />
+            <h2 className="truncate font-semibold">{displayName}</h2>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        {isLoading ? (
+          <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : isError ? (
+          <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+            {apiErr(error, "This file can't be previewed. Try downloading it.")}
+          </div>
+        ) : (
+          <div className="flex-1 overflow-auto">
+            <pre className="whitespace-pre-wrap break-words p-4 font-mono text-xs leading-relaxed text-foreground">{data?.content || "(empty file)"}</pre>
+            {data?.truncated && (
+              <p className="px-4 pb-4 text-xs text-muted-foreground">Preview truncated — download the file to see the full contents.</p>
+            )}
+          </div>
+        )}
+        <div className="flex items-center justify-end border-t px-5 py-3">
+          <button onClick={onClose} className="rounded-md border px-4 py-2 text-sm text-muted-foreground hover:bg-accent">Close</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function formatBytes(bytes: number): string {
@@ -26,6 +75,7 @@ export function GeneratedFilesPage() {
   const qc = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [saveTarget, setSaveTarget] = useState<{ name: string; displayName: string } | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<{ name: string; displayName: string } | null>(null);
   const [actionResult, setActionResult] = useState<{ kind: "ok" | "err"; text: string; url?: string } | null>(null);
 
   const { data: files = [], isLoading } = useQuery({
@@ -175,6 +225,16 @@ export function GeneratedFilesPage() {
                   )}
                   Drive
                 </button>
+                {canPreview(file.name) && (
+                  <button
+                    onClick={() => setPreviewTarget({ name: file.name, displayName })}
+                    title="Preview the file contents"
+                    className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs hover:bg-accent transition-colors"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Preview
+                  </button>
+                )}
                 <button
                   onClick={() => setSaveTarget({ name: file.name, displayName })}
                   className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs hover:bg-accent transition-colors"
@@ -217,6 +277,13 @@ export function GeneratedFilesPage() {
           filename={saveTarget.displayName}
           getBlob={() => fetchGeneratedFileBlob(saveTarget.name)}
           onClose={() => setSaveTarget(null)}
+        />
+      )}
+      {previewTarget && (
+        <PreviewModal
+          name={previewTarget.name}
+          displayName={previewTarget.displayName}
+          onClose={() => setPreviewTarget(null)}
         />
       )}
     </div>

@@ -62,6 +62,48 @@ async def download_file(name: str, _user=Depends(get_current_user)):
     return FileResponse(p, filename=name)
 
 
+# Extensions whose text content can be previewed inline in the browser.
+_PREVIEW_MIME = {
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".markdown": "text/markdown",
+    ".csv": "text/csv",
+    ".json": "text/plain",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+_PREVIEW_MAX_CHARS = 200_000
+
+
+class FilePreviewOut(BaseModel):
+    name: str
+    content: str
+    truncated: bool
+
+
+@router.get("/{name}/preview", response_model=FilePreviewOut)
+async def preview_file(name: str, _user=Depends(get_current_user)):
+    """Return the extracted plain-text content of a generated file for inline preview."""
+    p = _safe_path(name)
+    if not p.exists():
+        raise HTTPException(404, "File not found")
+    mime = _PREVIEW_MIME.get(p.suffix.lower())
+    if mime is None:
+        raise HTTPException(415, "This file type can't be previewed. Download it to view.")
+
+    from services.documents.ingestion import _extract_text
+
+    try:
+        text = _extract_text(p.read_bytes(), mime) or ""
+    except Exception as exc:
+        logger.exception("Preview extraction failed for %s", name)
+        raise HTTPException(422, f"Could not read this file: {exc}")
+
+    truncated = len(text) > _PREVIEW_MAX_CHARS
+    if truncated:
+        text = text[:_PREVIEW_MAX_CHARS]
+    return FilePreviewOut(name=name, content=text, truncated=truncated)
+
+
 @router.delete("/{name}")
 async def delete_file(name: str, _user=Depends(get_current_user)):
     """Delete a generated file."""

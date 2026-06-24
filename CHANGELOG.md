@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v2.7.4 — 2026-06-24
+**Meeting-recording transcription, plus document previews**
+
+- **Long meeting audio → text:** new `POST /meetings/transcribe-audio` transcribes uploaded recordings via Google Cloud Speech-to-Text v2 `batchRecognize` (`services/voice/gcs_stt.py`) — it uploads the audio to a GCS bucket, runs a long-running recognition (the `long` model, multi-region `us`), returns the transcript, then deletes the temp object. Handles multi-hour recordings (300 MB cap), well beyond the old ≤60 s synchronous limit (which remains as a fallback). Credentials resolve in order — explicit key path → bundled key → auto-fetched company key (Drive) → ADC — so end users configure nothing. The Meetings page gained an **Upload recording** control. (OpenAI Whisper path removed.)
+- **Preview in the Generate Document wizard:** the final step now offers **Open & preview** (editable results) or **Open to download**, reusing the existing edit/save dialogs instead of making you hunt for the file
+- **Preview on the Generated Files page:** new `GET /api/files/{name}/preview` (text/markdown/csv/json/docx, 200k-char cap) backs a **Preview** button that shows file contents inline without downloading
+
 ### v2.7.3 — 2026-06-22
 **Daily assistant no longer sends duplicate / reworded notifications**
 

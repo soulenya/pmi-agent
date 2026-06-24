@@ -76,6 +76,10 @@ backend/migrations/__pycache__/
 backend/google_token.json 
 backend/google_credentials.json
 
+# Google Cloud service-account key for Speech-to-Text — NEVER commit (GitHub
+# secret scanning auto-revokes leaked keys). Bundled into the installer locally.
+backend/google_stt_sa.json
+
 # Code-signing private key — NEVER commit. Public .cer is safe to share.
 *.pfx
 installer/cert/LittleGerry-Signing.pfx
