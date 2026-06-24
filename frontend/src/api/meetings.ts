@@ -38,6 +38,24 @@ export async function deleteMeeting(id: string): Promise<void> {
   await apiClient.delete(`/meetings/${id}`);
 }
 
+export async function transcribeMeetingAudio(
+  file: File,
+): Promise<{ transcript: string; provider: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const resp = await apiClient.post<{ transcript: string; provider: string }>(
+    "/meetings/transcribe-audio",
+    form,
+    {
+      headers: { "Content-Type": "multipart/form-data" },
+      // Long recordings transcribe via Google STT v2 batchRecognize, which can
+      // run for several minutes; override the default 120 s client timeout.
+      timeout: 20 * 60 * 1000,
+    },
+  );
+  return resp.data;
+}
+
 export async function extractMeetingActions(id: string): Promise<ExtractedAction[]> {
   const resp = await apiClient.post<ExtractedAction[]>(`/meetings/${id}/extract-actions`, {});
   return resp.data;

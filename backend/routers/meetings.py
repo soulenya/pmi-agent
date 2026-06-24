@@ -6,7 +6,7 @@ import logging
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,7 @@ from models.db.meeting import MeetingNote
 from models.db.task import Task
 from models.db.user import User
 from services.llm.router import get_llm_client
+from services.voice import gcs_stt, google_speech
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/meetings", tags=["meetings"])
@@ -53,6 +54,16 @@ class MeetingNoteOut(BaseModel):
 
 class SummarizeRequest(BaseModel):
     create_tasks: bool = True  # auto-create Task rows from action items
+
+
+class TranscribeAudioOut(BaseModel):
+    transcript: str
+    provider: str
+
+
+# Long recordings go to GCS + STT v2; cap the in-memory upload at 300 MB
+# (~5 h of compressed audio). Keep recordings compressed (m4a/mp3/opus), not WAV.
+MAX_MEETING_AUDIO_BYTES = 300 * 1024 * 1024
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -154,6 +165,55 @@ async def list_meetings(
         .limit(100)
     )
     return [MeetingNoteOut.model_validate(m) for m in result.scalars().all()]
+
+
+@router.post("/transcribe-audio", response_model=TranscribeAudioOut)
+async def transcribe_audio(
+    file: UploadFile = File(...),
+    _user: User = Depends(get_current_user),
+) -> TranscribeAudioOut:
+    """Transcribe an uploaded meeting recording to editable text for extraction.
+
+    Prefers Google Cloud STT v2 batchRecognize (handles multi-hour recordings
+    via a GCS bucket + service account); falls back to the synchronous Google
+    STT path (short clips up to ~60 s) when v2 isn't configured.
+    """
+    audio = await file.read()
+    if not audio:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Empty audio upload.")
+    if len(audio) > MAX_MEETING_AUDIO_BYTES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            "Recording too large — keep it under 300 MB. Use compressed audio "
+            "(m4a/mp3/opus) rather than WAV.",
+        )
+
+    if gcs_stt.is_configured():
+        try:
+            text = await gcs_stt.transcribe_long(
+                audio, file.filename or "recording", file.content_type
+            )
+            return TranscribeAudioOut(transcript=text, provider="google_stt_v2")
+        except gcs_stt.SttNotConfiguredError as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+        except gcs_stt.SttError as exc:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+
+    if google_speech.is_configured():
+        try:
+            text = await google_speech.transcribe(audio, file.content_type or "audio/webm")
+            return TranscribeAudioOut(transcript=text, provider="google")
+        except google_speech.VoiceNotConfiguredError as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+
+    raise HTTPException(
+        status.HTTP_400_BAD_REQUEST,
+        "Audio transcription needs Google Cloud STT v2 (a GCS bucket + service "
+        "account) for meeting-length recordings, or a Google Cloud API key for "
+        "short clips. Configure GCP_STT_BUCKET and GCP_SERVICE_ACCOUNT_FILE.",
+    )
 
 
 @router.post("", response_model=MeetingNoteOut, status_code=status.HTTP_201_CREATED)
