@@ -9,6 +9,7 @@ import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { ServiceMenu } from "@/components/ServiceMenu";
 import { ChatSidebarToggle } from "./ChatSidebar";
 import { FeedbackButton } from "./FeedbackButton";
+import { MeetingRecorderIndicator } from "./MeetingRecorderIndicator";
 import { cn } from "@/lib/utils";
 import { modLabel } from "@/lib/platform";
 
@@ -85,6 +86,9 @@ export function Header({ onOpenPalette }: HeaderProps) {
       <VoiceLauncher />
 
       <div className="flex items-center gap-3">
+        {/* Meeting auto-capture status */}
+        <MeetingRecorderIndicator />
+
         {/* Model switcher */}
         <ModelSwitcher />
 

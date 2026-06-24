@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 100;
+export const BUILD_NUMBER = 101;
 export const BUILD_DATE = "2026-06-24";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 101,
+    date: "2026-06-24",
+    title: "Automatic meeting capture, and a What's New popup",
+    changes: [
+      "Little Gerry can now notice when you join a Zoom, Microsoft Teams, Google Meet or Webex meeting — turn on capture from the new status pill in the top bar and it records the call, transcribes it, and writes up a summary with decisions and action items automatically, no upload needed",
+      "When a meeting is detected, a gentle popup offers to start capturing, and you can toggle capture on or off any time from the top bar",
+      "Each meeting now has an 'Add to KB' button so you can file its notes into the knowledge base in one click",
+      "If a computer doesn't have the transcription key yet, uploading a recording now offers a one-click 'Download credentials' popup that fetches it from the company's shared Drive — no files to move",
+      "After every update you'll see a short 'What's New' popup summarising the changes, so you always know what just improved",
+    ],
+  },
   {
     build: 100,
     date: "2026-06-24",

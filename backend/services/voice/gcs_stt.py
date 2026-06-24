@@ -154,6 +154,37 @@ def is_configured() -> bool:
     return _adc_available()
 
 
+def key_present() -> bool:
+    """True when a service-account key file is already on disk."""
+    return _key_file() is not None
+
+
+def download_available() -> bool:
+    """True when a company SA-key download URL is configured for this build."""
+    return bool(_download_url())
+
+
+def download_key() -> Path:
+    """Fetch the company SA key to disk on demand and return its path.
+
+    Used by the "Download credentials" popup. Raises ``SttNotConfiguredError``
+    when no download URL is configured, or ``SttError`` when the download or
+    validation fails.
+    """
+    existing = _key_file()
+    if existing is not None:
+        return existing
+    if not _download_url():
+        raise SttNotConfiguredError(
+            "No transcription-key download source is configured for this build."
+        )
+    _ensure_key_downloaded()
+    key = _key_file()
+    if key is None:
+        raise SttError("The transcription key could not be downloaded.")
+    return key
+
+
 def _load_credentials() -> tuple[object, str, str | None]:
     """Return (credentials, project_id, quota_project) — blocking.
 

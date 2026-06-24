@@ -109,6 +109,27 @@ class Settings(BaseSettings):
     # compatible model + location.
     gcp_stt_diarize: bool = False
 
+    # ── Meeting auto-capture ─────────────────────────────────────────────────
+    # When enabled, a background monitor watches for video-call apps (Zoom,
+    # Teams, Google Meet, …) and records the machine's audio while a call is
+    # active, then transcribes (Google STT v2) + summarizes into a meeting note.
+    # Audio capture works on Windows (WASAPI loopback); other platforms detect
+    # the meeting but can't capture system audio without a virtual device.
+    #   The on/off toggle is a per-install runtime setting ("meetings.autorecord"
+    #   in SystemSetting); this flag is only the factory default.
+    meeting_autorecord_default: bool = False
+    # Seconds between meeting-detection scans.
+    meeting_detect_interval_seconds: int = 5
+    # A detected call must persist this many seconds before recording starts
+    # (debounce against transient windows / accidental matches).
+    meeting_detect_debounce_seconds: int = 8
+    # A call must be gone this many seconds before recording stops (avoids
+    # cutting on a brief screen-share switch or focus change).
+    meeting_end_grace_seconds: int = 20
+    # Hard cap on a single recording (safety net so a stuck detector can't fill
+    # the disk). 4 h of 16 kHz mono PCM ≈ 460 MB.
+    meeting_max_record_seconds: int = 4 * 60 * 60
+
     # ── Access / onboarding ──────────────────────────────────────────────────
     # The single application owner. On first Google SSO sign-in this email is
     # provisioned as "admin"; every other allowed-domain account is provisioned
