@@ -15,7 +15,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Keyboard, Loader2 } from "lucide-react";
+import { Gauge, Keyboard, Loader2 } from "lucide-react";
 import {
   PLANETS,
   SATELLITES,
@@ -28,6 +28,11 @@ import {
 import { listPendingApprovals, listNotifications } from "@/api/chat";
 import { getPendingSuggestionCount } from "@/api/assistant";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
+import {
+  useOrbitSpeedStore,
+  ORBIT_SPEED_MIN,
+  ORBIT_SPEED_MAX,
+} from "@/stores/orbitSpeedStore";
 import { ShuttleCursor } from "@/components/solar/ShuttleCursor";
 import { AsteroidLauncher, PrecisianDefender } from "@/components/solar/PrecisianDefender";
 import { MineLauncher, PrecisianSweeper } from "@/components/solar/PrecisianSweeper";
@@ -513,6 +518,30 @@ function PlanetView({
 /* Canvas                                                              */
 /* ------------------------------------------------------------------ */
 
+/** Floating slider to speed up / slow down the idle orbits. */
+function OrbitSpeedControl() {
+  const { speed, setSpeed } = useOrbitSpeedStore();
+  return (
+    <div className="absolute bottom-4 left-4 z-30 flex items-center gap-2 rounded-full border bg-card/80 px-3 py-2 shadow-lg backdrop-blur">
+      <Gauge className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <input
+        type="range"
+        min={ORBIT_SPEED_MIN}
+        max={ORBIT_SPEED_MAX}
+        step={0.05}
+        value={speed}
+        onChange={(e) => setSpeed(parseFloat(e.target.value))}
+        aria-label="Orbit speed"
+        title="Orbit speed"
+        className="h-1.5 w-28 cursor-pointer accent-primary"
+      />
+      <span className="w-9 shrink-0 text-right font-mono text-[11px] tabular-nums text-muted-foreground">
+        {speed.toFixed(2)}×
+      </span>
+    </div>
+  );
+}
+
 export function SolarSystemCanvas({
   planetId,
   sunFocus,
@@ -523,6 +552,7 @@ export function SolarSystemCanvas({
   const reduced = useReducedMotion() ?? false;
   const badgeCount = useBadgeCounts();
   const planet = planetById(planetId);
+  const orbitSpeed = useOrbitSpeedStore((s) => s.speed);
 
   // Precisian Defender mini-game — only available on the system overview.
   const [gameActive, setGameActive] = useState(false);
@@ -553,7 +583,10 @@ export function SolarSystemCanvas({
       };
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div
+      className="relative h-full w-full overflow-hidden"
+      style={{ "--orbit-speed": orbitSpeed } as React.CSSProperties}
+    >
       {/* Starfield backdrop */}
       <div className="pointer-events-none absolute inset-0" aria-hidden>
         {stars.map((s, i) => (
@@ -602,6 +635,9 @@ export function SolarSystemCanvas({
 
       {/* Precisian Sweeper overlay — covers the system while the game runs. */}
       {showSweeper && <PrecisianSweeper onExit={() => setSweeperActive(false)} />}
+
+      {/* Orbit-speed slider — only on space views with visible orbits. */}
+      {!sunFocus && !showGame && !showSweeper && <OrbitSpeedControl />}
 
       {/* Spaceship cursor with engine trail — space views only. Always mounted
           (even under reduced motion, where the engine trail is suppressed) so the

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Mic, MicOff, Radio, Square, X } from "lucide-react";
+import { Loader2, Mic, MicOff, Radio, RotateCcw, Square, X } from "lucide-react";
 import {
   getRecorderStatus,
   setRecorderEnabled,
   startRecording,
   stopRecording,
+  recoverRecordings,
 } from "@/api/meetings";
 import { getSettings } from "@/api/settings";
 import type { RecorderStatus } from "@/types/meetings";
@@ -58,6 +59,11 @@ export function MeetingRecorderIndicator() {
     onSuccess: (s) => qc.setQueryData(["recorder-status"], s),
   });
 
+  const recoverRec = useMutation({
+    mutationFn: () => recoverRecordings(),
+    onSuccess: (s) => qc.setQueryData(["recorder-status"], s),
+  });
+
   const [promptPlatform, setPromptPlatform] = useState<string | null>(null);
   const dismissedRef = useRef(false);
   const prevMeetingIdRef = useRef<string | null>(null);
@@ -93,6 +99,24 @@ export function MeetingRecorderIndicator() {
   return (
     <>
       <div className="flex items-center gap-1.5">
+        {status.pending > 0 && status.state !== "processing" && (
+          <button
+            onClick={() => recoverRec.mutate()}
+            disabled={recoverRec.isPending}
+            title={`Resume ${status.pending} interrupted recording${status.pending > 1 ? "s" : ""} that didn't finish transcribing`}
+            className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-600 transition-colors hover:bg-amber-500/20 disabled:opacity-60 dark:text-amber-400"
+          >
+            {recoverRec.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden lg:inline">
+              Recover {status.pending} recording{status.pending > 1 ? "s" : ""}
+            </span>
+            <span className="lg:hidden">{status.pending}</span>
+          </button>
+        )}
         {recording || processing ? (
           <button
             onClick={() => stopRec.mutate()}

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 102;
+export const BUILD_NUMBER = 103;
 export const BUILD_DATE = "2026-06-24";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 103,
+    date: "2026-06-24",
+    title: "Never lose a recording, quicker navigation, and tidier email drafts",
+    changes: [
+      "If Little Gerry is closed or restarts while it's still transcribing a recording, the audio is now saved safely to disk first — when you reopen the app it automatically finishes any interrupted transcription, and a 'Recover recordings' button appears so you can pick up exactly where you left off",
+      "The left sidebar now lists every area — Work, Knowledge, Communications, Odoo, Compliance and Administration — as quick-access icons under the home button, so you can jump straight to any section from anywhere",
+      "Added a speed slider to the solar-system view so you can dial the orbiting planets faster or slower to your taste, and your choice is remembered",
+      "When you ask Little Gerry to draft an email it now files it under Communications → Email Drafts for you to review, edit and send, instead of mixing it in with approvals",
+      "Email approval requests now show a clean To / Subject / Body preview with proper paragraph spacing, instead of a single run-on line of raw text",
+    ],
+  },
   {
     build: 102,
     date: "2026-06-24",

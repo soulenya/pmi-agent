@@ -73,6 +73,7 @@ class RecorderStatusOut(BaseModel):
     started_at: datetime | None
     last_meeting_id: uuid.UUID | None
     last_error: str | None
+    pending: int = 0
 
 
 class RecorderToggleIn(BaseModel):
@@ -251,6 +252,16 @@ async def recorder_stop(
     """Manually stop the current recording; it transcribes & saves in the background."""
     snapshot = await meeting_monitor.stop_manual()
     return RecorderStatusOut.model_validate(snapshot)
+
+
+@router.post("/recorder/recover", response_model=RecorderStatusOut)
+async def recorder_recover(
+    _user: User = Depends(get_current_user),
+) -> RecorderStatusOut:
+    """Resume any recordings saved to disk but interrupted before transcription
+    finished (e.g. the app was closed mid-transcription)."""
+    asyncio.create_task(meeting_monitor.recover_pending())
+    return RecorderStatusOut.model_validate(meeting_monitor.snapshot())
 
 
 @router.get("/stt/credentials-status", response_model=SttCredentialsStatusOut)

@@ -196,6 +196,44 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "create_email_draft",
+            "description": (
+                "Draft an email and save it to Communications → Email Drafts for the user to "
+                "review, edit, and send. Use this whenever the user asks you to DRAFT, WRITE, or "
+                "COMPOSE an email — this is the normal case. You write the full email body yourself "
+                "and pass it as 'body' (use real line breaks between paragraphs). This does NOT send "
+                "anything; it just files a draft the user can open on the Email Drafts page. "
+                "Only use request_approval(intent_type='send_email') instead when the user explicitly "
+                "asks you to SEND an email right now."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "subject": {"type": "string", "description": "The email subject line."},
+                    "body": {
+                        "type": "string",
+                        "description": (
+                            "The full email body you have written, salutation through sign-off, "
+                            "with real line breaks (\\n) between paragraphs."
+                        ),
+                    },
+                    "recipient_name": {"type": "string", "description": "Recipient's name, if known."},
+                    "recipient_email": {"type": "string", "description": "Recipient's email address, if known."},
+                    "purpose": {"type": "string", "description": "One line on what the email accomplishes (optional)."},
+                    "tone": {
+                        "type": "string",
+                        "enum": ["professional", "friendly", "formal", "concise", "empathetic", "persuasive"],
+                        "description": "Tone of the email.",
+                        "default": "professional",
+                    },
+                },
+                "required": ["subject", "body"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "propose_odoo_write",
             "description": (
                 "Propose a WRITE to the connected Odoo ERP. This NEVER writes directly — "
@@ -832,6 +870,51 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
     return (
         f"Task created: \"{task.title}\" "
         f"[priority={priority}{due_str}, id={task.id}]"
+    )
+
+
+async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from models.db.email_draft import EmailDraft
+
+    _TONES = {"professional", "friendly", "formal", "concise", "empathetic", "persuasive"}
+
+    subject = str(args.get("subject", "")).strip()[:500]
+    body = str(args.get("body", "")).strip()
+    if not subject:
+        return "Error: email subject must not be empty."
+    if not body:
+        return "Error: email body must not be empty — write the full email and pass it as 'body'."
+
+    recipient_name = str(args.get("recipient_name", "")).strip() or None
+    recipient_email = str(args.get("recipient_email", "")).strip() or None
+    purpose = (str(args.get("purpose", "")).strip() or subject)[:2000]
+    tone_raw = str(args.get("tone", "professional")).strip().lower()
+    tone = tone_raw if tone_raw in _TONES else "professional"
+
+    draft = EmailDraft(
+        id=uuid.uuid4(),
+        subject=subject,
+        recipient_name=recipient_name,
+        recipient_email=recipient_email,
+        purpose=purpose,
+        tone=tone,
+        key_points=None,
+        draft_body=body,
+        status="draft",
+        tags=["assistant"],
+        created_by=ctx.user_id,
+    )
+    ctx.db.add(draft)
+    await ctx.db.flush()
+    await ctx.db.refresh(draft)
+
+    to_str = ""
+    if recipient_name or recipient_email:
+        to_str = f" to {recipient_name or recipient_email}"
+    return (
+        f"Email draft saved to Communications → Email Drafts: \"{subject}\"{to_str} "
+        f"[id={draft.id}, status=draft]. The user can review, edit, and send it from the "
+        "Email Drafts page."
     )
 
 
@@ -1515,6 +1598,7 @@ TOOL_EXECUTORS = {
     "search_knowledge_base": execute_search_knowledge_base,
     "request_kb_deletion": execute_request_kb_deletion,
     "create_task": execute_create_task,
+    "create_email_draft": execute_create_email_draft,
     "request_approval": execute_request_approval,
     "propose_odoo_write": execute_propose_odoo_write,
     "get_pending_approvals": execute_get_pending_approvals,

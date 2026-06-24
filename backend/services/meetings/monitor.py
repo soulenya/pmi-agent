@@ -16,11 +16,13 @@ The current status is exposed via :meth:`MeetingMonitor.snapshot` for the
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import threading
 import time
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from sqlalchemy import func, select
 
@@ -83,6 +85,7 @@ class MeetingMonitor:
             "started_at": None,
             "last_meeting_id": None,
             "last_error": None,
+            "pending": 0,              # recordings on disk awaiting transcription
         }
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -179,6 +182,12 @@ class MeetingMonitor:
         """Entry point started as a background task from the app lifespan."""
         self._get_db = get_db
         self._update(supported=is_capture_supported(), configured=gcs_stt.is_configured())
+        # Resume any recording that was interrupted mid-transcription by a prior
+        # restart/crash before entering the detection loop.
+        try:
+            await self.recover_pending()
+        except Exception:                       # noqa: BLE001
+            logger.exception("Pending-recording recovery failed")
         interval = max(2, settings.meeting_detect_interval_seconds)
         logger.info("Meeting monitor started (interval=%ds)", interval)
         try:
@@ -250,6 +259,37 @@ class MeetingMonitor:
 
     # ── Finalization ──────────────────────────────────────────────────────────
 
+    def _pending_dir(self) -> Path:
+        """Directory holding recordings persisted to disk awaiting transcription."""
+        d = Path(settings.storage_root).expanduser().parent / "pending_recordings"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def _write_pending(self, wav: bytes, platform: str, recorded_at: str) -> str:
+        """Persist a recording (+ metadata) to disk so a crash can resume it."""
+        pid = uuid.uuid4().hex
+        d = self._pending_dir()
+        (d / f"{pid}.wav").write_bytes(wav)
+        (d / f"{pid}.json").write_text(
+            json.dumps({"platform": platform, "recorded_at": recorded_at}),
+            encoding="utf-8",
+        )
+        return pid
+
+    def _discard_pending(self, pid: str) -> None:
+        d = self._pending_dir()
+        for ext in (".wav", ".json"):
+            try:
+                (d / f"{pid}{ext}").unlink()
+            except OSError:
+                pass
+
+    def _pending_count(self) -> int:
+        try:
+            return len(list(self._pending_dir().glob("*.wav")))
+        except OSError:
+            return 0
+
     async def _finalize_recording(self) -> None:
         platform = self._current_platform or "Meeting"
         self._update(state="processing")
@@ -258,6 +298,28 @@ class MeetingMonitor:
             self._update(state="idle", started_at=None)
             return
 
+        recorded_at = datetime.now(timezone.utc)
+        # Persist the audio to disk *before* transcribing so an app restart or
+        # crash mid-transcription can resume it on next startup (recover_pending).
+        pid: str | None = None
+        try:
+            pid = await asyncio.to_thread(
+                self._write_pending, wav, platform, recorded_at.isoformat()
+            )
+        except Exception:                       # noqa: BLE001
+            logger.exception("Could not persist pending recording to disk")
+
+        await self._transcribe_and_save(wav, platform, recorded_at, pid)
+
+    async def _transcribe_and_save(
+        self,
+        wav: bytes,
+        platform: str,
+        recorded_at: datetime,
+        pid: str | None,
+    ) -> bool:
+        """Transcribe *wav* and persist a MeetingNote. On success, drop the
+        on-disk pending copy. Returns True when a note was created."""
         try:
             if not gcs_stt.is_configured():
                 logger.warning("Meeting recorded but STT v2 is not configured")
@@ -266,7 +328,7 @@ class MeetingMonitor:
                     started_at=None,
                     last_error="Recording captured but transcription (Google STT v2) is not configured.",
                 )
-                return
+                return False  # keep the on-disk copy for a later retry
 
             transcript = await gcs_stt.transcribe_long(wav, "meeting.wav", "audio/wav")
             transcript = (transcript or "").strip() or "(No speech detected.)"
@@ -278,7 +340,7 @@ class MeetingMonitor:
                     break
 
                 manual = platform == "Manual"
-                stamp = datetime.now().strftime("%b %d, %Y %I:%M %p")
+                stamp = recorded_at.astimezone().strftime("%b %d, %Y %I:%M %p")
                 title = (
                     f"Recorded meeting — {stamp}"
                     if manual
@@ -289,7 +351,7 @@ class MeetingMonitor:
                     id=uuid.uuid4(),
                     title=title,
                     raw_transcript=transcript,
-                    meeting_date=datetime.now(timezone.utc),
+                    meeting_date=recorded_at,
                     attendees=[],
                     tags=tags,
                     generated_task_ids=[],
@@ -318,10 +380,60 @@ class MeetingMonitor:
                     last_error=None,
                 )
                 logger.info("Meeting note created: %s", meeting.id)
-                break
+                if pid:
+                    await asyncio.to_thread(self._discard_pending, pid)
+                self._update(pending=self._pending_count())
+                return True
         except Exception as exc:                # noqa: BLE001
             logger.exception("Meeting finalization failed")
             self._update(state="idle", started_at=None, last_error=str(exc))
+        return False
+
+    async def recover_pending(self) -> int:
+        """Resume recordings persisted to disk but never transcribed (e.g. the
+        app quit mid-transcription). Returns the number of notes recovered."""
+        try:
+            wavs = sorted(self._pending_dir().glob("*.wav"))
+        except OSError:
+            return 0
+        self._update(pending=len(wavs))
+        if not wavs:
+            return 0
+        if not gcs_stt.is_configured():
+            logger.info(
+                "%d interrupted recording(s) on disk, but STT isn't configured "
+                "yet — leaving them to recover later",
+                len(wavs),
+            )
+            return 0
+
+        logger.info("Recovering %d interrupted recording(s)…", len(wavs))
+        recovered = 0
+        for wav_path in wavs:
+            pid = wav_path.stem
+            platform = "Meeting"
+            recorded_at = datetime.now(timezone.utc)
+            meta_path = wav_path.with_suffix(".json")
+            try:
+                if meta_path.is_file():
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                    platform = meta.get("platform") or platform
+                    if meta.get("recorded_at"):
+                        recorded_at = datetime.fromisoformat(meta["recorded_at"])
+            except Exception:                   # noqa: BLE001
+                logger.debug("Bad pending metadata for %s", pid, exc_info=True)
+            try:
+                wav = await asyncio.to_thread(wav_path.read_bytes)
+            except OSError:
+                continue
+            self._update(state="processing", platform=f"{platform} (recovering)")
+            if await self._transcribe_and_save(wav, platform, recorded_at, pid):
+                recovered += 1
+
+        self._update(state="idle", platform=None, pending=self._pending_count())
+        if recovered:
+            logger.info("Recovered %d interrupted recording(s)", recovered)
+        return recovered
 
 
 # Process-wide singleton — imported by the app lifespan and the meetings router.

@@ -12,6 +12,54 @@ const RISK_STYLES: Record<string, string> = {
   critical: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
 };
 
+function pick(payload: Record<string, unknown>, keys: string[]): string | null {
+  for (const k of keys) {
+    const v = payload[k];
+    if (typeof v === "string" && v.trim()) return v;
+  }
+  return null;
+}
+
+/** Friendly preview for an approval payload. Renders email intents as a
+ *  readable To/Subject/Body card (preserving line breaks); falls back to
+ *  formatted JSON for everything else. */
+function PayloadPreview({ intentType, payload }: {
+  intentType: string;
+  payload: Record<string, unknown>;
+}) {
+  if (intentType === "send_email" || intentType === "send_message") {
+    const to = pick(payload, ["recipient_email", "recipient", "to", "recipient_name"]);
+    const subject = pick(payload, ["subject", "title"]);
+    const body = pick(payload, ["body", "draft_body", "message", "content"]);
+    if (body || subject || to) {
+      return (
+        <div className="mb-3 rounded-lg border bg-muted/40 text-sm">
+          {to && (
+            <div className="flex gap-2 border-b px-3 py-2">
+              <span className="w-16 shrink-0 font-medium text-muted-foreground">To</span>
+              <span className="break-all">{to}</span>
+            </div>
+          )}
+          {subject && (
+            <div className="flex gap-2 border-b px-3 py-2">
+              <span className="w-16 shrink-0 font-medium text-muted-foreground">Subject</span>
+              <span className="font-medium">{subject}</span>
+            </div>
+          )}
+          {body && (
+            <div className="whitespace-pre-wrap px-3 py-2.5 leading-relaxed">{body}</div>
+          )}
+        </div>
+      );
+    }
+  }
+  return (
+    <pre className="mb-3 overflow-x-auto rounded-lg bg-muted p-3 text-xs">
+      {JSON.stringify(payload, null, 2)}
+    </pre>
+  );
+}
+
 function ApprovalCard({ intent, onResolve }: {
   intent: ApprovalIntent;
   onResolve: (approved: boolean, reason?: string) => Promise<ApprovalIntent>;
@@ -62,9 +110,7 @@ function ApprovalCard({ intent, onResolve }: {
 
       {/* Payload preview */}
       {Object.keys(intent.intent_payload).length > 0 && (
-        <pre className="mb-3 overflow-x-auto rounded-lg bg-muted p-3 text-xs">
-          {JSON.stringify(intent.intent_payload, null, 2)}
-        </pre>
+        <PayloadPreview intentType={intent.intent_type} payload={intent.intent_payload} />
       )}
 
       {/* Expiry */}

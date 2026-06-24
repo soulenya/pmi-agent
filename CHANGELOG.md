@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v2.7.7 — 2026-06-24
+**Crash-safe recordings, left-rail navigation, orbit-speed slider, and email-draft routing**
+
+- **Crash-safe transcription recovery:** a recording is now persisted to disk (`~/.pmi-agent/pending_recordings/<id>.wav` + a small JSON sidecar with platform and timestamp) *before* transcription starts, so if Little Gerry is closed or restarts mid-transcription the audio is no longer lost. On startup `MeetingMonitor.recover_pending()` scans the pending folder and finishes any interrupted transcriptions automatically; the recorder status now reports a `pending` count and a **Recover recordings** button (`MeetingRecorderIndicator.tsx`, amber, `RotateCcw`) appears whenever leftovers exist. New endpoint `POST /meetings/recorder/recover`. (`_finalize_recording` refactored to `_write_pending` → `_transcribe_and_save`; covers the crash-during-transcription case — frames still in memory during an active recording are not recoverable.)
+- **Left-rail category navigation:** the far-left rail (`AncestorRail.tsx`) now lists all six areas — Work, Knowledge, Communications, Odoo, Compliance, Administration — as quick-access icon buttons beneath the home/Sun button, each highlighting when active, so you can jump straight to any section from anywhere.
+- **Orbit-speed slider:** a new control (`SolarSystemCanvas.tsx` `OrbitSpeedControl`, bottom-left, `Gauge`) lets you speed up or slow down the orbiting planets; the value is persisted (`orbitSpeedStore`, 0.25×–3×) and drives the CSS animation via a `--orbit-speed` custom property on the canvas root.
+- **Email drafts land in Email Drafts:** Little Gerry gained a `create_email_draft` tool, so asking it to draft/write/compose an email now files the draft under **Communications → Email Drafts** (status `draft`) for you to review, edit and send — instead of mixing it into Approvals. Actually *sending* still routes through `request_approval(send_email)`. (`services/agent/tools.py`, registered for the Executive Assistant agent.)
+- **Readable email approval preview:** the Approvals page (`ApprovalsPage.tsx`) now renders email intents as a clean **To / Subject / Body** card with proper paragraph spacing (`whitespace-pre-wrap`) instead of a single run-on line of raw JSON; other intent types keep the JSON view.
+
 ### v2.7.6 — 2026-06-24
 **Manual recording start/stop**
 
