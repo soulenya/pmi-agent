@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Mic,
@@ -13,6 +13,7 @@ import {
   Calendar,
   Tag,
   ListChecks,
+  FileAudio,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,9 +23,14 @@ import {
   summarizeMeeting,
   deleteMeeting,
   extractMeetingActions,
+  transcribeMeetingAudio,
 } from "@/api/meetings";
 import { createTask } from "@/api/tasks";
 import type { MeetingNote, ExtractedAction } from "@/types/meetings";
+
+function apiErr(e: unknown, fallback: string): string {
+  return (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? fallback;
+}
 
 // ── Action Extract Modal ──────────────────────────────────────────────────────
 
@@ -171,6 +177,31 @@ function NewMeetingForm({ onClose }: { onClose: () => void }) {
   const [attendeesRaw, setAttendeesRaw] = useState("");
   const [meetingDate, setMeetingDate] = useState("");
   const [tagsRaw, setTagsRaw] = useState("");
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcribeError, setTranscribeError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleAudioUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setTranscribeError(null);
+    setTranscribing(true);
+    try {
+      const res = await transcribeMeetingAudio(f);
+      const text = res.transcript.trim();
+      if (!text) {
+        setTranscribeError("No speech was detected in that recording.");
+      } else {
+        setTranscript((prev) => (prev.trim() ? `${prev}\n\n${text}` : text));
+        if (!title.trim()) setTitle(f.name.replace(/\.[^.]+$/, ""));
+      }
+    } catch (err) {
+      setTranscribeError(apiErr(err, "Transcription failed. Check your AI key in Settings."));
+    } finally {
+      setTranscribing(false);
+    }
+  }
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -232,14 +263,42 @@ function NewMeetingForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">Transcript / Notes *</label>
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-xs font-medium text-muted-foreground">Transcript / Notes *</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*"
+            onChange={handleAudioUpload}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={transcribing}
+            title="Upload a recorded meeting (audio) to transcribe into the transcript"
+            className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs hover:bg-accent transition-colors disabled:opacity-60"
+          >
+            {transcribing ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Transcribing…</>
+            ) : (
+              <><FileAudio className="h-3.5 w-3.5" /> Upload recording</>
+            )}
+          </button>
+        </div>
         <textarea
           value={transcript}
           onChange={(e) => setTranscript(e.target.value)}
           rows={8}
-          placeholder="Paste meeting transcript, audio transcription, or hand-written notes here…"
+          placeholder="Paste a meeting transcript, upload a recording to transcribe, or type notes here…"
           className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring resize-y"
         />
+        {transcribeError && (
+          <p className="text-xs text-destructive">{transcribeError}</p>
+        )}
+        {transcribing && (
+          <p className="text-xs text-muted-foreground">Transcribing the recording — longer meetings can take a minute.</p>
+        )}
       </div>
 
       <div className="space-y-1">

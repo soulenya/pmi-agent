@@ -623,8 +623,9 @@ function GenerateDocModal({ parentId, folderName, onClose }: {
     },
   });
 
-  // Step 4 — review task
+  // Step 4 — review task + preview
   const [taskCreated, setTaskCreated] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const taskMut = useMutation({
     mutationFn: () => {
       if (!result) throw new Error("No generated document.");
@@ -824,15 +825,25 @@ function GenerateDocModal({ parentId, folderName, onClose }: {
           {/* ── Step 4: done + review task ── */}
           {step === 4 && result && (
             <>
-              <div className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>
-                  <span className="font-medium">{result.node.name}</span> was created in{" "}
-                  <span className="font-medium">{folderName}</span>.
+              <div className="flex flex-col gap-2.5 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>
+                    <span className="font-medium">{result.node.name}</span> was created in{" "}
+                    <span className="font-medium">{folderName}</span>.
+                    {result.node.is_editable
+                      ? " You can preview and edit it right here in the app."
+                      : " Open it to download and review in Word."}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPreviewOpen(true)}
+                  className="inline-flex items-center gap-1.5 self-start rounded-md border border-emerald-400 bg-white/70 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-white dark:border-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
+                >
                   {result.node.is_editable
-                    ? " You can edit it right here in the app."
-                    : " Download it to review and edit in Word."}
-                </p>
+                    ? (<><FileText className="h-3.5 w-3.5" /> Open &amp; preview</>)
+                    : (<><Download className="h-3.5 w-3.5" /> Open to download</>)}
+                </button>
               </div>
               <div className="rounded-md border px-3 py-3">
                 <div className="flex items-start gap-2">
@@ -932,6 +943,19 @@ function GenerateDocModal({ parentId, folderName, onClose }: {
           </div>
         </div>
       </div>
+
+      {/* Preview / open the just-created file directly from the wizard */}
+      {previewOpen && result && (
+        result.node.is_editable ? (
+          <EditModal node={result.node} parentId={parentId} onClose={() => setPreviewOpen(false)} />
+        ) : (
+          <SaveFileDialog
+            filename={result.node.name}
+            getBlob={() => fetchRegFileBlob(result.node.id)}
+            onClose={() => setPreviewOpen(false)}
+          />
+        )
+      )}
     </div>
   );
 }
