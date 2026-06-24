@@ -84,6 +84,7 @@ export interface RecorderStatus {
   started_at: string | null;
   last_meeting_id: string | null;
   last_error: string | null;
+  pending: number;
 }
 
 export interface AddToKbResult {

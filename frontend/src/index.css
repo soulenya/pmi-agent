@@ -101,11 +101,11 @@
 }
 
 .orbit-spin {
-  animation: orbit-spin var(--orbit-duration, 60s) linear infinite;
+  animation: orbit-spin calc(var(--orbit-duration, 60s) / var(--orbit-speed, 1)) linear infinite;
 }
 
 .orbit-spin-reverse {
-  animation: orbit-spin-reverse var(--orbit-duration, 60s) linear infinite;
+  animation: orbit-spin-reverse calc(var(--orbit-duration, 60s) / var(--orbit-speed, 1)) linear infinite;
 }
 
 /* ── Shuttle cursor (space views) ───────────────────────────────────────────
