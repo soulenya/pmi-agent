@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.7.6 — 2026-06-24
+**Manual recording start/stop**
+
+- **Record on demand:** a new **Record** button in the top bar (`MeetingRecorderIndicator.tsx`) starts a user-initiated recording immediately, independent of meeting auto-detection — useful for in-person meetings, phone calls, or any conversation Little Gerry can't detect. While a manual recording is active the auto-detection loop stands aside (`MeetingMonitor._manual`) so only an explicit stop ends it.
+- **Stop & save:** the button becomes **Stop recording** (then **Saving…**) while capturing; stopping transcribes the audio and writes a structured summary into a new meeting note titled "Recorded meeting — …" and tagged `manual-recording`. Transcription runs in the background (`stop_manual` → `asyncio.create_task(_finalize_and_reset)`) so the button responds instantly. The Stop button ends any active recording, whether started manually or auto-captured. New endpoints `POST /meetings/recorder/start|stop`.
+
 ### v2.7.5 — 2026-06-24
 **Automatic meeting capture, transcription-key popup, and a What's New popup**
 

@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Mic, MicOff, Radio, X } from "lucide-react";
-import { getRecorderStatus, setRecorderEnabled } from "@/api/meetings";
+import { Loader2, Mic, MicOff, Radio, Square, X } from "lucide-react";
+import {
+  getRecorderStatus,
+  setRecorderEnabled,
+  startRecording,
+  stopRecording,
+} from "@/api/meetings";
 import { getSettings } from "@/api/settings";
 import type { RecorderStatus } from "@/types/meetings";
 import { cn } from "@/lib/utils";
@@ -43,6 +48,16 @@ export function MeetingRecorderIndicator() {
     onSuccess: (s) => qc.setQueryData(["recorder-status"], s),
   });
 
+  const startRec = useMutation({
+    mutationFn: () => startRecording(),
+    onSuccess: (s) => qc.setQueryData(["recorder-status"], s),
+  });
+
+  const stopRec = useMutation({
+    mutationFn: () => stopRecording(),
+    onSuccess: (s) => qc.setQueryData(["recorder-status"], s),
+  });
+
   const [promptPlatform, setPromptPlatform] = useState<string | null>(null);
   const dismissedRef = useRef(false);
   const prevMeetingIdRef = useRef<string | null>(null);
@@ -73,43 +88,80 @@ export function MeetingRecorderIndicator() {
   const recording = status.state === "recording";
   const processing = status.state === "processing";
   const label = statusLabel(status);
+  const manualBusy = startRec.isPending || stopRec.isPending;
 
   return (
     <>
-      <button
-        onClick={() => toggle.mutate(!status.enabled)}
-        disabled={toggle.isPending}
-        title={
-          status.supported
-            ? "Toggle automatic meeting recording & transcription"
-            : "Meeting detection is on, but this OS can't capture system audio without a virtual audio device"
-        }
-        className={cn(
-          "flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60",
-          recording
-            ? "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400"
-            : processing
-              ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-              : status.enabled
-                ? "border-primary/40 bg-primary/10 text-primary"
-                : "border-border bg-muted text-muted-foreground hover:bg-accent",
-        )}
-      >
-        {recording ? (
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
-          </span>
-        ) : processing ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        ) : status.enabled ? (
-          <Radio className="h-3.5 w-3.5" />
+      <div className="flex items-center gap-1.5">
+        {recording || processing ? (
+          <button
+            onClick={() => stopRec.mutate()}
+            disabled={processing || manualBusy}
+            title="Stop recording now and save the transcript"
+            className="flex items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-500/20 disabled:opacity-60 dark:text-red-400"
+          >
+            {processing || manualBusy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Square className="h-3 w-3 fill-current" />
+            )}
+            <span className="hidden lg:inline">{processing ? "Saving…" : "Stop recording"}</span>
+          </button>
         ) : (
-          <MicOff className="h-3.5 w-3.5" />
+          <button
+            onClick={() => startRec.mutate()}
+            disabled={manualBusy || !status.supported}
+            title={
+              status.supported
+                ? "Start recording now"
+                : "This computer can't capture system audio without a virtual audio device"
+            }
+            className="flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-60"
+          >
+            {manualBusy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+            )}
+            <span className="hidden lg:inline">Record</span>
+          </button>
         )}
-        <span className="hidden lg:inline">Little Gerry is: {label}</span>
-        <span className="lg:hidden">{recording ? "Rec" : status.enabled ? "On" : "Off"}</span>
-      </button>
+
+        <button
+          onClick={() => toggle.mutate(!status.enabled)}
+          disabled={toggle.isPending}
+          title={
+            status.supported
+              ? "Toggle automatic meeting recording & transcription"
+              : "Meeting detection is on, but this OS can't capture system audio without a virtual audio device"
+          }
+          className={cn(
+            "flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60",
+            recording
+              ? "border-red-500/40 bg-red-500/10 text-red-600 dark:text-red-400"
+              : processing
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                : status.enabled
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-muted text-muted-foreground hover:bg-accent",
+          )}
+        >
+          {recording ? (
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+            </span>
+          ) : processing ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : status.enabled ? (
+            <Radio className="h-3.5 w-3.5" />
+          ) : (
+            <MicOff className="h-3.5 w-3.5" />
+          )}
+          <span className="hidden lg:inline">Little Gerry is: {label}</span>
+          <span className="lg:hidden">{recording ? "Rec" : status.enabled ? "On" : "Off"}</span>
+        </button>
+      </div>
 
       {promptPlatform && (
         <MeetingPrompt
