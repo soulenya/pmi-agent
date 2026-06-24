@@ -76,6 +76,16 @@ export async function setRecorderEnabled(enabled: boolean): Promise<RecorderStat
   return resp.data;
 }
 
+export async function startRecording(): Promise<RecorderStatus> {
+  const resp = await apiClient.post<RecorderStatus>("/meetings/recorder/start");
+  return resp.data;
+}
+
+export async function stopRecording(): Promise<RecorderStatus> {
+  const resp = await apiClient.post<RecorderStatus>("/meetings/recorder/stop");
+  return resp.data;
+}
+
 export async function addMeetingToKnowledgeBase(id: string): Promise<AddToKbResult> {
   const resp = await apiClient.post<AddToKbResult>(`/meetings/${id}/add-to-kb`, {});
   return resp.data;

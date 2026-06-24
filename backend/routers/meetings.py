@@ -235,6 +235,24 @@ async def recorder_toggle(
     return RecorderStatusOut.model_validate(meeting_monitor.snapshot())
 
 
+@router.post("/recorder/start", response_model=RecorderStatusOut)
+async def recorder_start(
+    _user: User = Depends(get_current_user),
+) -> RecorderStatusOut:
+    """Manually start recording right now (independent of meeting auto-detection)."""
+    snapshot = await meeting_monitor.start_manual()
+    return RecorderStatusOut.model_validate(snapshot)
+
+
+@router.post("/recorder/stop", response_model=RecorderStatusOut)
+async def recorder_stop(
+    _user: User = Depends(get_current_user),
+) -> RecorderStatusOut:
+    """Manually stop the current recording; it transcribes & saves in the background."""
+    snapshot = await meeting_monitor.stop_manual()
+    return RecorderStatusOut.model_validate(snapshot)
+
+
 @router.get("/stt/credentials-status", response_model=SttCredentialsStatusOut)
 async def stt_credentials_status(
     _user: User = Depends(get_current_user),

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 101;
+export const BUILD_NUMBER = 102;
 export const BUILD_DATE = "2026-06-24";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 102,
+    date: "2026-06-24",
+    title: "Start and stop recording whenever you like",
+    changes: [
+      "You can now record any conversation on demand — click the new 'Record' button in the top bar to start capturing right away, even for in-person meetings or calls that Little Gerry can't detect automatically",
+      "Click 'Stop recording' when you're done and Little Gerry transcribes the audio and writes up a summary with decisions and action items, just like an auto-captured meeting",
+      "The Stop button works for any active recording, whether you started it yourself or it began automatically when a meeting was detected",
+    ],
+  },
   {
     build: 101,
     date: "2026-06-24",

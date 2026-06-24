@@ -70,6 +70,9 @@ class MeetingMonitor:
         self._gone_since: float | None = None
         self._current_platform: str | None = None
         self._prompted = False
+        # True while a user-initiated (manual) recording is in progress, which
+        # suspends the auto detect/finalize logic so only an explicit stop ends it.
+        self._manual = False
 
         self._status: dict = {
             "enabled": self._enabled,
@@ -92,6 +95,53 @@ class MeetingMonitor:
         """Update the in-memory toggle immediately (DB is the source of truth)."""
         self._enabled = enabled
         self._update(enabled=enabled)
+
+    async def start_manual(self) -> dict:
+        """Begin a user-initiated recording immediately (ignores auto-detection)."""
+        if self._recorder.recording:
+            # Already capturing (auto or manual) — adopt it as manual so the
+            # grace timer can't auto-stop it; only an explicit stop will end it.
+            self._manual = True
+            return self.snapshot()
+        if not is_capture_supported():
+            self._update(last_error="This computer can't capture audio without a virtual audio device.")
+            return self.snapshot()
+        started = await asyncio.to_thread(
+            self._recorder.start, settings.meeting_max_record_seconds
+        )
+        if not started:
+            self._update(last_error="Couldn't start recording — no audio capture device was available.")
+            return self.snapshot()
+        self._manual = True
+        self._current_platform = "Manual"
+        self._detected_since = None
+        self._gone_since = None
+        self._update(
+            state="recording",
+            platform="Manual",
+            started_at=datetime.now(timezone.utc).isoformat(),
+            last_error=None,
+        )
+        logger.info("Manual recording started")
+        return self.snapshot()
+
+    async def stop_manual(self) -> dict:
+        """Stop the current recording and transcribe/summarize it in the background."""
+        self._manual = False
+        if not self._recorder.recording:
+            self._reset_detection()
+            return self.snapshot()
+        self._update(state="processing")
+        # Transcription can take a while; finalize off the request path so the
+        # button responds instantly and status polling reflects progress.
+        asyncio.create_task(self._finalize_and_reset())
+        return self.snapshot()
+
+    async def _finalize_and_reset(self) -> None:
+        try:
+            await self._finalize_recording()
+        finally:
+            self._reset_detection()
 
     # ── Status helpers ────────────────────────────────────────────────────────
 
@@ -148,6 +198,9 @@ class MeetingMonitor:
 
     async def _tick(self) -> None:
         await self._load_enabled()
+        # A manual recording owns the recorder; skip all auto detect/finalize.
+        if self._manual:
+            return
         platform = await asyncio.to_thread(detect_active_meeting)
         now = time.monotonic()
 
@@ -224,14 +277,21 @@ class MeetingMonitor:
                     logger.warning("No user to attribute meeting note to")
                     break
 
-                title = f"{platform} meeting — {datetime.now().strftime('%b %d, %Y %I:%M %p')}"
+                manual = platform == "Manual"
+                stamp = datetime.now().strftime("%b %d, %Y %I:%M %p")
+                title = (
+                    f"Recorded meeting — {stamp}"
+                    if manual
+                    else f"{platform} meeting — {stamp}"
+                )
+                tags = ["manual-recording"] if manual else ["auto-captured", platform.lower()]
                 meeting = MeetingNote(
                     id=uuid.uuid4(),
                     title=title,
                     raw_transcript=transcript,
                     meeting_date=datetime.now(timezone.utc),
                     attendees=[],
-                    tags=["auto-captured", platform.lower()],
+                    tags=tags,
                     generated_task_ids=[],
                     created_by=user.id,
                 )
