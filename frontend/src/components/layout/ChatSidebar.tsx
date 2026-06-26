@@ -13,6 +13,8 @@ import { MessageBubble } from "@/components/chat/MessageBubble";
 import { useChatSidebarStore } from "@/stores/chatSidebarStore";
 import { createConversation, listConversations, listMessages } from "@/api/chat";
 import { useAuthStore } from "@/stores/authStore";
+import { useResizableTextarea } from "@/hooks/useResizableTextarea";
+import { useChatInputSizeStore } from "@/stores/chatInputSizeStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
 import { cn } from "@/lib/utils";
 import { modLabel } from "@/lib/platform";
@@ -88,7 +90,17 @@ export function ChatSidebar() {
 
   const wsRef        = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef  = useRef<HTMLTextAreaElement>(null);
+
+  const sidebarHeight = useChatInputSizeStore((s) => s.sidebarHeight);
+  const setSidebarHeight = useChatInputSizeStore((s) => s.setSidebarHeight);
+  const { ref: textareaRef, startResize } = useResizableTextarea({
+    value: inputText,
+    manualHeight: sidebarHeight,
+    setManualHeight: setSidebarHeight,
+    autoMax: 220,
+    min: 36,
+    max: 400,
+  });
 
   // Keyboard shortcut Ctrl+/ (Cmd+/ on macOS)
   useEffect(() => {
@@ -380,7 +392,13 @@ export function ChatSidebar() {
 
       {/* Input */}
       <div className="border-t p-2">
-        <div className="flex items-end gap-1.5 rounded-lg border bg-muted/30 px-2.5 py-1.5">
+        <div className="relative flex items-end gap-1.5 rounded-lg border bg-muted/30 px-2.5 py-1.5">
+          <div
+            onPointerDown={startResize}
+            onDoubleClick={() => setSidebarHeight(null)}
+            title="Drag to resize • double-click to auto-fit"
+            className="absolute -top-1.5 left-1/2 z-10 h-3 w-9 -translate-x-1/2 cursor-ns-resize rounded-full border bg-muted shadow-sm hover:bg-muted-foreground/30"
+          />
           <textarea
             ref={textareaRef}
             value={inputText}
@@ -388,7 +406,7 @@ export function ChatSidebar() {
             onKeyDown={handleKeyDown}
             placeholder="Message Little Gerry… (Enter to send)"
             rows={1}
-            className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground max-h-28"
+            className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <button
             onClick={sendMessage}
