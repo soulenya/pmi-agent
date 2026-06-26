@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v2.7.8 — 2026-06-26
+**Resizable chat input boxes**
+
+- **Auto-grow + drag-to-resize:** both the main Chat page input (`ChatInput.tsx`) and the persistent Little Gerry side panel (`ChatSidebar.tsx`) now expand as you type (up to ~320px and ~220px respectively, then scroll internally) and expose a small grab handle centered on the top edge that you can drag up/down to pin the box to any height; double-clicking the handle releases it back to auto-grow. The chosen height is persisted per box. New shared `useResizableTextarea` hook and `chatInputSizeStore` (zustand + persist, `pmi-chat-input-size`). The sidebar input previously had no auto-grow and a fixed `max-h-28` cap; that cap is removed.
+
 ### v2.7.7 — 2026-06-24
 **Crash-safe recordings, left-rail navigation, orbit-speed slider, and email-draft routing**
 

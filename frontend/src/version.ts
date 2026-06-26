@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 103;
-export const BUILD_DATE = "2026-06-24";
+export const BUILD_NUMBER = 104;
+export const BUILD_DATE = "2026-06-26";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 104,
+    date: "2026-06-26",
+    title: "Resize the chat box to fit what you're writing",
+    changes: [
+      "Both the main chat box and the persistent Little Gerry side panel now grow as you type, so longer messages are easier to read and edit instead of being squeezed into one line",
+      "You can also grab the small handle at the top of either chat box and drag it up or down to set it to exactly the height you want — your choice is remembered",
+      "Double-click that handle any time to snap the box back to growing automatically with your text",
+    ],
+  },
   {
     build: 103,
     date: "2026-06-24",

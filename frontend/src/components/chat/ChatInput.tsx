@@ -2,6 +2,8 @@ import { useRef, useEffect, useState, type KeyboardEvent, type FormEvent } from 
 import { Send, Mic, Square, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { transcribeAudio } from "@/api/voice";
+import { useResizableTextarea } from "@/hooks/useResizableTextarea";
+import { useChatInputSizeStore } from "@/stores/chatInputSizeStore";
 
 interface Props {
   onSend: (content: string) => void;
@@ -12,18 +14,19 @@ interface Props {
 }
 
 export function ChatInput({ onSend, disabled = false, placeholder, voiceEnabled = false }: Props) {
-  const ref = useRef<HTMLTextAreaElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
 
-  // Auto-grow the textarea
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  const mainHeight = useChatInputSizeStore((s) => s.mainHeight);
+  const setMainHeight = useChatInputSizeStore((s) => s.setMainHeight);
+  const { ref, applyHeight, startResize } = useResizableTextarea({
+    manualHeight: mainHeight,
+    setManualHeight: setMainHeight,
+    autoMax: 320,
+    min: 44,
+    max: 600,
   });
 
   // Stop any live recording when the component unmounts
@@ -49,7 +52,7 @@ export function ChatInput({ onSend, disabled = false, placeholder, voiceEnabled 
     onSend(value);
     if (ref.current) {
       ref.current.value = "";
-      ref.current.style.height = "auto";
+      applyHeight();
     }
   }
 
@@ -80,6 +83,7 @@ export function ChatInput({ onSend, disabled = false, placeholder, voiceEnabled 
             const existing = ref.current.value.trim();
             ref.current.value = existing ? `${existing} ${text}` : text;
             ref.current.focus();
+            applyHeight();
           } else if (!text) {
             setVoiceError("Didn't catch that — try again.");
           }
@@ -108,8 +112,14 @@ export function ChatInput({ onSend, disabled = false, placeholder, voiceEnabled 
       )}
       <form
         onSubmit={handleSubmit}
-        className="flex items-end gap-2 rounded-xl border bg-card p-3 shadow-sm"
+        className="relative flex items-end gap-2 rounded-xl border bg-card p-3 shadow-sm"
       >
+        <div
+          onPointerDown={startResize}
+          onDoubleClick={() => setMainHeight(null)}
+          title="Drag to resize • double-click to auto-fit"
+          className="absolute -top-1.5 left-1/2 z-10 h-3 w-10 -translate-x-1/2 cursor-ns-resize rounded-full border bg-muted/80 shadow-sm hover:bg-muted-foreground/30"
+        />
         <textarea
           ref={ref}
           rows={1}
@@ -120,6 +130,7 @@ export function ChatInput({ onSend, disabled = false, placeholder, voiceEnabled 
               : placeholder ?? "Message Little Gerry… (Shift+Enter for new line)"
           }
           onKeyDown={handleKeyDown}
+          onInput={applyHeight}
           className={cn(
             "flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground",
             disabled && "opacity-50 cursor-not-allowed",
