@@ -306,7 +306,13 @@ async def _execute_approved_action(
                     "status": "error",
                     "detail": "Payload is missing 'to' or 'subject' fields — cannot send.",
                 }
-            result = gmail_send(to=to, subject=subject, body=body)
+            result = gmail_send(
+                to=to,
+                subject=subject,
+                body=body,
+                thread_id=payload.get("thread_id"),
+                reply_to_message_id=payload.get("reply_to_message_id"),
+            )
 
             # If this came from an email draft, mark it sent
             draft_id_raw = payload.get("draft_id")

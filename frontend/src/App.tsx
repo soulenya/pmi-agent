@@ -19,6 +19,9 @@ import { ProjectsPage } from "@/pages/ProjectsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { MeetingsPage } from "@/pages/MeetingsPage";
 import { EmailsPage } from "@/pages/EmailsPage";
+import InboxPage from "@/pages/InboxPage";
+import { ContactsPage } from "@/pages/ContactsPage";
+import { BackupsPage } from "@/pages/BackupsPage";
 import { AuditPage } from "@/pages/AuditPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
@@ -77,6 +80,9 @@ function ThemedApp() {
             <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
             <Route path="meetings" element={<ErrorBoundary><MeetingsPage /></ErrorBoundary>} />
             <Route path="emails" element={<ErrorBoundary><EmailsPage /></ErrorBoundary>} />
+            <Route path="inbox" element={<ErrorBoundary><InboxPage /></ErrorBoundary>} />
+            <Route path="contacts" element={<ErrorBoundary><ContactsPage /></ErrorBoundary>} />
+            <Route path="backups" element={<ErrorBoundary><BackupsPage /></ErrorBoundary>} />
             <Route path="audit" element={<ErrorBoundary><AuditPage /></ErrorBoundary>} />
             <Route path="users" element={<ErrorBoundary><UsersPage /></ErrorBoundary>} />
             <Route path="calendar" element={<ErrorBoundary><CalendarPage /></ErrorBoundary>} />

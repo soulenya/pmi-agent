@@ -35,7 +35,7 @@ _TOOL_DOCS = {
     "search_drive_content": "Read and search inside Google Drive files (by name keyword).",
     "read_drive_file": "Read the full text content of a specific Google Drive file by ID.",
     "get_calendar_events": "Fetch upcoming Google Calendar events within a date range.",
-    "search_contacts": "Search Google Contacts by name, email, or company.",
+    "search_contacts": "Look up a person's contact details by name, email, or company — searches PMI's own contacts (derived from email + manual entries) and Google Contacts. Good for 'who is our contact at <company>'.",
     "read_google_sheet": "Read values from a Google Sheets spreadsheet.",
     "list_google_tasks": "List tasks from Google Tasks.",
     "generate_file": "Generate and export a document (PDF/DOCX/TXT) from provided content.",

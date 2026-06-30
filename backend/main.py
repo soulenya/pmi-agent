@@ -36,6 +36,7 @@ from routers.meetings import router as meetings_router
 from routers.emails import router as emails_router
 from routers.update import router as update_router
 from routers.google_integration import router as google_router
+from routers.conversation_backup import router as backups_router
 from routers.odoo_integration import router as odoo_router
 from routers.files import router as files_router
 from routers.feedback import router as feedback_router
@@ -291,6 +292,61 @@ async def _scheduled_tasks_loop() -> None:
 
     await scheduled_tasks_loop(get_db, notification_manager)
 
+
+# ── Background Gerry-draft cleanup loop ───────────────────────────────────────
+
+async def _gerry_draft_cleanup_loop() -> None:
+    """Once a day (03:00 local), delete unreviewed Gerry-generated email drafts
+    from previous days, along with their still-pending approval intents.
+
+    Also runs a catch-up on startup so stale drafts are cleared promptly.
+    """
+    from services.email_cleanup import cleanup_stale_gerry_drafts
+
+    cleanup_hour = 3
+
+    try:
+        async for db in get_db():
+            await cleanup_stale_gerry_drafts(db)
+    except Exception:
+        logger.exception("Gerry draft cleanup startup error")
+
+    while True:
+        delay = _seconds_until_hour(datetime.now(), cleanup_hour)
+        await asyncio.sleep(delay)
+        try:
+            async for db in get_db():
+                await cleanup_stale_gerry_drafts(db)
+        except Exception:
+            logger.exception("Gerry draft cleanup loop error")
+
+# ── Background conversation-backup loop ─────────────────────────────────────────
+
+async def _conversation_backup_loop() -> None:
+    """Once a day (configurable hour, default 02:00 local), write a signed,
+    tamper-evident backup of every conversation — locally and to Drive.
+
+    No-op while backups are disabled; the schedule is re-read each cycle.
+    """
+    from services.conversation_backup import DEFAULT_HOUR, get_config, run_backup
+
+    while True:
+        try:
+            async for db in get_db():
+                cfg = await get_config(db)
+            hour = int(cfg.get("hour", DEFAULT_HOUR))
+        except Exception:
+            hour = DEFAULT_HOUR
+        delay = _seconds_until_hour(datetime.now(), hour)
+        await asyncio.sleep(delay)
+        try:
+            async for db in get_db():
+                cfg = await get_config(db)
+                if cfg.get("enabled"):
+                    await run_backup(db, reason="scheduled")
+        except Exception:
+            logger.exception("Conversation backup loop error")
+
 # ── Background model-catalog refresh loop ───────────────────────────────────────
 
 async def _model_catalog_loop() -> None:
@@ -339,6 +395,8 @@ async def lifespan(app: FastAPI):
     scheduler_task = asyncio.create_task(_scheduled_tasks_loop())
     catalog_task = asyncio.create_task(_model_catalog_loop())
     meeting_task = asyncio.create_task(_meeting_monitor_loop())
+    cleanup_task = asyncio.create_task(_gerry_draft_cleanup_loop())
+    backup_task = asyncio.create_task(_conversation_backup_loop())
     yield
     bg_task.cancel()
     drive_task.cancel()
@@ -346,7 +404,9 @@ async def lifespan(app: FastAPI):
     scheduler_task.cancel()
     catalog_task.cancel()
     meeting_task.cancel()
-    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task):
+    cleanup_task.cancel()
+    backup_task.cancel()
+    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task):
         try:
             await _t
         except asyncio.CancelledError:
@@ -411,6 +471,7 @@ def create_app() -> FastAPI:
     app.include_router(emails_router)
     app.include_router(update_router)
     app.include_router(google_router)
+    app.include_router(backups_router)
     app.include_router(odoo_router)
     app.include_router(files_router)
     app.include_router(feedback_router)
