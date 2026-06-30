@@ -244,6 +244,12 @@ export async function importManifest(
   const { data } = await apiClient.post<ApiResponse<ManifestImportResult>>(
     "/documents/manifest/import",
     payload,
+    {
+      // Importing re-downloads and re-embeds every document from Drive in a
+      // single request; a large manifest easily exceeds the default 120 s
+      // client timeout, so allow up to 30 minutes.
+      timeout: 30 * 60 * 1000,
+    },
   );
   return data.data!;
 }
