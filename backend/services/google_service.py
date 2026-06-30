@@ -258,14 +258,219 @@ def _extract_body(payload: dict) -> str:
     return payload.get("snippet", "")
 
 
-def gmail_send(to: str, subject: str, body: str) -> dict:
+def _extract_bodies(payload: dict) -> tuple[str, str]:
+    """Walk a message payload and return ``(plain_text, html)``.
+
+    Either may be empty. HTML is the raw email HTML (rendered safely in a
+    sandboxed iframe on the client).
+    """
+    text = ""
+    html = ""
+
+    def _walk(part: dict) -> None:
+        nonlocal text, html
+        mime = part.get("mimeType", "")
+        data = (part.get("body", {}) or {}).get("data", "")
+        if mime == "text/plain" and data and not text:
+            text = base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="ignore")
+        elif mime == "text/html" and data and not html:
+            html = base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="ignore")
+        for child in part.get("parts", []) or []:
+            _walk(child)
+
+    _walk(payload)
+    return text, html
+
+
+def gmail_send(
+    to: str,
+    subject: str,
+    body: str,
+    thread_id: str | None = None,
+    reply_to_message_id: str | None = None,
+) -> dict:
+    """Send a Gmail message.
+
+    When ``reply_to_message_id`` is given, the original message's RFC
+    ``Message-ID`` / ``References`` headers are looked up and set as
+    ``In-Reply-To`` / ``References`` so the reply threads correctly. When
+    ``thread_id`` is given the message is attached to that Gmail thread.
+    Threading is best-effort: the email still sends if header lookup fails.
+    """
     svc = _build("gmail", "v1")
     msg = email.mime.text.MIMEText(body)
     msg["to"] = to
     msg["subject"] = subject
+    if reply_to_message_id:
+        try:
+            orig = (
+                svc.users()
+                .messages()
+                .get(
+                    userId="me",
+                    id=reply_to_message_id,
+                    format="metadata",
+                    metadataHeaders=["Message-ID", "References"],
+                )
+                .execute()
+            )
+            headers = {
+                h["name"].lower(): h["value"]
+                for h in orig.get("payload", {}).get("headers", [])
+            }
+            orig_msg_id = headers.get("message-id", "")
+            orig_refs = headers.get("references", "")
+            if orig_msg_id:
+                msg["In-Reply-To"] = orig_msg_id
+                msg["References"] = (orig_refs + " " + orig_msg_id).strip()
+        except Exception:
+            pass  # threading is best-effort
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    result = svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+    send_body: dict = {"raw": raw}
+    if thread_id:
+        send_body["threadId"] = thread_id
+    result = svc.users().messages().send(userId="me", body=send_body).execute()
     return {"message_id": result["id"], "status": "sent"}
+
+
+def _list_attachments(payload: dict) -> list[dict]:
+    """List file + inline-image attachments in a message payload (no bytes).
+
+    Each item: ``{filename, mime_type, attachment_id, size, content_id,
+    inline}``. Inline images (referenced from HTML via ``cid:``) are included
+    so the client can resolve them; ``content_id`` is stripped of <> brackets.
+    """
+    out: list[dict] = []
+
+    def _walk(part: dict) -> None:
+        body = part.get("body", {}) or {}
+        att_id = body.get("attachmentId")
+        if not att_id:
+            for child in part.get("parts", []) or []:
+                _walk(child)
+            return
+        headers = {h["name"].lower(): h["value"] for h in part.get("headers", []) or []}
+        content_id = (headers.get("content-id") or "").strip().strip("<>")
+        disposition = headers.get("content-disposition", "")
+        mime = part.get("mimeType", "")
+        filename = part.get("filename") or ""
+        inline = bool(content_id) or disposition.lower().startswith("inline")
+        if not filename:
+            # Inline image without a filename — synthesize one from the MIME type.
+            ext = mime.split("/")[-1] if "/" in mime else "bin"
+            filename = f"image.{ext}" if mime.startswith("image/") else f"attachment.{ext}"
+        out.append({
+            "filename": filename,
+            "mime_type": mime,
+            "attachment_id": att_id,
+            "size": body.get("size", 0),
+            "content_id": content_id,
+            "inline": inline,
+        })
+        for child in part.get("parts", []) or []:
+            _walk(child)
+
+    _walk(payload)
+    return out
+
+
+def gmail_list_threads(query: str = "in:inbox", max_results: int = 25) -> list[dict]:
+    """List threads as lightweight summaries for the Inbox view.
+
+    Each item: ``{thread_id, subject, from, date, snippet, message_count,
+    unread}``. ``from``/``date`` come from the latest message in the thread.
+    """
+    svc = _build("gmail", "v1")
+    resp = svc.users().threads().list(
+        userId="me", q=query, maxResults=max_results
+    ).execute()
+    out: list[dict] = []
+    for t in resp.get("threads", []):
+        detail = svc.users().threads().get(
+            userId="me", id=t["id"], format="metadata",
+            metadataHeaders=["From", "Subject", "Date"],
+        ).execute()
+        msgs = detail.get("messages", [])
+        first = msgs[0] if msgs else {}
+        last = msgs[-1] if msgs else {}
+        first_h = {h["name"]: h["value"] for h in first.get("payload", {}).get("headers", [])}
+        last_h = {h["name"]: h["value"] for h in last.get("payload", {}).get("headers", [])}
+        labels: set[str] = set()
+        for m in msgs:
+            labels.update(m.get("labelIds", []) or [])
+        out.append({
+            "thread_id": t["id"],
+            "subject": first_h.get("Subject", "") or last_h.get("Subject", ""),
+            "from": last_h.get("From", ""),
+            "date": last_h.get("Date", ""),
+            "snippet": t.get("snippet", ""),
+            "message_count": len(msgs),
+            "unread": "UNREAD" in labels,
+        })
+    return out
+
+
+def gmail_get_thread(thread_id: str) -> dict:
+    """Return every message in a Gmail thread with bodies + attachment metadata.
+
+    Shape: ``{thread_id, subject, messages: [{id, from, to, subject, date,
+    body, attachments: [{filename, mime_type, attachment_id, size}]}]}``.
+    Attachment *bytes* are not downloaded here — use ``gmail_get_attachments``
+    at import time. Used by the "Add email thread to Knowledge Base" feature.
+    """
+    svc = _build("gmail", "v1")
+    thread = svc.users().threads().get(userId="me", id=thread_id, format="full").execute()
+    messages: list[dict] = []
+    subject = ""
+    for m in thread.get("messages", []):
+        payload = m.get("payload", {})
+        headers = {h["name"]: h["value"] for h in payload.get("headers", [])}
+        if not subject:
+            subject = headers.get("Subject", "")
+        text, html = _extract_bodies(payload)
+        messages.append({
+            "id": m.get("id", ""),
+            "from": headers.get("From", ""),
+            "to": headers.get("To", ""),
+            "subject": headers.get("Subject", ""),
+            "date": headers.get("Date", ""),
+            "body": text or _extract_body(payload),
+            "body_html": html,
+            "attachments": _list_attachments(payload),
+        })
+    return {"thread_id": thread_id, "subject": subject, "messages": messages}
+
+
+def gmail_get_signature() -> str:
+    """Return the HTML signature of the primary send-as address ('' if none).
+
+    Reads ``users.settings.sendAs`` — covered by the existing gmail.readonly
+    scope, so no re-consent is required.
+    """
+    svc = _build("gmail", "v1")
+    resp = svc.users().settings().sendAs().list(userId="me").execute()
+    send_as = resp.get("sendAs", [])
+    for sa in send_as:
+        if sa.get("isPrimary") and sa.get("signature"):
+            return sa["signature"]
+    for sa in send_as:
+        if sa.get("signature"):
+            return sa["signature"]
+    return ""
+
+
+def gmail_get_attachment(message_id: str, attachment_id: str) -> bytes:
+    """Download the raw bytes of a single Gmail attachment."""
+    svc = _build("gmail", "v1")
+    att = (
+        svc.users()
+        .messages()
+        .attachments()
+        .get(userId="me", messageId=message_id, id=attachment_id)
+        .execute()
+    )
+    data = att.get("data", "")
+    return base64.urlsafe_b64decode(data + "==") if data else b""
 
 
 def gmail_get_attachments(message_id: str) -> list[dict]:
