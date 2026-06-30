@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.7.9 — 2026-06-30
+**Reliable large KB-manifest imports**
+
+- **Batched import with progress:** importing a shared Knowledge Base manifest (`DocumentsPage.tsx` → `ShareKbModal`) now processes items in batches of 20 instead of one long-lived request, showing a live `Importing… 40/300` count. A ~300-document manifest previously exceeded the client's 120 s timeout while the backend re-downloaded and re-embedded every file from Drive; axios reported the no-response timeout, which surfaced as the misleading *"Cannot reach the server. Is Little Gerry running?"* even though the import was still running.
+- **Partial-progress preserved + clearer errors:** if a batch fails, every document imported so far is kept and the error states how many made it in (`…imported 120 before stopping`); re-running finishes the rest (duplicates are skipped). `getErrorMessage` now distinguishes a genuine request timeout (`ECONNABORTED`) from the server actually being unreachable, and `importManifest` carries a longer per-request timeout as a safety net (`api/documents.ts`).
+
 ### v2.7.8 — 2026-06-26
 **Resizable chat input boxes**
 

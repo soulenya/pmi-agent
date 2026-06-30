@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 104;
-export const BUILD_DATE = "2026-06-26";
+export const BUILD_NUMBER = 105;
+export const BUILD_DATE = "2026-06-30";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 105,
+    date: "2026-06-30",
+    title: "Importing a big knowledge-base manifest now works reliably",
+    changes: [
+      "Fixed importing a large shared knowledge-base manifest (hundreds of documents) failing partway with a misleading 'Cannot reach the server' message — it was actually just taking longer than the app's time limit while pulling every file from Drive",
+      "Imports now run in small batches with a live 'Importing 40/300' progress count, so you can watch it work and large libraries come in without timing out",
+      "If a batch does hit a snag, everything imported so far is kept and the message tells you how many made it in, so you can simply run it again to finish — duplicates are skipped automatically",
+    ],
+  },
   {
     build: 104,
     date: "2026-06-26",

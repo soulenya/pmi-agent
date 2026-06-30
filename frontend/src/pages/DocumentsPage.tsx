@@ -60,6 +60,9 @@ import axios from "axios";
 function getErrorMessage(e: unknown): string {
   if (axios.isAxiosError(e)) {
     if (!e.response) {
+      if (e.code === "ECONNABORTED" || /timeout/i.test(e.message)) {
+        return "This is taking longer than expected and timed out. Little Gerry may still be working in the background — give it a moment, then refresh to see what was imported.";
+      }
       return "Cannot reach the server. Is Little Gerry running?";
     }
     const detail = e.response.data?.detail;
@@ -669,6 +672,7 @@ function ShareKbModal({
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ManifestImportResult | null>(null);
   const [importError, setImportError] = useState("");
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(null);
 
   const handleLink = async () => {
     setLinking(true);
@@ -705,23 +709,50 @@ function ShareKbModal({
     setImporting(true);
     setImportError("");
     setImportResult(null);
+    setImportProgress(null);
+
+    let items: KbManifestItem[] | null = null;
     try {
       const text = await file.text();
       const parsed = JSON.parse(text) as KbManifest;
-      const items = Array.isArray(parsed?.items) ? (parsed.items as KbManifestItem[]) : null;
-      if (!items || items.length === 0) {
-        setImportError("That file doesn't look like a Little Gerry KB manifest (no items found).");
-        return;
+      items = Array.isArray(parsed?.items) ? (parsed.items as KbManifestItem[]) : null;
+    } catch {
+      setImportError("Couldn't read that file — it isn't valid JSON.");
+      setImporting(false);
+      return;
+    }
+    if (!items || items.length === 0) {
+      setImportError("That file doesn't look like a Little Gerry KB manifest (no items found).");
+      setImporting(false);
+      return;
+    }
+
+    // Import in small batches so a large manifest (hundreds of documents) never
+    // hinges on a single long-lived request, and the user sees live progress
+    // with partial results preserved if one batch fails.
+    const BATCH_SIZE = 20;
+    const merged: ManifestImportResult = {
+      imported: [], skipped: [], failed: [],
+      imported_count: 0, skipped_count: 0, failed_count: 0,
+    };
+    setImportProgress({ done: 0, total: items.length });
+    try {
+      for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        const chunk = items.slice(i, i + BATCH_SIZE);
+        const r = await importManifest(chunk, false);
+        merged.imported.push(...r.imported);
+        merged.skipped.push(...r.skipped);
+        merged.failed.push(...r.failed);
+        merged.imported_count += r.imported_count;
+        merged.skipped_count += r.skipped_count;
+        merged.failed_count += r.failed_count;
+        setImportResult({ ...merged });
+        setImportProgress({ done: Math.min(i + BATCH_SIZE, items.length), total: items.length });
+        if (r.imported_count > 0) onChanged();
       }
-      const r = await importManifest(items, false);
-      setImportResult(r);
-      if (r.imported_count > 0) onChanged();
     } catch (e) {
-      if (e instanceof SyntaxError) {
-        setImportError("Couldn't read that file — it isn't valid JSON.");
-      } else {
-        setImportError(getErrorMessage(e));
-      }
+      const partial = merged.imported_count > 0 ? ` (imported ${merged.imported_count} before stopping)` : "";
+      setImportError(`${getErrorMessage(e)}${partial}`);
     } finally {
       setImporting(false);
     }
@@ -833,7 +864,11 @@ function ShareKbModal({
               className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
             >
               {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileUp className="h-4 w-4" />}
-              {importing ? "Importing…" : "Choose manifest file"}
+              {importing
+                ? importProgress
+                  ? `Importing… ${importProgress.done}/${importProgress.total}`
+                  : "Importing…"
+                : "Choose manifest file"}
             </button>
             <input
               ref={importInputRef}
