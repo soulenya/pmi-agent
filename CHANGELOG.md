@@ -4,6 +4,16 @@
 
 ## Changelog
 
+### v2.8.0 — 2026-06-30
+**Email workspace (read · draft · tag · contacts) + tamper-evident conversation backups**
+
+- **Gmail inbox + thread reading (`InboxPage.tsx`, `GET /api/google/gmail/inbox`, `gmail_get_thread`):** new Inbox under Communications lists threads (Inbox/Unread/Today filters + search) and renders each message with HTML bodies (sandboxed iframe, no scripts), inline `cid:` images and attachments fetched as authenticated blobs.
+- **Email → Knowledge Base (`services/documents/email_import.py`, `POST /api/google/gmail/thread/import`):** add a selected thread and its attachments into a dedicated `Email` category (kept out of regulated docs), stamped with from/date/threadId.
+- **Reply / compose + Let Gerry Draft (`POST /api/google/gmail/send`, `/gmail/draft-reply`, `/gmail/draft-unread-today`):** user-written mail sends freely with proper threading (In-Reply-To/References); Gerry-authored drafts always route to Approvals as individual items (no auto-send, no "approve all"). Batch "Draft today's unread" drafts a reply per unread via `db.begin_nested()` savepoints. Unreviewed `gerry-reply` drafts auto-delete next day (`services/email_cleanup.py`, daily 03:00 loop). Signature settings (gmail/custom/none) via `gmail_get_signature` + SystemSetting.
+- **Learning tag memory (`email.tag_rules` SystemSetting):** confirm tags on a contact/domain once; `_resolve_tags` auto-applies them to matching mail at inbox-open. LLM tag suggestions; no `gmail.modify`/re-consent (sidecar layer).
+- **Contacts (`services/email_contacts.py`, `email.contacts` SystemSetting):** auto-derived from senders + manual add/edit, recipient autofill (`/contacts/suggest`), tag-linked, and people-knowledge via the enhanced `search_contacts` agent tool (PMI store + Google People).
+- **Tamper-evident conversation backups (`services/conversation_backup.py`, `routers/conversation_backup.py`, `_conversation_backup_loop`):** append-only, SHA-256 hash-chained + HMAC-SHA256-signed snapshots of all conversations, written to `~/.pmi-agent/backups` and uploaded to Drive; daily schedule + manual run; `GET /api/backups/verify` re-walks the chain and validates every hash/signature; signed files downloadable. Backup config/ledger stored in SystemSetting (no migration).
+
 ### v2.7.9 — 2026-06-30
 **Reliable large KB-manifest imports**
 

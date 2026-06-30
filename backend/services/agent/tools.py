@@ -578,8 +578,10 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "search_contacts",
             "description": (
-                "ONLY call this when the user explicitly asks to look up a person's "
-                "contact details (email, phone, company) in Google Contacts."
+                "Look up a person's contact details (email, phone, company). Use when "
+                "the user asks about a contact or 'who is our contact at <company>'. "
+                "Searches both PMI's own contacts (derived from email + manual entries) "
+                "and Google Contacts."
             ),
             "parameters": {
                 "type": "object",
@@ -1366,26 +1368,50 @@ async def execute_get_calendar_events(ctx: ToolContext, args: dict[str, Any]) ->
 
 async def execute_search_contacts(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
+    from services.email_contacts import get_contacts, search_contacts_store
     from services.google_service import contacts_search, get_credentials
-    if not get_credentials():
-        return _google_not_connected()
+
     query = str(args.get("query", "")).strip()
     if not query:
         return "Error: query must not be empty."
+
+    # Gerry's own contacts, derived from email senders + manual entries.
+    local: list[dict] = []
     try:
-        contacts = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: contacts_search(query, 10)
-        )
-    except Exception as exc:
-        return f"Contacts search failed: {exc}"
-    if not contacts:
+        store = await get_contacts(ctx.db)
+        local = search_contacts_store(store, query, 10)
+    except Exception:
+        local = []
+
+    # Google Contacts (only if the account is connected).
+    google: list[dict] = []
+    if get_credentials():
+        try:
+            google = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: contacts_search(query, 10)
+            )
+        except Exception:
+            google = []
+
+    if not local and not google:
         return f"No contacts found for: {query}"
-    lines = [f"Contacts matching '{query}':\n"]
-    for c in contacts:
-        lines.append(
-            f"Name: {c['name']}\nEmail: {c['email']}\n"
-            f"Phone: {c['phone']}\nCompany: {c['company']}"
-        )
+
+    lines: list[str] = []
+    if local:
+        lines.append(f"PMI contacts (from email) matching '{query}':")
+        for c in local:
+            company = f" — {c['company']}" if c.get("company") else ""
+            seen = f" (seen {c.get('count', 0)}x)" if c.get("count") else ""
+            lines.append(
+                f"Name: {c.get('name') or '(unknown)'}{company}\nEmail: {c['email']}{seen}"
+            )
+    if google:
+        lines.append(f"Google Contacts matching '{query}':")
+        for c in google:
+            lines.append(
+                f"Name: {c['name']}\nEmail: {c['email']}\n"
+                f"Phone: {c['phone']}\nCompany: {c['company']}"
+            )
     return "\n\n".join(lines)
 
 

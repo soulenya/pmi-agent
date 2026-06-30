@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 105;
+export const BUILD_NUMBER = 106;
 export const BUILD_DATE = "2026-06-30";
 
 export interface ChangelogEntry {
@@ -14,6 +14,21 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 106,
+    date: "2026-06-30",
+    title: "Your email, with Little Gerry: read, draft, tag, contacts — plus tamper-evident conversation backups",
+    changes: [
+      "Read your Gmail inbox right inside Little Gerry — a new Inbox under Communications shows your threads with full message history, images and attachments, and quick filters for Unread and Today",
+      "Turn any email thread into knowledge — pick a thread and add it (and its attachments) to a dedicated Email knowledge category, kept separate from your regulated documents",
+      "Reply and compose from the reading pane — emails you write yourself send straight away, while anything Little Gerry drafts always goes to Approvals for your review first, never sent automatically",
+      "Let Gerry Draft a reply with one click, and 'Draft today's unread' to have Gerry prepare a response to every unread email from today — each one waits in Approvals for you to send, edit or delete individually",
+      "Unreviewed Gerry drafts tidy themselves up the next day, and you can set your email signature (use your Gmail signature, write a custom one, or none)",
+      "Smart tags that learn — confirm tags on a sender or company once and Little Gerry remembers them, automatically labelling future mail from that contact or domain when you open your inbox",
+      "A Contacts book that builds itself — contacts are gathered from the people you email, you can add or edit them by hand, recipient fields autofill as you type, and you can ask Gerry 'who's our contact at <company>?'",
+      "Tamper-evident conversation backups — a new Conversation Backups page under Administration saves signed, append-only snapshots of your chats both on your computer and to your Google Drive, with a one-click integrity check and download",
+    ],
+  },
   {
     build: 105,
     date: "2026-06-30",
