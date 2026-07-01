@@ -58,6 +58,19 @@ export async function updateSettings(body: SettingsUpdate): Promise<AppSettings>
   return resp.data;
 }
 
+/**
+ * Read a persisted client UI-state value. Backed by the server (Postgres) so it
+ * survives installer updates that reset the embedded webview's localStorage.
+ */
+export async function getClientState<T = unknown>(key: string): Promise<T | null> {
+  const resp = await apiClient.get<{ value: T | null }>(`/settings/client-state/${key}`);
+  return resp.data?.value ?? null;
+}
+
+export async function setClientState(key: string, value: unknown): Promise<void> {
+  await apiClient.put(`/settings/client-state/${key}`, { value });
+}
+
 export async function testConnection(provider: string): Promise<TestConnectionResult> {
   const resp = await apiClient.post<TestConnectionResult>("/settings/test-connection", { provider });
   return resp.data;

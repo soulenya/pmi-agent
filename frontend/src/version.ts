@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 108;
+export const BUILD_NUMBER = 109;
 export const BUILD_DATE = "2026-06-30";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 109,
+    date: "2026-06-30",
+    title: "'What's New' and the feature guide now show reliably, and Discard truly stops a stuck recording",
+    changes: [
+      "The 'What's New' window now appears reliably after an update — what you've already seen is remembered on the server, so it no longer gets forgotten each time the app updates itself",
+      "The 'What Gerry can do' guide is remembered the same way, so it pops up once per section after an update instead of never (or every time)",
+      "Discarding a stuck recording now actually stops it — Little Gerry cancels any transcription that was still running in the background, so the header no longer shows 'Transcribing…' after you delete it",
+    ],
+  },
   {
     build: 108,
     date: "2026-06-30",
