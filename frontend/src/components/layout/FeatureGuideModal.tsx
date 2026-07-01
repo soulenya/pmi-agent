@@ -4,27 +4,20 @@ import { Sparkles, X, HelpCircle } from "lucide-react";
 import { BUILD_NUMBER } from "@/version";
 import { resolveGuide, type ResolvedGuide } from "@/lib/featureGuide";
 import { useFeatureGuideStore } from "@/stores/featureGuideStore";
+import { useBootPopupStore } from "@/stores/bootPopupStore";
+import { getClientState, setClientState } from "@/api/settings";
 
 const SEEN_KEY = "featureGuide.seenBuilds";
 
-function readSeen(): Record<string, number> {
+/** Best-effort read of the legacy localStorage record (for a one-time migration). */
+function readLegacyLocal(): Record<string, number> | null {
   try {
     const raw = window.localStorage.getItem(SEEN_KEY);
-    if (!raw) return {};
+    if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, number>) : {};
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, number>) : null;
   } catch {
-    return {};
-  }
-}
-
-function markSeen(id: string) {
-  try {
-    const seen = readSeen();
-    seen[id] = BUILD_NUMBER;
-    window.localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
-  } catch {
-    /* ignore */
+    return null;
   }
 }
 
@@ -33,47 +26,66 @@ function markSeen(id: string) {
  *
  * Auto-opens once per build the first time you navigate into a section, and can
  * be reopened any time from the Help button in the header.
+ *
+ * Which sections have been seen (per build) is stored server-side (Postgres) so
+ * it survives installer updates that reset the embedded webview's localStorage.
  */
 export function FeatureGuideModal() {
   const location = useLocation();
   const [active, setActive] = useState<ResolvedGuide | null>(null);
-  const pending = useRef<ResolvedGuide | null>(null);
 
+  // null while loading; a record of section id -> last build the guide was shown.
+  const [seen, setSeen] = useState<Record<string, number> | null>(null);
+  const seenRef = useRef<Record<string, number> | null>(null);
+  seenRef.current = seen;
+
+  const phase = useBootPopupStore((s) => s.phase);
   const requestedId = useFeatureGuideStore((s) => s.requestedId);
   const clearRequest = useFeatureGuideStore((s) => s.clear);
 
-  // Auto-open once per build the first time you enter each section. If the
-  // "What's New" popup is showing (fresh update), wait until it's dismissed so
-  // the two don't stack.
+  // Load the seen-map from the server once on mount (migrating any legacy value).
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let map: Record<string, number> | null = null;
+      try {
+        map = await getClientState<Record<string, number>>(SEEN_KEY);
+      } catch {
+        map = null;
+      }
+      if (!map) map = readLegacyLocal();
+      if (!cancelled) setSeen(map ?? {});
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function markSeen(id: string) {
+    const next = { ...(seenRef.current ?? {}), [id]: BUILD_NUMBER };
+    seenRef.current = next;
+    setSeen(next);
+    void setClientState(SEEN_KEY, next).catch(() => {});
+    try {
+      window.localStorage.setItem(SEEN_KEY, JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Auto-open once per build the first time you enter each section. Waits until
+  // the "What's New" popup has finished (boot phase "done") so they don't stack.
+  useEffect(() => {
+    if (phase !== "done") return;
+    if (seen === null) return; // still loading the seen-map
+
     const guide = resolveGuide(location.pathname);
     if (!guide) return;
-
-    const seen = readSeen();
     if ((seen[guide.id] ?? -1) >= BUILD_NUMBER) return;
-
-    if (window.__whatsNewOpen) {
-      pending.current = guide;
-      return;
-    }
 
     markSeen(guide.id);
     setActive(guide);
-  }, [location.pathname]);
-
-  // When "What's New" closes, show the guide we deferred (if any).
-  useEffect(() => {
-    function onWhatsNewClosed() {
-      const guide = pending.current;
-      if (guide) {
-        pending.current = null;
-        markSeen(guide.id);
-        setActive(guide);
-      }
-    }
-    window.addEventListener("whatsnew:closed", onWhatsNewClosed);
-    return () => window.removeEventListener("whatsnew:closed", onWhatsNewClosed);
-  }, []);
+  }, [location.pathname, phase, seen]);
 
   // Manual open from the Help button — always shows the current section.
   useEffect(() => {
