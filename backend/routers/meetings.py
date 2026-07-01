@@ -264,6 +264,16 @@ async def recorder_recover(
     return RecorderStatusOut.model_validate(meeting_monitor.snapshot())
 
 
+@router.post("/recorder/discard", response_model=RecorderStatusOut)
+async def recorder_discard(
+    _user: User = Depends(get_current_user),
+) -> RecorderStatusOut:
+    """Delete any recordings saved to disk that are awaiting transcription, so
+    Little Gerry stops trying to recover them on every startup."""
+    await asyncio.to_thread(meeting_monitor.discard_all_pending)
+    return RecorderStatusOut.model_validate(meeting_monitor.snapshot())
+
+
 @router.get("/stt/credentials-status", response_model=SttCredentialsStatusOut)
 async def stt_credentials_status(
     _user: User = Depends(get_current_user),

@@ -37,32 +37,43 @@ function markSeen(id: string) {
 export function FeatureGuideModal() {
   const location = useLocation();
   const [active, setActive] = useState<ResolvedGuide | null>(null);
-  const booted = useRef(false);
+  const pending = useRef<ResolvedGuide | null>(null);
 
   const requestedId = useFeatureGuideStore((s) => s.requestedId);
   const clearRequest = useFeatureGuideStore((s) => s.clear);
 
-  // Auto-open once per build when navigating into a section.
+  // Auto-open once per build the first time you enter each section. If the
+  // "What's New" popup is showing (fresh update), wait until it's dismissed so
+  // the two don't stack.
   useEffect(() => {
     const guide = resolveGuide(location.pathname);
     if (!guide) return;
 
     const seen = readSeen();
-    const alreadySeen = (seen[guide.id] ?? -1) >= BUILD_NUMBER;
+    if ((seen[guide.id] ?? -1) >= BUILD_NUMBER) return;
 
-    // On the initial boot render, record the landing section silently so the
-    // "What's New" popup owns first impressions; auto-guides fire on navigation.
-    if (!booted.current) {
-      booted.current = true;
-      if (!alreadySeen) markSeen(guide.id);
+    if (window.__whatsNewOpen) {
+      pending.current = guide;
       return;
     }
 
-    if (!alreadySeen) {
-      markSeen(guide.id);
-      setActive(guide);
-    }
+    markSeen(guide.id);
+    setActive(guide);
   }, [location.pathname]);
+
+  // When "What's New" closes, show the guide we deferred (if any).
+  useEffect(() => {
+    function onWhatsNewClosed() {
+      const guide = pending.current;
+      if (guide) {
+        pending.current = null;
+        markSeen(guide.id);
+        setActive(guide);
+      }
+    }
+    window.addEventListener("whatsnew:closed", onWhatsNewClosed);
+    return () => window.removeEventListener("whatsnew:closed", onWhatsNewClosed);
+  }, []);
 
   // Manual open from the Help button — always shows the current section.
   useEffect(() => {
