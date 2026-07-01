@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 109;
+export const BUILD_NUMBER = 110;
 export const BUILD_DATE = "2026-06-30";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 110,
+    date: "2026-06-30",
+    title: "The 'What's New' window now shows after this update too",
+    changes: [
+      "Fixed the 'What's New' window not appearing after updating: it now shows whenever there's something you haven't seen — including right after an update that reset the app's local storage — instead of staying quiet",
+    ],
+  },
   {
     build: 109,
     date: "2026-06-30",

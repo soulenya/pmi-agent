@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v2.9.3 — 2026-06-30
+**"What's New" appears after the migration update too**
+
+- **Show What's New on first-seen build, including post-migration (`WhatsNewModal.tsx`):** v2.9.2 moved the "last seen build" marker to the server, but on the very update that introduced it there is no server value yet *and* the installer had already wiped the webview's `localStorage`, so the modal treated it as a fresh install and stayed silent. The modal now shows whenever the stored marker is missing or older than the current build (welcoming with the latest entry when there's no marker at all), and falls back to `localStorage` when the updated backend endpoint isn't reachable yet. It records the acknowledged build to the server only when the server was readable this session (always to `localStorage`).
+
 ### v2.9.2 — 2026-06-30
 **Server-persisted popup state (survives updates) + truly cancellable transcription**
 
