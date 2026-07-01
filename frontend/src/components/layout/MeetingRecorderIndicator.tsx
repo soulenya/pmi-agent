@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Mic, MicOff, Radio, RotateCcw, Square, X } from "lucide-react";
+import { Loader2, Mic, MicOff, Radio, RotateCcw, Square, Trash2, X } from "lucide-react";
 import {
   getRecorderStatus,
   setRecorderEnabled,
   startRecording,
   stopRecording,
   recoverRecordings,
+  discardRecordings,
 } from "@/api/meetings";
 import { getSettings } from "@/api/settings";
 import type { RecorderStatus } from "@/types/meetings";
@@ -64,6 +65,11 @@ export function MeetingRecorderIndicator() {
     onSuccess: (s) => qc.setQueryData(["recorder-status"], s),
   });
 
+  const discardRec = useMutation({
+    mutationFn: () => discardRecordings(),
+    onSuccess: (s) => qc.setQueryData(["recorder-status"], s),
+  });
+
   const [promptPlatform, setPromptPlatform] = useState<string | null>(null);
   const dismissedRef = useRef(false);
   const prevMeetingIdRef = useRef<string | null>(null);
@@ -115,6 +121,28 @@ export function MeetingRecorderIndicator() {
               Recover {status.pending} recording{status.pending > 1 ? "s" : ""}
             </span>
             <span className="lg:hidden">{status.pending}</span>
+          </button>
+        )}
+        {status.pending > 0 && status.state !== "recording" && (
+          <button
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Delete ${status.pending} interrupted recording${status.pending > 1 ? "s" : ""} without transcribing? This stops Little Gerry from trying to recover ${status.pending > 1 ? "them" : "it"} and can't be undone.`,
+                )
+              ) {
+                discardRec.mutate();
+              }
+            }}
+            disabled={discardRec.isPending}
+            title="Delete the interrupted recordings so Little Gerry stops trying to recover them"
+            className="flex items-center justify-center rounded-full border border-zinc-400/40 bg-zinc-400/10 p-2 text-xs font-medium text-zinc-500 transition-colors hover:border-red-500/40 hover:bg-red-500/20 hover:text-red-500 disabled:opacity-60 dark:text-zinc-400"
+          >
+            {discardRec.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
           </button>
         )}
         {recording || processing ? (

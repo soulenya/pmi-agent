@@ -290,6 +290,23 @@ class MeetingMonitor:
         except OSError:
             return 0
 
+    def discard_all_pending(self) -> int:
+        """Delete every recording persisted to disk awaiting transcription.
+
+        Used when the user wants to stop Little Gerry from repeatedly trying to
+        recover a stuck recording on startup. Returns the number removed."""
+        removed = 0
+        try:
+            for wav_path in list(self._pending_dir().glob("*.wav")):
+                self._discard_pending(wav_path.stem)
+                removed += 1
+        except OSError:
+            logger.debug("Discarding pending recordings failed", exc_info=True)
+        self._update(pending=self._pending_count())
+        if removed:
+            logger.info("Discarded %d pending recording(s) at user request", removed)
+        return removed
+
     async def _finalize_recording(self) -> None:
         platform = self._current_platform or "Meeting"
         self._update(state="processing")

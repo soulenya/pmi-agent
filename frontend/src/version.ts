@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 107;
+export const BUILD_NUMBER = 108;
 export const BUILD_DATE = "2026-06-30";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 108,
+    date: "2026-06-30",
+    title: "Discard stuck recording recoveries, and a more reliable 'What Gerry can do' guide",
+    changes: [
+      "If a recording keeps trying (and failing) to recover every time you open Little Gerry, there's now a Discard button next to 'Recover recordings' to delete it for good and stop the retries",
+      "The 'What Gerry can do' guide now reliably pops up once per section after an update — it politely waits for the 'What's New' window to close first, instead of being skipped",
+    ],
+  },
   {
     build: 107,
     date: "2026-06-30",
