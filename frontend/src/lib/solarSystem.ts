@@ -120,9 +120,8 @@ export const PLANETS: Planet[] = [
     angle: 105,
     size: 50,
     moons: [
-      { id: "inbox", route: "/inbox", label: "Inbox", icon: Inbox },
+      { id: "inbox", route: "/inbox", label: "Gmail", icon: Inbox },
       { id: "contacts", route: "/contacts", label: "Contacts", icon: Users },
-      { id: "emails", route: "/emails", label: "Email Drafts", icon: Mail },
       { id: "google", route: "/google", label: "Google Workspace", icon: Globe },
     ],
   },
