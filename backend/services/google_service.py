@@ -288,6 +288,9 @@ def gmail_send(
     body: str,
     thread_id: str | None = None,
     reply_to_message_id: str | None = None,
+    cc: str | None = None,
+    bcc: str | None = None,
+    attachments: list[dict] | None = None,
 ) -> dict:
     """Send a Gmail message.
 
@@ -296,11 +299,42 @@ def gmail_send(
     ``In-Reply-To`` / ``References`` so the reply threads correctly. When
     ``thread_id`` is given the message is attached to that Gmail thread.
     Threading is best-effort: the email still sends if header lookup fails.
+
+    ``cc`` / ``bcc`` are optional comma-separated address strings. Each item of
+    ``attachments`` is ``{filename, mime_type, data (bytes)}``; when any are
+    present (or cc/bcc are set) a multipart message is built.
     """
     svc = _build("gmail", "v1")
-    msg = email.mime.text.MIMEText(body)
+    attachments = attachments or []
+    if attachments:
+        import email.mime.multipart
+        import email.mime.base
+        import email.mime.text as _mt
+        from email import encoders as _encoders
+
+        msg: Any = email.mime.multipart.MIMEMultipart()
+        msg.attach(_mt.MIMEText(body))
+        for att in attachments:
+            raw_bytes = att.get("data") or b""
+            mime_type = att.get("mime_type") or "application/octet-stream"
+            maintype, _, subtype = mime_type.partition("/")
+            part = email.mime.base.MIMEBase(maintype or "application", subtype or "octet-stream")
+            part.set_payload(raw_bytes)
+            _encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition",
+                "attachment",
+                filename=att.get("filename") or "attachment",
+            )
+            msg.attach(part)
+    else:
+        msg = email.mime.text.MIMEText(body)
     msg["to"] = to
     msg["subject"] = subject
+    if cc:
+        msg["cc"] = cc
+    if bcc:
+        msg["bcc"] = bcc
     if reply_to_message_id:
         try:
             orig = (
@@ -445,17 +479,40 @@ def gmail_get_signature() -> str:
     """Return the HTML signature of the primary send-as address ('' if none).
 
     Reads ``users.settings.sendAs`` — covered by the existing gmail.readonly
-    scope, so no re-consent is required.
+    scope, so no re-consent is required. The ``sendAs.list`` response does not
+    reliably populate the ``signature`` field, so we fall back to fetching each
+    alias individually (primary first) with ``sendAs.get``.
     """
     svc = _build("gmail", "v1")
     resp = svc.users().settings().sendAs().list(userId="me").execute()
     send_as = resp.get("sendAs", [])
-    for sa in send_as:
-        if sa.get("isPrimary") and sa.get("signature"):
-            return sa["signature"]
-    for sa in send_as:
+
+    # Primary alias first, then the rest.
+    ordered = sorted(send_as, key=lambda sa: not sa.get("isPrimary"))
+
+    # 1) Use any signature already present in the list response.
+    for sa in ordered:
         if sa.get("signature"):
             return sa["signature"]
+
+    # 2) list() often omits the signature — fetch each alias to retrieve it.
+    for sa in ordered:
+        addr = sa.get("sendAsEmail")
+        if not addr:
+            continue
+        try:
+            full = (
+                svc.users()
+                .settings()
+                .sendAs()
+                .get(userId="me", sendAsEmail=addr)
+                .execute()
+            )
+        except Exception:
+            continue
+        if full.get("signature"):
+            return full["signature"]
+
     return ""
 
 

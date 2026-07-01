@@ -312,6 +312,8 @@ async def _execute_approved_action(
                 body=body,
                 thread_id=payload.get("thread_id"),
                 reply_to_message_id=payload.get("reply_to_message_id"),
+                cc=payload.get("cc") or None,
+                bcc=payload.get("bcc") or None,
             )
 
             # If this came from an email draft, mark it sent
