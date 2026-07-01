@@ -9,6 +9,8 @@ declare global {
   interface Window {
     /** True while the "What's New" popup is showing, so the feature guide waits. */
     __whatsNewOpen?: boolean;
+    /** False when the seen-state couldn't be read from the server this session. */
+    __whatsNewBackendOk?: boolean;
   }
 }
 
@@ -42,6 +44,7 @@ export function WhatsNewModal() {
 
     (async () => {
       let lastSeen: number | null = null;
+      let backendOk = true;
       try {
         const raw = await getClientState<number | string>(LAST_SEEN_KEY);
         if (raw !== null && raw !== undefined) {
@@ -49,12 +52,12 @@ export function WhatsNewModal() {
           lastSeen = Number.isNaN(n) ? null : n;
         }
       } catch {
-        // Server unreachable — fail safe: don't block the feature guide.
-        if (!cancelled) setPhase("done");
-        return;
+        // Server unreachable (or the updated backend hasn't loaded yet): fall
+        // back to the legacy localStorage marker instead of giving up.
+        backendOk = false;
       }
 
-      // Migrate any legacy localStorage marker into the server store.
+      // Fall back to / migrate any legacy localStorage marker.
       if (lastSeen === null) {
         const legacy = readLegacyLocal();
         if (legacy !== null) lastSeen = legacy;
@@ -62,25 +65,24 @@ export function WhatsNewModal() {
 
       if (cancelled) return;
 
-      // Fresh install: record the current build silently, show nothing.
-      if (lastSeen === null) {
-        try {
-          await setClientState(LAST_SEEN_KEY, BUILD_NUMBER);
-        } catch {
-          /* ignore */
-        }
+      // Nothing new to show — already caught up on this build.
+      if (lastSeen !== null && lastSeen >= BUILD_NUMBER) {
         setPhase("done");
         return;
       }
 
-      if (lastSeen < BUILD_NUMBER) {
-        const unseen = CHANGELOG.filter((e) => e.build > lastSeen!);
-        window.__whatsNewOpen = true;
-        setPhase("showing");
-        setEntries(unseen.length ? unseen : CHANGELOG.slice(0, 1));
-      } else {
-        setPhase("done");
-      }
+      // Show the popup. On a first run anywhere (no marker on the server or in
+      // localStorage — which is also what an installer update looks like, since
+      // it wipes the webview's storage) we show just the latest entry as a
+      // welcome; otherwise we list every build the user hasn't acknowledged.
+      const unseen =
+        lastSeen === null
+          ? CHANGELOG.slice(0, 1)
+          : CHANGELOG.filter((e) => e.build > lastSeen!);
+      window.__whatsNewOpen = true;
+      window.__whatsNewBackendOk = backendOk;
+      setPhase("showing");
+      setEntries(unseen.length ? unseen : CHANGELOG.slice(0, 1));
     })();
 
     return () => {
@@ -89,7 +91,9 @@ export function WhatsNewModal() {
   }, [setPhase]);
 
   function dismiss() {
-    void setClientState(LAST_SEEN_KEY, BUILD_NUMBER).catch(() => {});
+    if (window.__whatsNewBackendOk !== false) {
+      void setClientState(LAST_SEEN_KEY, BUILD_NUMBER).catch(() => {});
+    }
     try {
       window.localStorage.setItem(LAST_SEEN_KEY, String(BUILD_NUMBER));
     } catch {
