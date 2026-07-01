@@ -1,6 +1,9 @@
-import { LogOut, User, Search, AudioLines, Loader2 } from "lucide-react";
+import { LogOut, User, Search, AudioLines, Loader2, HelpCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
+import { useFeatureGuideStore } from "@/stores/featureGuideStore";
+import { resolveGuide } from "@/lib/featureGuide";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import { logout as apiLogout } from "@/api/auth";
 import { getSettings } from "@/api/settings";
@@ -50,6 +53,9 @@ function VoiceLauncher() {
 
 export function Header({ onOpenPalette }: HeaderProps) {
   const { user, refreshToken, logout } = useAuthStore();
+  const location = useLocation();
+  const requestGuide = useFeatureGuideStore((s) => s.requestOpen);
+  const guide = resolveGuide(location.pathname);
 
   async function handleLogout() {
     if (refreshToken) {
@@ -80,6 +86,19 @@ export function Header({ onOpenPalette }: HeaderProps) {
 
         {/* Service controls (restart / update / stop) */}
         <ServiceMenu />
+
+        {/* Context-aware "What Gerry can do" help */}
+        {guide && (
+          <button
+            onClick={() => requestGuide(guide.id)}
+            title={`What Gerry can do in ${guide.title}`}
+            aria-label={`What Gerry can do in ${guide.title}`}
+            className="flex items-center gap-1.5 rounded-md border bg-muted px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">What Gerry can do</span>
+          </button>
+        )}
       </div>
 
       {/* Central voice hot button */}

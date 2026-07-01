@@ -680,6 +680,64 @@ class _JsApi:
             _log_error()
             return False
 
+    def save_file(self, filename: str, b64_data: str, open_after: bool = False) -> str:
+        """Save attachment bytes to the user's Downloads folder; optionally open it.
+
+        The embedded webview does not handle ``<a download>`` / ``window.open``
+        for blob URLs, so the React app fetches the (authenticated) attachment
+        bytes itself and hands them here as base64. Returns the saved path on
+        success, or '' on failure.
+        """
+        try:
+            import base64 as _b64
+            import re as _re
+
+            if not isinstance(filename, str) or not isinstance(b64_data, str):
+                return ""
+
+            # Accept a bare base64 string or a full data: URL.
+            if "," in b64_data and b64_data.strip().lower().startswith("data:"):
+                b64_data = b64_data.split(",", 1)[1]
+
+            raw = _b64.b64decode(b64_data + "=" * (-len(b64_data) % 4))
+
+            # Sanitize the filename — basename only, no traversal/odd chars.
+            name = os.path.basename(filename or "attachment")
+            name = _re.sub(r'[\\/:*?"<>|\r\n]+', "_", name).strip() or "attachment"
+
+            downloads = Path.home() / "Downloads"
+            downloads.mkdir(parents=True, exist_ok=True)
+
+            # Avoid clobbering an existing file: append " (n)" before the extension.
+            target = downloads / name
+            if target.exists():
+                stem, ext = os.path.splitext(name)
+                i = 1
+                while True:
+                    candidate = downloads / f"{stem} ({i}){ext}"
+                    if not candidate.exists():
+                        target = candidate
+                        break
+                    i += 1
+
+            target.write_bytes(raw)
+
+            if open_after:
+                try:
+                    if IS_WINDOWS:
+                        os.startfile(str(target))  # noqa: S606
+                    elif IS_MAC:
+                        subprocess.Popen(["open", str(target)])
+                    else:
+                        subprocess.Popen(["xdg-open", str(target)])
+                except Exception:
+                    _log_error()
+
+            return str(target)
+        except Exception:
+            _log_error()
+            return ""
+
 
 def main() -> None:
     global _win_ref

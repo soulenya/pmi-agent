@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 106;
+export const BUILD_NUMBER = 107;
 export const BUILD_DATE = "2026-06-30";
 
 export interface ChangelogEntry {
@@ -14,6 +14,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 107,
+    date: "2026-06-30",
+    title: "Compose new email, a tidier Gmail, and a built-in guide to what Gerry can do",
+    changes: [
+      "The Inbox is now called Gmail, with Inbox and Drafts as tabs in one place — and a new Compose button to start a fresh email",
+      "Write and send a new email yourself with To, Cc/Bcc, a subject, your signature and file attachments — or switch to 'Ask Gerry', give a recipient and a few key points, and Gerry drafts the whole email for you (it waits in Approvals for your review, never sent automatically)",
+      "'Draft today's unread' now skips automated senders — no-reply addresses, notifications, and Gemini, Teams, Slack or calendar notices — so Gerry only prepares replies to real people",
+      "Email attachments now download and open reliably from the desktop app",
+      "Fixed 'No Gmail signature found' happening for some accounts",
+      "New 'What Gerry can do' guide — a short snapshot of each area pops up once after an update, and you can reopen it any time from the help button in the top bar",
+    ],
+  },
   {
     build: 106,
     date: "2026-06-30",
