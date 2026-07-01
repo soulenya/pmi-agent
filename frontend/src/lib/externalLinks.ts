@@ -13,7 +13,10 @@
  */
 
 interface PyWebView {
-  api?: { open_external?: (url: string) => unknown };
+  api?: {
+    open_external?: (url: string) => unknown;
+    save_file?: (filename: string, b64Data: string, openAfter: boolean) => unknown;
+  };
 }
 
 declare global {
@@ -47,6 +50,35 @@ export function openExternal(url: string): void {
     }
   }
   window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/** True when running inside the pywebview desktop shell with a native file bridge. */
+export function hasNativeSaveFile(): boolean {
+  return typeof window.pywebview?.api?.save_file === "function";
+}
+
+/**
+ * Save a file natively via the pywebview launcher bridge (Downloads folder),
+ * optionally opening it afterward. Returns the saved path, or null if the
+ * native bridge is unavailable or the save failed.
+ *
+ * The embedded webview does not honor `<a download>` / `window.open` for blob
+ * URLs, so callers fetch the (authenticated) bytes themselves and pass them
+ * here as a base64 string (a bare base64 payload or a full `data:` URL).
+ */
+export async function saveFileNative(
+  filename: string,
+  b64Data: string,
+  openAfter: boolean,
+): Promise<string | null> {
+  const save = window.pywebview?.api?.save_file;
+  if (typeof save !== "function") return null;
+  try {
+    const path = await save(filename, b64Data, openAfter);
+    return typeof path === "string" && path ? path : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

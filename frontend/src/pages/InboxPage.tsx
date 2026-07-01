@@ -13,11 +13,15 @@ import {
   Send,
   Sparkles,
   PenLine,
+  PenSquare,
   ShieldCheck,
   Tag,
+  Loader2,
   X,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
+import { hasNativeSaveFile, saveFileNative } from "@/lib/externalLinks";
+import { EmailsPage } from "@/pages/EmailsPage";
 
 const GOOGLE_PREFIX = "/api/google";
 
@@ -219,11 +223,32 @@ function AttachmentItem({ messageId, att }: { messageId: string; att: ThreadAtta
   });
 
   async function download() {
+    // In the desktop (pywebview) shell, blob-URL anchor downloads silently
+    // do nothing — fetch the bytes and save them via the native bridge.
+    if (hasNativeSaveFile()) {
+      const dataUrl = await blobToDataURL(await fetchAttachmentBlob(messageId, att));
+      const saved = await saveFileNative(att.filename, dataUrl, false);
+      if (saved) return;
+    }
     const url = blob.data ?? URL.createObjectURL(await fetchAttachmentBlob(messageId, att));
     const a = document.createElement("a");
     a.href = url;
     a.download = att.filename;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
+  }
+
+  async function openInBrowser() {
+    // Desktop shell: save to Downloads and open with the OS default app
+    // (window.open on a blob URL does nothing inside the embedded webview).
+    if (hasNativeSaveFile()) {
+      const dataUrl = await blobToDataURL(await fetchAttachmentBlob(messageId, att));
+      const saved = await saveFileNative(att.filename, dataUrl, true);
+      if (saved) return;
+    }
+    const url = blob.data ?? URL.createObjectURL(await fetchAttachmentBlob(messageId, att));
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   if (isImage) {
@@ -248,14 +273,23 @@ function AttachmentItem({ messageId, att }: { messageId: string; att: ThreadAtta
   }
 
   return (
-    <button
-      onClick={download}
-      className="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300 hover:text-amber-400 flex items-center gap-1.5"
-    >
-      <Paperclip className="w-3 h-3" />
-      {att.filename} {att.size ? `(${formatBytes(att.size)})` : ""}
-      <Download className="w-3 h-3 opacity-60" />
-    </button>
+    <div className="flex items-center rounded bg-zinc-800 overflow-hidden">
+      <button
+        onClick={openInBrowser}
+        title="Open in browser"
+        className="text-xs px-2 py-1 text-zinc-300 hover:text-amber-400 flex items-center gap-1.5"
+      >
+        <Paperclip className="w-3 h-3" />
+        {att.filename} {att.size ? `(${formatBytes(att.size)})` : ""}
+      </button>
+      <button
+        onClick={download}
+        title="Download"
+        className="px-2 py-1 text-zinc-500 hover:text-amber-400 border-l border-zinc-700"
+      >
+        <Download className="w-3 h-3" />
+      </button>
+    </div>
   );
 }
 
@@ -317,11 +351,15 @@ export default function InboxPage() {
     enabled: !!selected,
   });
 
-  const [batchNotice, setBatchNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(
-    null,
-  );
+  const [batchNotice, setBatchNotice] = useState<{
+    kind: "ok" | "error";
+    text: string;
+    approvals?: boolean;
+  } | null>(null);
   const [batchDrafted, setBatchDrafted] = useState(0);
   const [showSig, setShowSig] = useState(false);
+  const [showCompose, setShowCompose] = useState(false);
+  const [view, setView] = useState<"inbox" | "drafts">("inbox");
 
   const signature = useQuery<SignatureData>({
     queryKey: ["gmail-signature"],
@@ -360,7 +398,7 @@ export default function InboxPage() {
     return (
       <div className="max-w-xl mx-auto p-6">
         <h1 className="text-2xl font-bold text-white mb-3 flex items-center gap-2">
-          <Inbox className="w-6 h-6" /> Inbox
+          <Inbox className="w-6 h-6" /> Gmail
         </h1>
         <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-5 text-sm text-zinc-400">
           Connect your Google account first to read your inbox.{" "}
@@ -375,35 +413,68 @@ export default function InboxPage() {
   return (
     <div className="h-[calc(100vh-3.5rem)] flex flex-col">
       <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
-        <h1 className="text-lg font-semibold text-white flex items-center gap-2">
-          <Inbox className="w-5 h-5" /> Inbox
-        </h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Inbox className="w-5 h-5" /> Gmail
+          </h1>
+          <div className="flex gap-1">
+            {(["inbox", "drafts"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`text-xs px-3 py-1 rounded-full border transition-colors capitalize ${
+                  view === v
+                    ? "bg-zinc-700 border-zinc-600 text-white"
+                    : "border-zinc-700 text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
               setBatchNotice(null);
-              draftUnread.mutate();
+              setShowCompose(true);
             }}
-            disabled={draftUnread.isPending}
-            className="text-xs px-2.5 py-1 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            className="text-xs px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white transition-colors flex items-center gap-1.5"
           >
-            <Sparkles className={`w-3.5 h-3.5 ${draftUnread.isPending ? "animate-pulse" : ""}`} />
-            {draftUnread.isPending ? "Drafting…" : "Draft today's unread"}
+            <PenSquare className="w-3.5 h-3.5" />
+            Compose
           </button>
-          <button
-            onClick={() => setShowSig(true)}
-            className="text-xs px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors flex items-center gap-1.5"
-          >
-            <PenLine className="w-3.5 h-3.5" />
-            Signature
-          </button>
-          <button
-            onClick={() => threads.refetch()}
-            className="text-xs px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors flex items-center gap-1.5"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${threads.isFetching ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
+          {view === "inbox" && (
+            <>
+              <button
+                onClick={() => {
+                  setBatchNotice(null);
+                  draftUnread.mutate();
+                }}
+                disabled={draftUnread.isPending}
+                className="text-xs px-2.5 py-1 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+              >
+                <Sparkles
+                  className={`w-3.5 h-3.5 ${draftUnread.isPending ? "animate-pulse" : ""}`}
+                />
+                {draftUnread.isPending ? "Drafting…" : "Draft today's unread"}
+              </button>
+              <button
+                onClick={() => setShowSig(true)}
+                className="text-xs px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors flex items-center gap-1.5"
+              >
+                <PenLine className="w-3.5 h-3.5" />
+                Signature
+              </button>
+              <button
+                onClick={() => threads.refetch()}
+                className="text-xs px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors flex items-center gap-1.5"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${threads.isFetching ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -414,7 +485,7 @@ export default function InboxPage() {
           }`}
         >
           <span>{batchNotice.text}</span>
-          {batchNotice.kind === "ok" && batchDrafted > 0 && (
+          {batchNotice.kind === "ok" && (batchDrafted > 0 || batchNotice.approvals) && (
             <Link
               to="/approvals"
               className="shrink-0 inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 transition-colors"
@@ -427,8 +498,23 @@ export default function InboxPage() {
       )}
 
       {showSig && <SignatureModal data={signature.data} onClose={() => setShowSig(false)} />}
+      {showCompose && (
+        <ComposeModal
+          signature={resolveSig(signature.data)}
+          onClose={() => setShowCompose(false)}
+          onNotice={(n) => {
+            setBatchDrafted(0);
+            setBatchNotice(n);
+          }}
+        />
+      )}
 
-      <div className="flex-1 flex min-h-0">
+      {view === "drafts" ? (
+        <div className="flex-1 overflow-y-auto">
+          <EmailsPage />
+        </div>
+      ) : (
+        <div className="flex-1 flex min-h-0">
         {/* ── Thread list ── */}
         <div className="w-80 shrink-0 border-r border-zinc-800 flex flex-col">
           <div className="p-3 space-y-2 border-b border-zinc-800">
@@ -527,6 +613,7 @@ export default function InboxPage() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -655,9 +742,11 @@ interface ContactSuggestion {
 function RecipientInput({
   value,
   onChange,
+  placeholder = "To…",
 }: {
   value: string;
   onChange: (v: string) => void;
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const q = value.trim();
@@ -687,7 +776,7 @@ function RecipientInput({
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="To…"
+        placeholder={placeholder}
         className="mt-1 w-full text-sm px-2 py-1 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 focus:outline-none focus:border-zinc-500"
       />
       {open && matches.length > 0 && (
@@ -712,6 +801,316 @@ function RecipientInput({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+const COMPOSE_TONES = [
+  { value: "professional", label: "Professional" },
+  { value: "friendly", label: "Friendly" },
+  { value: "formal", label: "Formal" },
+  { value: "concise", label: "Concise" },
+];
+
+function ComposeModal({
+  signature,
+  onClose,
+  onNotice,
+}: {
+  signature: string;
+  onClose: () => void;
+  onNotice: (n: { kind: "ok" | "error"; text: string; approvals?: boolean }) => void;
+}) {
+  const [mode, setMode] = useState<"self" | "gerry">("self");
+  const [to, setTo] = useState("");
+  const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
+  const [showCcBcc, setShowCcBcc] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState(signature ? `\n\n${signature}` : "");
+  const [files, setFiles] = useState<File[]>([]);
+  const [instruction, setInstruction] = useState("");
+  const [keyPoints, setKeyPoints] = useState("");
+  const [tone, setTone] = useState("professional");
+  const [err, setErr] = useState<string | null>(null);
+
+  const send = useMutation({
+    mutationFn: async () => {
+      const fd = new FormData();
+      fd.append("to", to);
+      fd.append("subject", subject);
+      fd.append("body", body);
+      if (cc.trim()) fd.append("cc", cc);
+      if (bcc.trim()) fd.append("bcc", bcc);
+      for (const f of files) fd.append("files", f);
+      const res = await apiClient.post(`${GOOGLE_PREFIX}/gmail/send-compose`, fd, {
+        timeout: 5 * 60 * 1000,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      onNotice({ kind: "ok", text: `Email sent to ${to}.` });
+      onClose();
+    },
+    onError: (e) => setErr(getError(e)),
+  });
+
+  const gerry = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post(`${GOOGLE_PREFIX}/gmail/compose-draft`, {
+        to,
+        subject: subject.trim() || undefined,
+        instruction,
+        key_points: keyPoints.trim() || undefined,
+        tone,
+        cc: cc.trim() || undefined,
+        bcc: bcc.trim() || undefined,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      onNotice({
+        kind: "ok",
+        text: "Gerry drafted your email and sent it to Approvals for review.",
+        approvals: true,
+      });
+      onClose();
+    },
+    onError: (e) => setErr(getError(e)),
+  });
+
+  const busy = send.isPending || gerry.isPending;
+
+  function submit() {
+    setErr(null);
+    if (!to.trim()) {
+      setErr("Add at least one recipient.");
+      return;
+    }
+    if (mode === "self") {
+      if (!subject.trim()) {
+        setErr("Add a subject.");
+        return;
+      }
+      send.mutate();
+    } else {
+      if (!instruction.trim()) {
+        setErr("Tell Gerry what the email should say.");
+        return;
+      }
+      gerry.mutate();
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 p-5 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold text-white flex items-center gap-2">
+            <PenSquare className="w-4 h-4" /> New email
+          </h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Mode toggle */}
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => setMode("self")}
+            className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex items-center gap-1.5 ${
+              mode === "self"
+                ? "bg-zinc-700 border-zinc-600 text-white"
+                : "border-zinc-700 text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            <PenSquare className="w-3.5 h-3.5" /> Write it myself
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("gerry")}
+            className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex items-center gap-1.5 ${
+              mode === "gerry"
+                ? "bg-amber-900/50 border-amber-700 text-amber-200"
+                : "border-zinc-700 text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" /> Let Gerry compose
+          </button>
+        </div>
+
+        {/* Recipients */}
+        <div className="space-y-2">
+          <div>
+            <label className="text-xs font-medium text-zinc-400">To</label>
+            <RecipientInput value={to} onChange={setTo} placeholder="Name or email…" />
+          </div>
+          {showCcBcc ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-zinc-400">Cc</label>
+                <RecipientInput value={cc} onChange={setCc} placeholder="Cc…" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-zinc-400">Bcc</label>
+                <RecipientInput value={bcc} onChange={setBcc} placeholder="Bcc…" />
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowCcBcc(true)}
+              className="text-[11px] text-zinc-500 hover:text-zinc-300"
+            >
+              + Add Cc / Bcc
+            </button>
+          )}
+        </div>
+
+        {/* Subject */}
+        <div>
+          <label className="text-xs font-medium text-zinc-400">
+            Subject{mode === "gerry" ? " (optional — Gerry will suggest one)" : ""}
+          </label>
+          <input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder="Subject…"
+            className="mt-1 w-full text-sm px-2 py-1.5 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 focus:outline-none focus:border-zinc-500"
+          />
+        </div>
+
+        {mode === "self" ? (
+          <>
+            <div>
+              <label className="text-xs font-medium text-zinc-400">Message</label>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={10}
+                placeholder="Write your email…"
+                className="mt-1 w-full text-sm px-2 py-1.5 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 focus:outline-none focus:border-zinc-500 whitespace-pre-wrap"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500 cursor-pointer">
+                <Paperclip className="w-3.5 h-3.5" />
+                Attach files
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {files.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {files.map((f, i) => (
+                    <span
+                      key={`${f.name}-${i}`}
+                      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300"
+                    >
+                      <Paperclip className="w-3 h-3" />
+                      {f.name} {f.size ? `(${formatBytes(f.size)})` : ""}
+                      <button
+                        type="button"
+                        onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
+                        className="text-zinc-500 hover:text-red-400"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <label className="text-xs font-medium text-zinc-400">
+                What should this email say?
+              </label>
+              <textarea
+                value={instruction}
+                onChange={(e) => setInstruction(e.target.value)}
+                rows={3}
+                placeholder="e.g. Tell Lindsey the NAR audit is delayed to mid-July and ask to reschedule the site visit."
+                className="mt-1 w-full text-sm px-2 py-1.5 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 focus:outline-none focus:border-zinc-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-zinc-400">Key points (optional)</label>
+              <textarea
+                value={keyPoints}
+                onChange={(e) => setKeyPoints(e.target.value)}
+                rows={3}
+                placeholder={"• New target date: July 15\n• Offer two reschedule options\n• Keep it warm and apologetic"}
+                className="mt-1 w-full text-sm px-2 py-1.5 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 focus:outline-none focus:border-zinc-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-zinc-400">Tone</label>
+              <select
+                value={tone}
+                onChange={(e) => setTone(e.target.value)}
+                className="mt-1 w-full text-sm px-2 py-1.5 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 focus:outline-none focus:border-zinc-500"
+              >
+                {COMPOSE_TONES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="text-[11px] text-amber-300/80 flex items-start gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              Gerry-composed emails go to Approvals for your review before anything is sent.
+            </p>
+          </>
+        )}
+
+        {err && <p className="text-xs text-red-400">{err}</p>}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="text-xs px-3 py-1.5 rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={busy}
+            className="text-xs px-4 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 flex items-center gap-1.5"
+          >
+            {busy ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : mode === "self" ? (
+              <Send className="w-3.5 h-3.5" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            {mode === "self"
+              ? busy
+                ? "Sending…"
+                : "Send"
+              : busy
+                ? "Drafting…"
+                : "Draft with Gerry → Approvals"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

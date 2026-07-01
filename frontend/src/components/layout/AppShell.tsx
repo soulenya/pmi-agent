@@ -5,6 +5,7 @@ import { Header } from "./Header";
 import { StatusBar } from "./StatusBar";
 import { ChatSidebar } from "./ChatSidebar";
 import { WhatsNewModal } from "./WhatsNewModal";
+import { FeatureGuideModal } from "./FeatureGuideModal";
 import { useNotificationWS } from "@/hooks/useNotificationWS";
 import { CommandPalette } from "@/components/CommandPalette";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
@@ -99,6 +100,7 @@ export function AppShell() {
         </div>
         <VoiceAssistant />
         <WhatsNewModal />
+        <FeatureGuideModal />
       </div>
     </AppContextProvider>
   );
