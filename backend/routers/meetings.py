@@ -269,8 +269,11 @@ async def recorder_discard(
     _user: User = Depends(get_current_user),
 ) -> RecorderStatusOut:
     """Delete any recordings saved to disk that are awaiting transcription, so
-    Little Gerry stops trying to recover them on every startup."""
-    await asyncio.to_thread(meeting_monitor.discard_all_pending)
+    Little Gerry stops trying to recover them on every startup. Also cancels a
+    recovery that is currently in progress."""
+    # Runs on the event loop (not a worker thread) so it can signal the in-flight
+    # recovery's asyncio cancellation gate safely.
+    meeting_monitor.discard_all_pending()
     return RecorderStatusOut.model_validate(meeting_monitor.snapshot())
 
 

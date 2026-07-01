@@ -572,3 +572,51 @@ async def complete_onboarding(
         await db.commit()
         await db.refresh(current_user)
     return UserOut.model_validate(current_user)
+
+
+# ── Client UI state (persists across app updates, unlike webview localStorage) ─
+
+# Small, allow-listed keys the frontend persists server-side so one-time popups
+# (What's New, the feature guide) survive installer updates that reset the
+# embedded webview's localStorage.
+_CLIENT_STATE_KEYS = {
+    "whatsNew.lastSeenBuild",
+    "featureGuide.seenBuilds",
+}
+_CLIENT_STATE_PREFIX = "client."
+
+
+class ClientStateOut(BaseModel):
+    value: object | None = None
+
+
+class ClientStateIn(BaseModel):
+    value: object | None = None
+
+
+@router.get("/client-state/{key}", response_model=ClientStateOut)
+async def get_client_state(
+    key: str,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> ClientStateOut:
+    """Read a persisted client UI-state value (allow-listed keys only)."""
+    if key not in _CLIENT_STATE_KEYS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown key.")
+    value = await _get_setting(db, _CLIENT_STATE_PREFIX + key)
+    return ClientStateOut(value=value)
+
+
+@router.put("/client-state/{key}", response_model=ClientStateOut)
+async def set_client_state(
+    key: str,
+    body: ClientStateIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ClientStateOut:
+    """Persist a client UI-state value server-side (allow-listed keys only)."""
+    if key not in _CLIENT_STATE_KEYS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown key.")
+    await _set_setting(db, _CLIENT_STATE_PREFIX + key, body.value, current_user.id)
+    await db.commit()
+    return ClientStateOut(value=body.value)
