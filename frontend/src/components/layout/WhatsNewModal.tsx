@@ -3,6 +3,13 @@ import { Sparkles, X } from "lucide-react";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
 import type { ChangelogEntry } from "@/version";
 
+declare global {
+  interface Window {
+    /** True while the "What's New" popup is showing, so the feature guide waits. */
+    __whatsNewOpen?: boolean;
+  }
+}
+
 const LAST_SEEN_KEY = "whatsNew.lastSeenBuild";
 
 /**
@@ -37,6 +44,8 @@ export function WhatsNewModal() {
 
     if (lastSeen < BUILD_NUMBER) {
       const unseen = CHANGELOG.filter((e) => e.build > lastSeen!);
+      // Claim the boot moment so the feature guide waits until this is closed.
+      window.__whatsNewOpen = true;
       setEntries(unseen.length ? unseen : CHANGELOG.slice(0, 1));
     }
   }, []);
@@ -48,6 +57,8 @@ export function WhatsNewModal() {
       /* ignore */
     }
     setEntries(null);
+    window.__whatsNewOpen = false;
+    window.dispatchEvent(new Event("whatsnew:closed"));
   }
 
   if (!entries) return null;

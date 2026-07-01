@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.9.1 — 2026-06-30
+**Discard stuck recording recoveries + reliable feature guide**
+
+- **Discard interrupted recordings (`POST /api/meetings/recorder/discard`, `MeetingMonitor.discard_all_pending`, `MeetingRecorderIndicator.tsx`):** a recording that fails transcription is kept on disk and retried on every startup; a new trash button beside "Recover recordings" deletes all pending `~/.pmi-agent/pending_recordings/*.wav|.json` (with a confirm) so Little Gerry stops trying to recover it.
+- **Feature guide no longer skipped (`WhatsNewModal.tsx`, `FeatureGuideModal.tsx`):** the "What Gerry can do" popup previously recorded the landing section silently on boot and only appeared on later navigation, so it was easy to miss. It now defers to the "What's New" modal via a `whatsnew:closed` event and opens for the current section once that closes — reliably showing once per section per build.
+
 ### v2.9.0 — 2026-06-30
 **Compose email, unified Gmail page, autogen-aware drafting, attachment fixes, and an in-app feature guide**
 
