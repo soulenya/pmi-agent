@@ -75,6 +75,8 @@ class MeetingMonitor:
         # True while a user-initiated (manual) recording is in progress, which
         # suspends the auto detect/finalize logic so only an explicit stop ends it.
         self._manual = False
+        # Set to abort an in-flight pending-recording recovery (user discard).
+        self._recovery_cancel: "asyncio.Event | None" = None
 
         self._status: dict = {
             "enabled": self._enabled,
@@ -294,7 +296,12 @@ class MeetingMonitor:
         """Delete every recording persisted to disk awaiting transcription.
 
         Used when the user wants to stop Little Gerry from repeatedly trying to
-        recover a stuck recording on startup. Returns the number removed."""
+        recover a stuck recording on startup. Also cancels any recovery that is
+        currently in-flight and resets the recorder to idle. Returns the number
+        removed."""
+        # Signal any in-progress recovery (polling a long transcription) to abort.
+        if self._recovery_cancel is not None:
+            self._recovery_cancel.set()
         removed = 0
         try:
             for wav_path in list(self._pending_dir().glob("*.wav")):
@@ -302,6 +309,10 @@ class MeetingMonitor:
                 removed += 1
         except OSError:
             logger.debug("Discarding pending recordings failed", exc_info=True)
+        # If we're only sitting in a recovery/processing state, drop back to idle
+        # so the UI stops showing "Transcribing…".
+        if self._status.get("state") == "processing":
+            self._update(state="idle", platform=None, started_at=None)
         self._update(pending=self._pending_count())
         if removed:
             logger.info("Discarded %d pending recording(s) at user request", removed)
@@ -334,6 +345,7 @@ class MeetingMonitor:
         platform: str,
         recorded_at: datetime,
         pid: str | None,
+        cancel_event: "asyncio.Event | None" = None,
     ) -> bool:
         """Transcribe *wav* and persist a MeetingNote. On success, drop the
         on-disk pending copy. Returns True when a note was created."""
@@ -347,7 +359,9 @@ class MeetingMonitor:
                 )
                 return False  # keep the on-disk copy for a later retry
 
-            transcript = await gcs_stt.transcribe_long(wav, "meeting.wav", "audio/wav")
+            transcript = await gcs_stt.transcribe_long(
+                wav, "meeting.wav", "audio/wav", cancel_event=cancel_event
+            )
             transcript = (transcript or "").strip() or "(No speech detected.)"
 
             async for db in self._get_db():
@@ -424,9 +438,17 @@ class MeetingMonitor:
             )
             return 0
 
+        # Fresh cancellation gate so the user can abort this recovery mid-flight.
+        self._recovery_cancel = asyncio.Event()
         logger.info("Recovering %d interrupted recording(s)…", len(wavs))
         recovered = 0
         for wav_path in wavs:
+            if self._recovery_cancel.is_set():
+                logger.info("Recovery cancelled by user — stopping.")
+                break
+            # The file may have been discarded while we worked through the list.
+            if not wav_path.exists():
+                continue
             pid = wav_path.stem
             platform = "Meeting"
             recorded_at = datetime.now(timezone.utc)
@@ -444,9 +466,12 @@ class MeetingMonitor:
             except OSError:
                 continue
             self._update(state="processing", platform=f"{platform} (recovering)")
-            if await self._transcribe_and_save(wav, platform, recorded_at, pid):
+            if await self._transcribe_and_save(
+                wav, platform, recorded_at, pid, cancel_event=self._recovery_cancel
+            ):
                 recovered += 1
 
+        self._recovery_cancel = None
         self._update(state="idle", platform=None, pending=self._pending_count())
         if recovered:
             logger.info("Recovered %d interrupted recording(s)", recovered)

@@ -255,8 +255,12 @@ async def transcribe_long(
     audio: bytes,
     filename: str,
     mime_type: str | None = None,
+    cancel_event: "asyncio.Event | None" = None,
 ) -> str:
-    """Upload audio to GCS, run v2 batchRecognize, and return the transcript."""
+    """Upload audio to GCS, run v2 batchRecognize, and return the transcript.
+
+    If *cancel_event* is provided and becomes set (e.g. the user discarded a
+    stuck recovery), polling aborts promptly with an SttError."""
     if not is_configured():
         raise SttNotConfiguredError(
             "Google STT v2 isn't configured. Set GCP_STT_BUCKET and provide "
@@ -344,6 +348,8 @@ async def transcribe_long(
             # 3. Poll the operation until done.
             poll_url = f"{_speech_endpoint(location)}/v2/{operation_name}"
             for _ in range(_POLL_MAX_ATTEMPTS):
+                if cancel_event is not None and cancel_event.is_set():
+                    raise SttError("Transcription cancelled.")
                 await asyncio.sleep(_POLL_INTERVAL_SECONDS)
                 poll = await client.get(poll_url, headers=headers)
                 if poll.status_code != 200:

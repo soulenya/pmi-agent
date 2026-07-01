@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.9.2 — 2026-06-30
+**Server-persisted popup state (survives updates) + truly cancellable transcription**
+
+- **"What's New" and feature guide survive updates (`GET`/`PUT /settings/client-state/{key}`, `bootPopupStore.ts`, `WhatsNewModal.tsx`, `FeatureGuideModal.tsx`, `api/settings.ts`):** the embedded webview's `localStorage` is reset by installer-based updates, so the "last seen build" markers were wiped on every update — the popups either never appeared or would have re-appeared endlessly. Seen-state (`whatsNew.lastSeenBuild`, `featureGuide.seenBuilds`) is now persisted server-side in the `SystemSetting` store (allow-listed keys only) and read on mount, with a one-time migration from any legacy `localStorage` value. A small `bootPopupStore` phase (`pending`→`showing`→`done`) coordinates the two so the feature guide waits for "What's New" without relying on a DOM event.
+- **Discard actually stops transcription (`gcs_stt.transcribe_long(cancel_event=…)`, `MeetingMonitor` `_recovery_cancel`/`discard_all_pending`/`recover_pending`/`_transcribe_and_save`, `POST /api/meetings/recorder/discard`):** the long-running Google STT poll (up to ~15 min) kept running after a discard, leaving the header stuck on "Transcribing…". An `asyncio.Event` cancel gate is now threaded from discard → recovery → `transcribe_long`; the poll checks it each iteration and aborts. The discard endpoint runs on the event loop (not a worker thread) so it can safely set the event, and resets recorder state to idle immediately.
+
 ### v2.9.1 — 2026-06-30
 **Discard stuck recording recoveries + reliable feature guide**
 
