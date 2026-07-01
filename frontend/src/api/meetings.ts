@@ -91,6 +91,11 @@ export async function recoverRecordings(): Promise<RecorderStatus> {
   return resp.data;
 }
 
+export async function discardRecordings(): Promise<RecorderStatus> {
+  const resp = await apiClient.post<RecorderStatus>("/meetings/recorder/discard");
+  return resp.data;
+}
+
 export async function addMeetingToKnowledgeBase(id: string): Promise<AddToKbResult> {
   const resp = await apiClient.post<AddToKbResult>(`/meetings/${id}/add-to-kb`, {});
   return resp.data;
