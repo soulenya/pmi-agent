@@ -117,6 +117,43 @@ async def gmail_attachment(
     return Response(content=data, media_type=safe_mime, headers=headers)
 
 
+class AttachmentOpenRequest(BaseModel):
+    filename: str | None = None
+    mime_type: str | None = None
+
+
+@router.post("/gmail/message/{message_id}/attachment/{attachment_id}/open-in-drive")
+async def gmail_attachment_open_in_drive(
+    message_id: str,
+    attachment_id: str,
+    req: AttachmentOpenRequest,
+    _user=Depends(get_current_user),
+):
+    """Copy an email attachment into Google Drive and return a Workspace link.
+
+    Office/text attachments (docx, xlsx, pptx, csv, txt, …) are converted into
+    the matching native Google doc so they open in Google Docs/Sheets/Slides;
+    other types open in the Drive viewer. Returns ``{id, name, url}``.
+    """
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+    try:
+        data = gs.gmail_get_attachment(message_id, attachment_id)
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+    if not data:
+        raise HTTPException(404, "Attachment is empty or unavailable.")
+    try:
+        result = gs.drive_import_attachment(
+            data, (req.filename or "attachment").strip() or "attachment", req.mime_type
+        )
+    except Exception as exc:
+        raise HTTPException(502, f"Could not open the attachment in Google Workspace: {exc}")
+    if not result.get("url"):
+        raise HTTPException(502, "Google Drive did not return an open link for the attachment.")
+    return result
+
+
 class GmailThreadImportRequest(BaseModel):
     thread_id: str
     title: str | None = None
