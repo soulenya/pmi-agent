@@ -16,6 +16,7 @@ import {
   PenSquare,
   ShieldCheck,
   Tag,
+  Trash2,
   Loader2,
   X,
 } from "lucide-react";
@@ -320,6 +321,17 @@ export default function InboxPage() {
   const [filterId, setFilterId] = useState("inbox");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const { data: gstatus } = useQuery<GoogleStatus>({
     queryKey: ["google-status"],
@@ -329,14 +341,27 @@ export default function InboxPage() {
   const activeQuery = search.trim() || FILTERS.find((f) => f.id === filterId)?.q || "in:inbox";
 
   const threads = useQuery({
-    queryKey: ["gmail-inbox", activeQuery],
+    queryKey: tagFilter ? ["gmail-by-tag", tagFilter] : ["gmail-inbox", activeQuery],
     queryFn: async () => {
+      if (tagFilter) {
+        const res = await apiClient.get<{ threads: InboxThread[] }>(
+          `${GOOGLE_PREFIX}/gmail/by-tag`,
+          { params: { tag: tagFilter, max: 30 } },
+        );
+        return res.data.threads ?? [];
+      }
       const res = await apiClient.get<{ threads: InboxThread[] }>(
         `${GOOGLE_PREFIX}/gmail/inbox`,
         { params: { q: activeQuery, max: 30 } },
       );
       return res.data.threads ?? [];
     },
+    enabled: gstatus?.connected === true,
+  });
+
+  const tagList = useQuery<{ tags: { tag: string; count: number }[] }>({
+    queryKey: ["gmail-tag-list"],
+    queryFn: async () => (await apiClient.get(`${GOOGLE_PREFIX}/gmail/tags`)).data,
     enabled: gstatus?.connected === true,
   });
 
@@ -367,29 +392,53 @@ export default function InboxPage() {
     enabled: gstatus?.connected === true,
   });
 
-  const draftUnread = useMutation({
+  const draftSelected = useMutation({
     mutationFn: async () => {
       const res = await apiClient.post(
-        `${GOOGLE_PREFIX}/gmail/draft-unread-today`,
-        {},
+        `${GOOGLE_PREFIX}/gmail/draft-selected`,
+        { thread_ids: Array.from(selectedIds) },
         { timeout: 10 * 60 * 1000 },
       );
       return res.data as { count: number; skipped: { error: string }[] };
     },
     onSuccess: (data) => {
       setBatchDrafted(data.count);
+      setSelectedIds(new Set());
       if (data.count === 0) {
-        setBatchNotice({ kind: "ok", text: "No unread mail from today to draft replies for." });
+        setBatchNotice({
+          kind: "error",
+          text: "Gerry couldn't draft replies for the selected emails.",
+        });
       } else {
         const skip = data.skipped.length ? ` (${data.skipped.length} skipped)` : "";
         setBatchNotice({
           kind: "ok",
-          text: `Gerry drafted ${data.count} repl${data.count === 1 ? "y" : "ies"} and sent them to Approvals for your review${skip}.`,
+          text: `Gerry drafted ${data.count} repl${data.count === 1 ? "y" : "ies"} and sent ${data.count === 1 ? "it" : "them"} to Approvals for your review${skip}.`,
         });
       }
     },
     onError: (e) => {
       setBatchDrafted(0);
+      setBatchNotice({ kind: "error", text: getError(e) });
+    },
+  });
+
+  const trashThread = useMutation({
+    mutationFn: async (threadId: string) => {
+      const res = await apiClient.post(`${GOOGLE_PREFIX}/gmail/thread/${threadId}/trash`);
+      return res.data;
+    },
+    onSuccess: (_data, threadId) => {
+      if (selected === threadId) setSelected(null);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(threadId);
+        return next;
+      });
+      threads.refetch();
+      setBatchNotice({ kind: "ok", text: "Email moved to Trash (recoverable in Gmail for 30 days)." });
+    },
+    onError: (e) => {
       setBatchNotice({ kind: "error", text: getError(e) });
     },
   });
@@ -449,15 +498,18 @@ export default function InboxPage() {
               <button
                 onClick={() => {
                   setBatchNotice(null);
-                  draftUnread.mutate();
+                  draftSelected.mutate();
                 }}
-                disabled={draftUnread.isPending}
-                className="text-xs px-2.5 py-1 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                disabled={draftSelected.isPending || selectedIds.size === 0}
+                title={selectedIds.size === 0 ? "Tick the emails you want Gerry to draft replies for" : ""}
+                className="text-xs px-2.5 py-1 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 disabled:opacity-50 disabled:hover:bg-transparent transition-colors flex items-center gap-1.5"
               >
                 <Sparkles
-                  className={`w-3.5 h-3.5 ${draftUnread.isPending ? "animate-pulse" : ""}`}
+                  className={`w-3.5 h-3.5 ${draftSelected.isPending ? "animate-pulse" : ""}`}
                 />
-                {draftUnread.isPending ? "Drafting…" : "Draft today's unread"}
+                {draftSelected.isPending
+                  ? "Drafting…"
+                  : `Draft selected${selectedIds.size ? ` (${selectedIds.size})` : ""}`}
               </button>
               <button
                 onClick={() => setShowSig(true)}
@@ -531,9 +583,10 @@ export default function InboxPage() {
                   onClick={() => {
                     setFilterId(f.id);
                     setSearch("");
+                    setTagFilter(null);
                   }}
                   className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                    filterId === f.id && !search
+                    filterId === f.id && !search && !tagFilter
                       ? "bg-zinc-700 border-zinc-600 text-white"
                       : "border-zinc-700 text-zinc-400 hover:text-zinc-200"
                   }`}
@@ -542,6 +595,27 @@ export default function InboxPage() {
                 </button>
               ))}
             </div>
+            {tagList.data && tagList.data.tags.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                <select
+                  value={tagFilter ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value || null;
+                    setTagFilter(v);
+                    setSearch("");
+                  }}
+                  className="flex-1 text-xs px-2 py-1 rounded bg-zinc-950 border border-zinc-700 text-zinc-300 focus:outline-none focus:border-zinc-500"
+                >
+                  <option value="">Filter by tag…</option>
+                  {tagList.data.tags.map((t) => (
+                    <option key={t.tag} value={t.tag}>
+                      {t.tag} ({t.count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -549,51 +623,77 @@ export default function InboxPage() {
               <p className="p-4 text-xs text-zinc-500">Loading…</p>
             ) : threads.data && threads.data.length > 0 ? (
               threads.data.map((t) => (
-                <button
+                <div
                   key={t.thread_id}
                   onClick={() => setSelected(t.thread_id)}
-                  className={`w-full text-left px-3 py-2.5 border-b border-zinc-800/60 transition-colors ${
+                  className={`group w-full flex items-start gap-2 px-3 py-2.5 border-b border-zinc-800/60 transition-colors cursor-pointer ${
                     selected === t.thread_id ? "bg-zinc-800" : "hover:bg-zinc-900"
                   }`}
                 >
-                  <div className="flex items-center gap-1.5">
-                    {t.unread ? (
-                      <Mail className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
-                    ) : (
-                      <MailOpen className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
-                    )}
-                    <span
-                      className={`text-sm truncate ${
-                        t.unread ? "text-white font-medium" : "text-zinc-300"
-                      }`}
-                    >
-                      {senderName(t.from)}
-                    </span>
-                    {t.message_count > 1 && (
-                      <span className="ml-auto text-[10px] text-zinc-500">{t.message_count}</span>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(t.thread_id)}
+                    onChange={() => toggleSelect(t.thread_id)}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label="Select email for Gerry to draft a reply"
+                    className="mt-1 shrink-0 accent-amber-500 cursor-pointer"
+                  />
+                  <div className="min-w-0 flex-1 text-left">
+                    <div className="flex items-center gap-1.5">
+                      {t.unread ? (
+                        <Mail className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+                      ) : (
+                        <MailOpen className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                      )}
+                      <span
+                        className={`text-sm truncate ${
+                          t.unread ? "text-white font-medium" : "text-zinc-300"
+                        }`}
+                      >
+                        {senderName(t.from)}
+                      </span>
+                      {t.message_count > 1 && (
+                        <span className="ml-auto text-[10px] text-zinc-500">{t.message_count}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-zinc-400 truncate mt-0.5">
+                      {t.subject || "(no subject)"}
+                    </p>
+                    <p className="text-xs text-zinc-600 truncate">{t.snippet}</p>
+                    {t.tags && t.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {t.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-950/40 border border-amber-800/60 text-amber-300"
+                          >
+                            <Tag className="w-2.5 h-2.5" />
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  <p className="text-xs text-zinc-400 truncate mt-0.5">
-                    {t.subject || "(no subject)"}
-                  </p>
-                  <p className="text-xs text-zinc-600 truncate">{t.snippet}</p>
-                  {t.tags && t.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {t.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-950/40 border border-amber-800/60 text-amber-300"
-                        >
-                          <Tag className="w-2.5 h-2.5" />
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm("Move this email to Trash? You can recover it from Gmail for 30 days.")) {
+                        trashThread.mutate(t.thread_id);
+                      }
+                    }}
+                    disabled={trashThread.isPending}
+                    aria-label="Move to Trash"
+                    title="Move to Trash"
+                    className="shrink-0 mt-0.5 p-1 rounded text-zinc-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-950/30 transition-all disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               ))
             ) : (
-              <p className="p-4 text-xs text-zinc-500">No messages.</p>
+              <p className="p-4 text-xs text-zinc-500">
+                {tagFilter ? `No emails tagged "${tagFilter}".` : "No messages."}
+              </p>
             )}
           </div>
         </div>
@@ -1175,6 +1275,8 @@ function TagModal({ threadId, onClose }: { threadId: string; onClose: () => void
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["gmail-inbox"] });
+      qc.invalidateQueries({ queryKey: ["gmail-by-tag"] });
+      qc.invalidateQueries({ queryKey: ["gmail-tag-list"] });
       qc.invalidateQueries({ queryKey: ["gmail-thread-tags", threadId] });
       onClose();
     },
