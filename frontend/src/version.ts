@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 110;
-export const BUILD_DATE = "2026-06-30";
+export const BUILD_NUMBER = 111;
+export const BUILD_DATE = "2026-07-02";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 111,
+    date: "2026-07-02",
+    title: "Pick which emails Gerry drafts, move mail to Trash, and filter your inbox by tag",
+    changes: [
+      "'Draft today's unread' is now 'Draft selected' — tick the emails you want (from any list: Inbox, Unread, Today or a tag) and Gerry drafts a reply for each one, all waiting in Approvals for your review",
+      "Move an email to Trash right from the inbox (hover an email and click the bin) — it's recoverable from Gmail for 30 days",
+      "Filter your inbox by any tag you've saved: pick a tag to see every email from the people and companies you've filed under it",
+      "Deleting emails needs one extra Google permission — reconnect your Google account once (Google Workspace → reconnect) to enable it",
+    ],
+  },
   {
     build: 110,
     date: "2026-06-30",
