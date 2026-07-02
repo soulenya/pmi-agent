@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v2.11.0 — 2026-07-02
+**Open email attachments in Google Workspace**
+
+- **Open attachments in Google Docs/Sheets/Slides (`drive_import_attachment`, `POST /api/google/gmail/message/{message_id}/attachment/{attachment_id}/open-in-drive`, `AttachmentItem` in `InboxPage.tsx`):** clicking an Office/text attachment (docx, xlsx, pptx, csv, txt, rtf, odt/ods/odp, …) now copies its bytes into Google Drive **with conversion** to the matching native Google doc (`application/vnd.google-apps.document`/`.spreadsheet`/`.presentation`) and opens the Workspace editor URL in the system browser via `openExternal`. Non-convertible types (PDF, archives, unknown) upload as-is and open in the Drive viewer. Uses the already-granted `drive.file` scope (no re-consent). Each attachment keeps an "open with default app" button (native save-and-open) and a "Download" button as fallbacks. Backend fetches bytes with the existing `gmail_get_attachment` and maps source MIME → Google MIME via `_WORKSPACE_IMPORT_MAP`.
+
 ### v2.10.0 — 2026-07-02
 **Draft selected emails, move mail to Trash, and filter the inbox by tag**
 

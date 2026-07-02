@@ -137,6 +137,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     tagline: "Your Gmail, with Gerry alongside.",
     capabilities: [
       "Read your inbox with full threads, images and attachments",
+      "Open Word, Excel and PowerPoint attachments straight in Google Docs, Sheets and Slides",
       "Compose new email yourself, or ask Gerry to draft one for your approval",
       "Tick the emails you want, then 'Draft selected' to have Gerry prepare a reply to each",
       "Move an email to Trash, and filter your inbox by any tag you've saved",

@@ -681,6 +681,70 @@ def drive_upload_bytes(
     }
 
 
+# Office / text formats Google Drive can convert into native Workspace docs.
+_WORKSPACE_IMPORT_MAP = {
+    # → Google Docs
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        "application/vnd.google-apps.document",
+    "application/msword": "application/vnd.google-apps.document",
+    "application/rtf": "application/vnd.google-apps.document",
+    "text/rtf": "application/vnd.google-apps.document",
+    "application/vnd.oasis.opendocument.text": "application/vnd.google-apps.document",
+    "text/plain": "application/vnd.google-apps.document",
+    "text/html": "application/vnd.google-apps.document",
+    # → Google Sheets
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        "application/vnd.google-apps.spreadsheet",
+    "application/vnd.ms-excel": "application/vnd.google-apps.spreadsheet",
+    "application/vnd.oasis.opendocument.spreadsheet": "application/vnd.google-apps.spreadsheet",
+    "text/csv": "application/vnd.google-apps.spreadsheet",
+    "text/tab-separated-values": "application/vnd.google-apps.spreadsheet",
+    # → Google Slides
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+        "application/vnd.google-apps.presentation",
+    "application/vnd.ms-powerpoint": "application/vnd.google-apps.presentation",
+    "application/vnd.oasis.opendocument.presentation": "application/vnd.google-apps.presentation",
+}
+
+
+def drive_import_attachment(
+    data: bytes, name: str, source_mime: str | None = None
+) -> dict:
+    """Upload bytes to Drive so they open in Google Workspace, and return the link.
+
+    Office/text files (docx, xlsx, pptx, csv, txt, …) are converted into the
+    matching native Google doc (Docs/Sheets/Slides) so they open in the Workspace
+    editor. Non-convertible types (PDF, images, archives, …) are uploaded as-is
+    and open in the Drive viewer. Requires the ``drive.file`` scope (granted on
+    connect). Returns ``{id, name, url}`` where ``url`` is the webViewLink.
+    """
+    import io
+    import mimetypes
+    from googleapiclient.http import MediaIoBaseUpload
+
+    src = (source_mime or mimetypes.guess_type(name)[0] or "application/octet-stream")
+    src_key = src.split(";")[0].strip().lower()
+    target = _WORKSPACE_IMPORT_MAP.get(src_key)
+
+    metadata: dict[str, Any] = {"name": name}
+    if target:
+        metadata["mimeType"] = target
+
+    svc = _build("drive", "v3")
+    media = MediaIoBaseUpload(io.BytesIO(data), mimetype=src_key, resumable=False)
+    created = svc.files().create(
+        body=metadata,
+        media_body=media,
+        fields="id,name,webViewLink",
+        supportsAllDrives=True,
+    ).execute()
+    return {
+        "id": created.get("id", ""),
+        "name": created.get("name", name),
+        "url": created.get("webViewLink", ""),
+    }
+
+
 def drive_find_file_matches(name: str, max_results: int = 25) -> list[dict]:
     """Find non-trashed Drive files whose name EXACTLY equals ``name``.
 
