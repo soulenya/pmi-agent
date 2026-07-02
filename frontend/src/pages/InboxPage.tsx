@@ -9,6 +9,7 @@ import {
   RefreshCw,
   BookPlus,
   Download,
+  ExternalLink,
   Reply,
   Send,
   Sparkles,
@@ -21,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
-import { hasNativeSaveFile, saveFileNative } from "@/lib/externalLinks";
+import { hasNativeSaveFile, saveFileNative, openExternal } from "@/lib/externalLinks";
 import { EmailsPage } from "@/pages/EmailsPage";
 
 const GOOGLE_PREFIX = "/api/google";
@@ -252,6 +253,22 @@ function AttachmentItem({ messageId, att }: { messageId: string; att: ThreadAtta
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  // Copy the attachment into Google Drive (converting Office/text files into
+  // native Google Docs/Sheets/Slides) and open it in the user's browser.
+  const openInWorkspace = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post(
+        `${GOOGLE_PREFIX}/gmail/message/${messageId}/attachment/${att.attachment_id}/open-in-drive`,
+        { filename: att.filename, mime_type: att.mime_type },
+        { timeout: 60000 },
+      );
+      return res.data as { url: string };
+    },
+    onSuccess: (data) => {
+      if (data?.url) openExternal(data.url);
+    },
+  });
+
   if (isImage) {
     return (
       <div className="rounded border border-zinc-800 overflow-hidden bg-zinc-900">
@@ -274,22 +291,41 @@ function AttachmentItem({ messageId, att }: { messageId: string; att: ThreadAtta
   }
 
   return (
-    <div className="flex items-center rounded bg-zinc-800 overflow-hidden">
-      <button
-        onClick={openInBrowser}
-        title="Open in browser"
-        className="text-xs px-2 py-1 text-zinc-300 hover:text-amber-400 flex items-center gap-1.5"
-      >
-        <Paperclip className="w-3 h-3" />
-        {att.filename} {att.size ? `(${formatBytes(att.size)})` : ""}
-      </button>
-      <button
-        onClick={download}
-        title="Download"
-        className="px-2 py-1 text-zinc-500 hover:text-amber-400 border-l border-zinc-700"
-      >
-        <Download className="w-3 h-3" />
-      </button>
+    <div className="flex flex-col">
+      <div className="flex items-center rounded bg-zinc-800 overflow-hidden">
+        <button
+          onClick={() => openInWorkspace.mutate()}
+          disabled={openInWorkspace.isPending}
+          title="Open in Google Workspace"
+          className="text-xs px-2 py-1 text-zinc-300 hover:text-amber-400 flex items-center gap-1.5 disabled:opacity-60"
+        >
+          {openInWorkspace.isPending ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <Paperclip className="w-3 h-3" />
+          )}
+          {att.filename} {att.size ? `(${formatBytes(att.size)})` : ""}
+        </button>
+        <button
+          onClick={openInBrowser}
+          title="Open with default app"
+          className="px-2 py-1 text-zinc-500 hover:text-amber-400 border-l border-zinc-700"
+        >
+          <ExternalLink className="w-3 h-3" />
+        </button>
+        <button
+          onClick={download}
+          title="Download"
+          className="px-2 py-1 text-zinc-500 hover:text-amber-400 border-l border-zinc-700"
+        >
+          <Download className="w-3 h-3" />
+        </button>
+      </div>
+      {openInWorkspace.isError && (
+        <span className="text-[11px] text-red-400 mt-1 px-1">
+          Couldn’t open in Google Workspace. Try Download instead.
+        </span>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 111;
+export const BUILD_NUMBER = 112;
 export const BUILD_DATE = "2026-07-02";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 112,
+    date: "2026-07-02",
+    title: "Open email attachments straight in Google Docs, Sheets and Slides",
+    changes: [
+      "Attachments now open in Google Workspace: click a Word, Excel or PowerPoint attachment and Gerry opens it in Google Docs, Sheets or Slides — no download needed",
+      "Other files (PDFs, and anything Google can't convert) open in the Google Drive viewer instead",
+      "Prefer the old behaviour? Each attachment still has an 'open with your default app' button and a Download button",
+    ],
+  },
   {
     build: 111,
     date: "2026-07-02",
