@@ -17,6 +17,7 @@ from typing import Any
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/calendar.readonly",
@@ -473,6 +474,16 @@ def gmail_get_thread(thread_id: str) -> dict:
             "attachments": _list_attachments(payload),
         })
     return {"thread_id": thread_id, "subject": subject, "messages": messages}
+
+
+def gmail_trash_thread(thread_id: str) -> dict:
+    """Move an entire thread to the Gmail Trash (recoverable for 30 days).
+
+    Requires the ``gmail.modify`` scope. Returns ``{thread_id, status}``.
+    """
+    svc = _build("gmail", "v1")
+    svc.users().threads().trash(userId="me", id=thread_id).execute()
+    return {"thread_id": thread_id, "status": "trashed"}
 
 
 def gmail_get_signature() -> str:

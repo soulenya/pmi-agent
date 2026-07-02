@@ -138,7 +138,8 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     capabilities: [
       "Read your inbox with full threads, images and attachments",
       "Compose new email yourself, or ask Gerry to draft one for your approval",
-      "'Draft today's unread' prepares replies to every unread email from today",
+      "Tick the emails you want, then 'Draft selected' to have Gerry prepare a reply to each",
+      "Move an email to Trash, and filter your inbox by any tag you've saved",
       "Smart tags and a saved signature keep your mail organised",
     ],
   },
