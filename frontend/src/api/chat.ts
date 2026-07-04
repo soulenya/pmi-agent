@@ -60,6 +60,21 @@ export async function resolveApproval(
   return resp.data;
 }
 
+export interface EditApprovalRequest {
+  to?: string;
+  cc?: string;
+  subject?: string;
+  body?: string;
+}
+
+export async function editApproval(
+  id: string,
+  body: EditApprovalRequest
+): Promise<ApprovalIntent> {
+  const resp = await apiClient.patch<ApprovalIntent>(`/approvals/${id}`, body);
+  return resp.data;
+}
+
 export async function clearExpiredApprovals(): Promise<{ deleted: number }> {
   const resp = await apiClient.delete<{ deleted: number }>("/approvals/expired");
   return resp.data;

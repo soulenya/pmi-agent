@@ -18,6 +18,7 @@ from models.schemas.conversations import (
     ConversationCreate,
     ConversationOut,
     ConversationUpdate,
+    EditApprovalRequest,
     MessageOut,
     NotificationOut,
     ResolveApprovalRequest,
@@ -418,6 +419,83 @@ async def _execute_approved_action(
         except Exception:
             pass
         return {"status": "error", "detail": err_msg}
+
+
+@approvals_router.patch("/{intent_id}", response_model=ApprovalOut)
+async def edit_approval(
+    intent_id: uuid.UUID,
+    body: EditApprovalRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    audit: AuditLogger = Depends(get_audit_logger),
+) -> ApprovalOut:
+    """Edit an editable field of a pending email approval before it is sent.
+
+    Only ``send_email`` intents that are still ``pending`` can be edited. The
+    edited values are written into ``intent_payload`` (and mirrored to the
+    linked EmailDraft, if any) so the approved send uses them.
+    """
+    repo = ApprovalRepository(db)
+    intent = await repo.get(intent_id, current_user.id)
+    if intent is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Approval not found.")
+    if intent.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Approval is already {intent.status}.",
+        )
+    if intent.intent_type != "send_email":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only email approvals can be edited.",
+        )
+
+    payload = dict(intent.intent_payload or {})
+    if body.to is not None:
+        payload["to"] = body.to.strip()
+        payload["recipient_email"] = body.to.strip()
+    if body.cc is not None:
+        payload["cc"] = body.cc.strip()
+    if body.subject is not None:
+        payload["subject"] = body.subject.strip()
+    if body.body is not None:
+        payload["body"] = body.body
+        payload["draft_body"] = body.body
+    intent.intent_payload = payload
+
+    # Mirror the edits onto the linked EmailDraft so the Drafts view stays in sync.
+    draft_id_raw = payload.get("draft_id")
+    if draft_id_raw:
+        try:
+            from sqlalchemy import select as _select
+            from models.db.email_draft import EmailDraft
+            draft_uuid = uuid.UUID(str(draft_id_raw))
+            row = (await db.execute(
+                _select(EmailDraft).where(EmailDraft.id == draft_uuid)
+            )).scalar_one_or_none()
+            if row:
+                if body.subject is not None:
+                    row.subject = payload["subject"]
+                if body.body is not None:
+                    row.draft_body = body.body
+                if body.to is not None:
+                    row.recipient_email = payload["to"]
+        except Exception:
+            pass  # draft mirror is best-effort
+
+    await db.commit()
+    await db.refresh(intent)
+
+    await audit.log(
+        "approval.edited",
+        actor_id=current_user.id,
+        entity_type="approval_intent",
+        entity_id=intent_id,
+        payload={"intent_type": intent.intent_type},
+    )
+    await db.commit()
+
+    return ApprovalOut.model_validate(intent)
 
 
 @approvals_router.post("/{intent_id}/resolve", response_model=ApprovalOut)
