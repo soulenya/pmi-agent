@@ -467,13 +467,20 @@ def gmail_get_thread(thread_id: str) -> dict:
             "id": m.get("id", ""),
             "from": headers.get("From", ""),
             "to": headers.get("To", ""),
+            "cc": headers.get("Cc", ""),
             "subject": headers.get("Subject", ""),
             "date": headers.get("Date", ""),
             "body": text or _extract_body(payload),
             "body_html": html,
             "attachments": _list_attachments(payload),
         })
-    return {"thread_id": thread_id, "subject": subject, "messages": messages}
+    # The connected account's own address, so the UI can exclude it from Reply-all.
+    me = ""
+    try:
+        me = svc.users().getProfile(userId="me").execute().get("emailAddress", "")
+    except Exception:
+        me = ""
+    return {"thread_id": thread_id, "subject": subject, "me": me, "messages": messages}
 
 
 def gmail_trash_thread(thread_id: str) -> dict:

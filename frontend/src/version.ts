@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 112;
-export const BUILD_DATE = "2026-07-02";
+export const BUILD_NUMBER = 113;
+export const BUILD_DATE = "2026-07-04";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 113,
+    date: "2026-07-04",
+    title: "Reply all, edit Gerry's drafts before sending, and jump straight to Approvals",
+    changes: [
+      "New 'Reply all' button on an email thread — it replies to the sender and everyone else on the message (Cc included), leaving you off the list",
+      "You can now add or edit the Cc line on any reply",
+      "Edit Gerry's drafted emails before they go out: on the Approvals page, click 'Edit' to tweak the To, Cc, subject or wording, then approve to send your edited version",
+      "After you ask Gerry to draft a reply, a 'Go to Approvals' button appears so you can review it in one click",
+    ],
+  },
   {
     build: 112,
     date: "2026-07-02",

@@ -342,6 +342,7 @@ def _reply_subject(subject: str) -> str:
 
 class GmailSendRequest(BaseModel):
     to: str
+    cc: str | None = None
     subject: str
     body: str
     thread_id: str | None = None
@@ -364,6 +365,7 @@ async def gmail_send_endpoint(req: GmailSendRequest, _user=Depends(get_current_u
             body=req.body,
             thread_id=req.thread_id,
             reply_to_message_id=req.reply_to_message_id,
+            cc=(req.cc or "").strip() or None,
         )
     except RuntimeError as e:
         raise HTTPException(401, str(e))
@@ -413,6 +415,7 @@ class GmailDraftReplyRequest(BaseModel):
     thread_id: str
     message_id: str | None = None
     instruction: str | None = None
+    cc: str | None = None
 
 
 class GmailDraftSelectedRequest(BaseModel):
@@ -529,6 +532,7 @@ async def _build_gerry_reply(
     db: AsyncSession,
     user: User,
     reply_to_message_id: str | None = None,
+    cc: str | None = None,
 ) -> dict:
     """Draft a Gerry reply for a thread and persist an EmailDraft + ApprovalIntent.
 
@@ -581,6 +585,7 @@ async def _build_gerry_reply(
         intent_payload={
             "draft_id": str(draft.id),
             "to": recipient_email,
+            "cc": cc or "",
             "recipient_name": recipient_name,
             "recipient_email": recipient_email,
             "subject": subject,
@@ -723,6 +728,7 @@ async def gmail_draft_reply(
             db=db,
             user=current_user,
             reply_to_message_id=req.message_id,
+            cc=(req.cc or "").strip() or None,
         )
     except ValueError as exc:
         raise HTTPException(404, str(exc))
