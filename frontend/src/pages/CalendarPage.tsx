@@ -10,6 +10,7 @@ import { getGoogleStatus, listGoogleCalendarEvents } from "@/api/google";
 import type { Task } from "@/types/tasks";
 import type { MeetingNote } from "@/types/meetings";
 import type { GoogleCalendarEvent } from "@/api/google";
+import { AskGerryButton } from "@/components/AskGerryButton";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -136,7 +137,7 @@ function DayPanel({
               {gcalEvents.map((ev) => (
                 <div key={ev.id} className="flex items-start gap-2 rounded-md px-2 py-1.5 bg-purple-50 dark:bg-purple-950/30">
                   <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-purple-500" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm truncate">{ev.title}</p>
                     {ev.start && (
                       <p className="text-[10px] text-muted-foreground">
@@ -145,6 +146,22 @@ function DayPanel({
                       </p>
                     )}
                   </div>
+                  <AskGerryButton
+                    className="mt-0.5 shrink-0"
+                    build={() => ({
+                      title: `Event: ${ev.title}`,
+                      prompt:
+                        `I'd like your help preparing for this calendar event.\n\n` +
+                        `Title: ${ev.title}\n` +
+                        (ev.start
+                          ? `When: ${new Date(ev.start).toLocaleString([], { timeZone: timezone })}` +
+                            (ev.end ? ` – ${new Date(ev.end).toLocaleString([], { timeZone: timezone })}` : "") +
+                            `\n`
+                          : "") +
+                        (ev.location ? `Where: ${ev.location}\n` : "") +
+                        `\nHelp me prepare — what should I know, and any suggested talking points?`,
+                    })}
+                  />
                 </div>
               ))}
             </div>

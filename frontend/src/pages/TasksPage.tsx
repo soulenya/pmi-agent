@@ -8,7 +8,7 @@ import { getGoogleStatus, listGoogleTasks, importGoogleTasks } from "@/api/googl
 import type { Task, TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
 import type { GoogleTask } from "@/api/google";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
-
+import { AskGerryButton } from "@/components/AskGerryButton";
 const STATUS_ICONS: Record<TaskStatus, React.ReactNode> = {
   backlog: <Circle className="h-4 w-4 text-muted-foreground" />,
   todo: <Circle className="h-4 w-4 text-blue-500" />,
@@ -228,6 +228,21 @@ function TaskRow({
             {new Date(task.due_date).toLocaleDateString()}
           </span>
         )}
+        <AskGerryButton
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          build={() => ({
+            title: `Task: ${task.title}`,
+            prompt:
+              `I'd like your help with this task.\n\n` +
+              `Title: ${task.title}\n` +
+              `Status: ${task.status}\n` +
+              `Priority: ${task.priority}` +
+              (task.due_date ? `\nDue: ${new Date(task.due_date).toLocaleDateString()}` : "") +
+              (task.tags.length ? `\nTags: ${task.tags.join(", ")}` : "") +
+              (task.description ? `\n\nDescription:\n${task.description}` : "") +
+              `\n\nWhat can you tell me about it, and how should I approach it?`,
+          })}
+        />
         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
     </div>
