@@ -19,6 +19,7 @@ import {
   Tag,
   Trash2,
   Loader2,
+  ReplyAll,
   X,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
@@ -60,6 +61,7 @@ interface ThreadMessage {
   id: string;
   from: string;
   to: string;
+  cc: string;
   subject: string;
   date: string;
   body: string;
@@ -70,6 +72,7 @@ interface ThreadMessage {
 interface ThreadDetail {
   thread_id: string;
   subject: string;
+  me?: string;
   messages: ThreadMessage[];
 }
 
@@ -88,6 +91,15 @@ function senderName(from: string): string {
 function emailOf(from: string): string {
   const m = from.match(/<([^>]+)>/);
   return (m ? m[1] : from).trim();
+}
+
+/** Split a comma-separated address header into individual address strings. */
+function splitAddresses(raw: string): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function replySubject(subject: string): string {
@@ -1486,14 +1498,45 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
   const last = detail.messages[detail.messages.length - 1];
   const [showReply, setShowReply] = useState(false);
   const [replyTo, setReplyTo] = useState("");
+  const [replyCc, setReplyCc] = useState("");
+  const [showCc, setShowCc] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const [instruction, setInstruction] = useState("");
   const [showTags, setShowTags] = useState(false);
+  const [draftedToApprovals, setDraftedToApprovals] = useState(false);
 
   function openReply() {
     setReplyTo(emailOf(last?.from || ""));
+    setReplyCc("");
+    setShowCc(false);
     setReplyBody(signature ? `\n\n${signature}` : "");
     setInstruction("");
+    setDraftedToApprovals(false);
+    setShowReply(true);
+    setShowImport(false);
+    setNotice(null);
+  }
+
+  /** Reply to the sender and everyone else on the last message (minus yourself). */
+  function openReplyAll() {
+    const me = (detail.me || "").trim().toLowerCase();
+    const sender = emailOf(last?.from || "");
+    const others = [
+      ...splitAddresses(last?.to || ""),
+      ...splitAddresses(last?.cc || ""),
+    ]
+      .map(emailOf)
+      .filter((a) => {
+        const lower = a.toLowerCase();
+        return a && lower !== me && lower !== sender.toLowerCase();
+      });
+    const uniqueCc = Array.from(new Set(others));
+    setReplyTo(sender);
+    setReplyCc(uniqueCc.join(", "));
+    setShowCc(uniqueCc.length > 0);
+    setReplyBody(signature ? `\n\n${signature}` : "");
+    setInstruction("");
+    setDraftedToApprovals(false);
     setShowReply(true);
     setShowImport(false);
     setNotice(null);
@@ -1503,6 +1546,7 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
     mutationFn: async () => {
       const res = await apiClient.post(`${GOOGLE_PREFIX}/gmail/send`, {
         to: replyTo.trim(),
+        cc: replyCc.trim() || undefined,
         subject: replySubject(detail.subject),
         body: replyBody,
         thread_id: detail.thread_id,
@@ -1526,6 +1570,7 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
           thread_id: detail.thread_id,
           message_id: last?.id,
           instruction: instruction.trim() || null,
+          cc: replyCc.trim() || null,
         },
         { timeout: 2 * 60 * 1000 },
       );
@@ -1536,6 +1581,7 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
         kind: "ok",
         text: "Gerry drafted a reply and sent it to Approvals for your review.",
       });
+      setDraftedToApprovals(true);
       setShowReply(false);
     },
     onError: (e) => setNotice({ kind: "error", text: getError(e) }),
@@ -1577,6 +1623,13 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
           >
             <Reply className="w-3.5 h-3.5" />
             Reply
+          </button>
+          <button
+            onClick={openReplyAll}
+            className="text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 transition-colors flex items-center gap-1.5"
+          >
+            <ReplyAll className="w-3.5 h-3.5" />
+            Reply all
           </button>
           <button
             onClick={() => {
@@ -1641,12 +1694,37 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
         </p>
       )}
 
+      {draftedToApprovals && (
+        <div className="mb-4">
+          <Link
+            to="/approvals"
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 transition-colors"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            Go to Approvals
+          </Link>
+        </div>
+      )}
+
       {showReply && (
         <div className="mb-4 rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-3">
           <label className="block text-xs text-zinc-500">
             To
             <RecipientInput value={replyTo} onChange={setReplyTo} />
           </label>
+          {showCc ? (
+            <label className="block text-xs text-zinc-500">
+              Cc
+              <RecipientInput value={replyCc} onChange={setReplyCc} />
+            </label>
+          ) : (
+            <button
+              onClick={() => setShowCc(true)}
+              className="text-[11px] text-zinc-500 hover:text-amber-400 transition-colors"
+            >
+              + Add Cc
+            </button>
+          )}
           <p className="text-xs text-zinc-500">
             Subject: <span className="text-zinc-300">{replySubject(detail.subject)}</span>
           </p>

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listPendingApprovals, resolveApproval, clearExpiredApprovals } from "@/api/chat";
+import { listPendingApprovals, resolveApproval, clearExpiredApprovals, editApproval } from "@/api/chat";
 import type { ApprovalIntent } from "@/types/chat";
-import { ShieldCheck, ShieldX, Clock, Trash2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { ShieldCheck, ShieldX, Clock, Trash2, CheckCircle2, XCircle, AlertCircle, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -64,10 +64,41 @@ function ApprovalCard({ intent, onResolve }: {
   intent: ApprovalIntent;
   onResolve: (approved: boolean, reason?: string) => Promise<ApprovalIntent>;
 }) {
+  const queryClient = useQueryClient();
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [executionResult, setExecutionResult] = useState<Record<string, unknown> | null>(null);
   const [resolving, setResolving] = useState(false);
+
+  const isEmail = intent.intent_type === "send_email" || intent.intent_type === "send_message";
+  const [editing, setEditing] = useState(false);
+  const [editTo, setEditTo] = useState("");
+  const [editCc, setEditCc] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [editBody, setEditBody] = useState("");
+
+  function startEdit() {
+    const p = intent.intent_payload;
+    setEditTo(pick(p, ["to", "recipient_email", "recipient"]) ?? "");
+    setEditCc(pick(p, ["cc"]) ?? "");
+    setEditSubject(pick(p, ["subject", "title"]) ?? "");
+    setEditBody(pick(p, ["body", "draft_body", "message", "content"]) ?? "");
+    setEditing(true);
+  }
+
+  const editMutation = useMutation({
+    mutationFn: () =>
+      editApproval(intent.id, {
+        to: editTo.trim(),
+        cc: editCc.trim(),
+        subject: editSubject.trim(),
+        body: editBody,
+      }),
+    onSuccess: () => {
+      setEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["approvals"] });
+    },
+  });
 
   const expiresAt = intent.expires_at ? new Date(intent.expires_at) : null;
   const isExpired = expiresAt !== null && expiresAt < new Date();
@@ -108,9 +139,66 @@ function ApprovalCard({ intent, onResolve }: {
         </span>
       </div>
 
-      {/* Payload preview */}
-      {Object.keys(intent.intent_payload).length > 0 && (
-        <PayloadPreview intentType={intent.intent_type} payload={intent.intent_payload} />
+      {/* Payload preview / editor */}
+      {editing ? (
+        <div className="mb-3 space-y-2 rounded-lg border bg-muted/40 p-3">
+          <label className="block text-xs font-medium text-muted-foreground">
+            To
+            <input
+              value={editTo}
+              onChange={(e) => setEditTo(e.target.value)}
+              className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+          <label className="block text-xs font-medium text-muted-foreground">
+            Cc
+            <input
+              value={editCc}
+              onChange={(e) => setEditCc(e.target.value)}
+              placeholder="Comma-separated (optional)"
+              className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+          <label className="block text-xs font-medium text-muted-foreground">
+            Subject
+            <input
+              value={editSubject}
+              onChange={(e) => setEditSubject(e.target.value)}
+              className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+          <label className="block text-xs font-medium text-muted-foreground">
+            Body
+            <textarea
+              value={editBody}
+              onChange={(e) => setEditBody(e.target.value)}
+              rows={8}
+              className="mt-1 w-full resize-y rounded-md border bg-background px-2 py-1.5 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-ring"
+            />
+          </label>
+          {editMutation.isError && (
+            <p className="text-xs text-destructive">Couldn’t save changes. Please try again.</p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => editMutation.mutate()}
+              disabled={editMutation.isPending || !editTo.trim() || !editSubject.trim()}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {editMutation.isPending ? "Saving…" : "Save changes"}
+            </button>
+            <button
+              onClick={() => setEditing(false)}
+              className="rounded-md border px-3 py-1.5 text-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        Object.keys(intent.intent_payload).length > 0 && (
+          <PayloadPreview intentType={intent.intent_type} payload={intent.intent_payload} />
+        )
       )}
 
       {/* Expiry */}
@@ -204,6 +292,16 @@ function ApprovalCard({ intent, onResolve }: {
                 <ShieldCheck className="h-4 w-4" />
                 {resolving ? "Approving…" : "Approve"}
               </button>
+              {isEmail && !editing && (
+                <button
+                  disabled={resolving}
+                  onClick={startEdit}
+                  className="flex items-center gap-1.5 rounded-md border px-4 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit
+                </button>
+              )}
               <button
                 disabled={resolving}
                 onClick={() => setShowRejectBox(true)}
