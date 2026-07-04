@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
+import { AskGerryButton } from "@/components/AskGerryButton";
 
 const GOOGLE_PREFIX = "/api/google";
 
@@ -219,6 +220,20 @@ export function ContactsPage() {
                   )}
                 </div>
                 <div className="shrink-0 flex items-center gap-1.5">
+                  <AskGerryButton
+                    className="p-1.5 text-zinc-500 hover:text-amber-300 hover:bg-zinc-800"
+                    build={() => ({
+                      title: `Contact: ${c.name || c.email}`,
+                      prompt:
+                        `I'd like your help regarding this contact.\n\n` +
+                        `Name: ${c.name || "(unknown)"}\n` +
+                        `Email: ${c.email}` +
+                        (c.company ? `\nCompany: ${c.company}` : "") +
+                        (c.tags && c.tags.length ? `\nTags: ${c.tags.join(", ")}` : "") +
+                        (c.notes ? `\n\nNotes:\n${c.notes}` : "") +
+                        `\n\nWhat can you tell me about them, and can you help me draft an email or prepare for a conversation?`,
+                    })}
+                  />
                   <button
                     onClick={() => {
                       setEditing(c);

@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v2.13.0 — 2026-07-04
+**Ask Gerry about anything — one-click, context-seeded chats across the app**
+
+- **"Ask Gerry" action on every entity (`useAskGerry` hook, `AskGerryButton` component):** a new button appears on tasks (`TasksPage.tsx`), projects (`ProjectsPage.tsx`), contacts (`ContactsPage.tsx`), email drafts (`EmailsPage.tsx`), Gmail threads and attachments (`InboxPage.tsx`), Knowledge Base documents (`DocumentsPage.tsx`), generated files (`GeneratedFilesPage.tsx`) and Google Calendar events (`CalendarPage.tsx`). Clicking it creates a fresh conversation seeded with that item's details and opens the persistent Little Gerry side panel on it.
+- **Real file contents for file entities:** for email attachments (`fetchAttachmentBlob`) and generated files (`fetchGeneratedFileBlob`), the file bytes are uploaded into the new conversation via `POST /conversations/{id}/attachments`, so Gerry reads the actual contents. Unsupported/unreadable types fall back gracefully to a text-only prompt. Knowledge Base documents are referenced by title (already indexed for retrieval).
+- **Seed-message plumbing (`chatSidebarStore.ts`, `ChatSidebar.tsx`):** the store gained a transient, non-persisted `pendingMessage`. The sidebar tracks the open websocket's conversation id (`wsReadyConvId`) and auto-sends the seed message once connected, optimistically showing it in the thread.
+
 ### v2.12.0 — 2026-07-04
 **Reply all, edit Gerry's drafts before sending, and jump to Approvals**
 

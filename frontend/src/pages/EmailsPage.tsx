@@ -26,6 +26,7 @@ import {
 } from "@/api/meetings";
 import type { EmailDraft, EmailDraftCreate, EmailDraftUpdate } from "@/types/meetings";
 import { EMAIL_TONES } from "@/types/meetings";
+import { AskGerryButton } from "@/components/AskGerryButton";
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -235,6 +236,22 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <AskGerryButton
+            className="p-1.5 hover:bg-accent"
+            build={() => ({
+              title: `Email: ${draft.subject}`,
+              prompt:
+                `I'd like your help with this email draft.\n\n` +
+                `Subject: ${draft.subject}\n` +
+                (draft.recipient_name || draft.recipient_email
+                  ? `To: ${draft.recipient_name ?? ""}${draft.recipient_email ? ` <${draft.recipient_email}>` : ""}\n`
+                  : "") +
+                `Tone: ${draft.tone}\n` +
+                (draft.purpose ? `Purpose: ${draft.purpose}\n` : "") +
+                (draft.draft_body ? `\n---\n${draft.draft_body}\n---\n` : "") +
+                `\nCan you review it and suggest improvements?`,
+            })}
+          />
           {canEdit && draft.draft_body && (
             <button
               onClick={() => submitMutation.mutate()}

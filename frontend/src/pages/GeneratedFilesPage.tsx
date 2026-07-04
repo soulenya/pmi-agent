@@ -10,7 +10,7 @@ import {
 import { SaveFileDialog } from "@/components/SaveFileDialog";
 import { BookPlus, CloudUpload, Download, ExternalLink, Eye, Trash2, FileText, Loader2, X } from "lucide-react";
 import { useState } from "react";
-
+import { AskGerryButton } from "@/components/AskGerryButton";
 function stripUuidPrefix(name: string): string {
   return name
     .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[-_]/i, "")
@@ -235,6 +235,17 @@ export function GeneratedFilesPage() {
                     Preview
                   </button>
                 )}
+                <AskGerryButton
+                  label="Ask Gerry"
+                  className="rounded-md border px-2.5 py-1.5 text-xs hover:bg-accent text-foreground"
+                  build={async () => ({
+                    title: `File: ${displayName}`,
+                    prompt:
+                      `I'd like your help with this generated file: "${displayName}". ` +
+                      `I've attached it — please read it and give me a summary, then I'll ask follow-ups.`,
+                    file: { blob: await fetchGeneratedFileBlob(file.name), filename: displayName },
+                  })}
+                />
                 <button
                   onClick={() => setSaveTarget({ name: file.name, displayName })}
                   className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs hover:bg-accent transition-colors"
