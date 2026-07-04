@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v2.12.0 — 2026-07-04
+**Reply all, edit Gerry's drafts before sending, and jump to Approvals**
+
+- **Reply all (`gmail_get_thread` now returns per-message `cc` + the account's own `me` address, `openReplyAll` in `InboxPage.tsx`):** a new "Reply all" button on a thread replies to the sender and everyone else on the last message (To + Cc), automatically excluding your own address and the sender from the Cc list. The reply composer gained an optional Cc field (`RecipientInput`), and `POST /api/google/gmail/send` (`GmailSendRequest`) + `POST /api/google/gmail/draft-reply` (`GmailDraftReplyRequest`) now accept and forward `cc` (Gerry drafts store it in the approval payload).
+- **Edit Gerry's drafted emails before sending (`PATCH /approvals/{intent_id}`, `EditApprovalRequest`, edit UI in `ApprovalsPage.tsx`):** email approvals now have an "Edit" button that reveals editable To/Cc/Subject/Body fields. Saving updates the `ApprovalIntent.intent_payload` (and mirrors subject/body/recipient onto the linked `EmailDraft`), so approving sends the edited version. Only pending `send_email` intents are editable.
+- **"Go to Approvals" button (`InboxPage.tsx`):** after "Let Gerry Draft" succeeds, a one-click link to the Approvals page appears so you can review the draft immediately.
+
 ### v2.11.0 — 2026-07-02
 **Open email attachments in Google Workspace**
 

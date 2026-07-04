@@ -95,6 +95,15 @@ class ResolveApprovalRequest(BaseModel):
     rejection_reason: str | None = Field(None, max_length=1000)
 
 
+class EditApprovalRequest(BaseModel):
+    """Edit an editable field of a pending email approval before it is sent."""
+
+    to: str | None = None
+    cc: str | None = None
+    subject: str | None = None
+    body: str | None = None
+
+
 # ── Notifications ─────────────────────────────────────────────────────────────
 
 class NotificationOut(BaseModel):
