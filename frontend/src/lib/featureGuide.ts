@@ -26,6 +26,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Ask questions across your projects, documents, email and calendar in plain language",
       "Talk hands-free with the voice assistant, or type in chat",
       "Kick off tasks, research and drafts, then review the results",
+      "Click \"Ask Gerry\" on any task, contact, email, file, document, event or project to start a chat about it",
       "Anything Gerry does that reaches the outside world waits for your OK first",
     ],
   },

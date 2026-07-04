@@ -25,7 +25,7 @@ import type {
 } from "@/api/documents";
 import type { Document, DocumentChunk } from "@/types/documents";
 import { DocumentViewer } from "@/components/DocumentViewer";
-import { DriveBrowser } from "@/components/google/DriveBrowser";
+import { AskGerryButton } from "@/components/AskGerryButton";import { DriveBrowser } from "@/components/google/DriveBrowser";
 import { getGoogleStatus, driveImportToKnowledgeBase } from "@/api/google";
 import type { DriveItem } from "@/api/google";
 import {
@@ -478,6 +478,18 @@ function DocumentRow({
 
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
+          <AskGerryButton
+            className="p-1.5"
+            build={() => ({
+              title: `Doc: ${doc.title}`,
+              prompt:
+                `I'd like to ask about a document in my Knowledge Base.\n\n` +
+                `Title: ${doc.title}` +
+                (doc.file_name ? `\nFile: ${doc.file_name}` : "") +
+                `\n\nPlease look it up in the knowledge base and give me a summary, ` +
+                `then I'll ask follow-up questions.`,
+            })}
+          />
           <button
             onClick={onView}
             className="rounded p-1.5 text-muted-foreground hover:text-primary"

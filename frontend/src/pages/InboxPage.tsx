@@ -25,6 +25,7 @@ import {
 import { apiClient } from "@/api/client";
 import { hasNativeSaveFile, saveFileNative, openExternal } from "@/lib/externalLinks";
 import { EmailsPage } from "@/pages/EmailsPage";
+import { AskGerryButton } from "@/components/AskGerryButton";
 
 const GOOGLE_PREFIX = "/api/google";
 
@@ -332,6 +333,17 @@ function AttachmentItem({ messageId, att }: { messageId: string; att: ThreadAtta
         >
           <Download className="w-3 h-3" />
         </button>
+        <AskGerryButton
+          title="Ask Gerry about this attachment"
+          className="px-2 py-1 text-zinc-500 hover:text-amber-400 border-l border-zinc-700"
+          build={async () => ({
+            title: `Attachment: ${att.filename}`,
+            prompt:
+              `I'd like your help with this email attachment: "${att.filename}". ` +
+              `I've attached it — please read it and give me a summary, then I'll ask follow-ups.`,
+            file: { blob: await fetchAttachmentBlob(messageId, att), filename: att.filename },
+          })}
+        />
       </div>
       {openInWorkspace.isError && (
         <span className="text-[11px] text-red-400 mt-1 px-1">
@@ -1631,6 +1643,24 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
             <ReplyAll className="w-3.5 h-3.5" />
             Reply all
           </button>
+          <AskGerryButton
+            label="Ask Gerry"
+            className="px-3 py-1.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 hover:text-amber-200"
+            build={() => {
+              const last = detail.messages[detail.messages.length - 1];
+              return {
+                title: `Email: ${detail.subject || "(no subject)"}`,
+                prompt:
+                  `I'd like your help with this email thread.\n\n` +
+                  `Subject: ${detail.subject || "(no subject)"}\n` +
+                  (last?.from ? `From: ${last.from}\n` : "") +
+                  (last?.to ? `To: ${last.to}\n` : "") +
+                  (last?.cc ? `Cc: ${last.cc}\n` : "") +
+                  `\n---\n${(last?.body ?? "").slice(0, 4000)}\n---\n` +
+                  `\nCan you summarise it and suggest how I should respond?`,
+              };
+            }}
+          />
           <button
             onClick={() => {
               setShowTags(true);

@@ -17,7 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { listProjects, createProject, updateProject, listTasks } from "@/api/tasks";
 import type { Project, Task, TaskStatus, ProjectCreate, ProjectUpdate } from "@/types/tasks";
-
+import { AskGerryButton } from "@/components/AskGerryButton";
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const STATUS_DONE: TaskStatus[] = ["done", "cancelled"];
@@ -379,6 +379,27 @@ function ProjectCard({
             >
               <Pencil className="h-3.5 w-3.5" />
             </button>
+            <AskGerryButton
+              className="p-1 opacity-0 group-hover:opacity-100"
+              build={() => ({
+                title: `Project: ${project.name}`,
+                prompt:
+                  `I'd like your help with this project.\n\n` +
+                  `Name: ${project.name}\n` +
+                  `Status: ${project.status}` +
+                  (target ? `\nTarget date: ${target}` : "") +
+                  `\nProgress: ${done}/${total} tasks done (${pct}%)` +
+                  (overdue > 0 ? `\nOverdue tasks: ${overdue}` : "") +
+                  (project.description ? `\n\nDescription:\n${project.description}` : "") +
+                  (activeTasks.length
+                    ? `\n\nOpen tasks:\n${activeTasks
+                        .slice(0, 10)
+                        .map((t) => `- ${t.title} (${t.status})`)
+                        .join("\n")}`
+                    : "") +
+                  `\n\nGive me a status read and suggest what to focus on next.`,
+              })}
+            />
             <NavLink
               to={`/projects/${project.id}`}
               className="flex items-center gap-1 rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"

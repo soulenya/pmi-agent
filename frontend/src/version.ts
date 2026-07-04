@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 113;
+export const BUILD_NUMBER = 114;
 export const BUILD_DATE = "2026-07-04";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 114,
+    date: "2026-07-04",
+    title: "Ask Gerry about anything — one click to start a chat about a task, email, file, contact and more",
+    changes: [
+      "New 'Ask Gerry' button on your tasks, projects, contacts, emails, email drafts, calendar events, Knowledge Base documents, generated files and email attachments",
+      "Click it and Gerry opens a fresh chat already primed with that item's details, so you can dive straight into questions",
+      "For files — email attachments and generated files — Gerry reads the actual contents so you can ask about what's inside",
+      "Every 'Ask Gerry' chat starts in the Little Gerry side panel and becomes its own conversation you can return to",
+    ],
+  },
   {
     build: 113,
     date: "2026-07-04",
