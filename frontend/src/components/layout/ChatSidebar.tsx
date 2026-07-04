@@ -77,7 +77,14 @@ export function ChatSidebarToggle() {
 // ── Main sidebar ───────────────────────────────────────────────────────────────
 
 export function ChatSidebar() {
-  const { open, toggle, activeConversationId, setActiveConversationId } = useChatSidebarStore();
+  const {
+    open,
+    toggle,
+    activeConversationId,
+    setActiveConversationId,
+    pendingMessage,
+    setPendingMessage,
+  } = useChatSidebarStore();
   const { accessToken: token } = useAuthStore();
   const location = useLocation();
   const qc = useQueryClient();
@@ -87,6 +94,9 @@ export function ChatSidebar() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
+  // The conversation id whose websocket is currently OPEN, used to fire a
+  // queued "Ask Gerry about this" seed message once connected.
+  const [wsReadyConvId, setWsReadyConvId] = useState<string | null>(null);
 
   const wsRef        = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -181,9 +191,10 @@ export function ChatSidebar() {
       const ws = new WebSocket(`${WS_BASE}/ws/chat/${convId}?token=${encodeURIComponent(token)}`);
       wsRef.current = ws;
       setIsConnecting(true);
+      setWsReadyConvId(null);
 
-      ws.onopen = () => setIsConnecting(false);
-      ws.onclose = () => setIsConnecting(false);
+      ws.onopen = () => { setIsConnecting(false); setWsReadyConvId(convId); };
+      ws.onclose = () => { setIsConnecting(false); setWsReadyConvId(null); };
 
       ws.onmessage = (ev) => {
         try {
@@ -250,6 +261,33 @@ export function ChatSidebar() {
     setStreamingContent(null);
     setToolActivities([]);
   }, [activeConversationId]);
+
+  // Auto-send a queued "Ask Gerry about this" seed message once the websocket
+  // for its conversation is open. The seed is self-contained (no page context).
+  useEffect(() => {
+    if (!pendingMessage || !activeConversationId) return;
+    if (wsReadyConvId !== activeConversationId) return;
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        conversation_id: activeConversationId,
+        role: "user" as const,
+        content: pendingMessage,
+        agent_type: null,
+        model_name: null,
+        cited_chunk_ids: [],
+        tool_calls: null,
+        tool_results: null,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    ws.send(JSON.stringify({ type: "human", content: pendingMessage }));
+    setPendingMessage(null);
+  }, [pendingMessage, activeConversationId, wsReadyConvId, setPendingMessage]);
 
   function sendMessage() {
     const text = inputText.trim();
