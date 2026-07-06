@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v2.13.2 — 2026-07-06
+**Fix: sending a self-composed email no longer fails with "Something went wrong"**
+
+- **Compose send now uses the correct content type (`ComposeModal` send mutation in `InboxPage.tsx`):** the shared axios client defaults to `Content-Type: application/json`, and axios v1 converts a `FormData` body to JSON (`formDataToJSON`) when that header is set — so the multipart parts (`to`, `subject`, `body`, attachments) never reached the server and `POST /api/google/gmail/send-compose` failed FastAPI validation with a `422` (surfaced to the user as the generic "Something went wrong"). The request now explicitly sets `Content-Type: multipart/form-data`, matching every other file-upload call in the app (`uploadAttachment`, `uploadDocument`, etc.). Emails compose and send correctly with or without attachments.
+
 ### v2.13.1 — 2026-07-06
 **Fix: approved emails no longer get stuck on "pending approval"**
 
