@@ -227,10 +227,29 @@ class ApprovalRepository:
         self.db.add(intent)
         await self.db.flush()
         await self.db.refresh(intent)
+        # Every approval surfaces as an actionable notification so the user
+        # can approve/reject from the bell without hunting for the right page.
+        try:
+            await NotificationRepository(self.db).create(
+                user_id=user_id,
+                type="approval_required",
+                title=f"Approval needed: {intent_title}",
+                message=intent_description,
+                entity_type="approval_intent",
+                entity_id=intent.id,
+            )
+        except Exception:
+            pass  # the notification is best-effort; never block approval creation
         return intent
 
-    async def list_pending(self, user_id: uuid.UUID, limit: int = 50) -> list[ApprovalIntent]:
-        result = await self.db.execute(
+    async def list_pending(
+        self,
+        user_id: uuid.UUID,
+        limit: int = 50,
+        conversation_id: str | None = None,
+        thread_id: str | None = None,
+    ) -> list[ApprovalIntent]:
+        stmt = (
             select(ApprovalIntent)
             .where(
                 ApprovalIntent.user_id == user_id,
@@ -239,6 +258,13 @@ class ApprovalRepository:
             .order_by(ApprovalIntent.created_at.desc())
             .limit(limit)
         )
+        if conversation_id:
+            stmt = stmt.where(
+                ApprovalIntent.intent_payload["conversation_id"].astext == str(conversation_id)
+            )
+        if thread_id:
+            stmt = stmt.where(ApprovalIntent.intent_payload["thread_id"].astext == str(thread_id))
+        result = await self.db.execute(stmt)
         return list(result.scalars())
 
     async def get(self, intent_id: uuid.UUID, user_id: uuid.UUID) -> ApprovalIntent | None:

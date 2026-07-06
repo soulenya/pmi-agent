@@ -46,7 +46,7 @@ import { cn } from "@/lib/utils";
 function useBadgeCounts(): (badge: BadgeKey | undefined) => number {
   const { data: pendingApprovals = [] } = useQuery({
     queryKey: ["approvals", "pending"],
-    queryFn: listPendingApprovals,
+    queryFn: () => listPendingApprovals(),
     refetchInterval: 30_000,
   });
   const { data: notifications = [] } = useQuery({
