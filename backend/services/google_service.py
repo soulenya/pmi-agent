@@ -329,7 +329,9 @@ def gmail_send(
             )
             msg.attach(part)
     else:
-        msg = email.mime.text.MIMEText(body)
+        import email.mime.text as _mt
+
+        msg = _mt.MIMEText(body)
     msg["to"] = to
     msg["subject"] = subject
     if cc:

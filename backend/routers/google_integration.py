@@ -195,7 +195,9 @@ async def gmail_attachment_import_kb(
             created_by_id=current_user.id,
         )
         doc.source_type = "email"
-        doc.source_id = f"{message_id}:{attachment_id}"
+        # Gmail attachment IDs can exceed 300 chars; source_id is varchar(255).
+        # The message id is the stable, traceable reference for the source email.
+        doc.source_id = message_id
         doc.source_name = fname
     except DuplicateDocumentError:
         await db.rollback()
