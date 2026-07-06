@@ -276,6 +276,30 @@ async def count_pending_approvals(
     return {"count": count}
 
 
+async def _set_linked_email_draft_status(db, draft_id_raw, new_status: str) -> None:
+    """Best-effort: update the EmailDraft linked to an approval to ``new_status``.
+
+    Used so the Email Drafts view never gets stuck showing ``pending_approval``
+    once the approval has been resolved (sent, or returned to draft on failure /
+    rejection). Failures here never affect the approval decision.
+    """
+    if not draft_id_raw:
+        return
+    try:
+        import uuid as _uuid
+        from sqlalchemy import select as _select
+        from models.db.email_draft import EmailDraft
+        draft_uuid = _uuid.UUID(str(draft_id_raw))
+        row = (await db.execute(
+            _select(EmailDraft).where(EmailDraft.id == draft_uuid)
+        )).scalar_one_or_none()
+        if row is not None:
+            row.status = new_status
+            await db.commit()
+    except Exception:
+        pass  # draft status sync is best-effort
+
+
 async def _execute_approved_action(
     intent,
     db,
@@ -299,13 +323,22 @@ async def _execute_approved_action(
     try:
         if itype == "send_email":
             from services.google_service import gmail_send
+            draft_id_raw = payload.get("draft_id")
             to = payload.get("to") or payload.get("recipient_email") or ""
             subject = payload.get("subject") or ""
             body = payload.get("body") or payload.get("draft_body") or ""
             if not to or not subject:
+                # Can't send — return the linked draft to an editable state so the
+                # user can add the missing recipient/subject and resubmit.
+                await _set_linked_email_draft_status(db, draft_id_raw, "draft")
+                missing = "a recipient address" if not to else "a subject"
                 return {
                     "status": "error",
-                    "detail": "Payload is missing 'to' or 'subject' fields — cannot send.",
+                    "detail": (
+                        f"This email has no {missing}, so it couldn't be sent. "
+                        "It's been moved back to your Email Drafts — add the missing "
+                        "detail and submit it for approval again."
+                    ),
                 }
             result = gmail_send(
                 to=to,
@@ -318,21 +351,7 @@ async def _execute_approved_action(
             )
 
             # If this came from an email draft, mark it sent
-            draft_id_raw = payload.get("draft_id")
-            if draft_id_raw:
-                try:
-                    import uuid as _uuid
-                    from sqlalchemy import select as _select
-                    from models.db.email_draft import EmailDraft
-                    draft_uuid = _uuid.UUID(str(draft_id_raw))
-                    row = (await db.execute(
-                        _select(EmailDraft).where(EmailDraft.id == draft_uuid)
-                    )).scalar_one_or_none()
-                    if row:
-                        row.status = "sent"
-                        await db.commit()
-                except Exception:
-                    pass  # draft update is best-effort
+            await _set_linked_email_draft_status(db, draft_id_raw, "sent")
 
             await audit.log(
                 "approval.action_executed",
@@ -407,6 +426,12 @@ async def _execute_approved_action(
     except Exception as exc:
         # Execution failure must not roll back the approval decision
         err_msg = str(exc)
+        # For emails, return the linked draft to an editable state so the user
+        # can fix whatever caused the failure and resubmit.
+        if itype == "send_email":
+            await _set_linked_email_draft_status(
+                db, (intent.intent_payload or {}).get("draft_id"), "draft"
+            )
         try:
             await audit.log(
                 "approval.action_failed",
@@ -543,6 +568,12 @@ async def resolve_approval(
     execution_result: dict | None = None
     if body.approved:
         execution_result = await _execute_approved_action(intent, db, current_user, audit)
+    elif intent.intent_type == "send_email":
+        # Rejected email: return the linked draft to an editable state instead of
+        # leaving it stuck at "pending_approval" forever.
+        await _set_linked_email_draft_status(
+            db, (intent.intent_payload or {}).get("draft_id"), "draft"
+        )
 
     out = ApprovalOut.model_validate(intent)
     out.execution_result = execution_result
