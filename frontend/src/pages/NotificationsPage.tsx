@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bell, CheckCheck, AlertCircle, ClipboardCheck, FileText, Info, MessageSquare } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Bell, CheckCheck, AlertCircle, ClipboardCheck, FileText, Info, MessageSquare, ShieldCheck, ShieldX, Loader2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listNotifications, markNotificationRead, markAllNotificationsRead } from "@/api/chat";
+import { listNotifications, markNotificationRead, markAllNotificationsRead, resolveApproval } from "@/api/chat";
+import { notificationRoute } from "@/components/NotificationDropdown";
 import type { Notification } from "@/types/chat";
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
@@ -26,10 +29,34 @@ function timeAgo(iso: string): string {
 
 function NotificationRow({ notif }: { notif: Notification }) {
   const qc = useQueryClient();
+  const [outcome, setOutcome] = useState<string | null>(null);
   const markRead = useMutation({
     mutationFn: () => markNotificationRead(notif.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
   });
+
+  const isApproval =
+    notif.type === "approval_required" &&
+    notif.entity_type === "approval_intent" &&
+    !!notif.entity_id;
+
+  const act = useMutation({
+    mutationFn: (approved: boolean) => resolveApproval(notif.entity_id!, { approved }),
+    onSuccess: (_res, approved) => {
+      setOutcome(approved ? "Approved" : "Rejected");
+      if (!notif.is_read) markRead.mutate();
+      qc.invalidateQueries({ queryKey: ["approvals"] });
+      qc.invalidateQueries({ queryKey: ["email-drafts"] });
+    },
+    onError: (e: unknown) => {
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      setOutcome(status === 409 || status === 404 ? "Already handled" : "Failed — open Approvals");
+      if (!notif.is_read) markRead.mutate();
+      qc.invalidateQueries({ queryKey: ["approvals"] });
+    },
+  });
+
+  const route = notificationRoute(notif);
 
   return (
     <div
@@ -47,17 +74,51 @@ function NotificationRow({ notif }: { notif: Notification }) {
           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{notif.message}</p>
         )}
         <p className="text-xs text-muted-foreground mt-1">{timeAgo(notif.created_at)}</p>
+        {isApproval && !outcome && (
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              disabled={act.isPending}
+              onClick={() => act.mutate(true)}
+              className="flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {act.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+              Approve
+            </button>
+            <button
+              disabled={act.isPending}
+              onClick={() => act.mutate(false)}
+              className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+            >
+              <ShieldX className="h-3.5 w-3.5" />
+              Reject
+            </button>
+          </div>
+        )}
+        {outcome && (
+          <p className="mt-1.5 text-xs font-medium text-muted-foreground">{outcome}</p>
+        )}
       </div>
-      {!notif.is_read && (
-        <button
-          onClick={() => markRead.mutate()}
-          disabled={markRead.isPending}
-          className="shrink-0 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
-          title="Mark as read"
-        >
-          <CheckCheck className="h-3.5 w-3.5" />
-        </button>
-      )}
+      <div className="flex shrink-0 items-center gap-1">
+        {route && (
+          <Link
+            to={route}
+            className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+            title="Open"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+          </Link>
+        )}
+        {!notif.is_read && (
+          <button
+            onClick={() => markRead.mutate()}
+            disabled={markRead.isPending}
+            className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
+            title="Mark as read"
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

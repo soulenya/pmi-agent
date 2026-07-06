@@ -8,6 +8,7 @@ import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import { logout as apiLogout } from "@/api/auth";
 import { getSettings } from "@/api/settings";
 import { NotificationDropdown } from "@/components/NotificationDropdown";
+import { ApprovalsDrawer } from "@/components/approvals/ApprovalsDrawer";
 import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { ServiceMenu } from "@/components/ServiceMenu";
 import { ChatSidebarToggle } from "./ChatSidebar";
@@ -116,6 +117,9 @@ export function Header({ onOpenPalette }: HeaderProps) {
 
         {/* Feedback */}
         <FeedbackButton />
+
+        {/* Pending approvals drawer */}
+        <ApprovalsDrawer />
 
         {/* Notifications */}
         <NotificationDropdown />

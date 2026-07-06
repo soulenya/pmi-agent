@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 118;
+export const BUILD_NUMBER = 119;
 export const BUILD_DATE = "2026-07-06";
 
 export interface ChangelogEntry {
@@ -14,6 +14,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 119,
+    date: "2026-07-06",
+    title: "Approve anywhere — no more page-hopping — plus a Daily Assistant briefing on the home screen",
+    changes: [
+      "Gerry's drafted email replies now appear right inside the email thread — approve, edit, or reject without leaving your inbox",
+      "When Gerry proposes an action during a chat, the approval appears right in the conversation",
+      "New approvals drawer in the top bar (clipboard icon with a live count) — review and approve from any page",
+      "Approval notifications now have Approve and Reject buttons built in, and other notifications take you straight to the right page",
+      "A Daily Assistant briefing panel is docked on the home screen next to the solar system — today's schedule, unread email, tasks due, pending approvals, suggestions, and your Odoo bank balances at a glance",
+      "Email threads now show the newest message at the top",
+    ],
+  },
   {
     build: 118,
     date: "2026-07-06",

@@ -42,8 +42,11 @@ export async function listMessages(conversationId: string): Promise<Message[]> {
 
 // ── Approvals ─────────────────────────────────────────────────────────────────
 
-export async function listPendingApprovals(): Promise<ApprovalIntent[]> {
-  const resp = await apiClient.get<ApprovalIntent[]>("/approvals/pending");
+export async function listPendingApprovals(params?: {
+  conversation_id?: string;
+  thread_id?: string;
+}): Promise<ApprovalIntent[]> {
+  const resp = await apiClient.get<ApprovalIntent[]>("/approvals/pending", { params });
   return resp.data;
 }
 

@@ -1062,7 +1062,10 @@ async def execute_request_approval(ctx: ToolContext, args: dict[str, Any]) -> st
         intent_type=intent_type,
         intent_title=title,
         intent_description=description,
-        intent_payload=payload if isinstance(payload, dict) else {"data": payload},
+        intent_payload={
+            **(payload if isinstance(payload, dict) else {"data": payload}),
+            "conversation_id": str(ctx.conversation_id),
+        },
         risk_level=risk_level,
         expires_at=expires_at,
     )
@@ -1101,7 +1104,11 @@ async def execute_propose_odoo_write(ctx: ToolContext, args: dict[str, Any]) -> 
         intent_type="odoo_write",
         intent_title=title[:500],
         intent_description=description,
-        intent_payload={"action": action, "params": params},
+        intent_payload={
+            "action": action,
+            "params": params,
+            "conversation_id": str(ctx.conversation_id),
+        },
         risk_level=odoo.default_risk(action),
         expires_at=datetime.now(timezone.utc) + timedelta(hours=72),
     )

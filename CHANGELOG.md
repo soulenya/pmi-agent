@@ -4,6 +4,17 @@
 
 ## Changelog
 
+### v3.0.0 — 2026-07-06
+**Approve anywhere: inline approvals in Inbox/Chat, global drawer, actionable notifications, and a home-screen briefing panel**
+
+- **Shared approval UI (`components/approvals/ApprovalCard.tsx`):** `ApprovalCard`/`PayloadPreview` extracted from `ApprovalsPage` into a shared component (with `compact` variant) plus hooks `usePendingApprovals(filters)`, `usePendingApprovalCount`, `useResolveApproval`. `listPendingApprovals` now accepts `{conversation_id, thread_id}` (all bare `queryFn: listPendingApprovals` references wrapped to avoid passing the query context as params).
+- **Approvals are linkable to their context (backend):** `ApprovalRepository.list_pending` filters on `intent_payload->>'conversation_id'` / `->>'thread_id'` (exposed as query params on `GET /approvals/pending`); the agent's `request_approval` and `propose_odoo_write` tools stamp `conversation_id` into the payload; Gerry reply drafts already carry `thread_id`.
+- **Inline in Inbox (`ThreadReader` in `InboxPage.tsx`):** pending approvals for the open Gmail thread render at the top of the thread under “Waiting for your approval” with full approve/edit/reject; “Let Gerry Draft” now surfaces its draft right there. Thread messages now render **newest first**.
+- **Inline in Chat (`ChatPage.tsx`):** pending approvals scoped to the conversation render as cards in the message flow; the WS `done` frame invalidates approvals so a mid-conversation proposal appears immediately.
+- **Global approvals drawer (`ApprovalsDrawer.tsx` in the Header):** clipboard icon with live pending badge opens a right slide-over listing all pending approvals on any page; Approvals page remains as the full-page view.
+- **Actionable notifications:** `ApprovalRepository.create` now also creates an `approval_required` notification (all creation sites — email drafts, Gerry replies/composes, Odoo proposals, agent tool — refactored through the repo); notification rows in the bell dropdown and Notifications page carry **Approve/Reject** buttons (graceful “Already handled” on 409/404) and deep-link to the relevant page by type.
+- **Daily Assistant briefing panel (`BriefingPanel.tsx` on `SolarSystemPage`):** collapsible panel docked beside the solar system at the overview showing today's calendar, unread email, tasks due (client-side due≤today filter), pending approvals, pending suggestions, and Odoo bank balances — each section an independent query gated on its integration being connected.
+
 ### v2.14.1 — 2026-07-06
 **Fix: sending email and adding email attachments to the Knowledge Base**
 

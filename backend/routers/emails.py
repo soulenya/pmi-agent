@@ -13,9 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user
-from models.db.approval import ApprovalIntent
 from models.db.email_draft import EmailDraft
-from models.db.enums import ApprovalStatus, IntentType, RiskLevel
+from models.db.enums import IntentType, RiskLevel
 from models.db.user import User
 from services.llm.router import get_llm_client
 
@@ -251,8 +250,9 @@ async def submit_for_approval(
     if draft.status == "pending_approval":
         raise HTTPException(status_code=409, detail="Already pending approval")
 
-    intent = ApprovalIntent(
-        id=uuid.uuid4(),
+    from repositories.conversation_repo import ApprovalRepository
+
+    intent = await ApprovalRepository(db).create(
         user_id=current_user.id,
         intent_type=IntentType.SEND_EMAIL,
         intent_title=f"Send email: {draft.subject}",
@@ -268,10 +268,7 @@ async def submit_for_approval(
             "draft_body": draft.draft_body,
         },
         risk_level=RiskLevel.MEDIUM,
-        status=ApprovalStatus.PENDING,
     )
-    db.add(intent)
-    await db.flush()
 
     draft.status = "pending_approval"
     draft.approval_intent_id = intent.id
