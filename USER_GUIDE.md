@@ -142,13 +142,13 @@ Anthropic does not provide an embedding service. Voyage AI is their official par
 | **Ask Gerry** | One-click "Ask Gerry about this" button on any task, email, file, contact, or event — opens a chat already primed with that item |
 | **Dashboard** | Daily briefing, open tasks, pending approvals, today's meetings |
 | **Daily Assistant** | A once-a-day scan of your Gmail and Google Tasks that suggests follow-ups and to-dos for you to review |
-| **Knowledge Base** | Upload and manage your company documents |
+| **Knowledge Base** | Upload and manage your company documents; Little Gerry can read a whole document in full when you ask her to summarize or analyze it |
 | **Search** | Natural language search across all uploaded documents |
 | **Research** | AI-powered web research with cited reports |
 | **Tasks** | Kanban board for action tracking |
 | **Projects** | Group tasks by project with milestone tracking |
 | **Calendar** | Local events + Google Calendar side by side |
-| **Gmail** | Full inbox — read, search, filter by tag, reply/reply-all, move to Trash, open attachments, and compose & send your own emails |
+| **Gmail** | Full inbox — browse standard folders (Inbox, Sent, Drafts, Starred, etc.), sort your mail, read, search, filter by tag, reply/reply-all, move to Trash, open attachments or add them to the Knowledge Base, and compose & send your own emails |
 | **Email Drafts** | Ask Little Gerry to draft an email, then approve it to send — or write your own from the Gmail composer |
 | **Meeting Notes** | Auto-records and transcribes your video calls, then AI-summarizes them — or paste a transcript manually |
 | **Regulatory** | Track DHF, IFU, 510(k), and ISO documents with AI drafting |
@@ -314,9 +314,11 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 
 ### Reading your inbox
 
-- Switch between **Inbox**, **Unread**, and **Today** filters, or type a search to run a Gmail search (for example `from:acme.com 510k`).
+- Pick a **folder** from the folder dropdown to browse any of Gmail's standard folders — **Inbox**, **Unread**, **Starred**, **Important**, **Sent**, **Drafts**, **Archived**, **Spam**, **Trash**, or **All Mail** — or type a search to run a Gmail search (for example `from:acme.com 510k`).
+- Use the **sort** dropdown to order the list: **Newest first** (the default), **Oldest first**, **Sender A–Z**, or **Unread first**.
 - **Filter by tag** to see only emails you've filed under a given tag.
-- Click a message to open the full thread; attachments can be **opened in Google Workspace**, opened with your default app, or downloaded.
+- Click a message to open the full thread. Every message is shown on a clean, readable card so text stays legible in dark mode.
+- For each attachment you can **open it in Google Workspace**, open it with your default app, download it, or click **Add to Knowledge Base** to import it so Little Gerry can reference it later.
 
 ### Composing and sending your own email
 

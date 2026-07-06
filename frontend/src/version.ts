@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 116;
+export const BUILD_NUMBER = 117;
 export const BUILD_DATE = "2026-07-06";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 117,
+    date: "2026-07-06",
+    title: "Gmail folders & sorting, add attachments to your Knowledge Base, and clearer email text",
+    changes: [
+      "Browse all of Gmail's standard folders from the inbox — Inbox, Sent, Drafts, Starred, Important, Archived, Spam, Trash and All Mail",
+      "Sort your mail the way you like: newest first (the default), oldest first, sender A–Z, or unread first",
+      "Every email attachment now has an 'Add to Knowledge Base' button, so you can save a file for Gerry to reference in one click",
+      "Emails now always display with readable text in dark mode — no more black-on-black text in replies and quoted messages",
+      "When you ask Gerry to summarize or analyze a Knowledge Base document, she now reads the whole document instead of just a few excerpts",
+    ],
+  },
   {
     build: 116,
     date: "2026-07-06",

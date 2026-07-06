@@ -64,6 +64,9 @@ TOOL_DEFINITIONS: list[dict] = [
                 "ONLY call this for PMI documents, VACTOR specifications, regulatory submissions, "
                 "protocols, or internal knowledge that has been explicitly uploaded to the KB. "
                 "For documents still on Google Drive that have NOT been imported, use search_drive_content instead. "
+                "Use this to find specific facts or passages. When the user asks you to summarize, "
+                "review, or analyze an ENTIRE document, call read_knowledge_base_document instead so "
+                "you see every section — search only returns the few most-similar chunks. "
                 "Do NOT call for general questions or things you already know."
             ),
             "parameters": {
@@ -80,6 +83,34 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_knowledge_base_document",
+            "description": (
+                "Read the COMPLETE text of a single imported Knowledge Base document, from start "
+                "to finish, including every section. Use this whenever the user asks you to "
+                "summarize, review, analyze, proofread, or extract information from a whole KB "
+                "document — search_knowledge_base only returns the few most-similar chunks and will "
+                "miss sections. Identify the document by document_id (preferred — get it from "
+                "manage_knowledge_base or search_knowledge_base) or by a title/query."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "description": "The UUID of the KB document to read (preferred).",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "A title or search term to identify the document, if the id is unknown.",
+                    },
+                },
+                "required": [],
             },
         },
     },
@@ -774,10 +805,102 @@ async def execute_search_knowledge_base(ctx: ToolContext, args: dict[str, Any]) 
         lines.append(
             f"[{i}] \"{title}\" "
             f"(chunk {chunk.chunk_index}, page {chunk.page_number}, score {score_pct}%)\n"
-            f"{chunk.content[:600]}"
-            + ("..." if len(chunk.content) > 600 else "")
+            f"{chunk.content}"
         )
+    lines.append(
+        "\n(To read one of these documents in full — every section — call "
+        "read_knowledge_base_document with its document_id.)"
+    )
     return "\n\n".join(lines)
+
+
+async def execute_read_knowledge_base_document(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Return the FULL text of a single Knowledge Base document, start to finish.
+
+    Unlike search_knowledge_base (which returns only the few most-similar chunks),
+    this reads the entire document so the model can summarize, review, or analyze
+    it without missing any sections. Resolve by document_id (preferred) or a
+    title/query.
+    """
+    from pathlib import Path
+    from sqlalchemy import select, func
+    from models.db.document import Document
+
+    MAX_CHARS = 120_000
+
+    doc_repo = DocumentRepository(ctx.db)
+    chunk_repo = DocumentChunkRepository(ctx.db)
+
+    doc = None
+    raw_id = args.get("document_id")
+    if raw_id:
+        try:
+            doc = await doc_repo.get_active(uuid.UUID(str(raw_id)))
+        except (ValueError, AttributeError):
+            doc = None
+
+    query = str(args.get("query", "")).strip()
+    if doc is None and query:
+        # Try a case-insensitive partial title match first.
+        rows = await ctx.db.execute(
+            select(Document)
+            .where(Document.deleted_at.is_(None))
+            .where(func.lower(Document.title).like(f"%{query.lower()}%"))
+            .limit(1)
+        )
+        doc = rows.scalars().first()
+        # Fall back to semantic search to locate the best-matching document.
+        if doc is None:
+            try:
+                embedding = await ctx.embedding_service.embed(query)
+                hits = await chunk_repo.vector_search(embedding, top_k=1)
+                if hits:
+                    doc = await doc_repo.get_active(hits[0][0].document_id)
+            except Exception:
+                doc = None
+
+    if doc is None:
+        return (
+            "No matching Knowledge Base document found. Provide a valid document_id "
+            "(from manage_knowledge_base) or a clearer title."
+        )
+
+    # Prefer the exact stored file (preserves headings/structure); fall back to chunks.
+    full_text = ""
+    try:
+        from services.documents.ingestion import _decrypt_file, _extract_text
+
+        extension = Path(doc.file_name or "").suffix.lower() or ".bin"
+        raw = _decrypt_file(doc.id, extension)
+        full_text = _extract_text(raw, doc.mime_type)
+    except Exception:
+        full_text = ""
+
+    if not full_text.strip():
+        # Reconstruct from stored chunks, removing the token overlap between them.
+        from services.documents.ingestion import CHUNK_OVERLAP, WORDS_PER_TOKEN
+
+        overlap_words = int(CHUNK_OVERLAP / WORDS_PER_TOKEN)
+        chunks = await chunk_repo.get_by_document(doc.id)
+        words: list[str] = []
+        for i, ch in enumerate(chunks):
+            cw = ch.content.split()
+            words.extend(cw if i == 0 else cw[overlap_words:])
+        full_text = " ".join(words)
+
+    if not full_text.strip():
+        return f'Document "{doc.title}" has no readable text content.'
+
+    truncated = len(full_text) > MAX_CHARS
+    body = full_text[:MAX_CHARS]
+    header = f'Full text of Knowledge Base document "{doc.title}" (id {doc.id}):\n\n'
+    footer = (
+        "\n\n[Note: this document is very long and was truncated here. Use "
+        "search_knowledge_base for specific details beyond this point.]"
+        if truncated
+        else ""
+    )
+    return header + body + footer
 
 
 async def execute_request_kb_deletion(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -1622,6 +1745,7 @@ async def execute_upload_to_drive(ctx: ToolContext, args: dict[str, Any]) -> str
 
 TOOL_EXECUTORS = {
     "search_knowledge_base": execute_search_knowledge_base,
+    "read_knowledge_base_document": execute_read_knowledge_base_document,
     "request_kb_deletion": execute_request_kb_deletion,
     "create_task": execute_create_task,
     "create_email_draft": execute_create_email_draft,
@@ -1662,6 +1786,7 @@ TOOL_EXECUTORS.update(CUSTODIAN_EXECUTORS)
 # works instead of failing with "Error: query must not be empty."
 _PRIMARY_ARG = {
     "search_knowledge_base": "query",
+    "read_knowledge_base_document": "query",
     "request_kb_deletion": "query",
     "search_web": "query",
     "search_gmail": "query",
