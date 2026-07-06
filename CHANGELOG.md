@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.13.1 — 2026-07-06
+**Fix: approved emails no longer get stuck on "pending approval"**
+
+- **Approved emails send and update reliably (`_execute_approved_action`, `_set_linked_email_draft_status`, `resolve_approval` in `conversations.py`):** when a `send_email` approval can't be sent (most commonly because Gerry-generated drafts have no recipient address, so the "missing 'to'" branch returned an error before sending), the linked `EmailDraft` was left stuck at `pending_approval` — not editable (`canEdit` requires `"draft"`), not resubmittable (409), not sendable. Now any non-success path returns the draft to an editable `"draft"` status: missing recipient/subject, send exceptions, and rejections all revert it, with a clear, actionable error message. Successful sends still mark the draft `"sent"`.
+- **Approvals page surfaces the outcome and refreshes drafts (`ApprovalsPage.tsx`):** resolving an approval now also invalidates the `["email-drafts"]` query so the Email Drafts view reflects the new status immediately, and a page-level banner reports whether the email was sent or why it couldn't be (the per-card result banner previously vanished when the card left the pending list).
+
 ### v2.13.0 — 2026-07-04
 **Ask Gerry about anything — one-click, context-seeded chats across the app**
 

@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 114;
-export const BUILD_DATE = "2026-07-04";
+export const BUILD_NUMBER = 115;
+export const BUILD_DATE = "2026-07-06";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 115,
+    date: "2026-07-06",
+    title: "Fix: approved emails no longer get stuck showing 'pending approval'",
+    changes: [
+      "Approving an email now reliably sends it and marks the draft as Sent right away",
+      "If an email can't be sent — most often because it has no recipient address — it's returned to your Email Drafts with a clear note, so you can add the missing detail and submit it again instead of it getting stuck",
+      "Rejecting an email now returns it to Drafts (editable) rather than leaving it stuck on 'pending approval'",
+      "The Approvals page now shows a clear confirmation when an email is sent, or an explanation when it couldn't be",
+    ],
+  },
   {
     build: 114,
     date: "2026-07-04",
