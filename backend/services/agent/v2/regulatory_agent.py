@@ -39,6 +39,7 @@ Today's date: {today}
 
 _TOOLS = [
     "search_knowledge_base",
+    "read_knowledge_base_document",
     "get_regulatory_status",
     "search_web",
     "fetch_page",

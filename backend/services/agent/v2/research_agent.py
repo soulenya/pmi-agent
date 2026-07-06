@@ -35,6 +35,7 @@ _TOOLS = [
     "search_web",
     "fetch_page",
     "search_knowledge_base",
+    "read_knowledge_base_document",
     "search_drive",
     "read_drive_file",
     "search_drive_content",

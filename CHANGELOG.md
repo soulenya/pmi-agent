@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v2.14.0 — 2026-07-06
+**Gmail folders & sorting, add attachments to the Knowledge Base, and legible email text in dark mode**
+
+- **Standard Gmail folders + sorting (`FILTERS`/`SORTS`, folder & sort dropdowns in `InboxPage.tsx`):** the inbox thread list now has a **folder** dropdown covering Gmail's standard folders — Inbox, Unread, Starred, Important, Sent, Drafts, Archived (`-in:inbox -in:sent -in:draft -in:trash -in:spam`), Spam, Trash and All Mail (`in:anywhere`) — and a **sort** dropdown (Newest first by default, Oldest first, Sender A–Z, Unread first) applied client-side via a memoized list.
+- **Add an email attachment to the Knowledge Base (`POST /api/google/gmail/message/{message_id}/attachment/{attachment_id}/import-kb`, `AttachmentItem` in `InboxPage.tsx`):** every attachment gains an "Add to Knowledge Base" button. The backend fetches the attachment bytes with `gmail_get_attachment` and ingests them as their own KB document in the dedicated "Email" category (never regulated), stamped with the source message/attachment id; duplicates are reported as skipped and unsupported types return a clear message.
+- **Emails render legibly in dark mode (`EmailFrame` in `InboxPage.tsx`):** HTML email is now rendered on its own white card with dark text (and blue links) instead of a transparent surface with light text, so messages and quoted replies no longer show unreadable black-on-black text.
+- **Whole-document reading for the Knowledge Base (`read_knowledge_base_document` tool + `search_knowledge_base` in `services/agent/tools.py`):** Gerry can now read a KB document in full — start to finish, every section — when asked to summarize or analyze it, instead of only the few most-similar excerpts. The search tool also no longer truncates each returned chunk to 600 characters, so retrieved passages are shown in full.
+
 ### v2.13.2 — 2026-07-06
 **Fix: sending a self-composed email no longer fails with "Something went wrong"**
 
