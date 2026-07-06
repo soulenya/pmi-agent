@@ -3,6 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines, Volume2 } from "lucide-react";
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import {
+  ApprovalCard,
+  usePendingApprovals,
+  useResolveApproval,
+} from "@/components/approvals/ApprovalCard";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { AttachmentBar } from "@/components/chat/AttachmentBar";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
@@ -290,6 +295,14 @@ export function ChatPage() {
     enabled: !!conversationId,
   });
 
+  // Approvals Gerry raised in THIS conversation — approve/reject inline.
+  const { data: chatApprovals = [] } = usePendingApprovals({
+    conversation_id: conversationId,
+    enabled: !!conversationId,
+    refetchInterval: 20_000,
+  });
+  const resolveChatApproval = useResolveApproval();
+
   // â”€â”€ Create conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const createConvMutation = useMutation({
     mutationFn: () => createConversation(),
@@ -377,6 +390,8 @@ export function ChatPage() {
           queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
           // Refresh conversations to pick up auto-title if set
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
+          // Gerry may have raised an approval during this turn — surface it inline
+          queryClient.invalidateQueries({ queryKey: ["approvals"] });
           setStreamingContent(null);
           setToolActivities([]);
           // Speak the reply aloud — always in voice mode (then listen again),
@@ -573,6 +588,25 @@ export function ChatPage() {
           {messages.map((m) => (
             <MessageBubble key={m.id} message={m} />
           ))}
+
+          {/* Approvals raised in this conversation — act on them without leaving chat */}
+          {chatApprovals.length > 0 && !streamingContent && (
+            <div className="ml-11 max-w-[75%] space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-500">
+                Waiting for your approval
+              </p>
+              {chatApprovals.map((intent) => (
+                <ApprovalCard
+                  key={intent.id}
+                  intent={intent}
+                  compact
+                  onResolve={(approved, reason) =>
+                    resolveChatApproval(intent.id, approved, reason)
+                  }
+                />
+              ))}
+            </div>
+          )}
 
           {/* Live tool activity indicator (shown while no streaming content yet) */}
           {toolActivities.length > 0 && !streamingContent && (

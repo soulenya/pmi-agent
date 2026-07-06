@@ -160,7 +160,7 @@ function WeekTaskRow({ task }: { task: Task }) {
 
 export function DashboardPage() {
   const { data: tasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: () => listTasks(), staleTime: 60_000 });
-  const { data: approvals = [] } = useQuery({ queryKey: ["approvals", "pending"], queryFn: listPendingApprovals, refetchInterval: 30_000 });
+  const { data: approvals = [] } = useQuery({ queryKey: ["approvals", "pending"], queryFn: () => listPendingApprovals(), refetchInterval: 30_000 });
   const { data: notifications = [] } = useQuery({ queryKey: ["notifications"], queryFn: listNotifications, staleTime: 60_000 });
   const { data: conversations = [] } = useQuery({ queryKey: ["conversations"], queryFn: listConversations, staleTime: 60_000 });
   const { data: meetings = [] } = useQuery({ queryKey: ["meetings"], queryFn: listMeetings, staleTime: 60_000 });

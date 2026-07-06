@@ -184,7 +184,15 @@ When Google is connected, Little Gerry calls the appropriate tool immediately �
 
 ### What requires your approval
 
-Little Gerry will **never** send an email, create a calendar event, modify a document, or take any write action without putting it in the **Approvals** queue first. You must explicitly approve. (Emails you write yourself in the Gmail composer are your own action and send directly — see [Gmail](#gmail-inbox-compose--replies).)
+Little Gerry will **never** send an email, create a calendar event, modify a document, or take any write action without asking you first. You must explicitly approve. (Emails you write yourself in the Gmail composer are your own action and send directly — see [Gmail](#gmail-inbox-compose--replies).)
+
+You can approve wherever is most convenient — no need to change pages:
+
+- **In the email thread** — when Gerry drafts a reply, the draft appears at the top of that thread with **Approve**, **Edit**, and **Reject** buttons.
+- **In the chat** — when Gerry proposes an action mid-conversation, the approval card appears right there in the conversation.
+- **From the top bar** — the clipboard icon (with a pending count) opens the **approvals drawer** on any page.
+- **From a notification** — approval notifications include **Approve** and **Reject** buttons.
+- The **Approvals** page still lists everything in one place.
 
 ---
 
@@ -202,10 +210,11 @@ Almost everywhere in the app you'll see an **"Ask Gerry about this"** button (a 
 
 The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Google Tasks** in the background and gathers suggestions — follow-ups you may owe someone, emails that look like they need a reply, and to-dos worth tracking — so nothing slips through the cracks.
 
-- Open **Daily Assistant** from the top of the sidebar. The nav entry shows a **badge with the number of pending suggestions**.
+- A **briefing panel** is docked on the right side of the home screen (next to the solar system). At a glance it shows **today's schedule**, **unread email**, **tasks due**, **pending approvals**, **suggestions**, and an **Odoo snapshot** (bank balances) — each section links straight to the right page. Collapse or reopen it with the panel button; Little Gerry remembers your choice.
+- Open **Daily Assistant** itself from its satellite next to the sun (or the briefing panel header). The badge shows the number of pending suggestions.
 - Each suggestion is something to **review** — the assistant never acts on its own. You decide what to do with it.
 - Suggestions are generated about **once per day**; the scan runs automatically in the background while the app is open.
-- Requires **Google Workspace** to be connected (see [Google Workspace](#google-workspace)). Without it, there's nothing to scan.
+- Requires **Google Workspace** to be connected (see [Google Workspace](#google-workspace)) for the email/schedule sections. Without it, the assistant still shows your tasks, approvals, and Odoo data.
 
 ---
 
@@ -317,7 +326,8 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 - Pick a **folder** from the folder dropdown to browse any of Gmail's standard folders — **Inbox**, **Unread**, **Starred**, **Important**, **Sent**, **Drafts**, **Archived**, **Spam**, **Trash**, or **All Mail** — or type a search to run a Gmail search (for example `from:acme.com 510k`).
 - Use the **sort** dropdown to order the list: **Newest first** (the default), **Oldest first**, **Sender A–Z**, or **Unread first**.
 - **Filter by tag** to see only emails you've filed under a given tag.
-- Click a message to open the full thread. Every message is shown on a clean, readable card so text stays legible in dark mode.
+- Click a message to open the full thread. The **newest message is shown at the top**, and every message sits on a clean, readable card so text stays legible in dark mode.
+- If Gerry has drafted a reply for the thread, it appears at the **top of the thread** under “Waiting for your approval” — approve, edit, or reject it right there.
 - For each attachment you can **open it in Google Workspace**, open it with your default app, download it, or click **Add to Knowledge Base** to import it so Little Gerry can reference it later.
 
 ### Composing and sending your own email
@@ -329,7 +339,7 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 ### Replies
 
 - **Reply** or **Reply all** (Reply all pre-fills the other recipients as Cc) directly from a thread.
-- You can also ask Little Gerry to draft a reply — those drafts go through the **Approvals** queue before sending.
+- You can also ask Little Gerry to draft a reply — the draft appears **right in the thread** for you to approve, edit, or reject before anything is sent.
 
 ### Other actions
 

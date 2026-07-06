@@ -111,7 +111,7 @@ export function Sidebar() {
 
   const { data: pendingApprovals = [] } = useQuery({
     queryKey: ["approvals", "pending"],
-    queryFn: listPendingApprovals,
+    queryFn: () => listPendingApprovals(),
     refetchInterval: 30_000,
   });
 
