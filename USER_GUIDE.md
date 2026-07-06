@@ -29,22 +29,25 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 4. [AI Configuration (First Time)](#ai-configuration-first-time)
 5. [Features at a Glance](#features-at-a-glance)
 6. [Talking to Little Gerry](#talking-to-little-gerry)
-7. [Daily Assistant](#daily-assistant)
-8. [Knowledge Base](#knowledge-base)
-9. [Semantic Search](#semantic-search)
-10. [Research](#research)
-11. [Tasks & Projects](#tasks--projects)
-12. [Calendar](#calendar)
-13. [Email Drafts](#email-drafts)
-14. [Meeting Notes](#meeting-notes)
-15. [Regulatory Documents](#regulatory-documents)
-16. [Investor Relations](#investor-relations)
-17. [Google Workspace](#google-workspace)
-18. [Approvals Queue](#approvals-queue)
-19. [Notifications](#notifications)
-20. [Settings](#settings)
-21. [Updating Little Gerry](#updating-little-gerry)
-22. [Tips & Example Prompts](#tips--example-prompts)
+7. [Ask Gerry About Anything](#ask-gerry-about-anything)
+8. [Daily Assistant](#daily-assistant)
+9. [Knowledge Base](#knowledge-base)
+10. [Semantic Search](#semantic-search)
+11. [Research](#research)
+12. [Tasks & Projects](#tasks--projects)
+13. [Calendar](#calendar)
+14. [Gmail (Inbox, Compose & Replies)](#gmail-inbox-compose--replies)
+15. [Email Drafts](#email-drafts)
+16. [Meeting Notes](#meeting-notes)
+17. [Regulatory Documents](#regulatory-documents)
+18. [Investor Relations](#investor-relations)
+19. [Google Workspace](#google-workspace)
+20. [Odoo ERP](#odoo-erp)
+21. [Approvals Queue](#approvals-queue)
+22. [Notifications](#notifications)
+23. [Settings](#settings)
+24. [Updating Little Gerry](#updating-little-gerry)
+25. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -136,6 +139,7 @@ Anthropic does not provide an embedding service. Voyage AI is their official par
 | Module | What it does |
 |--------|-------------|
 | **AI Chat** | Talk to Little Gerry — she searches your KB, Drive, emails, and the web |
+| **Ask Gerry** | One-click "Ask Gerry about this" button on any task, email, file, contact, or event — opens a chat already primed with that item |
 | **Dashboard** | Daily briefing, open tasks, pending approvals, today's meetings |
 | **Daily Assistant** | A once-a-day scan of your Gmail and Google Tasks that suggests follow-ups and to-dos for you to review |
 | **Knowledge Base** | Upload and manage your company documents |
@@ -144,13 +148,15 @@ Anthropic does not provide an embedding service. Voyage AI is their official par
 | **Tasks** | Kanban board for action tracking |
 | **Projects** | Group tasks by project with milestone tracking |
 | **Calendar** | Local events + Google Calendar side by side |
-| **Email Drafts** | AI-drafted emails for regulatory, investor, and operational use |
-| **Meeting Notes** | Paste transcripts → AI generates summaries and action items |
+| **Gmail** | Full inbox — read, search, filter by tag, reply/reply-all, move to Trash, open attachments, and compose & send your own emails |
+| **Email Drafts** | Ask Little Gerry to draft an email, then approve it to send — or write your own from the Gmail composer |
+| **Meeting Notes** | Auto-records and transcribes your video calls, then AI-summarizes them — or paste a transcript manually |
 | **Regulatory** | Track DHF, IFU, 510(k), and ISO documents with AI drafting |
 | **Investor Relations** | Company snapshot, regulatory proof-points, IR doc registry with AI drafting, and research feed |
 | **Approvals** | Human-in-the-loop queue — approve/reject with automatic action execution |
 | **Notifications** | Real-time alerts for tasks, approvals, and AI activity |
 | **Audit Trail** | Immutable log of every AI action and document change |
+| **Odoo ERP** | Connect your Odoo account (API key) so Little Gerry can read and propose ERP actions |
 | **Settings** | Configure AI providers, appearance, and Google integration |
 
 > **Finding your way around.** The left sidebar groups these modules into collapsible sections — **Work**, **Knowledge**, **Communications**, **Compliance**, and **Administration** — with **Dashboard**, **Little Gerry**, and **Daily Assistant** pinned at the top. Click a section heading to collapse or expand it; the section you're currently in stays open, a collapsed section shows a small badge if it contains anything pending, and your choices are remembered next time. If you have more items than fit on screen, the list scrolls.
@@ -178,7 +184,17 @@ When Google is connected, Little Gerry calls the appropriate tool immediately �
 
 ### What requires your approval
 
-Little Gerry will **never** send an email, create a calendar event, modify a document, or take any write action without putting it in the **Approvals** queue first. You must explicitly approve.
+Little Gerry will **never** send an email, create a calendar event, modify a document, or take any write action without putting it in the **Approvals** queue first. You must explicitly approve. (Emails you write yourself in the Gmail composer are your own action and send directly — see [Gmail](#gmail-inbox-compose--replies).)
+
+---
+
+## Ask Gerry About Anything
+
+Almost everywhere in the app you'll see an **"Ask Gerry about this"** button (a small robot icon). It appears on your tasks, projects, contacts, emails, email drafts, calendar events, Knowledge Base documents, generated files, and email attachments.
+
+- Click it and Little Gerry opens a **fresh conversation already primed with that item's details**, so you can dive straight into questions without copying anything over.
+- For real files — email attachments and generated files — Little Gerry reads the **actual contents** of the file, so you can ask about what's inside.
+- Each "Ask Gerry" chat opens in the Little Gerry side panel and becomes its own conversation you can return to later.
 
 ---
 
@@ -292,27 +308,66 @@ Displays your local events and Google Calendar events side by side.
 
 ---
 
+## Gmail (Inbox, Compose & Replies)
+
+Open **Gmail** from the **Communications** area of the home screen. Requires [Google Workspace](#google-workspace) to be connected.
+
+### Reading your inbox
+
+- Switch between **Inbox**, **Unread**, and **Today** filters, or type a search to run a Gmail search (for example `from:acme.com 510k`).
+- **Filter by tag** to see only emails you've filed under a given tag.
+- Click a message to open the full thread; attachments can be **opened in Google Workspace**, opened with your default app, or downloaded.
+
+### Composing and sending your own email
+
+1. Click **New email**.
+2. Choose **Write it myself**, fill in **To**, **Subject**, and your message (your Gmail signature is added automatically), and attach files if needed.
+3. Click **Send** — the email is sent immediately from your connected Gmail account. Emails you write yourself do **not** need approval.
+
+### Replies
+
+- **Reply** or **Reply all** (Reply all pre-fills the other recipients as Cc) directly from a thread.
+- You can also ask Little Gerry to draft a reply — those drafts go through the **Approvals** queue before sending.
+
+### Other actions
+
+- **Move to Trash** to clean up your inbox.
+- **Draft selected** asks Little Gerry to draft replies for the emails you tick — each drafted reply lands in **Approvals** for your review.
+
+---
+
 ## Email Drafts
 
-Navigate to **Emails** → **New Draft**.
+Navigate to **Email Drafts** in the sidebar → **New Email Draft**.
 
 1. Fill in the **topic**, **recipient context**, and any **key points**
 2. Click **Generate** — Little Gerry drafts the email using Claude
-3. Review, edit, and copy the draft before sending from your own email client
+3. Review and edit the draft
 
-> Little Gerry cannot send emails directly. All email sending requires your manual action outside the app.
+When you're ready, **submit the draft for approval**. Approving it in the **Approvals** queue sends the email from your connected Gmail account. If an approved email can't be sent (for example it's missing a recipient), it's returned here as an editable draft with a note explaining why, so you can fix it and resubmit.
+
+> You can also compose and send email directly from the [Gmail composer](#gmail-inbox-compose--replies) without going through drafts.
 
 ---
 
 ## Meeting Notes
 
-Navigate to **Meeting Notes** → **+ New Meeting**.
+Navigate to **Meeting Notes** in the sidebar.
+
+### Automatic meeting capture
+
+When enabled, Little Gerry watches for video-call apps (Zoom, Teams, Google Meet, and others) and **automatically records the meeting audio while a call is active**, then transcribes and summarizes it into a meeting note — no manual steps.
+
+- Turn auto-recording on or off in **Settings**.
+- Audio capture works on **Windows** (system-audio loopback). On other platforms Little Gerry can detect the meeting but can't capture system audio without a virtual audio device.
+- A recorder indicator shows when a recording is in progress; you can recover or discard pending recordings from there.
+
+### Manual transcripts
+
+You can also create a note by hand — click **+ New Meeting**:
 
 1. Paste or type the raw meeting transcript
-2. Click **Summarize** — Little Gerry generates:
-   - Key decisions
-   - Action items
-   - Next steps
+2. Click **Summarize** — Little Gerry generates key decisions, action items, and next steps
 3. Click **Extract Actions** → check off the items you want to track → **Create N Tasks**
 
 ---
@@ -359,7 +414,7 @@ Navigate to **Settings → Google Integration**.
 
 | Service | What Little Gerry can do |
 |---------|--------------------------|
-| **Gmail** | Search emails, read message content |
+| **Gmail** | Read, search, and tag emails; compose & send your own; reply/reply-all; move to Trash; open attachments — see [Gmail](#gmail-inbox-compose--replies) |
 | **Google Drive** | Browse folders, read files, import to KB |
 | **Google Calendar** | Read events, show on Calendar page |
 | **Contacts** | Look up contact information |
@@ -371,6 +426,15 @@ Sending email or creating calendar events goes through the **Approvals** queue �
 ### Disconnecting
 
 Click **Disconnect Google** in Settings. Your local token is deleted immediately.
+
+---
+
+## Odoo ERP
+
+Open **Odoo ERP** from the home screen to connect your Odoo account.
+
+- The organization URL, database, and your login are pre-filled — you only paste your **Odoo API key**, which is stored **encrypted** on your machine.
+- Once connected, Little Gerry can read Odoo data and **propose** ERP actions. Like all write actions, anything that changes Odoo goes through the **Approvals** queue for your sign-off.
 
 ---
 

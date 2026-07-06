@@ -41,6 +41,7 @@ Key design principles:
 | Module                           | Description                                                                                                                                |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | **AI Chat (Little Gerry)** | Streaming conversational AI with tool use, RAG over your knowledge base, and real-time WebSocket responses                                 |
+| **Ask Gerry about this**   | One-click button on any task, project, contact, email, draft, calendar event, KB document, generated file, or attachment — opens a chat seeded with that item (files are read in full) |
 | **Dashboard**              | At-a-glance view of tasks, pending approvals, today's meetings, and AI-generated daily briefing                                            |
 | **Daily Assistant**        | Once-a-day background scan of your Gmail and Google Tasks that surfaces suggested follow-ups and to-dos for human review (sidebar badge shows pending count) |
 | **Projects & Tasks**       | Kanban board with drag-and-drop, project tracking, due dates, and priority management                                                      |
@@ -48,8 +49,9 @@ Key design principles:
 | **Knowledge Base**         | Upload and semantically search internal documents (PDFs, DOCX, TXT); auto-chunked and embedded                                             |
 | **Search**                 | Semantic vector search across all uploaded documents with category filtering                                                               |
 | **Research**               | AI-assisted literature/regulatory research with cited responses                                                                            |
-| **Meeting Notes**          | Meeting transcripts with AI summarization and one-click action item extraction → Tasks                                                    |
-| **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications                                                         |
+| **Meeting Notes**          | Auto-detects video calls (Zoom/Teams/Meet) and records + transcribes system audio, then AI-summarizes with one-click action item extraction → Tasks; manual transcript paste also supported |
+| **Gmail**                  | Full inbox: read/search/tag emails, reply & reply-all, move to Trash, open attachments in Google Workspace, and compose & send your own email directly (no approval needed for mail you write yourself) |
+| **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications; submit for approval to send from your Gmail account     |
 | **Regulatory**             | File explorer for regulatory documents (DHF, IFU, 510(k), ISO 13485): browse/create folders, upload, import from Drive, edit, rename, move, and delete — write access gated per user |
 | **Investor Relations**     | IR hub: company snapshot, regulatory proof-points, AI-drafted pitch context, research feed, and IR specialist chat                          |
 | **Approvals**              | Workflow approval queue — approve/reject with automatic execution and full audit trail                                                       |
@@ -59,6 +61,7 @@ Key design principles:
 | **Audit Trail**            | Immutable log of all system and AI actions with filtering and export                                                                       |
 | **User Management**        | Google sign-in only (no passwords); invite teammates by email; accounts auto-created on first sign-in (owner = admin, everyone else = full-access member); per-user Regulatory write permission and deactivation |
 | **Google Workspace**       | Connect your Google account for Gmail, Drive, Calendar, and Contacts integration with human-in-the-loop write approvals                    |
+| **Odoo ERP**               | Connect an Odoo account via encrypted API key; Little Gerry reads ERP data and proposes write actions through the Approvals queue           |
 | **Settings**               | LLM model selection, embedding provider, re-index KB, live health monitoring, appearance, notification preferences, and one-click in-app updates |
 
 ---
@@ -350,6 +353,7 @@ Navigate to **AI Assistant** in the sidebar.
 - Little Gerry can search your knowledge base, look up tasks, summarize documents, and draft content
 - Rename or archive conversations by hovering over them in the left panel
 - Click **+** for a new conversation
+- Click **Ask Gerry about this** on any task, email, file, contact, or event to open a chat already seeded with that item (attachments and generated files are read in full)
 
 Example prompts:
 
@@ -393,13 +397,21 @@ Displays local events and Google Calendar events side by side. Use the **Sync** 
 
 ---
 
+### Gmail
+
+Open **Gmail** from the Communications area (Google must be connected). Read, search, and tag-filter your inbox; reply or reply-all; move messages to Trash; and open attachments in Google Workspace. Click **New email → Write it myself** to compose and send email directly from your Gmail account (no approval needed for mail you write yourself). You can also ask Little Gerry to draft replies, which route to Approvals.
+
+---
+
 ### Email Drafts
 
-Navigate to **Emails** → **New Draft** → fill in topic and context → **Generate**. Errors are shown inline if generation fails.
+Navigate to **Email Drafts** → **New Email Draft** → fill in topic and context → **Generate**. Review, then submit for approval to send from your Gmail account. Errors are shown inline if generation fails.
 
 ---
 
 ### Meeting Notes
+
+Little Gerry can **auto-record and transcribe video calls** (Zoom/Teams/Meet) when auto-recording is enabled in Settings (system-audio capture is Windows-only), then summarize them automatically. To add one manually:
 
 1. **+ New Meeting** → paste or type the meeting transcript
 2. **Summarize** — generates a structured summary with decisions and action items
