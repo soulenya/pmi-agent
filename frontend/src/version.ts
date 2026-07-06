@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 115;
+export const BUILD_NUMBER = 116;
 export const BUILD_DATE = "2026-07-06";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 116,
+    date: "2026-07-06",
+    title: "Fix: sending an email you wrote yourself now works",
+    changes: [
+      "Composing a new email and pressing Send no longer fails with 'Something went wrong'",
+      "The email now sends correctly whether or not you add attachments",
+    ],
+  },
   {
     build: 115,
     date: "2026-07-06",
