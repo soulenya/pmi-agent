@@ -1004,6 +1004,7 @@ function ComposeModal({
       if (bcc.trim()) fd.append("bcc", bcc);
       for (const f of files) fd.append("files", f);
       const res = await apiClient.post(`${GOOGLE_PREFIX}/gmail/send-compose`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
         timeout: 5 * 60 * 1000,
       });
       return res.data;
