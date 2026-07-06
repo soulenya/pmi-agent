@@ -194,6 +194,8 @@ You can approve wherever is most convenient — no need to change pages:
 - **From a notification** — approval notifications include **Approve** and **Reject** buttons.
 - The **Approvals** page still lists everything in one place.
 
+Whichever way you approve, a **confirmation appears in the bottom-right corner** telling you the email was sent (or exactly why it couldn't be).
+
 ---
 
 ## Ask Gerry About Anything
@@ -356,7 +358,7 @@ Navigate to **Email Drafts** in the sidebar → **New Email Draft**.
 2. Click **Generate** — Little Gerry drafts the email using Claude
 3. Review and edit the draft
 
-When you're ready, **submit the draft for approval**. Approving it in the **Approvals** queue sends the email from your connected Gmail account. If an approved email can't be sent (for example it's missing a recipient), it's returned here as an editable draft with a note explaining why, so you can fix it and resubmit.
+When you're ready, **submit the draft for approval** — the card then shows **Approve & Send** and **Reject** buttons right there, so you can send it without leaving the page (it also appears in the approvals drawer and notifications like any other approval). Approving sends the email from your connected Gmail account. If an approved email can't be sent (for example it's missing a recipient), it's returned here as an editable draft with a note explaining why, so you can fix it and resubmit.
 
 > You can also compose and send email directly from the [Gmail composer](#gmail-inbox-compose--replies) without going through drafts.
 

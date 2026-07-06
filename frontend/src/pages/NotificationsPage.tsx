@@ -5,6 +5,7 @@ import { Bell, CheckCheck, AlertCircle, ClipboardCheck, FileText, Info, MessageS
 import { cn } from "@/lib/utils";
 import { listNotifications, markNotificationRead, markAllNotificationsRead, resolveApproval } from "@/api/chat";
 import { notificationRoute } from "@/components/NotificationDropdown";
+import { pushApprovalOutcomeToast } from "@/stores/toastStore";
 import type { Notification } from "@/types/chat";
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
@@ -42,8 +43,20 @@ function NotificationRow({ notif }: { notif: Notification }) {
 
   const act = useMutation({
     mutationFn: (approved: boolean) => resolveApproval(notif.entity_id!, { approved }),
-    onSuccess: (_res, approved) => {
-      setOutcome(approved ? "Approved" : "Rejected");
+    onSuccess: (res, approved) => {
+      pushApprovalOutcomeToast(res, approved);
+      const exec = res.execution_result;
+      setOutcome(
+        !approved
+          ? "Rejected"
+          : exec?.status === "executed"
+            ? res.intent_type === "send_email"
+              ? "Sent ✓"
+              : "Approved ✓"
+            : exec?.status === "error"
+              ? "Approved, but it couldn't be completed"
+              : "Approved",
+      );
       if (!notif.is_read) markRead.mutate();
       qc.invalidateQueries({ queryKey: ["approvals"] });
       qc.invalidateQueries({ queryKey: ["email-drafts"] });
