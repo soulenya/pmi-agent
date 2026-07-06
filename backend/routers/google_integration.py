@@ -600,9 +600,9 @@ async def _build_gerry_reply(
     Flush-only — the caller is responsible for committing. Returns a summary
     dict. Raises ``ValueError`` if the thread has no messages.
     """
-    from models.db.approval import ApprovalIntent
     from models.db.email_draft import EmailDraft
-    from models.db.enums import ApprovalStatus, IntentType, RiskLevel
+    from models.db.enums import IntentType, RiskLevel
+    from repositories.conversation_repo import ApprovalRepository as _ApprovalRepo
 
     messages = thread.get("messages", [])
     if not messages:
@@ -637,8 +637,7 @@ async def _build_gerry_reply(
     db.add(draft)
     await db.flush()
 
-    intent = ApprovalIntent(
-        id=uuid.uuid4(),
+    intent = await _ApprovalRepo(db).create(
         user_id=user.id,
         intent_type=IntentType.SEND_EMAIL,
         intent_title=f"Send reply: {subject}",
@@ -655,10 +654,7 @@ async def _build_gerry_reply(
             "reply_to_message_id": reply_target,
         },
         risk_level=RiskLevel.MEDIUM,
-        status=ApprovalStatus.PENDING,
     )
-    db.add(intent)
-    await db.flush()
     draft.approval_intent_id = intent.id
 
     return {
@@ -688,9 +684,9 @@ async def _build_gerry_compose(
     Flush-only — the caller commits. Mirrors ``_build_gerry_reply`` but for a
     fresh (non-reply) email composed from an instruction + key points.
     """
-    from models.db.approval import ApprovalIntent
     from models.db.email_draft import EmailDraft
-    from models.db.enums import ApprovalStatus, IntentType, RiskLevel
+    from models.db.enums import IntentType, RiskLevel
+    from repositories.conversation_repo import ApprovalRepository as _ApprovalRepo
 
     recipient_email = _extract_email(to)
     recipient_name = (to.split("<")[0]).strip().strip('"') or recipient_email
@@ -739,18 +735,14 @@ async def _build_gerry_compose(
     if bcc:
         payload["bcc"] = bcc
 
-    intent = ApprovalIntent(
-        id=uuid.uuid4(),
+    intent = await _ApprovalRepo(db).create(
         user_id=user.id,
         intent_type=IntentType.SEND_EMAIL,
         intent_title=f"Send email: {subject_final}",
         intent_description=f"To: {recipient_name or recipient_email}",
         intent_payload=payload,
         risk_level=RiskLevel.MEDIUM,
-        status=ApprovalStatus.PENDING,
     )
-    db.add(intent)
-    await db.flush()
     draft.approval_intent_id = intent.id
 
     return {

@@ -43,7 +43,7 @@ Key design principles:
 | **AI Chat (Little Gerry)** | Streaming conversational AI with tool use, RAG over your knowledge base, and real-time WebSocket responses                                 |
 | **Ask Gerry about this**   | One-click button on any task, project, contact, email, draft, calendar event, KB document, generated file, or attachment — opens a chat seeded with that item (files are read in full) |
 | **Dashboard**              | At-a-glance view of tasks, pending approvals, today's meetings, and AI-generated daily briefing                                            |
-| **Daily Assistant**        | Once-a-day background scan of your Gmail and Google Tasks that surfaces suggested follow-ups and to-dos for human review (sidebar badge shows pending count) |
+| **Daily Assistant**        | Once-a-day background scan of your Gmail and Google Tasks that surfaces suggested follow-ups and to-dos for human review, plus a docked **briefing panel** on the home screen showing today's schedule, unread email, tasks due, pending approvals, suggestions, and an Odoo snapshot |
 | **Projects & Tasks**       | Kanban board with drag-and-drop, project tracking, due dates, and priority management                                                      |
 | **Calendar**               | Scheduled events with meeting integration                                                                                                  |
 | **Knowledge Base**         | Upload and semantically search internal documents (PDFs, DOCX, TXT); auto-chunked and embedded. Little Gerry can also read an entire document in full when asked to summarize or analyze it |
@@ -54,8 +54,8 @@ Key design principles:
 | **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications; submit for approval to send from your Gmail account     |
 | **Regulatory**             | File explorer for regulatory documents (DHF, IFU, 510(k), ISO 13485): browse/create folders, upload, import from Drive, edit, rename, move, and delete — write access gated per user |
 | **Investor Relations**     | IR hub: company snapshot, regulatory proof-points, AI-drafted pitch context, research feed, and IR specialist chat                          |
-| **Approvals**              | Workflow approval queue — approve/reject with automatic execution and full audit trail                                                       |
-| **Notifications**          | Real-time WebSocket push notifications with read/unread management                                                                         |
+| **Approvals**              | Approve/reject anywhere — inline in the email thread, inline in chat, from any notification, or from the global top-bar approvals drawer — with automatic execution and full audit trail |
+| **Notifications**          | Actionable notifications — approve/reject approvals directly from the bell, with deep links to the right page for everything else          |
 | **Feedback**               | Top-bar button to report a bug or request a feature; submissions are routed to the owner's notifications                                   |
 | **Setup Wizard**           | One-time guided first-use onboarding: explains the stack, connects Claude + Voyage (pre-set defaults) and Google, and covers roles & usage |
 | **Audit Trail**            | Immutable log of all system and AI actions with filtering and export                                                                       |
@@ -443,7 +443,13 @@ To disconnect: click **Disconnect Google**. Your local token is deleted immediat
 
 ### Approvals
 
-Navigate to **Approvals** for the human-in-the-loop queue. Pending approvals show AI-generated summaries. Click **Approve** or **Reject** with an optional comment.
+Anything Little Gerry wants to do on your behalf needs your sign-off, and you can now give it wherever you are:
+
+- **Inline in the email thread** — a Gerry-drafted reply appears at the top of its Gmail thread with Approve/Edit/Reject buttons.
+- **Inline in chat** — when Gerry proposes an action mid-conversation, the approval card renders right in the conversation.
+- **Global drawer** — the clipboard icon in the top bar (with a live pending count) opens a slide-out panel with every pending approval, on any page.
+- **From a notification** — approval notifications carry Approve/Reject buttons directly.
+- The **Approvals** page remains as the full-page queue and history view.
 
 ---
 

@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   Bell,
   CheckCheck,
@@ -9,6 +9,9 @@ import {
   FileText,
   Info,
   MessageSquare,
+  ShieldCheck,
+  ShieldX,
+  Loader2,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,6 +19,7 @@ import {
   listNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  resolveApproval,
 } from "@/api/chat";
 import type { Notification } from "@/types/chat";
 
@@ -41,15 +45,62 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
+/** Where a notification should take you when clicked (besides marking read). */
+export function notificationRoute(notif: Notification): string | null {
+  switch (notif.type) {
+    case "task_due":
+    case "task_assigned":
+      return "/tasks";
+    case "document_ingested":
+      return "/documents";
+    case "briefing_ready":
+      return "/assistant";
+    case "research_complete":
+      return "/research";
+    case "approval_required":
+      return "/approvals";
+    default:
+      return null;
+  }
+}
+
 // ── NotificationRow ───────────────────────────────────────────────────────────
 
 function NotificationRow({
   notif,
   onMarkRead,
+  onNavigate,
 }: {
   notif: Notification;
   onMarkRead: (id: string) => void;
+  onNavigate?: (path: string) => void;
 }) {
+  const qc = useQueryClient();
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const isApproval =
+    notif.type === "approval_required" &&
+    notif.entity_type === "approval_intent" &&
+    !!notif.entity_id;
+
+  const act = useMutation({
+    mutationFn: (approved: boolean) =>
+      resolveApproval(notif.entity_id!, { approved }),
+    onSuccess: (_res, approved) => {
+      setOutcome(approved ? "Approved" : "Rejected");
+      onMarkRead(notif.id);
+      qc.invalidateQueries({ queryKey: ["approvals"] });
+      qc.invalidateQueries({ queryKey: ["email-drafts"] });
+    },
+    onError: (e: unknown) => {
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      setOutcome(status === 409 || status === 404 ? "Already handled" : "Failed — open Approvals");
+      onMarkRead(notif.id);
+      qc.invalidateQueries({ queryKey: ["approvals"] });
+    },
+  });
+
+  const route = notificationRoute(notif);
+
   return (
     <div
       className={cn(
@@ -58,7 +109,10 @@ function NotificationRow({
           ? "hover:bg-accent/30"
           : "bg-accent/20 hover:bg-accent/40 cursor-pointer"
       )}
-      onClick={() => !notif.is_read && onMarkRead(notif.id)}
+      onClick={() => {
+        if (!notif.is_read) onMarkRead(notif.id);
+        if (route && onNavigate) onNavigate(route);
+      }}
     >
       <div className="mt-0.5 shrink-0">
         {TYPE_ICON[notif.type] ?? (
@@ -82,6 +136,40 @@ function NotificationRow({
         <p className="text-[10px] text-muted-foreground mt-0.5">
           {timeAgo(notif.created_at)}
         </p>
+        {/* Act on an approval right here — no page change needed */}
+        {isApproval && !outcome && (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <button
+              disabled={act.isPending}
+              onClick={(e) => {
+                e.stopPropagation();
+                act.mutate(true);
+              }}
+              className="flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {act.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <ShieldCheck className="h-3 w-3" />
+              )}
+              Approve
+            </button>
+            <button
+              disabled={act.isPending}
+              onClick={(e) => {
+                e.stopPropagation();
+                act.mutate(false);
+              }}
+              className="flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+            >
+              <ShieldX className="h-3 w-3" />
+              Reject
+            </button>
+          </div>
+        )}
+        {outcome && (
+          <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">{outcome}</p>
+        )}
       </div>
       {!notif.is_read && (
         <div className="mt-1.5 shrink-0 h-2 w-2 rounded-full bg-primary" />
@@ -96,6 +184,7 @@ export function NotificationDropdown() {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications"],
@@ -191,6 +280,10 @@ export function NotificationDropdown() {
                   key={n.id}
                   notif={n}
                   onMarkRead={(id) => markRead.mutate(id)}
+                  onNavigate={(path) => {
+                    setOpen(false);
+                    navigate(path);
+                  }}
                 />
               ))
             )}

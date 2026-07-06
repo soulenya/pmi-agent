@@ -29,6 +29,11 @@ import { apiClient } from "@/api/client";
 import { hasNativeSaveFile, saveFileNative, openExternal } from "@/lib/externalLinks";
 import { EmailsPage } from "@/pages/EmailsPage";
 import { AskGerryButton } from "@/components/AskGerryButton";
+import {
+  ApprovalCard,
+  usePendingApprovals,
+  useResolveApproval,
+} from "@/components/approvals/ApprovalCard";
 
 const GOOGLE_PREFIX = "/api/google";
 
@@ -1614,6 +1619,7 @@ function TagModal({ threadId, onClose }: { threadId: string; onClose: () => void
 }
 
 function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: string }) {
+  const qc = useQueryClient();
   const [showImport, setShowImport] = useState(false);
   const [title, setTitle] = useState(
     detail.subject ? `Email: ${detail.subject}` : "Email thread",
@@ -1629,7 +1635,13 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
   const [replyBody, setReplyBody] = useState("");
   const [instruction, setInstruction] = useState("");
   const [showTags, setShowTags] = useState(false);
-  const [draftedToApprovals, setDraftedToApprovals] = useState(false);
+
+  // Pending Gerry drafts (and other approvals) tied to this thread — reviewed inline.
+  const threadApprovals = usePendingApprovals({
+    thread_id: detail.thread_id,
+    refetchInterval: 15_000,
+  });
+  const resolveThreadApproval = useResolveApproval();
 
   function openReply() {
     setReplyTo(emailOf(last?.from || ""));
@@ -1637,7 +1649,6 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
     setShowCc(false);
     setReplyBody(signature ? `\n\n${signature}` : "");
     setInstruction("");
-    setDraftedToApprovals(false);
     setShowReply(true);
     setShowImport(false);
     setNotice(null);
@@ -1662,7 +1673,6 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
     setShowCc(uniqueCc.length > 0);
     setReplyBody(signature ? `\n\n${signature}` : "");
     setInstruction("");
-    setDraftedToApprovals(false);
     setShowReply(true);
     setShowImport(false);
     setNotice(null);
@@ -1705,10 +1715,10 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
     onSuccess: () => {
       setNotice({
         kind: "ok",
-        text: "Gerry drafted a reply and sent it to Approvals for your review.",
+        text: "Gerry drafted a reply — review and approve it right below.",
       });
-      setDraftedToApprovals(true);
       setShowReply(false);
+      qc.invalidateQueries({ queryKey: ["approvals"] });
     },
     onError: (e) => setNotice({ kind: "error", text: getError(e) }),
   });
@@ -1838,18 +1848,6 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
         </p>
       )}
 
-      {draftedToApprovals && (
-        <div className="mb-4">
-          <Link
-            to="/approvals"
-            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 transition-colors"
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Go to Approvals
-          </Link>
-        </div>
-      )}
-
       {showReply && (
         <div className="mb-4 rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-3">
           <label className="block text-xs text-zinc-500">
@@ -1914,7 +1912,24 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
       )}
 
       <div className="space-y-3">
-        {detail.messages.map((m) => (
+        {(threadApprovals.data ?? []).length > 0 && (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">
+              Waiting for your approval
+            </p>
+            {(threadApprovals.data ?? []).map((intent) => (
+              <ApprovalCard
+                key={intent.id}
+                intent={intent}
+                compact
+                onResolve={(approved, reason) =>
+                  resolveThreadApproval(intent.id, approved, reason)
+                }
+              />
+            ))}
+          </div>
+        )}
+        {[...detail.messages].reverse().map((m) => (
           <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <div className="flex items-baseline justify-between gap-3 mb-2">
               <p className="text-sm font-medium text-zinc-200">{senderName(m.from)}</p>
