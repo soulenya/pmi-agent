@@ -37,6 +37,7 @@ Today's date: {today}
 
 _TOOLS = [
     "search_knowledge_base",
+    "read_knowledge_base_document",
     "search_drive",
     "list_drive_folder",
     "list_shared_drives",

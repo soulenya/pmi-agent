@@ -43,6 +43,7 @@ Today's date: {today}
 
 _TOOLS = [
     "search_knowledge_base",
+    "read_knowledge_base_document",
     "search_web",
     "fetch_page",
     "search_drive",

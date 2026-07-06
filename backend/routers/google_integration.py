@@ -154,6 +154,65 @@ async def gmail_attachment_open_in_drive(
     return result
 
 
+@router.post("/gmail/message/{message_id}/attachment/{attachment_id}/import-kb")
+async def gmail_attachment_import_kb(
+    message_id: str,
+    attachment_id: str,
+    req: AttachmentOpenRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
+):
+    """Import a single Gmail attachment into the Knowledge Base.
+
+    Fetches the attachment bytes and ingests them as their own KB document in
+    the dedicated "Email" category (kept out of the regulated document set),
+    stamped with the source message/attachment id for traceability.
+    """
+    from services.documents.ingestion import DocumentIngestionService, DuplicateDocumentError
+    from services.documents.email_import import EMAIL_CATEGORY_NAME
+    from repositories.document_repo import DocumentCategoryRepository
+
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+    try:
+        data = gs.gmail_get_attachment(message_id, attachment_id)
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+    if not data:
+        raise HTTPException(404, "Attachment is empty or unavailable.")
+
+    fname = (req.filename or "attachment").strip() or "attachment"
+    cat = await DocumentCategoryRepository(db).get_or_create(EMAIL_CATEGORY_NAME)
+    svc = DocumentIngestionService(db=db, embedding_svc=embedding_svc)
+    try:
+        doc = await svc.ingest(
+            filename=fname,
+            raw_bytes=data,
+            title=fname,
+            category_id=cat.id,
+            is_regulated=False,
+            created_by_id=current_user.id,
+        )
+        doc.source_type = "email"
+        doc.source_id = f"{message_id}:{attachment_id}"
+        doc.source_name = fname
+    except DuplicateDocumentError:
+        await db.rollback()
+        return {"status": "skipped_duplicate", "filename": fname}
+    except ValueError:
+        await db.rollback()
+        raise HTTPException(
+            415, f"\u201c{fname}\u201d is not a supported file type for the Knowledge Base."
+        )
+    except Exception as exc:  # noqa: BLE001
+        await db.rollback()
+        raise HTTPException(500, f"Could not add the attachment to the Knowledge Base: {exc}")
+
+    await db.commit()
+    return {"status": "imported", "filename": fname, "id": str(doc.id)}
+
+
 class GmailThreadImportRequest(BaseModel):
     thread_id: str
     title: str | None = None

@@ -12,7 +12,8 @@ from langchain_core.tools import tool as lc_tool
 # Each agent creates bound_tools(ctx) which returns callable tool objects.
 
 _TOOL_DOCS = {
-    "search_knowledge_base": "Semantic search over uploaded PMI internal documents. Use for regulatory docs, SOPs, device specs, meeting notes.",
+    "search_knowledge_base": "Semantic search over uploaded PMI internal documents. Use for regulatory docs, SOPs, device specs, meeting notes. Returns only the few most-similar chunks.",
+    "read_knowledge_base_document": "Read the COMPLETE text of one imported KB document (every section, start to finish). Use when asked to summarize, review, or analyze a WHOLE document — search only returns scattered chunks. JSON fields: {\"document_id\": str (preferred) or \"query\": str (title).}",
     "create_task": "Create a new task in the PMI task tracker (Kanban board). Auto-approved.",
     "request_approval": "Submit an irreversible action for human approval before execution. Required for emails, calendar events, and any external write.",
     "propose_odoo_write": (

@@ -46,11 +46,11 @@ Key design principles:
 | **Daily Assistant**        | Once-a-day background scan of your Gmail and Google Tasks that surfaces suggested follow-ups and to-dos for human review (sidebar badge shows pending count) |
 | **Projects & Tasks**       | Kanban board with drag-and-drop, project tracking, due dates, and priority management                                                      |
 | **Calendar**               | Scheduled events with meeting integration                                                                                                  |
-| **Knowledge Base**         | Upload and semantically search internal documents (PDFs, DOCX, TXT); auto-chunked and embedded                                             |
+| **Knowledge Base**         | Upload and semantically search internal documents (PDFs, DOCX, TXT); auto-chunked and embedded. Little Gerry can also read an entire document in full when asked to summarize or analyze it |
 | **Search**                 | Semantic vector search across all uploaded documents with category filtering                                                               |
 | **Research**               | AI-assisted literature/regulatory research with cited responses                                                                            |
 | **Meeting Notes**          | Auto-detects video calls (Zoom/Teams/Meet) and records + transcribes system audio, then AI-summarizes with one-click action item extraction → Tasks; manual transcript paste also supported |
-| **Gmail**                  | Full inbox: read/search/tag emails, reply & reply-all, move to Trash, open attachments in Google Workspace, and compose & send your own email directly (no approval needed for mail you write yourself) |
+| **Gmail**                  | Full inbox: browse standard Gmail folders (Inbox, Sent, Drafts, Starred, Important, Archived, Spam, Trash, All Mail), sort your mail (newest/oldest/sender/unread first), read/search/tag emails, reply & reply-all, move to Trash, open attachments in Google Workspace, add attachments straight to the Knowledge Base, and compose & send your own email directly (no approval needed for mail you write yourself) |
 | **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications; submit for approval to send from your Gmail account     |
 | **Regulatory**             | File explorer for regulatory documents (DHF, IFU, 510(k), ISO 13485): browse/create folders, upload, import from Drive, edit, rename, move, and delete — write access gated per user |
 | **Investor Relations**     | IR hub: company snapshot, regulatory proof-points, AI-drafted pitch context, research feed, and IR specialist chat                          |
@@ -399,7 +399,7 @@ Displays local events and Google Calendar events side by side. Use the **Sync** 
 
 ### Gmail
 
-Open **Gmail** from the Communications area (Google must be connected). Read, search, and tag-filter your inbox; reply or reply-all; move messages to Trash; and open attachments in Google Workspace. Click **New email → Write it myself** to compose and send email directly from your Gmail account (no approval needed for mail you write yourself). You can also ask Little Gerry to draft replies, which route to Approvals.
+Open **Gmail** from the Communications area (Google must be connected). Use the **folder** dropdown to switch between Gmail's standard folders (Inbox, Sent, Drafts, Starred, Important, Archived, Spam, Trash, All Mail) and the **sort** dropdown to order your mail (newest first by default, or oldest, sender A–Z, or unread first). Read, search, and tag-filter your inbox; reply or reply-all; move messages to Trash; open attachments in Google Workspace; or click the **Add to Knowledge Base** button on any attachment to import it for Little Gerry to reference. Click **New email → Write it myself** to compose and send email directly from your Gmail account (no approval needed for mail you write yourself). You can also ask Little Gerry to draft replies, which route to Approvals.
 
 ---
 

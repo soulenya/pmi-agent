@@ -39,6 +39,7 @@ Today's date: {today}
 
 _TOOLS = [
     "search_knowledge_base",
+    "read_knowledge_base_document",
     "create_task",
     "get_tasks",
     "create_email_draft",
