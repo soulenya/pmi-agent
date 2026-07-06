@@ -100,6 +100,7 @@ _TOOLS = [
     "get_regulatory_status",
     # Knowledge & web
     "search_knowledge_base",
+    "read_knowledge_base_document",
     "search_web",
     "fetch_page",
     # Google Workspace (read only, plus confirmed Drive upload)
