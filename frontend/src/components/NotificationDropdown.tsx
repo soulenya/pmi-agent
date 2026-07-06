@@ -22,6 +22,7 @@ import {
   resolveApproval,
 } from "@/api/chat";
 import type { Notification } from "@/types/chat";
+import { pushApprovalOutcomeToast } from "@/stores/toastStore";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -85,8 +86,20 @@ function NotificationRow({
   const act = useMutation({
     mutationFn: (approved: boolean) =>
       resolveApproval(notif.entity_id!, { approved }),
-    onSuccess: (_res, approved) => {
-      setOutcome(approved ? "Approved" : "Rejected");
+    onSuccess: (res, approved) => {
+      pushApprovalOutcomeToast(res, approved);
+      const exec = res.execution_result;
+      setOutcome(
+        !approved
+          ? "Rejected"
+          : exec?.status === "executed"
+            ? res.intent_type === "send_email"
+              ? "Sent ✓"
+              : "Approved ✓"
+            : exec?.status === "error"
+              ? "Approved, but it couldn't be completed"
+              : "Approved",
+      );
       onMarkRead(notif.id);
       qc.invalidateQueries({ queryKey: ["approvals"] });
       qc.invalidateQueries({ queryKey: ["email-drafts"] });

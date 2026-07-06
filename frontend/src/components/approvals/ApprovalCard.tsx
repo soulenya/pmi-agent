@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { pushApprovalOutcomeToast } from "@/stores/toastStore";
 
 export const RISK_STYLES: Record<string, string> = {
   low: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
@@ -64,13 +65,16 @@ export function usePendingApprovals(params?: {
   });
 }
 
-/** Shared resolve mutation — invalidates every surface that shows approvals. */
+/** Shared resolve mutation — invalidates every surface that shows approvals
+ *  and raises a global "sent" confirmation toast (the resolved card usually
+ *  unmounts immediately, so the outcome must outlive it). */
 export function useResolveApproval() {
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: ({ id, approved, reason }: { id: string; approved: boolean; reason?: string }) =>
       resolveApproval(id, { approved, rejection_reason: reason }),
-    onSuccess: () => {
+    onSuccess: (result, { approved }) => {
+      pushApprovalOutcomeToast(result, approved);
       queryClient.invalidateQueries({ queryKey: ["approvals"] });
       queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });

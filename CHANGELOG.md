@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.1.0 — 2026-07-06
+**Approve & send directly from Email Drafts, with a global “sent” confirmation**
+
+- **Approve & Send / Reject on the draft card (`DraftCard` in `EmailsPage.tsx`):** drafts in `pending_approval` now expose **Approve & Send** and **Reject** buttons that resolve the linked `ApprovalIntent` (`draft.approval_intent_id`) in place — completing the approve-anywhere workflow for the Email Drafts page. The card reports the execution outcome inline (sent, rejected back to editing, or the send-failure reason — e.g. missing recipient — with the draft returned to an editable state), and gracefully reports “already handled elsewhere” on 409/404. Resolving invalidates the email-drafts, approvals, and notifications queries so every surface stays in sync.
+- **Global “sent” confirmation toast (`stores/toastStore.ts` + `components/Toaster.tsx`, mounted in `AppShell`):** approving a Gerry-drafted email from ANY surface — inline in the Gmail thread, inline in chat, the approvals drawer, the Approvals page path via the shared hook, Email Drafts, or a notification's Approve button — raises a bottom-right toast (“Email sent — …”, or the failure reason if execution errored). Needed because a resolved approval card unmounts immediately when it leaves the pending list, so any in-card outcome display vanished before it could be read. `useResolveApproval` and the notification/EmailsPage mutations all call `pushApprovalOutcomeToast`; notification rows also upgrade their inline outcome from “Approved” to “Sent ✓” for executed email sends.
+
 ### v3.0.0 — 2026-07-06
 **Approve anywhere: inline approvals in Inbox/Chat, global drawer, actionable notifications, and a home-screen briefing panel**
 
