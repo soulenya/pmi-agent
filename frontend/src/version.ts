@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 117;
+export const BUILD_NUMBER = 118;
 export const BUILD_DATE = "2026-07-06";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 118,
+    date: "2026-07-06",
+    title: "Fix: sending email and adding email attachments to the Knowledge Base",
+    changes: [
+      "Sending an email now works again — a plain message (without attachments) no longer fails with 'Cannot reach the server'",
+      "Adding an email attachment to the Knowledge Base now works instead of failing with 'Cannot reach the server'",
+    ],
+  },
   {
     build: 117,
     date: "2026-07-06",

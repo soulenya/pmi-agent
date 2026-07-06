@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v2.14.1 — 2026-07-06
+**Fix: sending email and adding email attachments to the Knowledge Base**
+
+- **Sending a plain email no longer 500s (`gmail_send` in `services/google_service.py`):** the function's attachment branch does a local `import email.mime.multipart`, which makes `email` a function-local name for the whole function; the no-attachment `else` branch then referenced `email.mime.text.MIMEText` and raised `UnboundLocalError: cannot access local variable 'email'`. Because an unhandled 500 response carries no CORS headers, the browser blocked it and axios surfaced it as the misleading *"Cannot reach the server. Is Little Gerry running?"* The `else` branch now imports and uses `email.mime.text` locally, so sending a message with or without attachments works.
+- **Adding an email attachment to the Knowledge Base no longer 500s (`gmail_attachment_import_kb` in `routers/google_integration.py`):** the document's `source_id` was set to `f"{message_id}:{attachment_id}"`, but Gmail attachment IDs can exceed 300 characters while `documents.source_id` is `varchar(255)`, so Postgres raised `StringDataRightTruncationError` (surfaced as the same misleading "Cannot reach the server"). `source_id` is now the stable Gmail message id, which stays well within the column limit and still traces the attachment back to its source email.
+
 ### v2.14.0 — 2026-07-06
 **Gmail folders & sorting, add attachments to the Knowledge Base, and legible email text in dark mode**
 
