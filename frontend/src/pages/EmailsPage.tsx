@@ -14,6 +14,8 @@ import {
   CheckCircle,
   XCircle,
   Edit3,
+  ShieldCheck,
+  ShieldX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -24,6 +26,8 @@ import {
   submitEmailForApproval,
   deleteEmailDraft,
 } from "@/api/meetings";
+import { resolveApproval } from "@/api/chat";
+import { pushApprovalOutcomeToast } from "@/stores/toastStore";
 import type { EmailDraft, EmailDraftCreate, EmailDraftUpdate } from "@/types/meetings";
 import { EMAIL_TONES } from "@/types/meetings";
 import { AskGerryButton } from "@/components/AskGerryButton";
@@ -192,6 +196,9 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
   const [expanded, setExpanded] = useState(false);
   const [editingBody, setEditingBody] = useState(false);
   const [editedBody, setEditedBody] = useState(draft.draft_body ?? "");
+  const [sendOutcome, setSendOutcome] = useState<{ kind: "ok" | "error"; text: string } | null>(
+    null,
+  );
 
   const regenMutation = useMutation({
     mutationFn: () => regenerateEmailDraft(draft.id),
@@ -211,12 +218,50 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["email-drafts"] }),
   });
 
+  // Approve (and send) or reject the linked approval right from this card.
+  const resolveMutation = useMutation({
+    mutationFn: (approved: boolean) =>
+      resolveApproval(draft.approval_intent_id!, { approved }),
+    onSuccess: (result, approved) => {
+      pushApprovalOutcomeToast(result, approved);
+      const exec = result.execution_result;
+      if (!approved) {
+        setSendOutcome({ kind: "ok", text: "Rejected — returned to Drafts for editing." });
+      } else if (exec?.status === "executed") {
+        setSendOutcome({ kind: "ok", text: "Approved and sent." });
+      } else if (exec?.status === "error") {
+        setSendOutcome({
+          kind: "error",
+          text: String(exec.detail ?? "Sending failed — the draft was returned to Drafts."),
+        });
+      } else {
+        setSendOutcome({ kind: "ok", text: "Approved." });
+      }
+      qc.invalidateQueries({ queryKey: ["email-drafts"] });
+      qc.invalidateQueries({ queryKey: ["approvals"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (e: unknown) => {
+      const status = (e as { response?: { status?: number } })?.response?.status;
+      setSendOutcome({
+        kind: "error",
+        text:
+          status === 409 || status === 404
+            ? "This approval was already handled elsewhere."
+            : "Couldn't resolve the approval. Please try again.",
+      });
+      qc.invalidateQueries({ queryKey: ["email-drafts"] });
+      qc.invalidateQueries({ queryKey: ["approvals"] });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: () => deleteEmailDraft(draft.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["email-drafts"] }),
   });
 
   const canEdit = draft.status === "draft";
+  const canResolve = draft.status === "pending_approval" && !!draft.approval_intent_id;
 
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -267,6 +312,32 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
               Submit for Approval
             </button>
           )}
+          {canResolve && (
+            <>
+              <button
+                onClick={() => resolveMutation.mutate(true)}
+                disabled={resolveMutation.isPending}
+                title="Approve this draft and send it now"
+                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {resolveMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <ShieldCheck className="h-3 w-3" />
+                )}
+                Approve &amp; Send
+              </button>
+              <button
+                onClick={() => resolveMutation.mutate(false)}
+                disabled={resolveMutation.isPending}
+                title="Reject — returns the draft to an editable state"
+                className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+              >
+                <ShieldX className="h-3 w-3" />
+                Reject
+              </button>
+            </>
+          )}
           <button
             onClick={() => setExpanded((p) => !p)}
             className="rounded-md p-1.5 hover:bg-accent text-muted-foreground"
@@ -286,6 +357,21 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
       {/* Purpose preview */}
       <div className="px-5 pb-3">
         <p className="text-xs text-muted-foreground line-clamp-2">{draft.purpose}</p>
+        {sendOutcome && (
+          <p
+            className={cn(
+              "mt-1.5 flex items-center gap-1.5 text-xs font-medium",
+              sendOutcome.kind === "ok" ? "text-green-600 dark:text-green-400" : "text-destructive",
+            )}
+          >
+            {sendOutcome.kind === "ok" ? (
+              <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <XCircle className="h-3.5 w-3.5 shrink-0" />
+            )}
+            {sendOutcome.text}
+          </p>
+        )}
       </div>
 
       {/* Expanded */}

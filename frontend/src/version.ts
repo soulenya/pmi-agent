@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 119;
+export const BUILD_NUMBER = 120;
 export const BUILD_DATE = "2026-07-06";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 120,
+    date: "2026-07-06",
+    title: "Approve & send from Email Drafts, plus a clear 'sent' confirmation everywhere",
+    changes: [
+      "After submitting a draft for approval, the draft card now shows Approve & Send and Reject buttons — no need to go anywhere else",
+      "The card tells you the outcome on the spot: sent, rejected back to editing, or why sending failed",
+      "Approving a Gerry-drafted email now always shows a 'sent' confirmation toast — whether you approve from the email thread, chat, Email Drafts, the approvals drawer, or a notification",
+    ],
+  },
   {
     build: 119,
     date: "2026-07-06",
