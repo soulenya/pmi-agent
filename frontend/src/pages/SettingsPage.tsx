@@ -937,7 +937,7 @@ function CompanyProfileSection() {
                 Drive location every teammate can read (e.g.
                 <span className="font-mono text-xs"> Little Gerry/company-context.md</span>),
                 paste its file ID or link below, and Little Gerry will load it on every
-                launch. Keep it under 4,000 characters — long documents belong in the
+                launch. Keep it under 6,000 characters — long documents belong in the
                 Knowledge Base.
               </p>
               <button

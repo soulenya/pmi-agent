@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.2.1 — 2026-07-07
+**Company Profile preconfigured for every install + 6,000-char cap**
+
+- **Baked-in default Drive file ID (`company_context_drive_file_id` in `config.py`):** every install now syncs the shared PMI company-context Drive file automatically with zero per-user setup. Resolution order: the local `company.profile_drive_file_id` SystemSetting (if a user set one in Settings → Company Profile) overrides the build default (`get_drive_file_id()` in `services/company_context.py`); the settings endpoints report the effective ID so the "Open in Drive" link always works.
+- **Cap raised 4,000 → 6,000 chars (`MAX_COMPANY_CONTEXT_CHARS`):** the real PMI profile (people, partners, NAR pricing, regulatory status, standards summary, security rules) landed at ~4.6k — still a small bounded block per turn, now with headroom. UI copy and USER_GUIDE updated to match.
+
 ### v3.2.0 — 2026-07-06
 **Persistent Company Context — Drive-backed, always injected into every agent**
 
