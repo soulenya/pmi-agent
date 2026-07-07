@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 123;
+export const BUILD_NUMBER = 124;
 export const BUILD_DATE = "2026-07-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 124,
+    date: "2026-07-07",
+    title: "Gerry can now add contacts to the Contacts page",
+    changes: [
+      "Ask Gerry to save a person — or import a whole pasted list — and the contacts land directly on the Contacts page (Communications → Contacts)",
+      "Existing entries with the same email are updated rather than duplicated, and Odoo CRM contacts still go through Approvals as before",
+    ],
+  },
   {
     build: 123,
     date: "2026-07-07",

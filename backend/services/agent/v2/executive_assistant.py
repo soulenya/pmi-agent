@@ -50,6 +50,7 @@ _TOOLS = [
     "read_gmail_message",
     "get_calendar_events",
     "search_contacts",
+    "add_contacts",
     "list_google_tasks",
     "search_drive",
     "list_drive_folder",

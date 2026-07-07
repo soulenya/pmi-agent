@@ -42,6 +42,7 @@ _TOOLS = [
     "get_tasks",
     "get_calendar_events",
     "search_contacts",
+    "add_contacts",
     "read_google_sheet",
     "list_google_tasks",
     "search_drive",
