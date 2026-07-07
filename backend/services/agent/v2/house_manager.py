@@ -113,6 +113,7 @@ _TOOLS = [
     "read_drive_file",
     "get_calendar_events",
     "search_contacts",
+    "add_contacts",
     "read_google_sheet",
     "list_google_tasks",
     "upload_to_drive",
