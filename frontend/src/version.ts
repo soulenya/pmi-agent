@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 122;
+export const BUILD_NUMBER = 123;
 export const BUILD_DATE = "2026-07-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 123,
+    date: "2026-07-07",
+    title: "Fix: Gerry now actually uses the Company Profile in chat",
+    changes: [
+      "Asking Gerry about PMI's people, products, or partners now answers straight from the Company Profile instead of searching Gmail and the Knowledge Base",
+      "The profile was syncing correctly but wasn't being loaded into the standard chat engine — only into the experimental multi-agent mode",
+    ],
+  },
   {
     build: 122,
     date: "2026-07-07",
