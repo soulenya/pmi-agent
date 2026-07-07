@@ -16,7 +16,7 @@
 
 #define AppName       "Little Gerry"
 #define AppPublisher  "Precisian Medical Instruments"
-#define AppVersion    "3.1.0"
+#define AppVersion    "3.2.0"
 #define AppURL        "https://github.com/soulenya/pmi-agent"
 #define AppExeName    "Start Little Gerry.bat"
 #define AppDescription "AI Executive Assistant for the VACTOR Program"
@@ -254,6 +254,7 @@ begin
       mbInformation, MB_OK, IDOK);
   end;
 end;
+
 
 
 
