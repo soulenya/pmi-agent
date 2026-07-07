@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 121;
-export const BUILD_DATE = "2026-07-06";
+export const BUILD_NUMBER = 122;
+export const BUILD_DATE = "2026-07-07";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 122,
+    date: "2026-07-07",
+    title: "Company Profile works out of the box — no setup needed",
+    changes: [
+      "The shared PMI company-context file is now preconfigured in every install — it loads automatically at launch with zero setup (you can still point to a different file in Settings if ever needed)",
+      "The company profile size limit was raised from 4,000 to 6,000 characters",
+    ],
+  },
   {
     build: 121,
     date: "2026-07-06",
