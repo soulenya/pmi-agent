@@ -44,6 +44,7 @@ Key design principles:
 | **Ask Gerry about this**   | One-click button on any task, project, contact, email, draft, calendar event, KB document, generated file, or attachment — opens a chat seeded with that item (files are read in full) |
 | **Dashboard**              | At-a-glance view of tasks, pending approvals, today's meetings, and AI-generated daily briefing                                            |
 | **Daily Assistant**        | Once-a-day background scan of your Gmail and Google Tasks that surfaces suggested follow-ups and to-dos for human review, plus a docked **briefing panel** on the home screen showing today's schedule, unread email, tasks due, pending approvals, suggestions, and an Odoo snapshot |
+| **Company Profile**        | A short, always-loaded company-context file (people, products, partners, regulatory context) injected into every agent's system prompt — sourced from a shared Google Drive file so every teammate's install stays consistent; synced at launch and on demand |
 | **Projects & Tasks**       | Kanban board with drag-and-drop, project tracking, due dates, and priority management                                                      |
 | **Calendar**               | Scheduled events with meeting integration                                                                                                  |
 | **Knowledge Base**         | Upload and semantically search internal documents (PDFs, DOCX, TXT); auto-chunked and embedded. Little Gerry can also read an entire document in full when asked to summarize or analyze it |

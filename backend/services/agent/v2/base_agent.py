@@ -48,7 +48,11 @@ class BaseAgent:
         return [t for t in all_tools if t.name in allowed]
 
     def _system_message(
-        self, today: str, google_connected: bool, extra_context: str = ""
+        self,
+        today: str,
+        google_connected: bool,
+        extra_context: str = "",
+        company_context: str = "",
     ) -> SystemMessage:
         google_note = (
             "\nGOOGLE STATUS: Connected. "
@@ -59,9 +63,13 @@ class BaseAgent:
             "Do NOT fabricate any Google Workspace data. "
             "Tell the user to connect via Settings → Google Integration."
         )
+        # Company context goes BEFORE the honesty contract so the honesty rules
+        # apply on top of it: company facts stated, then the rule that nothing
+        # else may be stated without a tool result.
         return SystemMessage(
             content=self.SYSTEM_PROMPT.format(today=today)
             + google_note
+            + (company_context or "")
             + HONESTY_CONTRACT
             + (extra_context or "")
         )
@@ -73,6 +81,7 @@ class BaseAgent:
         google_connected: bool,
         max_rounds: int | None = None,
         extra_system_context: str = "",
+        company_context: str = "",
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
         Async generator — yields dicts:
@@ -85,7 +94,11 @@ class BaseAgent:
         if max_rounds is None:
             from config import settings
             max_rounds = settings.agent_max_tool_rounds
-        lc_messages = [self._system_message(today, google_connected, extra_system_context)]
+        lc_messages = [
+            self._system_message(
+                today, google_connected, extra_system_context, company_context
+            )
+        ]
         for m in messages:
             role = m.get("role", "")
             content = m.get("content", "")

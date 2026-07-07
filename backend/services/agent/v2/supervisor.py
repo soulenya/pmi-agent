@@ -301,6 +301,14 @@ class LangGraphSupervisor:
             logger.exception("Failed to build attachment context")
             attach_ctx = ""
 
+        # Always-available company facts (fast local-cache read — never hits Drive).
+        try:
+            from services.company_context import get_company_context
+            company_ctx = await get_company_context(self.db)
+        except Exception:
+            logger.exception("Failed to load company context")
+            company_ctx = ""
+
         # Stream
         full_response_parts: list[str] = []
         async for frame in agent.run(
@@ -308,6 +316,7 @@ class LangGraphSupervisor:
             today=today,
             google_connected=google_connected,
             extra_system_context=attach_ctx,
+            company_context=company_ctx,
         ):
             frame_type = frame.get("type", "")
 
