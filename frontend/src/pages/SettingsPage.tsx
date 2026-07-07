@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
@@ -21,6 +23,9 @@ import {
   getTaskModels,
   updateTaskModel,
   refreshModels,
+  getCompanyContext,
+  refreshCompanyContext,
+  setCompanyContextFileId,
   type AppSettings,
   type SettingsUpdate,
   type ProfileUpdate,
@@ -831,6 +836,185 @@ function LLMSection({
 
 // ── Per-task model selection section ──────────────────────────────────────────
 
+// ── Company Profile section (Drive-backed, read-only) ────────────────────────
+
+const COMPANY_PROFILE_TEMPLATE = `# PMI Company Context (always loaded — do not fabricate beyond this)
+
+## Company
+Precisian Medical Instruments (PMI) — medical device startup.
+Flagship product: VACTOR, [one-line description].
+
+## Key People
+| Name | Role | Email |
+|------|------|-------|
+| ... | ... | ... |
+
+## Key Partners / Stakeholders
+- ...
+
+## Regulatory Context
+- FDA 510(k), CE Mark, EU MDR, ISO 13485, ISO 14971
+
+## Glossary / Internal Shorthand
+- ...
+
+## Ground Rules
+- If a fact isn't in this file or a KB/tool result, say so — don't guess.
+- For anything beyond this summary, use search_knowledge_base.`;
+
+function relTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} minute${m === 1 ? "" : "s"} ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.floor(h / 24);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
+}
+
+/** Extract a Drive file ID from a pasted ID or a full Drive URL. */
+function parseDriveFileId(raw: string): string {
+  const s = raw.trim();
+  const m =
+    s.match(/\/d\/([\w-]{20,})/) ?? s.match(/[?&]id=([\w-]{20,})/) ?? null;
+  return m ? m[1] : s;
+}
+
+function CompanyProfileSection() {
+  const qc = useQueryClient();
+  const [fileIdInput, setFileIdInput] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [showTemplate, setShowTemplate] = useState(false);
+
+  const { data: ctx, isLoading } = useQuery({
+    queryKey: ["company-context"],
+    queryFn: getCompanyContext,
+  });
+
+  const refresh = useMutation({
+    mutationFn: refreshCompanyContext,
+    onSuccess: (res) => {
+      setError(res.ok ? null : res.error);
+      qc.invalidateQueries({ queryKey: ["company-context"] });
+    },
+    onError: () => setError("Refresh failed — is the backend running?"),
+  });
+
+  const saveFileId = useMutation({
+    mutationFn: () => setCompanyContextFileId(parseDriveFileId(fileIdInput)),
+    onSuccess: (res) => {
+      setError(res.ok ? null : res.error);
+      setFileIdInput("");
+      qc.invalidateQueries({ queryKey: ["company-context"] });
+    },
+    onError: () => setError("Couldn't save the file ID. Please try again."),
+  });
+
+  const driveUrl = ctx?.drive_file_id
+    ? `https://drive.google.com/file/d/${ctx.drive_file_id}/view`
+    : null;
+  const hasContent = !!ctx?.content?.trim();
+
+  return (
+    <Section
+      icon={Building2}
+      title="Company Profile"
+      description="Always-loaded company facts for every agent — edited only in the shared Google Drive file"
+    >
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <>
+          {hasContent ? (
+            <div className="rounded-lg border bg-muted/30 px-4 py-3 max-h-80 overflow-y-auto prose prose-sm dark:prose-invert prose-p:my-1.5 prose-headings:mt-3 prose-headings:mb-1.5 text-sm">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{ctx!.content}</ReactMarkdown>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed px-4 py-4 text-sm text-muted-foreground space-y-2">
+              <p>
+                No company profile is loaded yet. Create a small markdown file in a shared
+                Drive location every teammate can read (e.g.
+                <span className="font-mono text-xs"> Little Gerry/company-context.md</span>),
+                paste its file ID or link below, and Little Gerry will load it on every
+                launch. Keep it under 4,000 characters — long documents belong in the
+                Knowledge Base.
+              </p>
+              <button
+                onClick={() => setShowTemplate((v) => !v)}
+                className="text-xs text-primary hover:underline"
+              >
+                {showTemplate ? "Hide recommended structure" : "Show recommended structure"}
+              </button>
+              {showTemplate && (
+                <pre className="whitespace-pre-wrap rounded-md bg-muted p-3 text-xs">
+                  {COMPANY_PROFILE_TEMPLATE}
+                </pre>
+              )}
+            </div>
+          )}
+
+          {/* Sync status + actions */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => refresh.mutate()}
+              disabled={refresh.isPending}
+              className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+            >
+              {refresh.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              {refresh.isPending ? "Refreshing…" : "Refresh now"}
+            </button>
+            {driveUrl && (
+              <a
+                href={driveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm text-primary hover:underline"
+              >
+                Open in Google Drive to edit <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+            {ctx?.synced_at && (
+              <span className="text-xs text-muted-foreground">
+                Last synced: {relTime(ctx.synced_at)}
+              </span>
+            )}
+          </div>
+
+          {error && <p className="text-xs text-destructive">{error}</p>}
+
+          {/* One-time Drive file ID setup / change */}
+          <Field
+            label={ctx?.drive_file_id ? "Company Profile Drive file" : "Company Profile Drive file ID"}
+            hint="Paste the Drive file ID or a full Drive link. The file is the single source of truth — it syncs on every launch and via Refresh now."
+          >
+            <div className="flex gap-2">
+              <input
+                value={fileIdInput}
+                onChange={(e) => setFileIdInput(e.target.value)}
+                placeholder={ctx?.drive_file_id ?? "e.g. 1AbC… or https://drive.google.com/file/d/…"}
+                className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button
+                onClick={() => saveFileId.mutate()}
+                disabled={saveFileId.isPending || !fileIdInput.trim()}
+                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {saveFileId.isPending ? "Saving…" : "Save & sync"}
+              </button>
+            </div>
+          </Field>
+        </>
+      )}
+    </Section>
+  );
+}
+
+// ── Task models section ─────────────────────────────────────────────────
 function TaskModelsSection() {
   const qc = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
@@ -1585,6 +1769,7 @@ export function SettingsPage() {
               qc.invalidateQueries({ queryKey: ["settings-health"] });
             }}
           />
+          <CompanyProfileSection />
           <TaskModelsSection />
           <AppearanceSection settings={mergedSettings} onChange={handleChange} />
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />

@@ -74,6 +74,11 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# All async tests/fixtures share one session-scoped event loop so the
+# module-level async engine in tests/conftest.py stays on a single loop
+# (asyncpg connections cannot hop between loops).
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 

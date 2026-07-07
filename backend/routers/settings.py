@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings as app_settings
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, require_admin
 from models.db.settings import SystemSetting
 from models.db.user import User
 from models.schemas.auth import UserOut
@@ -620,3 +620,97 @@ async def set_client_state(
     await _set_setting(db, _CLIENT_STATE_PREFIX + key, body.value, current_user.id)
     await db.commit()
     return ClientStateOut(value=body.value)
+
+
+# ── Company context (Drive-backed, read-only cache) ─────────────────────────
+
+class CompanyContextOut(BaseModel):
+    content: str
+    synced_at: str | None
+    drive_file_id: str | None
+
+
+class CompanyContextRefreshOut(CompanyContextOut):
+    ok: bool
+    error: str | None = None
+
+
+class CompanyContextFileIdIn(BaseModel):
+    file_id: str = Field(..., min_length=1, max_length=200)
+
+
+async def _company_context_out(db: AsyncSession) -> CompanyContextOut:
+    from services.company_context import (
+        KEY_DRIVE_FILE_ID,
+        KEY_MD,
+        KEY_SYNCED_AT,
+        MAX_COMPANY_CONTEXT_CHARS,
+        _read_setting,
+    )
+
+    content = (await _read_setting(db, KEY_MD, ""))[:MAX_COMPANY_CONTEXT_CHARS]
+    synced_at = await _read_setting(db, KEY_SYNCED_AT, "") or None
+    file_id = await _read_setting(db, KEY_DRIVE_FILE_ID, "") or None
+    return CompanyContextOut(content=content, synced_at=synced_at, drive_file_id=file_id)
+
+
+async def _refresh_company_context(db: AsyncSession) -> CompanyContextRefreshOut:
+    """Run a sync and translate the outcome into a clear, user-facing reason."""
+    from services.company_context import (
+        KEY_DRIVE_FILE_ID,
+        _read_setting,
+        sync_company_context_from_drive,
+    )
+    from services.google_service import get_credentials
+
+    error: str | None = None
+    if not get_credentials():
+        error = "Google is not connected — connect it in Settings → Google Integration."
+    elif not (await _read_setting(db, KEY_DRIVE_FILE_ID, "")).strip():
+        error = "No Drive file is configured yet — set the Company Profile Drive file ID below."
+
+    ok = False
+    if error is None:
+        ok = await sync_company_context_from_drive(db)
+        if not ok:
+            error = (
+                "Couldn't read the Drive file — check the file ID, that your Google "
+                "account has access to it, that it has readable text, and that it is "
+                "under 4,000 characters."
+            )
+    base = await _company_context_out(db)
+    return CompanyContextRefreshOut(**base.model_dump(), ok=ok, error=error)
+
+
+@router.get("/company-context", response_model=CompanyContextOut)
+async def get_company_context_setting(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> CompanyContextOut:
+    """Cached company-context content + last-synced timestamp (read-only —
+    the shared Google Drive file is the single source of truth; there is
+    deliberately no edit endpoint)."""
+    return await _company_context_out(db)
+
+
+@router.post("/company-context/refresh", response_model=CompanyContextRefreshOut)
+async def refresh_company_context(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_admin),
+) -> CompanyContextRefreshOut:
+    """Manually re-pull the company context from the shared Drive file."""
+    return await _refresh_company_context(db)
+
+
+@router.put("/company-context/file-id", response_model=CompanyContextRefreshOut)
+async def set_company_context_file_id(
+    body: CompanyContextFileIdIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> CompanyContextRefreshOut:
+    """One-time setup: store the Drive file ID, then immediately try a sync."""
+    from services.company_context import KEY_DRIVE_FILE_ID
+
+    await _set_setting(db, KEY_DRIVE_FILE_ID, body.file_id.strip(), current_user.id)
+    await db.commit()
+    return await _refresh_company_context(db)
