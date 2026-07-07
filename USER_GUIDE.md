@@ -188,6 +188,7 @@ When Google is connected, Little Gerry calls the appropriate tool immediately �
 - "Can you see my PMI share drive?" → lists your Drive contents instantly
 - "Any emails about the 510k?" → searches Gmail immediately
 - "What's on my calendar this week?" → fetches calendar events immediately
+- "Add Jane Smith (jane@acme.com, Acme) to my contacts" → saves straight to the Contacts page — works for one contact or a whole pasted list
 - "What do our VACTOR specs say about suction pressure?" → searches the Knowledge Base
 
 ### What requires your approval
