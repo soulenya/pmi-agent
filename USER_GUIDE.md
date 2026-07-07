@@ -134,9 +134,9 @@ Anthropic does not provide an embedding service. Voyage AI is their official par
 
 ### Optional — Company Profile (shared company facts)
 
-Little Gerry can load a small **company profile** — key people, products, partners, and regulatory context — into every conversation automatically, so she always knows the basics without searching. Because every teammate runs their own copy of Little Gerry, the profile lives in a **shared Google Drive file** (the single source of truth), not on any one machine:
+Little Gerry can load a small **company profile** — key people, products, partners, and regulatory context — into every conversation automatically, so she always knows the basics without searching. Because every teammate runs their own copy of Little Gerry, the profile lives in a **shared Google Drive file** (the single source of truth), not on any one machine. **PMI installs come preconfigured with the shared company file — no setup needed.** To use a different file:
 
-1. Create a markdown file in a shared Drive location everyone can read (e.g. `Little Gerry/company-context.md`). Keep it under 4,000 characters — long documents belong in the Knowledge Base. The empty state in Settings shows a recommended structure.
+1. Create a markdown file in a shared Drive location everyone can read (e.g. `Little Gerry/company-context.md`). Keep it under 6,000 characters — long documents belong in the Knowledge Base. The empty state in Settings shows a recommended structure.
 2. In **Settings → Company Profile**, paste the file's Drive link or ID and click **Save & sync**.
 3. Little Gerry re-loads the file on every launch; use **Refresh now** after editing it in Drive. Editing happens **only in Drive** — the app view is read-only so all machines stay consistent.
 

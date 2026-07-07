@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     default_embedding_model: str = "voyage-3"
     default_embedding_dimension: int = 1024
 
+    # ── Company context ───────────────────────────────────────────────────────
+    # Default shared Google Drive file ID for the company-context profile.
+    # Baked into the build so every install syncs the same file with zero
+    # per-user setup; a SystemSetting ("company.profile_drive_file_id") set
+    # via Settings → Company Profile overrides it on that machine.
+    company_context_drive_file_id: str = "1aqx08UZ6J1qWAK4o9RMQMeonGvV1yI1C"
+
     # ── RAG ──────────────────────────────────────────────────────────────────
     chunk_size_tokens: int = 512
     chunk_overlap_tokens: int = 64
