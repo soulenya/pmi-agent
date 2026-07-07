@@ -58,6 +58,44 @@ export async function updateSettings(body: SettingsUpdate): Promise<AppSettings>
   return resp.data;
 }
 
+// ── Company context (Drive-backed, read-only cache) ─────────────────────────
+
+export interface CompanyContext {
+  content: string;
+  synced_at: string | null;
+  drive_file_id: string | null;
+}
+
+export interface CompanyContextRefreshResult extends CompanyContext {
+  ok: boolean;
+  error: string | null;
+}
+
+export async function getCompanyContext(): Promise<CompanyContext> {
+  const resp = await apiClient.get<CompanyContext>("/settings/company-context");
+  return resp.data;
+}
+
+export async function refreshCompanyContext(): Promise<CompanyContextRefreshResult> {
+  const resp = await apiClient.post<CompanyContextRefreshResult>(
+    "/settings/company-context/refresh",
+    undefined,
+    { timeout: 60_000 },
+  );
+  return resp.data;
+}
+
+export async function setCompanyContextFileId(
+  fileId: string,
+): Promise<CompanyContextRefreshResult> {
+  const resp = await apiClient.put<CompanyContextRefreshResult>(
+    "/settings/company-context/file-id",
+    { file_id: fileId },
+    { timeout: 60_000 },
+  );
+  return resp.data;
+}
+
 /**
  * Read a persisted client UI-state value. Backed by the server (Postgres) so it
  * survives installer updates that reset the embedded webview's localStorage.
