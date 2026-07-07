@@ -641,24 +641,23 @@ class CompanyContextFileIdIn(BaseModel):
 
 async def _company_context_out(db: AsyncSession) -> CompanyContextOut:
     from services.company_context import (
-        KEY_DRIVE_FILE_ID,
         KEY_MD,
         KEY_SYNCED_AT,
         MAX_COMPANY_CONTEXT_CHARS,
         _read_setting,
+        get_drive_file_id,
     )
 
     content = (await _read_setting(db, KEY_MD, ""))[:MAX_COMPANY_CONTEXT_CHARS]
     synced_at = await _read_setting(db, KEY_SYNCED_AT, "") or None
-    file_id = await _read_setting(db, KEY_DRIVE_FILE_ID, "") or None
+    file_id = await get_drive_file_id(db) or None
     return CompanyContextOut(content=content, synced_at=synced_at, drive_file_id=file_id)
 
 
 async def _refresh_company_context(db: AsyncSession) -> CompanyContextRefreshOut:
     """Run a sync and translate the outcome into a clear, user-facing reason."""
     from services.company_context import (
-        KEY_DRIVE_FILE_ID,
-        _read_setting,
+        get_drive_file_id,
         sync_company_context_from_drive,
     )
     from services.google_service import get_credentials
@@ -666,7 +665,7 @@ async def _refresh_company_context(db: AsyncSession) -> CompanyContextRefreshOut
     error: str | None = None
     if not get_credentials():
         error = "Google is not connected — connect it in Settings → Google Integration."
-    elif not (await _read_setting(db, KEY_DRIVE_FILE_ID, "")).strip():
+    elif not await get_drive_file_id(db):
         error = "No Drive file is configured yet — set the Company Profile Drive file ID below."
 
     ok = False
@@ -676,7 +675,7 @@ async def _refresh_company_context(db: AsyncSession) -> CompanyContextRefreshOut
             error = (
                 "Couldn't read the Drive file — check the file ID, that your Google "
                 "account has access to it, that it has readable text, and that it is "
-                "under 4,000 characters."
+                "under 6,000 characters."
             )
     base = await _company_context_out(db)
     return CompanyContextRefreshOut(**base.model_dump(), ok=ok, error=error)

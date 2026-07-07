@@ -27,7 +27,7 @@ from models.db.settings import SystemSetting
 
 logger = logging.getLogger(__name__)
 
-MAX_COMPANY_CONTEXT_CHARS = 4_000
+MAX_COMPANY_CONTEXT_CHARS = 6_000
 
 KEY_MD = "company.profile_md"
 KEY_SYNCED_AT = "company.profile_synced_at"
@@ -51,6 +51,17 @@ async def _write_setting(db: AsyncSession, key: str, value: str) -> None:
     else:
         row.value = value
     await db.flush()
+
+
+async def get_drive_file_id(db: AsyncSession) -> str:
+    """The effective Drive file ID: the local SystemSetting override if set,
+    otherwise the default baked into the build (zero per-user setup)."""
+    override = (await _read_setting(db, KEY_DRIVE_FILE_ID, "")).strip()
+    if override:
+        return override
+    from config import settings as app_settings
+
+    return (app_settings.company_context_drive_file_id or "").strip()
 
 
 async def get_company_context(db: AsyncSession) -> str:
@@ -86,7 +97,7 @@ async def sync_company_context_from_drive(db: AsyncSession) -> bool:
             logger.warning("Company context sync skipped: Google not connected.")
             return False
 
-        file_id = (await _read_setting(db, KEY_DRIVE_FILE_ID, "")).strip()
+        file_id = await get_drive_file_id(db)
         if not file_id:
             logger.warning("Company context sync skipped: no Drive file ID configured.")
             return False
