@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v3.2.2 — 2026-07-07
+**Fix: company context now injected into the default (v1) chat engine**
+
+- **`AgentExecutor` (v1) now injects the company-context block (`executor.py`):** v3.2.0 wired the always-loaded company profile into the v2 LangGraph supervisor per the feature spec — but chat runs through the v1 executor unless the `llm.use_langgraph` feature flag (default `"false"`) is enabled, so the profile synced correctly at startup yet never reached the model; Gerry answered "who are PMI's executives?" by searching Gmail/KB instead of reading the profile. The v1 executor's system-prompt builder now appends `get_company_context()` (best-effort, before the attachments block), matching the v2 path.
+
 ### v3.2.1 — 2026-07-07
 **Company Profile preconfigured for every install + 6,000-char cap**
 
