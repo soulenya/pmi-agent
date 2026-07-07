@@ -441,6 +441,17 @@ class AgentExecutor:
             }
         ]
 
+        # Always-available company facts (fast local-cache read — never hits Drive).
+        # Placed before the attachment context; honesty rules already precede it
+        # in the v1 prompt, and the block itself instructs no fabrication beyond it.
+        try:
+            from services.company_context import get_company_context
+            company_ctx = await get_company_context(self.db)
+            if company_ctx:
+                messages[0]["content"] += company_ctx
+        except Exception:  # noqa: BLE001 — company context is best-effort
+            logger.exception("Failed to load company context")
+
         # Inject any conversation reference-file attachments into the system prompt.
         try:
             from services.chat_attachments import build_attachments_context
