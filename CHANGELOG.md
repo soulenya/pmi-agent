@@ -4,6 +4,16 @@
 
 ## Changelog
 
+### v3.2.0 — 2026-07-06
+**Persistent Company Context — Drive-backed, always injected into every agent**
+
+- **New `services/company_context.py`:** `get_company_context(db)` (fast per-turn read of the `SystemSetting` cache, wrapped in a "# COMPANY CONTEXT (always available — do not fabricate beyond this)" block, defensively capped at 4,000 chars) and `sync_company_context_from_drive(db)` (pulls the designated Drive file via the existing `drive_get_content`/`get_credentials` path; never raises — Google disconnected, no file configured, fetch errors, empty and over-cap content all log a warning, leave the cache untouched, and return False). Keys: `company.profile_md`, `company.profile_synced_at`, `company.profile_drive_file_id`. Drive is the single source of truth because installs are local-first — the local row is only a read-through cache.
+- **Injected into every specialist agent (`base_agent._system_message` + `supervisor.run`):** new `company_context` parameter placed BEFORE `HONESTY_CONTRACT` so the honesty rules apply on top of the stated facts; the supervisor reads the local cache each turn alongside `build_attachments_context`. The LangGraph routing prompt is deliberately untouched.
+- **Startup sync (`_company_context_sync_once` in `main.py` lifespan):** one-shot fire-and-continue task — a failed or slow sync can never block boot.
+- **Settings API:** `GET /settings/company-context` (read-only cache + synced_at + file id), `POST /settings/company-context/refresh` (admin, returns a clear reason on failure: Google not connected / no file configured / unreadable file), `PUT /settings/company-context/file-id` (admin, one-time setup; accepts an ID and immediately syncs).
+- **Settings UI (`CompanyProfileSection` in `SettingsPage.tsx`, next to AI Engine):** read-only rendered markdown (deliberately NOT an editable textarea — editing happens in Drive only), "Last synced" caption, "Refresh now" button, "Open in Google Drive to edit" link, a paste-the-link-or-ID setup field (parses full Drive URLs), and an empty state with the recommended file structure.
+- **Tests (`tests/test_company_context.py`, 11 passing):** cache read/format/truncation, sync success + all failure modes leave cache untouched without raising, system-message inclusion/omission and ordering vs `HONESTY_CONTRACT`, startup hook resilience. Also fixed the test harness: `pyproject.toml` now pins pytest-asyncio's fixture/test loop scope to `session` so the suite's shared async engine stays on one event loop (the entire pre-existing suite errored with `InterfaceError: another operation is in progress` before this), and documented that the suite needs a `pmi_test` database (created via the `pmi` superuser in the `pmi_postgres` container).
+
 ### v3.1.0 — 2026-07-06
 **Approve & send directly from Email Drafts, with a global “sent” confirmation**
 

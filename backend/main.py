@@ -374,6 +374,21 @@ async def _meeting_monitor_loop() -> None:
     await meeting_monitor.run(get_db)
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
+async def _company_context_sync_once() -> None:
+    """One-shot startup refresh of the company-context cache from Drive.
+
+    Fire-and-continue: a failed or slow sync (Google disconnected, network
+    down, file missing) must never block or fail backend startup.
+    """
+    try:
+        from services.company_context import sync_company_context_from_drive
+
+        ok = False
+        async for db in get_db():
+            ok = await sync_company_context_from_drive(db)
+        logger.info("Company context startup sync: %s", "ok" if ok else "skipped/failed")
+    except Exception:
+        logger.exception("Company context startup sync error")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -397,6 +412,8 @@ async def lifespan(app: FastAPI):
     meeting_task = asyncio.create_task(_meeting_monitor_loop())
     cleanup_task = asyncio.create_task(_gerry_draft_cleanup_loop())
     backup_task = asyncio.create_task(_conversation_backup_loop())
+    # One-shot: refresh the company-context cache from Drive (never blocks boot).
+    company_ctx_task = asyncio.create_task(_company_context_sync_once())
     yield
     bg_task.cancel()
     drive_task.cancel()
@@ -406,7 +423,8 @@ async def lifespan(app: FastAPI):
     meeting_task.cancel()
     cleanup_task.cancel()
     backup_task.cancel()
-    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task):
+    company_ctx_task.cancel()
+    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, company_ctx_task):
         try:
             await _t
         except asyncio.CancelledError:

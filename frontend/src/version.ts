@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 120;
+export const BUILD_NUMBER = 121;
 export const BUILD_DATE = "2026-07-06";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 121,
+    date: "2026-07-06",
+    title: "Little Gerry always knows your company — shared Company Profile from Google Drive",
+    changes: [
+      "A small company-context file (key people, products, partners, regulatory context) is now loaded into every conversation automatically — no more asking Gerry to look up who's who",
+      "The profile lives in a shared Google Drive file so every teammate's copy of Little Gerry stays consistent — it syncs at launch and via Settings → Company Profile → Refresh now",
+      "Settings shows the loaded profile (read-only), when it last synced, and a link to edit the file in Drive",
+    ],
+  },
   {
     build: 120,
     date: "2026-07-06",
