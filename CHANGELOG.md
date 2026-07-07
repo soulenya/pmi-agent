@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v3.2.3 — 2026-07-07
+**Gerry can add contacts to the app's own Contacts page**
+
+- **New `add_contacts` agent tool (`execute_add_contacts` in `services/agent/tools.py`):** batch upsert into Gerry's sidecar contact store (`email.contacts` SystemSetting — the same store behind Communications → Contacts), mirroring the manual `POST /api/google/contacts` endpoint's shape (email key, name/company/notes, `source: "manual"`, company derived from domain when omitted). Existing emails update instead of duplicating; entries without a valid email are reported as skipped. Direct write (no approval) — same low-risk class as task creation, and fully editable/deletable on the page; Odoo CRM contact writes still route through `propose_odoo_write` approvals. Registered in TOOL_DEFINITIONS/TOOL_EXECUTORS/_PRIMARY_ARG, the v1 executor status labels, v2 `_TOOL_DOCS`, and the executive-assistant/house-manager/operations agent whitelists — previously Gerry had only read access (`search_contacts`) and correctly refused "import these to the Contacts page" requests.
+
 ### v3.2.2 — 2026-07-07
 **Fix: company context now injected into the default (v1) chat engine**
 

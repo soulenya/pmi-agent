@@ -108,6 +108,7 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "read_drive_file": "Reading Drive file…",
     "get_calendar_events": "Fetching calendar…",
     "search_contacts": "Looking up contact…",
+    "add_contacts": "Adding to contacts…",
     "read_google_sheet": "Reading spreadsheet…",
     "list_google_tasks": "Fetching Google Tasks…",
     "generate_file": "Generating file…",

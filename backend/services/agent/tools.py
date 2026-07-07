@@ -629,6 +629,39 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "add_contacts",
+            "description": (
+                "Add one or more contacts to PMI's own Contacts page (Communications → "
+                "Contacts — Gerry's local contact store, NOT Odoo and NOT Google "
+                "Contacts). Use when the user asks to save, import, or add people to "
+                "their contacts. Existing entries with the same email are updated. "
+                "For Odoo CRM contacts use propose_odoo_write instead."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "contacts": {
+                        "type": "array",
+                        "description": "The contacts to add.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "email": {"type": "string", "description": "Email address (required)."},
+                                "name": {"type": "string", "description": "Full name."},
+                                "company": {"type": "string", "description": "Company or organization."},
+                                "notes": {"type": "string", "description": "Free-text notes (role, phone, context)."},
+                            },
+                            "required": ["email"],
+                        },
+                    },
+                },
+                "required": ["contacts"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "read_google_sheet",
             "description": (
                 "ONLY call this when the user explicitly provides a spreadsheet ID or asks "
@@ -1496,6 +1529,67 @@ async def execute_get_calendar_events(ctx: ToolContext, args: dict[str, Any]) ->
     return "\n\n".join(lines)
 
 
+async def execute_add_contacts(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Upsert manual contacts into Gerry's own contact store (the app's
+    Communications → Contacts page). Mirrors the POST /api/google/contacts
+    endpoint's shape so the page shows them identically."""
+    from services import email_contacts as ec
+
+    raw = args.get("contacts")
+    if isinstance(raw, dict):
+        raw = [raw]
+    if not isinstance(raw, list) or not raw:
+        return "Error: 'contacts' must be a non-empty array of {email, name?, company?, notes?}."
+
+    contacts = await ec.get_contacts(ctx.db)
+    added: list[str] = []
+    updated: list[str] = []
+    skipped: list[str] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            skipped.append(str(item)[:60])
+            continue
+        email = ec.extract_email(str(item.get("email", "")))
+        if not email or "@" not in email:
+            skipped.append(str(item.get("email", "(no email)"))[:60])
+            continue
+        domain = ec.domain_of(email)
+        existing = contacts.get(email, {})
+        name = str(item.get("name") or "").strip() or (existing.get("name") or "")
+        company = (
+            str(item.get("company") or "").strip()
+            or existing.get("company")
+            or ec.company_from_domain(domain)
+        )
+        notes = str(item.get("notes") or "").strip() or (existing.get("notes") or "")
+        contacts[email] = {
+            "email": email,
+            "name": name,
+            "company": company,
+            "domain": domain,
+            "notes": notes,
+            "source": "manual",
+            "count": int(existing.get("count", 0) or 0),
+            "last_seen": existing.get("last_seen", ""),
+        }
+        (updated if existing else added).append(f"{name or email} <{email}>")
+
+    if added or updated:
+        await ec.save_contacts(ctx.db, contacts, ctx.user_id)
+
+    parts: list[str] = []
+    if added:
+        parts.append(f"Added {len(added)} contact(s): " + "; ".join(added))
+    if updated:
+        parts.append(f"Updated {len(updated)} existing contact(s): " + "; ".join(updated))
+    if skipped:
+        parts.append(f"Skipped {len(skipped)} entry(ies) without a valid email: " + "; ".join(skipped))
+    if not parts:
+        return "No contacts were added — every entry was missing a valid email address."
+    parts.append("They now appear on the Contacts page (Communications → Contacts).")
+    return "\n".join(parts)
+
+
 async def execute_search_contacts(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
     from services.email_contacts import get_contacts, search_contacts_store
@@ -1776,6 +1870,7 @@ TOOL_EXECUTORS = {
     "read_drive_file": execute_read_drive_file,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
+    "add_contacts": execute_add_contacts,
     "read_google_sheet": execute_read_google_sheet,
     "list_google_tasks": execute_list_google_tasks,
 }
@@ -1800,6 +1895,7 @@ _PRIMARY_ARG = {
     "search_drive": "query",
     "search_drive_content": "query",
     "search_contacts": "query",
+    "add_contacts": "contacts",
     "fetch_page": "url",
     "read_gmail_message": "message_id",
     "read_drive_file": "file_id",
