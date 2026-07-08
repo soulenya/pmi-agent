@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v3.2.7 — 2026-07-08
+**Hover flyout menus on the left rail**
+
+- **Planet hover → moon submenu (`AncestorRail.tsx` + `rail-flyout` keyframe in `index.css`):** hovering (or keyboard-focusing) a planet in the left rail glides out a fixed-positioned flyout panel listing that planet's moons — accent-colored header and icons, current moon highlighted, click navigates and closes. Fixed positioning avoids the rail's `overflow-y-auto` clipping; a 180 ms grace timer lets the pointer cross the gap between button and panel; the panel is clamped on-screen for planets near the bottom; a 160 ms translate+scale ease-out animation provides the glide. Clicking the planet itself still zooms into it on the canvas.
+
 ### v3.2.6 — 2026-07-08
 **“Load more” in the email stack**
 
