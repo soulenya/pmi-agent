@@ -19,7 +19,10 @@ STT_URL = "https://speech.googleapis.com/v1/speech:recognize"
 TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 VOICES_URL = "https://texttospeech.googleapis.com/v1/voices"
 
-DEFAULT_VOICE = "en-US-Neural2-C"
+# Chirp 3: HD — Google's newest low-latency conversational voices. Neural2 is
+# kept as an automatic fallback in case a project doesn't have Chirp access.
+DEFAULT_VOICE = "en-US-Chirp3-HD-Kore"
+FALLBACK_VOICE = "en-US-Neural2-C"
 DEFAULT_LANGUAGE = "en-US"
 
 # MediaRecorder in Chromium produces audio/webm (opus); map browser MIME types
@@ -136,18 +139,28 @@ async def synthesize(
     voice_name: str = DEFAULT_VOICE,
     speaking_rate: float = 1.0,
 ) -> bytes:
-    """Synthesize speech (MP3 bytes) from plain text."""
-    language_code = "-".join(voice_name.split("-")[:2]) or DEFAULT_LANGUAGE
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            TTS_URL,
-            params={"key": _api_key()},
-            json={
-                "input": {"text": text},
-                "voice": {"languageCode": language_code, "name": voice_name},
-                "audioConfig": {"audioEncoding": "MP3", "speakingRate": speaking_rate},
-            },
-        )
+    """Synthesize speech (MP3 bytes) from plain text.
+
+    If the requested voice is unavailable (e.g. Chirp not enabled for the
+    project), retries once with the reliable Neural2 fallback voice.
+    """
+
+    async def _request(voice: str) -> httpx.Response:
+        language_code = "-".join(voice.split("-")[:2]) or DEFAULT_LANGUAGE
+        async with httpx.AsyncClient(timeout=60) as client:
+            return await client.post(
+                TTS_URL,
+                params={"key": _api_key()},
+                json={
+                    "input": {"text": text},
+                    "voice": {"languageCode": language_code, "name": voice},
+                    "audioConfig": {"audioEncoding": "MP3", "speakingRate": speaking_rate},
+                },
+            )
+
+    resp = await _request(voice_name)
+    if resp.status_code != 200 and voice_name != FALLBACK_VOICE:
+        resp = await _request(FALLBACK_VOICE)
     _raise_for_error(resp)
     return base64.b64decode(resp.json()["audioContent"])
 
@@ -162,7 +175,9 @@ async def list_voices(language_code: str = DEFAULT_LANGUAGE) -> list[dict]:
     _raise_for_error(resp)
 
     def tier(name: str) -> int:
-        for rank, marker in enumerate(("Studio", "Neural2", "Wavenet", "News", "Standard")):
+        for rank, marker in enumerate(
+            ("Chirp3-HD", "Chirp-HD", "Studio", "Neural2", "Wavenet", "News", "Standard")
+        ):
             if marker in name:
                 return rank
         return 9

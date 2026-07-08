@@ -191,8 +191,8 @@ class AgentExecutor:
         """
         return self._run(user_text)
 
-    async def _run(self, user_text: str) -> AsyncGenerator[str, None]:
-        # ── 1. Persist user message ───────────────────────────────────────────
+    async def _run(self, user_text: str, voice: bool = False) -> AsyncGenerator[str, None]:
+        # ── 1. Persist user message ─────────────────────────────────────────
         msg_repo = MessageRepository(self.db)
         await msg_repo.create(
             conversation_id=self.conversation_id,
@@ -202,7 +202,7 @@ class AgentExecutor:
         await self.db.commit()
 
         # ── 2. Build Ollama message history ───────────────────────────────────
-        messages = await self._build_history(user_text)
+        messages = await self._build_history(user_text, voice=voice)
 
         # ── 3. Agentic loop ───────────────────────────────────────────────────
         embedding_svc = await get_embedding_service_for_db(self.db)
@@ -400,7 +400,7 @@ class AgentExecutor:
             err = WSError(detail="Agent reached maximum tool call rounds without a response.")
             yield err.model_dump_json()
 
-    async def _build_history(self, user_text: str) -> list[dict[str, Any]]:
+    async def _build_history(self, user_text: str, voice: bool = False) -> list[dict[str, Any]]:
         """Load conversation history and return Ollama message list."""
         msg_repo = MessageRepository(self.db)
         history = await msg_repo.list_for_conversation(
@@ -441,6 +441,12 @@ class AgentExecutor:
                 "content": SYSTEM_PROMPT.format(today=today) + google_note + HONESTY_CONTRACT,
             }
         ]
+
+        # Spoken conversations get short, listenable replies that always offer
+        # more detail on request.
+        if voice:
+            from services.agent.guardrails import VOICE_MODE_NOTE
+            messages[0]["content"] += VOICE_MODE_NOTE
 
         # Always-available company facts (fast local-cache read — never hits Drive).
         # Placed before the attachment context; honesty rules already precede it
