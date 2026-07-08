@@ -325,29 +325,12 @@ async def _set_setting_value(db: AsyncSession, key: str, value, user_id) -> None
     await db.flush()
 
 
-def _html_to_text(html: str) -> str:
-    """Crudely flatten an HTML signature to plain text (drafts are plain text)."""
-    import html as _html
-    import re
-
-    text = re.sub(r"(?i)<br\s*/?>", "\n", html or "")
-    text = re.sub(r"(?i)</p\s*>", "\n", text)
-    text = re.sub(r"(?i)</div\s*>", "\n", text)
-    text = re.sub(r"<[^>]+>", "", text)
-    return _html.unescape(text).strip()
-
-
-async def _resolve_signature(db: AsyncSession) -> str:
-    """Return the plain-text signature to append to Gerry drafts ('' if none)."""
-    mode = str(await _get_setting_value(db, SIG_MODE_KEY, "none"))
-    if mode == "custom":
-        return str(await _get_setting_value(db, SIG_CUSTOM_KEY, "") or "").strip()
-    if mode == "gmail":
-        try:
-            return _html_to_text(gs.gmail_get_signature())
-        except Exception:
-            return ""
-    return ""
+# Shared with the Email Drafts generator and the agent's create_email_draft
+# tool so every Gerry draft carries the same configured signature.
+from services.email_signature import (  # noqa: E402
+    html_to_text as _html_to_text,
+    resolve_signature as _resolve_signature,
+)
 
 
 class SignatureUpdate(BaseModel):
