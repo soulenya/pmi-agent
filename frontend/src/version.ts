@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 124;
-export const BUILD_DATE = "2026-07-07";
+export const BUILD_NUMBER = 125;
+export const BUILD_DATE = "2026-07-08";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 125,
+    date: "2026-07-08",
+    title: "Gmail auto-refresh and missing attachments fixed",
+    changes: [
+      "The inbox now refreshes itself every minute (and instantly when you return to the app) — no more manual reloading",
+      "An open email thread also refreshes automatically, so new replies appear on their own",
+      "Attachments from Outlook and other corporate senders now show up — they were being mistaken for inline images and hidden",
+    ],
+  },
   {
     build: 124,
     date: "2026-07-07",
