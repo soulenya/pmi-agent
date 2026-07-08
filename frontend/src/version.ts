@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 128;
+export const BUILD_NUMBER = 129;
 export const BUILD_DATE = "2026-07-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 129,
+    date: "2026-07-08",
+    title: "Gerry knows who you are, and email drafts always get a real recipient",
+    changes: [
+      "Gerry now knows who she's assisting — your name, your account, and the Gmail address mail sends from — so drafts are signed with your real name, never a placeholder",
+      "When you ask for an email to someone by name, Gerry looks up their address in your contacts automatically; if it's ambiguous or unknown she asks you instead of filing a draft that can't be sent",
+      "If you're listed in the company profile's Key People, Gerry uses that entry for your role and company email",
+    ],
+  },
   {
     build: 128,
     date: "2026-07-08",
