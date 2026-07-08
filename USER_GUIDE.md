@@ -337,6 +337,7 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 - Pick a **folder** from the folder dropdown to browse any of Gmail's standard folders — **Inbox**, **Unread**, **Starred**, **Important**, **Sent**, **Drafts**, **Archived**, **Spam**, **Trash**, or **All Mail** — or type a search to run a Gmail search (for example `from:acme.com 510k`).
 - Use the **sort** dropdown to order the list: **Newest first** (the default), **Oldest first**, **Sender A–Z**, or **Unread first**.
 - **Filter by tag** to see only emails you've filed under a given tag.
+- The inbox **refreshes itself every minute** (and immediately when you come back to the app); an open thread updates on its own too.
 - Click a message to open the full thread. The **newest message is shown at the top**, and every message sits on a clean, readable card so text stays legible in dark mode.
 - If Gerry has drafted a reply for the thread, it appears at the **top of the thread** under “Waiting for your approval” — approve, edit, or reject it right there.
 - For each attachment you can **open it in Google Workspace**, open it with your default app, download it, or click **Add to Knowledge Base** to import it so Little Gerry can reference it later.
