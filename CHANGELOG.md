@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v3.2.6 — 2026-07-08
+**“Load more” in the email stack**
+
+- **Incremental thread loading (`InboxPage.tsx`):** the inbox list previously hard-capped at 30 threads with no way to see older mail. A `fetchMax` state (30, +30 per click of the new **Load more** button at the bottom of the list) is now part of the query key and the `max` param for both `/gmail/inbox` and `/gmail/by-tag`; `placeholderData` keeps the current list on screen while the larger page loads, the button shows only while the last fetch came back full (list length ≥ fetchMax), and changing folder/search/tag resets to the first page.
+
 ### v3.2.5 — 2026-07-08
 **Sentence-streamed TTS, Chirp 3 HD voices, and short spoken replies — natural voice cadence**
 

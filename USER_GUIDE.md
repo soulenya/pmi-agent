@@ -338,6 +338,7 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 - Use the **sort** dropdown to order the list: **Newest first** (the default), **Oldest first**, **Sender A–Z**, or **Unread first**.
 - **Filter by tag** to see only emails you've filed under a given tag.
 - The inbox **refreshes itself every minute** (and immediately when you come back to the app); an open thread updates on its own too.
+- The list shows the 30 most recent conversations — click **Load 30 more** at the bottom to reach older mail.
 - Click a message to open the full thread. The **newest message is shown at the top**, and every message sits on a clean, readable card so text stays legible in dark mode.
 - If Gerry has drafted a reply for the thread, it appears at the **top of the thread** under “Waiting for your approval” — approve, edit, or reject it right there.
 - For each attachment you can **open it in Google Workspace**, open it with your default app, download it, or click **Add to Knowledge Base** to import it so Little Gerry can reference it later.
