@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 127;
+export const BUILD_NUMBER = 128;
 export const BUILD_DATE = "2026-07-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 128,
+    date: "2026-07-08",
+    title: "Hover menus on the left rail — jump to any page in one click",
+    changes: [
+      "Hover over a planet in the left rail and a menu smoothly glides out listing its moons — click any page to jump straight there from anywhere in the app",
+      "The menu highlights the page you're currently on and works with keyboard focus too",
+    ],
+  },
   {
     build: 127,
     date: "2026-07-08",

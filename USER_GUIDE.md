@@ -167,7 +167,7 @@ Little Gerry can load a small **company profile** — key people, products, part
 | **Odoo ERP** | Connect your Odoo account (API key) so Little Gerry can read and propose ERP actions |
 | **Settings** | Configure AI providers, appearance, and Google integration |
 
-> **Finding your way around.** The left sidebar groups these modules into collapsible sections — **Work**, **Knowledge**, **Communications**, **Compliance**, and **Administration** — with **Dashboard**, **Little Gerry**, and **Daily Assistant** pinned at the top. Click a section heading to collapse or expand it; the section you're currently in stays open, a collapsed section shows a small badge if it contains anything pending, and your choices are remembered next time. If you have more items than fit on screen, the list scrolls.
+> **Finding your way around.** The home screen is a **solar system**: Little Gerry is the sun (click her to chat), **Dashboard** and the **Daily Assistant** orbit close in, and five planets group the modules — **Work**, **Knowledge**, **Communications**, **Odoo**, and **Compliance** — with each feature page as a moon. The narrow **left rail** shows the sun and the five planets from anywhere in the app: click a planet to zoom into it, or simply **hover over it** and a menu glides out listing its moons so you can jump straight to any page in one click. Esc zooms back out a level.
 
 ---
 
