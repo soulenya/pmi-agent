@@ -234,6 +234,10 @@ TOOL_DEFINITIONS: list[dict] = [
                 "COMPOSE an email — this is the normal case. You write the full email body yourself "
                 "and pass it as 'body' (use real line breaks between paragraphs). This does NOT send "
                 "anything; it just files a draft the user can open on the Email Drafts page. "
+                "RECIPIENT ADDRESS: always try to provide recipient_email. If you only know the "
+                "name, the tool automatically looks the address up in the user's contacts — when "
+                "exactly one match exists it is used; when none or several match, the tool tells "
+                "you and you MUST ask the user which address to use before drafting again. "
                 "Only use request_approval(intent_type='send_email') instead when the user explicitly "
                 "asks you to SEND an email right now."
             ),
@@ -1031,6 +1035,43 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
     )
 
 
+async def _resolve_recipient_email(ctx: ToolContext, name: str) -> tuple[str | None, list[str]]:
+    """Look up a recipient's email by name in Gerry's contacts + Google Contacts.
+
+    Returns ``(email, candidates)``: a single confident match, or the list of
+    ambiguous candidates (as "Name <email>" strings) when 0 or >1 match.
+    """
+    import asyncio
+    from services.email_contacts import get_contacts, search_contacts_store
+    from services.google_service import contacts_search, get_credentials
+
+    found: dict[str, str] = {}  # email -> display name
+    try:
+        store = await get_contacts(ctx.db)
+        for c in search_contacts_store(store, name, 5):
+            email = (c.get("email") or "").lower()
+            if email:
+                found.setdefault(email, c.get("name") or "")
+    except Exception:
+        pass
+    if get_credentials():
+        try:
+            google = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: contacts_search(name, 5)
+            )
+            for c in google or []:
+                email = (c.get("email") or "").lower()
+                if email:
+                    found.setdefault(email, c.get("name") or "")
+        except Exception:
+            pass
+
+    candidates = [f"{n} <{e}>" if n else e for e, n in found.items()]
+    if len(found) == 1:
+        return next(iter(found)), candidates
+    return None, candidates
+
+
 async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> str:
     from models.db.email_draft import EmailDraft
 
@@ -1045,6 +1086,29 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
 
     recipient_name = str(args.get("recipient_name", "")).strip() or None
     recipient_email = str(args.get("recipient_email", "")).strip() or None
+    resolved_note = ""
+
+    # No address given — resolve it from contacts when it's obvious; otherwise
+    # the model must ask the user rather than filing an unsendable draft.
+    if not recipient_email and recipient_name:
+        match, candidates = await _resolve_recipient_email(ctx, recipient_name)
+        if match:
+            recipient_email = match
+            resolved_note = f" (address {match} found in contacts)"
+        elif candidates:
+            return (
+                f"Cannot draft yet: several contacts match \"{recipient_name}\": "
+                + "; ".join(candidates[:5])
+                + ". Ask the user which address to use, then call create_email_draft "
+                "again with that recipient_email."
+            )
+        else:
+            return (
+                f"Cannot draft yet: no email address found for \"{recipient_name}\" in "
+                "the user's contacts. Ask the user for the recipient's email address, "
+                "then call create_email_draft again with recipient_email filled in."
+            )
+
     purpose = (str(args.get("purpose", "")).strip() or subject)[:2000]
     tone_raw = str(args.get("tone", "professional")).strip().lower()
     tone = tone_raw if tone_raw in _TONES else "professional"
@@ -1069,8 +1133,10 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
     to_str = ""
     if recipient_name or recipient_email:
         to_str = f" to {recipient_name or recipient_email}"
+        if recipient_email and recipient_name:
+            to_str += f" <{recipient_email}>"
     return (
-        f"Email draft saved to Communications → Email Drafts: \"{subject}\"{to_str} "
+        f"Email draft saved to Communications → Email Drafts: \"{subject}\"{to_str}{resolved_note} "
         f"[id={draft.id}, status=draft]. The user can review, edit, and send it from the "
         "Email Drafts page."
     )
