@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.2.8 — 2026-07-08
+**Gerry knows the current user + email drafts resolve their recipient**
+
+- **Recipient resolution in `create_email_draft` (`_resolve_recipient_email` in `tools.py`):** drafting to a name without an address previously filed an unsendable draft that failed at approval with “no recipient address.” The tool now looks the name up in Gerry's contact store + Google Contacts: exactly one match → used automatically (noted in the tool result); zero or multiple → the tool refuses and instructs the model to ask the user which address to use before drafting again. Tool description updated to match.
+- **Current-user identity (`services/agent/user_identity.py`, wired into BOTH engines):** the system prompt now carries “CURRENT USER: you are assisting {display_name} ({email})”, the connected Gmail send-from address (process-lifetime cached — one Google call, not one per turn), an instruction to sign drafts with the user's real name (never a placeholder), and a pointer to use the COMPANY CONTEXT Key People entry for their role/title/company email. Fixes Gerry signing emails “Morgan” as a guess and not knowing whose account she's operating.
+
 ### v3.2.7 — 2026-07-08
 **Hover flyout menus on the left rail**
 

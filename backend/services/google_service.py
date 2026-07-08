@@ -495,6 +495,15 @@ def gmail_trash_thread(thread_id: str) -> dict:
     return {"thread_id": thread_id, "status": "trashed"}
 
 
+def gmail_profile_email() -> str:
+    """Return the connected Gmail account's email address ('' on failure)."""
+    try:
+        svc = _build("gmail", "v1")
+        return svc.users().getProfile(userId="me").execute().get("emailAddress", "")
+    except Exception:
+        return ""
+
+
 def gmail_get_signature() -> str:
     """Return the HTML signature of the primary send-as address ('' if none).
 

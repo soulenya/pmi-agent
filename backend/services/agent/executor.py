@@ -442,6 +442,15 @@ class AgentExecutor:
             }
         ]
 
+        # Who Gerry is assisting — name for sign-offs, account + Gmail address.
+        try:
+            from services.agent.user_identity import get_user_identity_context
+            identity = await get_user_identity_context(self.db, self.user_id)
+            if identity:
+                messages[0]["content"] += identity
+        except Exception:  # noqa: BLE001 — identity is best-effort
+            logger.exception("Failed to load user identity")
+
         # Spoken conversations get short, listenable replies that always offer
         # more detail on request.
         if voice:
