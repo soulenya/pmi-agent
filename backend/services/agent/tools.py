@@ -249,7 +249,9 @@ TOOL_DEFINITIONS: list[dict] = [
                         "type": "string",
                         "description": (
                             "The full email body you have written, salutation through sign-off, "
-                            "with real line breaks (\\n) between paragraphs."
+                            "with real line breaks (\\n) between paragraphs. End with a simple "
+                            "sign-off line (e.g. the user's first name) — do NOT add a signature "
+                            "block; the user's configured signature is appended automatically."
                         ),
                     },
                     "recipient_name": {"type": "string", "description": "Recipient's name, if known."},
@@ -1087,6 +1089,14 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
     recipient_name = str(args.get("recipient_name", "")).strip() or None
     recipient_email = str(args.get("recipient_email", "")).strip() or None
     resolved_note = ""
+
+    # The user's configured signature (Settings → Inbox → Signature: gmail /
+    # custom / none) is appended to every Gerry draft.
+    try:
+        from services.email_signature import apply_signature, resolve_signature
+        body = apply_signature(body, await resolve_signature(ctx.db))
+    except Exception:
+        pass  # signature is best-effort — never block the draft
 
     # No address given — resolve it from contacts when it's obvious; otherwise
     # the model must ask the user rather than filing an unsendable draft.
