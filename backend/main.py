@@ -583,7 +583,12 @@ def create_app() -> FastAPI:
 
                     frame_queue: asyncio.Queue[str | None] = asyncio.Queue()
                     spawn_agent_run(
-                        user.id, conv_uuid, incoming.content.strip(), frame_queue, _use_lg
+                        user.id,
+                        conv_uuid,
+                        incoming.content.strip(),
+                        frame_queue,
+                        _use_lg,
+                        voice=incoming.voice,
                     )
                     while True:
                         frame = await frame_queue.get()

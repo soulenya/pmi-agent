@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 125;
+export const BUILD_NUMBER = 126;
 export const BUILD_DATE = "2026-07-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 126,
+    date: "2026-07-08",
+    title: "Much snappier, more natural voice conversations",
+    changes: [
+      "Gerry now starts speaking as soon as her first sentence is ready, instead of waiting for the entire answer to finish — long answers no longer mean long silences",
+      "Spoken replies are now short and conversational (a few sentences), and Gerry always offers to go deeper when there's more detail available",
+      "Upgraded to Google's newest Chirp 3 HD voice (Kore) for more natural speech; if you've picked a specific voice in Settings it stays as-is, and the app falls back to the previous voice automatically if the new one isn't available",
+      "Voice picker in Settings now lists the Chirp 3 HD voices first",
+    ],
+  },
   {
     build: 125,
     date: "2026-07-08",

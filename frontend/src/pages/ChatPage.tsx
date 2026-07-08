@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines, Volume2 } from "lucide-react";
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import { SentenceSpeaker } from "@/lib/sentenceSpeaker";
 import {
   ApprovalCard,
   usePendingApprovals,
@@ -181,6 +182,8 @@ export function ChatPage() {
   }, [appSettings, voiceEnabled]);
   const streamBufferRef = useRef("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Sentence-streamed reply playback (voice mode / speak-replies).
+  const speakerRef = useRef<SentenceSpeaker | null>(null);
 
   // ── Voice Conversation mode (hands-free talk → reply aloud → listen again) ───
   const [voiceMode, setVoiceMode] = useState(false);
@@ -234,6 +237,8 @@ export function ChatPage() {
     setVoiceSpeaking(false);
     setVoiceError(null);
     voiceStop();
+    speakerRef.current?.cancel();
+    speakerRef.current = null;
     audioRef.current?.pause();
   }, [voiceStop]);
 
@@ -262,6 +267,8 @@ export function ChatPage() {
 
   // Interrupt Gerry mid-sentence: stop playback and listen right away
   const interruptSpeech = useCallback(() => {
+    speakerRef.current?.cancel();
+    speakerRef.current = null;
     audioRef.current?.pause();
     setVoiceSpeaking(false);
     if (voiceModeRef.current) void voiceStart();
@@ -279,7 +286,10 @@ export function ChatPage() {
 
   // Stop playback when leaving the page
   useEffect(() => {
-    return () => audioRef.current?.pause();
+    return () => {
+      speakerRef.current?.cancel();
+      audioRef.current?.pause();
+    };
   }, []);
 
   // â”€â”€ Conversation list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -363,6 +373,25 @@ export function ChatPage() {
           streamBufferRef.current += msg.content;
           // Clear tool activity once the LLM starts responding
           setToolActivities([]);
+          // Sentence-streamed speech — speak the first sentence while the rest
+          // of the reply is still generating.
+          if (voiceModeRef.current || speakRepliesRef.current) {
+            if (!speakerRef.current) {
+              speakerRef.current = new SentenceSpeaker({
+                onStart: () => {
+                  if (voiceModeRef.current) setVoiceSpeaking(true);
+                },
+                onAllDone: () => {
+                  speakerRef.current = null;
+                  if (voiceModeRef.current) {
+                    setVoiceSpeaking(false);
+                    void voiceStart(); // loop: listen for the user's next turn
+                  }
+                },
+              });
+            }
+            speakerRef.current.feed(msg.content);
+          }
         } else if (msg.type === "tool_status") {
           const frame = msg as unknown as WSToolStatusFrame;
           setToolActivities((prev) => {
@@ -394,20 +423,26 @@ export function ChatPage() {
           queryClient.invalidateQueries({ queryKey: ["approvals"] });
           setStreamingContent(null);
           setToolActivities([]);
-          // Speak the reply aloud — always in voice mode (then listen again),
-          // otherwise only if enabled in Settings → Voice
+          // Speak the reply aloud — sentence-streamed playback normally started
+          // during the token stream; these are fallbacks for empty streams.
           const finalText = streamBufferRef.current;
           streamBufferRef.current = "";
-          if (voiceModeRef.current && finalText) {
+          if (speakerRef.current) {
+            speakerRef.current.finish();
+          } else if (voiceModeRef.current && finalText) {
             void playReply(finalText, true);
           } else if (speakRepliesRef.current && finalText) {
             void playReply(finalText);
+          } else if (voiceModeRef.current) {
+            void voiceStart(); // empty reply — don't strand the voice loop
           }
         } else if (msg.type === "error") {
           const detail = (msg as unknown as { detail?: string }).detail ?? "An error occurred.";
           setStreamingContent(null);
           setToolActivities([]);
           streamBufferRef.current = "";
+          speakerRef.current?.cancel();
+          speakerRef.current = null;
           // In voice mode, resume listening so the conversation isn't stranded
           if (voiceModeRef.current) void voiceStart();
           // Inject a synthetic error message into the message list so it's visible in the chat bubble
@@ -485,7 +520,9 @@ export function ChatPage() {
         return;
       }
       if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: "human", content }));
+        wsRef.current.send(
+          JSON.stringify({ type: "human", content, voice: voiceModeRef.current }),
+        );
 
         // Optimistically add user message to the list
         const optimistic: Message = {

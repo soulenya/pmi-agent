@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.5 — 2026-07-08
+**Sentence-streamed TTS, Chirp 3 HD voices, and short spoken replies — natural voice cadence**
+
+- **Sentence-streamed speech (`lib/sentenceSpeaker.ts`, wired into `VoiceAssistant.tsx` + `ChatPage.tsx` voice mode/speak-replies):** previously the client waited for the full LLM reply (`done` frame) and then synthesized the WHOLE reply in one `/voice/speak` request — so perceived latency was LLM time + full-reply TTS time. `SentenceSpeaker` now consumes the token stream, cuts complete sentences (terminator+whitespace regex, 40-char min / 400-char max chunks, paragraph breaks), fires each TTS request immediately in parallel, and plays clips back in order — the first sentence is audible while the rest is still generating. Handles barge-in/interrupt/exit (cancel), failed chunks (skipped, never block), the spoken acknowledgment (cut short the moment real speech starts), and empty replies (voice loop resumes via the old whole-reply fallback path).
+- **Voice-mode brevity (`VOICE_MODE_NOTE` in `guardrails.py`):** spoken turns now carry `voice: true` on the WS `human` frame (both voice surfaces), threaded through `spawn_agent_run` into BOTH engines (v1 `_build_history`, v2 `supervisor.run`). The note instructs 1–3 short conversational sentences, no markdown/lists/URLs, and — per the user's requirement — to ALWAYS end with an offer like “Want the full details?” when more information exists. Typed chat is unaffected.
+- **Chirp 3 HD voices (`services/voice/google_speech.py`):** default voice is now `en-US-Chirp3-HD-Kore` (Google's newest low-latency conversational tier) with an automatic one-retry fallback to `en-US-Neural2-C` if the project doesn't have Chirp access; `list_voices` ranks Chirp3-HD/Chirp-HD above Studio/Neural2 so they lead the Settings picker. A user's explicitly saved `voice.voice_name` is untouched.
+
 ### v3.2.4 — 2026-07-08
 **Gmail auto-refresh + Outlook attachments no longer hidden**
 

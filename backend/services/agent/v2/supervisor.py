@@ -256,7 +256,7 @@ class LangGraphSupervisor:
 
     # ── Main streaming entrypoint ─────────────────────────────────────────────
 
-    async def run(self, user_text: str) -> AsyncGenerator[str, None]:
+    async def run(self, user_text: str, voice: bool = False) -> AsyncGenerator[str, None]:
         """
         Async generator that yields JSON-encoded frame strings,
         matching the v1 executor._run() interface for the WebSocket.
@@ -308,6 +308,12 @@ class LangGraphSupervisor:
         except Exception:
             logger.exception("Failed to load company context")
             company_ctx = ""
+
+        # Spoken conversations get short, listenable replies that always offer
+        # more detail on request.
+        if voice:
+            from services.agent.guardrails import VOICE_MODE_NOTE
+            attach_ctx += VOICE_MODE_NOTE
 
         # Stream
         full_response_parts: list[str] = []
