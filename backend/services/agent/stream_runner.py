@@ -33,6 +33,7 @@ async def _run_agent_to_queue(
     content: str,
     queue: "asyncio.Queue[str | None]",
     use_langgraph: bool,
+    voice: bool = False,
 ) -> None:
     """Run one agent turn to completion in its own session, pushing frames.
 
@@ -48,14 +49,14 @@ async def _run_agent_to_queue(
                     agent = await LangGraphSupervisor.create(
                         db=db, user_id=user_id, conversation_id=conversation_id
                     )
-                    gen = agent.run(content)
+                    gen = agent.run(content, voice=voice)
                 else:
                     from services.agent.executor import AgentExecutor
 
                     executor = await AgentExecutor.create(
                         db=db, user_id=user_id, conversation_id=conversation_id
                     )
-                    gen = executor._run(content)
+                    gen = executor._run(content, voice=voice)
 
                 async for frame in gen:
                     await queue.put(frame)
@@ -78,10 +79,11 @@ def spawn_agent_run(
     content: str,
     queue: "asyncio.Queue[str | None]",
     use_langgraph: bool,
+    voice: bool = False,
 ) -> asyncio.Task:
     """Start a detached agent run and return its task (also tracked internally)."""
     task = asyncio.create_task(
-        _run_agent_to_queue(user_id, conversation_id, content, queue, use_langgraph)
+        _run_agent_to_queue(user_id, conversation_id, content, queue, use_langgraph, voice)
     )
     _active_runs.add(task)
     task.add_done_callback(_active_runs.discard)

@@ -126,6 +126,9 @@ class WSIncoming(BaseModel):
     """Client → server WebSocket message."""
     type: str = "human"  # "human" | "ping"
     content: str = ""
+    # True when the user is speaking (voice session / voice chat mode) — the
+    # agent keeps replies short and conversational for text-to-speech.
+    voice: bool = False
 
 
 class WSToken(BaseModel):

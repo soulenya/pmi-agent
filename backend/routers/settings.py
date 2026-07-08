@@ -61,7 +61,7 @@ DEFAULTS: dict[str, object] = {
     "app.timezone": "UTC",
     "notifications.email_enabled": False,
     "voice.speak_replies": False,
-    "voice.voice_name": "en-US-Neural2-C",
+    "voice.voice_name": "en-US-Chirp3-HD-Kore",
 }
 
 

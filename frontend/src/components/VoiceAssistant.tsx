@@ -19,6 +19,7 @@ import { speakText } from "@/api/voice";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { useAuthStore } from "@/stores/authStore";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
+import { SentenceSpeaker } from "@/lib/sentenceSpeaker";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +84,9 @@ export function VoiceAssistant() {
   const streamBufferRef = useRef("");
   const pendingRef = useRef<string | null>(null);
   const sendRef = useRef<(text: string) => void>(() => {});
+  // Sentence-streamed reply playback — speaks the first sentence while the
+  // rest of the answer is still generating.
+  const speakerRef = useRef<SentenceSpeaker | null>(null);
   // Acknowledgment playback: cache TTS blobs per phrase; if the final answer
   // arrives while the ack is still playing, queue it until the ack ends.
   const ackCacheRef = useRef(new Map<string, Blob>());
@@ -177,7 +181,7 @@ export function VoiceAssistant() {
       ws.onopen = () => {
         // Flush an utterance that arrived before the socket finished connecting
         if (pendingRef.current) {
-          ws.send(JSON.stringify({ type: "human", content: pendingRef.current }));
+          ws.send(JSON.stringify({ type: "human", content: pendingRef.current, voice: true }));
           pendingRef.current = null;
         }
       };
@@ -193,6 +197,26 @@ export function VoiceAssistant() {
           };
           if (msg.type === "token" && msg.content) {
             streamBufferRef.current += msg.content;
+            // Sentence-streamed speech: start speaking as soon as the first
+            // sentence is complete instead of waiting for the whole reply.
+            if (!speakerRef.current) {
+              speakerRef.current = new SentenceSpeaker({
+                onStart: () => {
+                  // The real answer is speaking — cut the ack short.
+                  ackPlayingRef.current = false;
+                  pendingFinalRef.current = null;
+                  audioRef.current?.pause();
+                  setActivity(null);
+                  setSpeaking(true);
+                },
+                onAllDone: () => {
+                  speakerRef.current = null;
+                  setSpeaking(false);
+                  if (activeRef.current) void voiceStart(); // loop: next turn
+                },
+              });
+            }
+            speakerRef.current.feed(msg.content);
           } else if (msg.type === "tool_running" && msg.tool) {
             setActivity(friendlyToolLabel(msg.tool));
           } else if (msg.type === "confirm_delete") {
@@ -211,14 +235,19 @@ export function VoiceAssistant() {
             queryClient.invalidateQueries({ queryKey: ["conversations"] });
             queryClient.invalidateQueries({ queryKey: ["messages", convId] });
             queryClient.invalidateQueries({ queryKey: ["generated-files"] });
-            if (ackPlayingRef.current) {
-              // Let the acknowledgment finish; its onended plays the answer.
+            if (speakerRef.current) {
+              // Streaming playback is already underway — flush the tail.
+              speakerRef.current.finish();
+            } else if (ackPlayingRef.current) {
+              // No tokens streamed (empty reply); let the ack finish, then resume.
               pendingFinalRef.current = finalText;
             } else if (activeRef.current) {
               void playReply(finalText);
             }
           } else if (msg.type === "error") {
             streamBufferRef.current = "";
+            speakerRef.current?.cancel();
+            speakerRef.current = null;
             setActivity(null);
             setError(msg.detail ?? "Something went wrong — try again.");
             if (activeRef.current) void voiceStart(); // don't strand the conversation
@@ -234,7 +263,7 @@ export function VoiceAssistant() {
   const sendUtterance = useCallback((text: string) => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "human", content: text }));
+      ws.send(JSON.stringify({ type: "human", content: text, voice: true }));
     } else {
       pendingRef.current = text; // flushed by ws.onopen
     }
@@ -247,6 +276,8 @@ export function VoiceAssistant() {
     setSpeaking(false);
     setError(null);
     voiceStop();
+    speakerRef.current?.cancel();
+    speakerRef.current = null;
     audioRef.current?.pause();
     wsRef.current?.close();
     wsRef.current = null;
