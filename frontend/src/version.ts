@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 129;
+export const BUILD_NUMBER = 130;
 export const BUILD_DATE = "2026-07-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 130,
+    date: "2026-07-08",
+    title: "Your signature on every Gerry draft",
+    changes: [
+      "Every email Gerry drafts — from chat, the Email Drafts page, or inbox replies — now ends with the signature you picked in the signature settings (Gmail signature, custom, or none)",
+      "The signature is never doubled if it's already present",
+    ],
+  },
   {
     build: 129,
     date: "2026-07-08",

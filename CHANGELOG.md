@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v3.2.9 — 2026-07-08
+**The configured signature applies to every Gerry draft**
+
+- **Shared signature service (`services/email_signature.py`):** `resolve_signature(db)` (gmail / custom / none, from the existing `email.signature_mode` + `email.signature_custom` settings) and `apply_signature(body, sig)` (appends unless already present) extracted from `google_integration.py`, which now imports them. Previously only the Inbox reply/compose builders applied the signature — three Gerry-draft paths shipped unsigned: the agent's `create_email_draft` tool (chat), and the Email Drafts page's generate + regenerate endpoints. All three now apply it, and their prompts/tool descriptions instruct the model to end with a simple sign-off only (no signature block) since the configured one is appended automatically — replacing the old hardcoded “Sign off as 'PMI Team'” instruction.
+
 ### v3.2.8 — 2026-07-08
 **Gerry knows the current user + email drafts resolve their recipient**
 

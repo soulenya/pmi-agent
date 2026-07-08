@@ -89,7 +89,8 @@ async def _llm_draft_email(
         f"{points_section}\n\n"
         "Write ONLY the email body (salutation through sign-off). "
         "Do not include a Subject line header. "
-        "Sign off as 'PMI Team' unless a specific name is implied. "
+        "End with a simple sign-off line only — do NOT add a signature block; "
+        "the user's configured signature is appended automatically. "
         "Keep it concise and professional."
     )
     try:
@@ -145,6 +146,8 @@ async def create_and_draft(
         key_points=body.key_points,
         db=db,
     )
+    from services.email_signature import apply_signature, resolve_signature
+    draft_body = apply_signature(draft_body, await resolve_signature(db))
     draft = EmailDraft(
         id=uuid.uuid4(),
         subject=body.subject,
@@ -224,6 +227,8 @@ async def regenerate_draft(
         key_points=draft.key_points,
         db=db,
     )
+    from services.email_signature import apply_signature, resolve_signature
+    draft.draft_body = apply_signature(draft.draft_body, await resolve_signature(db))
     draft.status = "draft"
     await db.commit()
     await db.refresh(draft)
