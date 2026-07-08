@@ -4,20 +4,102 @@
  * Top:    ancestor celestial objects as back buttons — Sun/system overview
  *         outermost, then the parent planet when inside one. Clicking an
  *         ancestor zooms back out to that level (Esc does the same).
+ * Hover:  hovering a planet glides out a flyout submenu listing its moons,
+ *         so any feature page is reachable from anywhere in two moves.
  * Bottom: the build badge, relocated from the old sidebar.
  */
+import { useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Orbit } from "lucide-react";
 import { useNavStore } from "@/stores/navStore";
-import { PLANETS } from "@/lib/solarSystem";
+import { PLANETS, type Planet } from "@/lib/solarSystem";
 import { BUILD_NUMBER, BUILD_DATE } from "@/version";
+
+/** Hover flyout listing a planet's moons; fixed-positioned so the rail's
+ *  scroll container can't clip it, with a short grace timer so the pointer
+ *  can cross the gap between the planet button and the panel. */
+function PlanetFlyout({
+  planet,
+  anchor,
+  activeMoonId,
+  onNavigate,
+  onEnter,
+  onLeave,
+}: {
+  planet: Planet;
+  anchor: DOMRect;
+  activeMoonId: string | null;
+  onNavigate: (route: string) => void;
+  onEnter: () => void;
+  onLeave: () => void;
+}) {
+  // Keep the panel on-screen for planets near the bottom of the rail.
+  const estHeight = 44 + planet.moons.length * 36;
+  const top = Math.max(8, Math.min(anchor.top - 6, window.innerHeight - estHeight - 8));
+  return (
+    <div
+      className="rail-flyout fixed z-50 min-w-48 rounded-xl border bg-popover py-1.5 shadow-xl"
+      style={{ top, left: anchor.right + 10 }}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    >
+      <div
+        className="flex items-center gap-2 px-3 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wider"
+        style={{ color: planet.accent }}
+      >
+        <planet.icon className="h-3.5 w-3.5" />
+        {planet.label}
+      </div>
+      {planet.moons.map((m) => (
+        <button
+          key={m.id}
+          type="button"
+          onClick={() => onNavigate(m.route)}
+          className={cn(
+            "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-foreground/90 transition-colors hover:bg-accent hover:text-foreground",
+            activeMoonId === m.id && "bg-accent font-medium text-foreground",
+          )}
+        >
+          <m.icon className="h-4 w-4 shrink-0" style={{ color: planet.accent }} />
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export function AncestorRail() {
   const navigate = useNavigate();
   const { path, planet, moon, isSun, satellite } = useNavStore();
 
   const atOverview = path.length === 0;
+
+  // Which planet's flyout is open, and where its button sits on screen.
+  const [flyout, setFlyout] = useState<{ id: string; anchor: DOMRect } | null>(null);
+  const closeTimer = useRef<number | null>(null);
+
+  function openFlyout(id: string, el: HTMLElement) {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    setFlyout({ id, anchor: el.getBoundingClientRect() });
+  }
+
+  function scheduleClose() {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setFlyout(null), 180);
+  }
+
+  function cancelClose() {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }
+
+  const flyoutPlanet = flyout ? PLANETS.find((p) => p.id === flyout.id) ?? null : null;
 
   return (
     <nav className="flex w-16 shrink-0 flex-col items-center gap-2 overflow-y-auto border-r bg-card py-3">
@@ -38,7 +120,7 @@ export function AncestorRail() {
 
       <div className="my-1 h-px w-7 shrink-0 bg-border" />
 
-      {/* Top-level categories — the planets, always selectable */}
+      {/* Top-level categories — the planets; hover glides out the moon menu */}
       {PLANETS.map((p) => {
         const active = planet?.id === p.id;
         return (
@@ -46,7 +128,10 @@ export function AncestorRail() {
             key={p.id}
             type="button"
             onClick={() => navigate(`/planet/${p.id}`)}
-            title={p.label}
+            onMouseEnter={(e) => openFlyout(p.id, e.currentTarget)}
+            onMouseLeave={scheduleClose}
+            onFocus={(e) => openFlyout(p.id, e.currentTarget)}
+            onBlur={scheduleClose}
             className={cn(
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground shadow-md transition-transform hover:scale-110",
               active && "ring-2 ring-ring ring-offset-2 ring-offset-card",
@@ -57,6 +142,21 @@ export function AncestorRail() {
           </button>
         );
       })}
+
+      {/* Moon flyout for the hovered planet */}
+      {flyout && flyoutPlanet && (
+        <PlanetFlyout
+          planet={flyoutPlanet}
+          anchor={flyout.anchor}
+          activeMoonId={moon?.id ?? null}
+          onNavigate={(route) => {
+            setFlyout(null);
+            navigate(route);
+          }}
+          onEnter={cancelClose}
+          onLeave={scheduleClose}
+        />
+      )}
 
       {/* Current location marker (moon / satellite / sun) */}
       {(moon || satellite || isSun) && (
