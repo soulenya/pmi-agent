@@ -417,10 +417,17 @@ function AttachmentItem({ messageId, att }: { messageId: string; att: ThreadAtta
 }
 
 function Attachments({ message }: { message: ThreadMessage }) {
-  // Show real attachments; skip inline images already rendered in the HTML body.
-  const shown = message.attachments.filter(
-    (a) => !(a.inline && message.body_html && a.content_id),
-  );
+  // Show real attachments. Hide only genuine inline images — ones actually
+  // referenced from the HTML body via cid: — since those already render in
+  // the message. Outlook and other mailers attach real files (PDFs, DOCX)
+  // with a Content-ID header too, so "has a content_id" alone must NOT hide
+  // an attachment (that made associates' attachments disappear entirely).
+  const shown = message.attachments.filter((a) => {
+    if (!a.inline || !a.content_id || !message.body_html) return true;
+    const referenced = message.body_html.includes(`cid:${a.content_id}`);
+    const isImage = (a.mime_type || "").startsWith("image/");
+    return !(referenced && isImage);
+  });
   if (shown.length === 0) return null;
   return (
     <div className="mt-3 pt-3 border-t border-zinc-800 flex flex-wrap gap-2 items-start">
@@ -495,6 +502,11 @@ export default function InboxPage() {
       return res.data.threads ?? [];
     },
     enabled: gstatus?.connected === true,
+    // Keep the inbox fresh automatically: poll every 60 s (even while the
+    // window is in the background) and refetch the moment the app regains focus.
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   const sortedThreads = useMemo(() => {
@@ -536,6 +548,9 @@ export default function InboxPage() {
       return res.data;
     },
     enabled: !!selected,
+    // New replies in the open thread appear without reselecting it.
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 
   const [batchNotice, setBatchNotice] = useState<{
