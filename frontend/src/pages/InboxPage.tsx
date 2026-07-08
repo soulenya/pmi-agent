@@ -468,6 +468,9 @@ export default function InboxPage() {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortMode>("newest");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // How many threads to fetch — grows by PAGE_SIZE with "Load more".
+  const PAGE_SIZE = 30;
+  const [fetchMax, setFetchMax] = useState(PAGE_SIZE);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -485,23 +488,32 @@ export default function InboxPage() {
 
   const activeQuery = search.trim() || FILTERS.find((f) => f.id === filterId)?.q || "in:inbox";
 
+  // A new folder/search/tag starts back at the first page.
+  useEffect(() => {
+    setFetchMax(PAGE_SIZE);
+  }, [activeQuery, tagFilter]);
+
   const threads = useQuery({
-    queryKey: tagFilter ? ["gmail-by-tag", tagFilter] : ["gmail-inbox", activeQuery],
+    queryKey: tagFilter
+      ? ["gmail-by-tag", tagFilter, fetchMax]
+      : ["gmail-inbox", activeQuery, fetchMax],
     queryFn: async () => {
       if (tagFilter) {
         const res = await apiClient.get<{ threads: InboxThread[] }>(
           `${GOOGLE_PREFIX}/gmail/by-tag`,
-          { params: { tag: tagFilter, max: 30 } },
+          { params: { tag: tagFilter, max: fetchMax } },
         );
         return res.data.threads ?? [];
       }
       const res = await apiClient.get<{ threads: InboxThread[] }>(
         `${GOOGLE_PREFIX}/gmail/inbox`,
-        { params: { q: activeQuery, max: 30 } },
+        { params: { q: activeQuery, max: fetchMax } },
       );
       return res.data.threads ?? [];
     },
     enabled: gstatus?.connected === true,
+    // Keep the current list on screen while a bigger page loads.
+    placeholderData: (prev) => prev,
     // Keep the inbox fresh automatically: poll every 60 s (even while the
     // window is in the background) and refetch the moment the app regains focus.
     refetchInterval: 60_000,
@@ -887,6 +899,23 @@ export default function InboxPage() {
               <p className="p-4 text-xs text-zinc-500">
                 {tagFilter ? `No emails tagged "${tagFilter}".` : "No messages."}
               </p>
+            )}
+            {/* Load more — shown while the last fetch came back full. */}
+            {!threads.isLoading && sortedThreads.length >= fetchMax && (
+              <button
+                onClick={() => setFetchMax((n) => n + PAGE_SIZE)}
+                disabled={threads.isFetching}
+                className="w-full px-3 py-2.5 text-xs text-zinc-400 hover:text-amber-300 hover:bg-zinc-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {threads.isFetching ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Loading…
+                  </>
+                ) : (
+                  <>Load {PAGE_SIZE} more</>
+                )}
+              </button>
             )}
           </div>
         </div>

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 126;
+export const BUILD_NUMBER = 127;
 export const BUILD_DATE = "2026-07-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 127,
+    date: "2026-07-08",
+    title: "Load more emails in the inbox",
+    changes: [
+      "A 'Load 30 more' button at the bottom of the email list fetches older conversations — keep clicking to go as far back as you need",
+      "Works in every folder, in search results, and in tag-filtered views; switching folders starts back at the newest emails",
+    ],
+  },
   {
     build: 126,
     date: "2026-07-08",
