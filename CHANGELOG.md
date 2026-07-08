@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.2.4 — 2026-07-08
+**Gmail auto-refresh + Outlook attachments no longer hidden**
+
+- **Inbox auto-refresh (`InboxPage.tsx`):** the thread list now polls every 60 s (`refetchInterval`, incl. in background) and refetches on window focus; the open thread detail does the same, so new mail and new replies appear without any manual action.
+- **Attachments from associates were invisible (`Attachments` filter in `InboxPage.tsx`):** the filter hid any attachment flagged `inline` with a `content_id` — but Outlook and many corporate mailers set a Content-ID header on REAL file attachments (PDFs, DOCX), so entire messages showed no attachments. The filter now hides an attachment only when it is an actual image AND its `cid:` is genuinely referenced in the HTML body (i.e. it already renders inline); everything else shows as a normal attachment with the full download / open / Ask-Gerry / Add-to-KB actions.
+
 ### v3.2.3 — 2026-07-07
 **Gerry can add contacts to the app's own Contacts page**
 
