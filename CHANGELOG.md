@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.2.10 — 2026-07-09
+**Fix: first-run “'uv' is not recognized” on fresh installs**
+
+- **Self-healing uv bootstrap (`Start Little Gerry.bat`):** on a fresh machine the first-run setup called bare `uv sync` and died if uv wasn't on PATH — which happens when the installer's `pip install uv` landed in the per-user Scripts folder (not in the launcher's PATH refresh) or silently failed. The launcher now: adds `%APPDATA%\Python\Python314\Scripts` to its PATH refresh, locates uv via a `:find_uv` subroutine (PATH → winget-Python Scripts → pip-user Scripts → `~\.local\bin`), bootstraps it via the known Python 3.14's pip when missing, falls back to astral's standalone installer, and only then errors — with instructions to re-run the installer rather than a cryptic message. `uv sync` is invoked by full path.
+- **`scripts/install.ps1`:** same standalone-installer fallback added after the two pip attempts, so the installer itself also recovers when pip can't provide uv.
+
 ### v3.2.9 — 2026-07-08
 **The configured signature applies to every Gerry draft**
 
