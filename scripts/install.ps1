@@ -193,6 +193,22 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
         & python -m pip install uv --user --quiet
         Update-SessionPath
     }
+    # Final fallback: astral's standalone installer (installs to ~\.local\bin,
+    # no working pip required). First launch also self-heals a missing uv.
+    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+        Write-Warn "pip could not provide uv - using the standalone installer"
+        try {
+            Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
+        } catch {
+            Write-Warn "Standalone uv installer failed: $_"
+        }
+        $env:Path = "$env:Path;$env:USERPROFILE\.local\bin"
+        if (Get-Command uv -ErrorAction SilentlyContinue) {
+            Write-OK "uv installed (standalone)"
+        } else {
+            Write-Warn "uv is still missing - the first launch will retry installing it automatically"
+        }
+    }
 } else {
     Write-OK "uv already installed"
 }
