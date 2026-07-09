@@ -9,7 +9,8 @@ cd /d "%~dp0"
 title Little Gerry - Starting...
 
 :: Refresh PATH so freshly-installed tools (docker, node) are found
-set "PATH=%PATH%;%ProgramFiles%\Docker\Docker\resources\bin;%ProgramFiles%\nodejs;%USERPROFILE%\AppData\Local\Programs\Python\Python314;%USERPROFILE%\AppData\Local\Programs\Python\Python314\Scripts;%USERPROFILE%\.local\bin"
+set "PATH=%PATH%;%ProgramFiles%\Docker\Docker\resources\bin;%ProgramFiles%\nodejs;%USERPROFILE%\AppData\Local\Programs\Python\Python314;%USERPROFILE%\AppData\Local\Programs\Python\Python314\Scripts;%APPDATA%\Python\Python314\Scripts;%USERPROFILE%\.local\bin"
+set "PY314=%USERPROFILE%\AppData\Local\Programs\Python\Python314\python.exe"
 
 :: ── First-run setup (runs if .venv is missing) ─────────────
 if exist "%~dp0backend\.venv\Scripts\activate.bat" goto :launch
@@ -25,10 +26,38 @@ echo  [Setup 1/5] Installing Python dependencies...
 :: Force-delete .venv (even if empty/broken) using PowerShell for reliability
 powershell -Command "if (Test-Path '%~dp0backend\.venv') { Remove-Item '%~dp0backend\.venv' -Recurse -Force }"
 cd /d "%~dp0backend"
+
+:: ── Locate uv, bootstrapping it if this machine doesn't have it yet ───────
+set "UV_EXE="
+call :find_uv
+if not defined UV_EXE (
+    echo  uv is not installed yet - installing it now...
+    if exist "%PY314%" (
+        "%PY314%" -m pip install uv --quiet --disable-pip-version-check
+    ) else (
+        python -m pip install uv --quiet --disable-pip-version-check
+    )
+    call :find_uv
+)
+if not defined UV_EXE (
+    echo  Trying the standalone uv installer...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
+    call :find_uv
+)
+if not defined UV_EXE (
+    echo.
+    echo  [ERROR] Could not find or install uv automatically.
+    echo  Make sure Python 3.14 is installed - re-run the Little Gerry installer,
+    echo  or install Python from python.org - then run "Start Little Gerry" again.
+    echo.
+    pause & exit /b 1
+)
+
 :: Explicitly point uv at the known Python 3.14 location
-uv sync --python "%USERPROFILE%\AppData\Local\Programs\Python\Python314\python.exe"
+"%UV_EXE%" sync --python "%PY314%"
 if !ERRORLEVEL! neq 0 (
-    echo  [ERROR] uv sync failed. Is Python and uv installed?
+    echo  [ERROR] uv sync failed. Is Python 3.14 installed? Re-run the Little Gerry
+    echo  installer to set up prerequisites, then start Little Gerry again.
     pause & exit /b 1
 )
 
@@ -134,3 +163,26 @@ echo.
 cd /d "%~dp0"
 start "" "%~dp0backend\.venv\Scripts\pythonw.exe" "%~dp0launcher.py"
 timeout /t 5 /nobreak >nul
+goto :eof
+
+:: ── Subroutine: set UV_EXE to a usable uv, checking PATH then the known
+::    install locations (winget Python Scripts, pip --user Scripts, astral). ──
+:find_uv
+where uv >nul 2>&1
+if !ERRORLEVEL! equ 0 (
+    set "UV_EXE=uv"
+    goto :eof
+)
+if exist "%USERPROFILE%\AppData\Local\Programs\Python\Python314\Scripts\uv.exe" (
+    set "UV_EXE=%USERPROFILE%\AppData\Local\Programs\Python\Python314\Scripts\uv.exe"
+    goto :eof
+)
+if exist "%APPDATA%\Python\Python314\Scripts\uv.exe" (
+    set "UV_EXE=%APPDATA%\Python\Python314\Scripts\uv.exe"
+    goto :eof
+)
+if exist "%USERPROFILE%\.local\bin\uv.exe" (
+    set "UV_EXE=%USERPROFILE%\.local\bin\uv.exe"
+    goto :eof
+)
+goto :eof
