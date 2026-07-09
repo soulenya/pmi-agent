@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v3.2.11 — 2026-07-09
+**Fix: first-run “No interpreter found” when Python isn't in the expected location**
+
+- **Flexible Python resolution (`Start Little Gerry.bat`):** the launcher hardcoded the per-user winget path (`%LOCALAPPDATA%\Programs\Python\Python314`), but winget installs machine-wide (`%ProgramFiles%\Python314`) when elevated — so `uv sync --python <path>` failed with “No interpreter found.” `PY314` now resolves per-user → machine-wide → unset; when unset, `uv sync --python 3.14` lets uv locate ANY 3.14 on the machine or download a managed CPython itself, with a final bare `uv sync` retry accepting any interpreter compatible with `requires-python >=3.12`. Machine-wide Python dirs added to the PATH refresh.
+
 ### v3.2.10 — 2026-07-09
 **Fix: first-run “'uv' is not recognized” on fresh installs**
 
