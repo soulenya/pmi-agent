@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 130;
-export const BUILD_DATE = "2026-07-08";
+export const BUILD_NUMBER = 131;
+export const BUILD_DATE = "2026-07-09";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 131,
+    date: "2026-07-09",
+    title: "Fix: first-run setup no longer fails on fresh machines",
+    changes: [
+      "New installs no longer stop with \"'uv' is not recognized\" — the first-run setup now finds uv wherever it was installed, or installs it automatically if it's missing",
+      "Clearer guidance if setup still can't proceed (pointing to the installer instead of a cryptic error)",
+    ],
+  },
   {
     build: 130,
     date: "2026-07-08",
