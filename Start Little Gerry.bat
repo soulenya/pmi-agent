@@ -9,8 +9,11 @@ cd /d "%~dp0"
 title Little Gerry - Starting...
 
 :: Refresh PATH so freshly-installed tools (docker, node) are found
-set "PATH=%PATH%;%ProgramFiles%\Docker\Docker\resources\bin;%ProgramFiles%\nodejs;%USERPROFILE%\AppData\Local\Programs\Python\Python314;%USERPROFILE%\AppData\Local\Programs\Python\Python314\Scripts;%APPDATA%\Python\Python314\Scripts;%USERPROFILE%\.local\bin"
+set "PATH=%PATH%;%ProgramFiles%\Docker\Docker\resources\bin;%ProgramFiles%\nodejs;%USERPROFILE%\AppData\Local\Programs\Python\Python314;%USERPROFILE%\AppData\Local\Programs\Python\Python314\Scripts;%ProgramFiles%\Python314;%ProgramFiles%\Python314\Scripts;%APPDATA%\Python\Python314\Scripts;%USERPROFILE%\.local\bin"
+:: Python 3.14 may be per-user or machine-wide depending on how winget ran.
 set "PY314=%USERPROFILE%\AppData\Local\Programs\Python\Python314\python.exe"
+if not exist "%PY314%" set "PY314=%ProgramFiles%\Python314\python.exe"
+if not exist "%PY314%" set "PY314="
 
 :: ── First-run setup (runs if .venv is missing) ─────────────
 if exist "%~dp0backend\.venv\Scripts\activate.bat" goto :launch
@@ -32,8 +35,8 @@ set "UV_EXE="
 call :find_uv
 if not defined UV_EXE (
     echo  uv is not installed yet - installing it now...
-    if exist "%PY314%" (
-        "%PY314%" -m pip install uv --quiet --disable-pip-version-check
+    if defined PY314 (
+        "!PY314!" -m pip install uv --quiet --disable-pip-version-check
     ) else (
         python -m pip install uv --quiet --disable-pip-version-check
     )
@@ -53,11 +56,22 @@ if not defined UV_EXE (
     pause & exit /b 1
 )
 
-:: Explicitly point uv at the known Python 3.14 location
-"%UV_EXE%" sync --python "%PY314%"
+:: Build the environment. If Python isn't in a known location, let uv find a
+:: suitable 3.12+ interpreter anywhere on the machine - or download one itself.
+if defined PY314 (
+    "%UV_EXE%" sync --python "!PY314!"
+) else (
+    echo  Python 3.14 not found in the usual locations - uv will locate or
+    echo  download a suitable Python automatically...
+    "%UV_EXE%" sync --python 3.14
+)
 if !ERRORLEVEL! neq 0 (
-    echo  [ERROR] uv sync failed. Is Python 3.14 installed? Re-run the Little Gerry
-    echo  installer to set up prerequisites, then start Little Gerry again.
+    echo  Retrying with any compatible Python...
+    "%UV_EXE%" sync
+)
+if !ERRORLEVEL! neq 0 (
+    echo  [ERROR] uv sync failed. Re-run the Little Gerry installer to set up
+    echo  prerequisites, then start Little Gerry again.
     pause & exit /b 1
 )
 
