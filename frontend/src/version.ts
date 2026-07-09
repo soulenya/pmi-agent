@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 131;
+export const BUILD_NUMBER = 132;
 export const BUILD_DATE = "2026-07-09";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 132,
+    date: "2026-07-09",
+    title: "Fix: first-run setup finds Python wherever it's installed",
+    changes: [
+      "New installs no longer fail with 'No interpreter found' — setup now checks both per-user and machine-wide Python locations, and if Python is missing entirely it downloads one automatically",
+    ],
+  },
   {
     build: 131,
     date: "2026-07-09",
