@@ -140,20 +140,6 @@ function ConversationItem({
 
 // â”€â”€ Tool activity strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function ToolActivityStrip({ activities }: { activities: ToolActivity[] }) {
-  if (activities.length === 0) return null;
-  const latest = activities[activities.length - 1];
-  return (
-    <div className="flex items-center gap-2 rounded-xl bg-secondary/70 px-3 py-2 text-xs text-muted-foreground max-w-[75%]">
-      <Wrench className={cn("h-3.5 w-3.5 shrink-0", latest.status === "running" && "animate-pulse text-primary")} />
-      <span className="truncate">{latest.label}</span>
-      {latest.status === "running" && (
-        <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-      )}
-    </div>
-  );
-}
-
 export function ChatPage() {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const navigate = useNavigate();
@@ -163,10 +149,15 @@ export function ChatPage() {
 
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [wsRetry, setWsRetry] = useState(0);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ document_id: string; title: string } | null>(null);
   const [deletingDoc, setDeletingDoc] = useState(false);
+  // Busy = a turn is in flight (send → done/error). Drives the always-visible
+  // working indicator with elapsed time, so a long research run never looks hung.
+  const [busySince, setBusySince] = useState<number | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
 
   // ── Voice ──────────────────────────────────────────────────────────────────────────
   const { data: appSettings } = useQuery({
@@ -303,7 +294,36 @@ export function ChatPage() {
     queryKey: ["messages", conversationId],
     queryFn: () => listMessages(conversationId!),
     enabled: !!conversationId,
+    // While a turn is running with a dead socket, the answer still completes in
+    // the background — poll so it appears without a manual refresh.
+    refetchInterval: busySince && !wsConnected ? 5_000 : false,
   });
+
+  // Tick the elapsed clock while a turn is in flight.
+  useEffect(() => {
+    if (!busySince) {
+      setElapsedSec(0);
+      return;
+    }
+    const t = window.setInterval(
+      () => setElapsedSec(Math.floor((Date.now() - busySince) / 1000)),
+      1_000,
+    );
+    return () => window.clearInterval(t);
+  }, [busySince]);
+
+  // If the answer was persisted while we were disconnected, clear the busy
+  // state as soon as it shows up in the reloaded history.
+  useEffect(() => {
+    if (!busySince) return;
+    const finished = messages.some(
+      (m) => m.role === "assistant" && new Date(m.created_at).getTime() >= busySince,
+    );
+    if (finished) {
+      setBusySince(null);
+      setToolActivities([]);
+    }
+  }, [messages, busySince]);
 
   // Remember the last open conversation so the left rail's chat button can
   // jump straight back to it from anywhere in the app.
@@ -357,6 +377,7 @@ export function ChatPage() {
   useEffect(() => {
     if (!conversationId) return;
 
+    let disposed = false;
     const token = useAuthStore.getState().accessToken;
     const wsUrl = token
       ? `${WS_BASE}/ws/chat/${conversationId}?token=${encodeURIComponent(token)}`
@@ -364,8 +385,17 @@ export function ChatPage() {
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
-    ws.onopen = () => setWsConnected(true);
-    ws.onclose = () => setWsConnected(false);
+    ws.onopen = () => {
+      setWsConnected(true);
+      // Reconnected — pull anything that finished while we were away.
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    };
+    ws.onclose = () => {
+      setWsConnected(false);
+      // Auto-reconnect while the page is open (the run keeps going server-side).
+      if (!disposed) window.setTimeout(() => setWsRetry((n) => n + 1), 3_000);
+    };
     ws.onerror = () => setWsConnected(false);
 
     ws.onmessage = (event) => {
@@ -435,6 +465,7 @@ export function ChatPage() {
           queryClient.invalidateQueries({ queryKey: ["approvals"] });
           setStreamingContent(null);
           setToolActivities([]);
+          setBusySince(null);
           // Speak the reply aloud — sentence-streamed playback normally started
           // during the token stream; these are fallbacks for empty streams.
           const finalText = streamBufferRef.current;
@@ -452,6 +483,7 @@ export function ChatPage() {
           const detail = (msg as unknown as { detail?: string }).detail ?? "An error occurred.";
           setStreamingContent(null);
           setToolActivities([]);
+          setBusySince(null);
           streamBufferRef.current = "";
           speakerRef.current?.cancel();
           speakerRef.current = null;
@@ -483,12 +515,13 @@ export function ChatPage() {
     };
 
     return () => {
+      disposed = true;
       ws.close();
       setStreamingContent(null);
       setWsConnected(false);
       setToolActivities([]);
     };
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, wsRetry]);
 
   // â”€â”€ Auto-scroll to bottom â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Fire pendingMessage once conversation + WebSocket are both ready
@@ -535,6 +568,7 @@ export function ChatPage() {
         wsRef.current.send(
           JSON.stringify({ type: "human", content, voice: voiceModeRef.current }),
         );
+        setBusySince(Date.now());
 
         // Optimistically add user message to the list
         const optimistic: Message = {
@@ -657,13 +691,46 @@ export function ChatPage() {
             </div>
           )}
 
-          {/* Live tool activity indicator (shown while no streaming content yet) */}
-          {toolActivities.length > 0 && !streamingContent && (
+          {/* Live working indicator — always visible from send until done, with
+              elapsed time, so a long run never looks hung or stopped. */}
+          {busySince && !streamingContent && (
             <div className="flex flex-row gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
               </div>
-              <ToolActivityStrip activities={toolActivities} />
+              <div className="flex max-w-[75%] flex-col gap-1 rounded-xl bg-secondary/70 px-3 py-2 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Wrench
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0",
+                      toolActivities.some((a) => a.status === "running") &&
+                        "animate-pulse text-primary",
+                    )}
+                  />
+                  <span className="truncate">
+                    {toolActivities.length > 0
+                      ? toolActivities[toolActivities.length - 1].label
+                      : "Thinking…"}
+                  </span>
+                  <span className="ml-auto shrink-0 tabular-nums text-muted-foreground/70">
+                    {Math.floor(elapsedSec / 60) > 0
+                      ? `${Math.floor(elapsedSec / 60)}m ${elapsedSec % 60}s`
+                      : `${elapsedSec}s`}
+                  </span>
+                </div>
+                {elapsedSec >= 60 && wsConnected && (
+                  <p className="text-muted-foreground/70">
+                    Still working — deep research and multi-step tasks can take a few
+                    minutes.
+                  </p>
+                )}
+                {!wsConnected && (
+                  <p className="text-amber-500">
+                    Connection lost — reconnecting. Gerry keeps working in the
+                    background; the answer will appear here when it's ready.
+                  </p>
+                )}
+              </div>
             </div>
           )}
 

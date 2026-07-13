@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.15 — 2026-07-13
+**Chat always shows whether Gerry is working — no more silent hangs; Gerry can add files to the KB**
+
+- **Persistent working indicator (`ChatPage.tsx`):** previously the tool-activity strip only appeared during tool events and nothing showed during long LLM inference gaps — a research turn could look frozen for minutes. A `busySince` state now runs from send until `done`/`error`, driving an always-visible indicator with the current phase (latest tool label or “Thinking…”), a live elapsed clock, and a ≥60 s reassurance that deep research takes minutes. The old `ToolActivityStrip` was absorbed into it.
+- **WebSocket auto-reconnect + background-answer pickup:** runs are detached server-side (they finish and persist even if the socket dies), but the client previously froze silently on disconnect. The socket now reconnects automatically every 3 s while the page is open (deliberate closes guarded), shows an amber “connection lost — Gerry keeps working in the background” note while busy, polls the message history every 5 s during a disconnected run, refetches on reconnect, and clears the busy state the moment the persisted answer shows up in history.
+- **New `add_to_knowledge_base` agent tool (`execute_add_to_knowledge_base` in `tools.py`):** on request, Gerry imports a Google Drive file (ID or pasted URL, via the shared `import_drive_file` helper — same dedupe + source-link-for-updates path as the Documents page) or one of her generated files (path-traversal-guarded read + `DocumentIngestionService.ingest`) into the KB, with optional title/category (get-or-create). Duplicates are reported, not re-imported; the tool never imports as regulated — that stays a manual, human action. Registered in all registries and all eight v2 agent whitelists.
+
 ### v3.2.14 — 2026-07-13
 **Expanded “What Gerry can do” feature guide**
 

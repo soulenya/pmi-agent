@@ -647,6 +647,43 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "add_to_knowledge_base",
+            "description": (
+                "Add a file to the Knowledge Base so it becomes searchable and citable. "
+                "Use when the user asks to save/import/add a file to the KB. Two sources: "
+                "a Google Drive file (pass drive_file_id — an ID or pasted URL; use "
+                "search_drive or list_recent_drive_files to find it) or a generated file "
+                "(pass generated_filename from Generated Files). Duplicates are detected "
+                "and reported. Never imports as a regulated document — the user does that "
+                "manually on the Knowledge Base page."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "drive_file_id": {
+                        "type": "string",
+                        "description": "Google Drive file ID or full pasted URL (for Drive files).",
+                    },
+                    "generated_filename": {
+                        "type": "string",
+                        "description": "Exact filename of a generated file (for files Gerry created).",
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Optional Knowledge Base title (defaults to the file name).",
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "Optional category name (created if missing).",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_calendar_events",
             "description": (
                 "ONLY call this when the user explicitly asks to check their calendar, "
@@ -1705,6 +1742,75 @@ async def execute_unfollow_drive_document(ctx: ToolContext, _args: dict[str, Any
     )
 
 
+async def execute_add_to_knowledge_base(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Import a Drive file or a generated file into the Knowledge Base."""
+    from repositories.document_repo import DocumentCategoryRepository
+    from services.documents.ingestion import DocumentIngestionService, DuplicateDocumentError
+
+    drive_ref = str(args.get("drive_file_id", "")).strip()
+    gen_name = str(args.get("generated_filename", "")).strip()
+    title = str(args.get("title", "")).strip() or None
+    category = str(args.get("category", "")).strip()
+
+    if not drive_ref and not gen_name:
+        return (
+            "Error: provide drive_file_id (a Drive ID or pasted URL) or "
+            "generated_filename. Use search_drive / list_recent_drive_files to find "
+            "Drive files, or list the Generated Files."
+        )
+
+    category_id = None
+    if category:
+        cat = await DocumentCategoryRepository(ctx.db).get_or_create(category)
+        category_id = cat.id
+
+    try:
+        if drive_ref:
+            from services.google_service import get_credentials
+            from services.live_document import extract_drive_file_id
+            from services.documents.drive_import import import_drive_file
+
+            if not get_credentials():
+                return _google_not_connected()
+            doc = await import_drive_file(
+                db=ctx.db,
+                embedding_svc=ctx.embedding_service,
+                file_id=extract_drive_file_id(drive_ref),
+                title=title,
+                category_id=category_id,
+                is_regulated=False,
+                created_by_id=ctx.user_id,
+            )
+        else:
+            path = (_GENERATED_FILES_DIR / gen_name).resolve()
+            if not str(path).startswith(str(_GENERATED_FILES_DIR.resolve())) or not path.is_file():
+                return f"Error: generated file '{gen_name}' not found."
+            svc = DocumentIngestionService(db=ctx.db, embedding_svc=ctx.embedding_service)
+            doc = await svc.ingest(
+                filename=path.name,
+                raw_bytes=path.read_bytes(),
+                title=title or path.stem,
+                category_id=category_id,
+                is_regulated=False,
+                created_by_id=ctx.user_id,
+            )
+    except DuplicateDocumentError as exc:
+        return (
+            f"Already in the Knowledge Base: an identical document exists as "
+            f"\"{exc.existing.title}\" — nothing was imported."
+        )
+    except ValueError as exc:
+        return f"Could not import that file into the Knowledge Base: {exc}"
+    except Exception as exc:  # noqa: BLE001
+        return f"Knowledge Base import failed: {exc}"
+
+    return (
+        f"Added to the Knowledge Base: \"{doc.title}\" [id={doc.id}"
+        + (f", category={category}" if category else "")
+        + "]. It is now searchable and citable."
+    )
+
+
 async def execute_get_calendar_events(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
     from services.google_service import calendar_events, get_credentials
@@ -2076,6 +2182,7 @@ TOOL_EXECUTORS = {
     "list_recent_drive_files": execute_list_recent_drive_files,
     "follow_drive_document": execute_follow_drive_document,
     "unfollow_drive_document": execute_unfollow_drive_document,
+    "add_to_knowledge_base": execute_add_to_knowledge_base,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
     "add_contacts": execute_add_contacts,
@@ -2109,6 +2216,7 @@ _PRIMARY_ARG = {
     "read_drive_file": "file_id",
     "list_recent_drive_files": "max_results",
     "follow_drive_document": "file_id",
+    "add_to_knowledge_base": "drive_file_id",
     "list_drive_folder": "folder_id",
     "read_google_sheet": "spreadsheet_id",
 }
