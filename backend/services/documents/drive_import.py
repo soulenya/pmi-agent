@@ -50,7 +50,7 @@ async def import_drive_file(
     ``DuplicateDocumentError`` on a byte-identical existing document (unless
     ``force`` is True). The caller owns the transaction (commit/rollback).
     """
-    drive_file_data = gs.drive_get_content(file_id)
+    drive_file_data = gs.drive_get_content(file_id, max_chars=None)
 
     content = drive_file_data.get("content", "")
     name = drive_file_data.get("name", "drive_file.txt")

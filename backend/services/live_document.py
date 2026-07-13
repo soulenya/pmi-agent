@@ -85,7 +85,7 @@ async def build_live_doc_context(db: AsyncSession, conversation_id: uuid.UUID) -
         if not get_credentials():
             return ""
         result = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: drive_get_content(doc["file_id"])
+            None, lambda: drive_get_content(doc["file_id"], max_chars=MAX_LIVE_DOC_CHARS)
         )
         content = (result.get("content") or "").strip()
         name = result.get("name") or doc.get("name") or "document"
@@ -96,9 +96,13 @@ async def build_live_doc_context(db: AsyncSession, conversation_id: uuid.UUID) -
                 "but it currently has no readable text (it may be empty).\n"
             )
         truncated = ""
-        if len(content) > MAX_LIVE_DOC_CHARS:
-            content = content[:MAX_LIVE_DOC_CHARS]
-            truncated = "\n[...document truncated for length...]"
+        if result.get("truncated"):
+            truncated = (
+                f"\n[DOCUMENT TRUNCATED: showing the first {len(content):,} of "
+                f"{result.get('total_chars', 0):,} characters. If asked about later "
+                "sections, say you can only see the beginning and ask the user to "
+                "paste the relevant section.]"
+            )
         return (
             f"\n\nLIVE DOCUMENT (re-read moments ago — this IS the current state of "
             f"\"{name}\", {url}):\n---\n{content}{truncated}\n---\n"
