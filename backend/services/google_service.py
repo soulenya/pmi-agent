@@ -913,7 +913,13 @@ def drive_list_shared_drives(max_results: int = 20) -> list[dict]:
     ]
 
 
-def drive_get_content(file_id: str) -> dict:
+def drive_get_content(file_id: str, max_chars: int | None = 10_000) -> dict:
+    """Fetch a Drive file's text content.
+
+    ``max_chars`` caps the returned ``content`` (None = full text). The result
+    always reports ``total_chars`` (pre-cap length) and ``truncated`` so callers
+    can surface an explicit marker instead of silently cutting mid-sentence.
+    """
     svc = _build("drive", "v3")
     meta = svc.files().get(
         fileId=file_id,
@@ -981,13 +987,20 @@ def drive_get_content(file_id: str) -> dict:
             except Exception:
                 content = ""
 
+    total_chars = len(content)
+    was_truncated = max_chars is not None and total_chars > max_chars
+    if was_truncated:
+        content = content[:max_chars]
+
     return {
         "id": file_id,
         "name": meta.get("name", ""),
         "type": mime,
         "url": meta.get("webViewLink", ""),
         "modified": meta.get("modifiedTime", ""),
-        "content": content[:10_000],
+        "content": content,
+        "truncated": was_truncated,
+        "total_chars": total_chars,
         "raw_bytes": raw_file_bytes,
         "extension": file_extension,
     }
