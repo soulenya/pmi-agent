@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.2.16 — 2026-07-13
+**Full-document Drive reads — fixed the silent 10k-character truncation**
+
+- **Root cause (`google_service.drive_get_content`):** a hard-coded `content[:10_000]` silently cut every Drive read mid-sentence with no marker — the live-doc follower's 30k cap never applied (content arrived pre-truncated), Gerry couldn't see anything past ~10k chars of a followed doc, and had no signal that content was missing (reported by the user when Gerry couldn't reach a doc's Bibliography section). The function now takes `max_chars` (default 10k preserved for previews/briefing scans/company profile) and returns `truncated` + `total_chars` metadata.
+- **Live doc following (`live_document.py`):** fetches with `max_chars=MAX_LIVE_DOC_CHARS` (30k); docs longer than that get an explicit `[DOCUMENT TRUNCATED: showing first X of Y characters…]` marker instructing Gerry to say so and ask the user to paste the relevant section.
+- **`read_drive_file` tool:** cap raised 8k → 30k with the same explicit truncation note.
+- **KB integrity fixes:** `drive_import.py` (Documents-page import, manifest import, and the chat `add_to_knowledge_base` tool) and `sync.py` (update detection) now fetch with `max_chars=None` — long Google-native docs were being silently ingested/compared at 10k, so imports lost content and later-section edits could go undetected.
+
 ### v3.2.15 — 2026-07-13
 **Chat always shows whether Gerry is working — no more silent hangs; Gerry can add files to the KB**
 

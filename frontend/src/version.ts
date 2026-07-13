@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 136;
+export const BUILD_NUMBER = 137;
 export const BUILD_DATE = "2026-07-13";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 137,
+    date: "2026-07-13",
+    title: "Gerry now reads your whole Google Doc — no more silent cut-offs",
+    changes: [
+      "Followed documents and Drive file reads were silently cut at 10,000 characters mid-sentence — Gerry couldn't see later sections and didn't know they were missing. She now reads up to 30,000 characters",
+      "If a document is longer than even that, Gerry now knows exactly how much she can see and tells you — instead of guessing about content she can't reach",
+      "Knowledge Base imports of long Google Docs now ingest the full text (they were also quietly truncated at 10,000 characters), and Drive update-detection compares complete documents",
+    ],
+  },
   {
     build: 136,
     date: "2026-07-13",

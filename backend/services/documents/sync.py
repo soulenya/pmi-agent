@@ -167,7 +167,7 @@ async def apply_document_update(db: AsyncSession, embedding_svc, doc_id: UUID) -
     if meta is None or meta.get("trashed"):
         raise ValueError("The source file no longer exists in Google Drive.")
 
-    data = gs.drive_get_content(file_id)
+    data = gs.drive_get_content(file_id, max_chars=None)
     content = (data.get("content") or "").strip()
     name = data.get("name") or doc.source_name or "drive_file.txt"
     mime = data.get("type", "text/plain")
