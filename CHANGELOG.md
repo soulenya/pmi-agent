@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v3.2.14 — 2026-07-13
+**Expanded “What Gerry can do” feature guide**
+
+- **Every `FEATURE_GUIDE` entry rewritten (`lib/featureGuide.ts`):** the per-section help popup (and the once-per-build auto-popup) grew from ~2 generic bullets to full, current capability lists — now advertising live Google Docs following, approve-anywhere (thread/chat/drawer/notifications), attachment→KB, Gmail folders/sorting/auto-refresh/Load-more, voice conversations with brevity + natural voices, the home-screen briefing panel, company-profile awareness, contact auto-resolution, Odoo bank balances, whole-document KB reads, and the forever-retention hash-chained audit log. No component changes — content only.
+
 ### v3.2.13 — 2026-07-13
 **Live Google Docs collaboration in chat + quick return to the last conversation**
 
