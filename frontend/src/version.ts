@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 135;
+export const BUILD_NUMBER = 136;
 export const BUILD_DATE = "2026-07-13";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 136,
+    date: "2026-07-13",
+    title: "You can always tell whether Gerry is working — and she can file things in the KB",
+    changes: [
+      "A working indicator with a running clock now stays visible from the moment you send until the answer arrives — showing what Gerry is doing ('Searching the web…', 'Thinking…') the whole time",
+      "After a minute it reassures you that deep research can take a few minutes — no more guessing whether it's processing, hung, or stopped",
+      "If the connection drops mid-task, chat now says so, reconnects automatically, and the finished answer appears on its own — Gerry never stops working in the background",
+      "Ask Gerry to add a Drive file or one of her generated files to the Knowledge Base — she imports it on the spot, with duplicate detection",
+    ],
+  },
   {
     build: 135,
     date: "2026-07-13",

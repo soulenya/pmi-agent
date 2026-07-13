@@ -50,6 +50,7 @@ _TOOLS = [
     "list_recent_drive_files",
     "follow_drive_document",
     "unfollow_drive_document",
+    "add_to_knowledge_base",
     "search_drive_content",
     "generate_file",
     "create_task",

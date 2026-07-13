@@ -115,6 +115,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     capabilities: [
       "Upload PDFs, Word docs and text — auto-chunked and searchable in seconds",
       "Import straight from Google Drive, email threads or Odoo datasets",
+      "Or just ask Gerry in chat — she can add Drive files and her generated files to the knowledge base for you",
       "Add email attachments to the knowledge base with one click from your inbox",
       "Keep regulated files in their own categories with tighter controls",
       "Share a knowledge-base manifest so teammates can import the same library",
