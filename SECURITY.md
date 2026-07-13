@@ -29,15 +29,15 @@ primary security boundary is **the user's own machine and OS login**. The
 controls below defend the data that lives there and govern what leaves the
 machine.
 
-| Concern | Mechanism |
-| --- | --- |
-| Who can sign in | Google SSO restricted to approved company domains |
-| Proving identity per request | Signed JWT bearer tokens (HS256) |
-| What a signed-in user may do | Role- and permission-based access control |
-| Protecting stored secrets | Operating-system keyring (Credential Manager / Keychain) |
-| Protecting stored files & credentials | Fernet authenticated encryption (AES-128 + HMAC) |
-| Detecting tampering with history | SHA-256 hash-chained audit log |
-| Trusting the installed app | Signed Windows installer + signed/notarized macOS package |
+| Concern                               | Mechanism                                                 |
+| ------------------------------------- | --------------------------------------------------------- |
+| Who can sign in                       | Google SSO restricted to approved company domains         |
+| Proving identity per request          | Signed JWT bearer tokens (HS256)                          |
+| What a signed-in user may do          | Role- and permission-based access control                 |
+| Protecting stored secrets             | Operating-system keyring (Credential Manager / Keychain)  |
+| Protecting stored files & credentials | Fernet authenticated encryption (AES-128 + HMAC)          |
+| Detecting tampering with history      | SHA-256 hash-chained audit log                            |
+| Trusting the installed app            | Signed Windows installer + signed/notarized macOS package |
 
 ---
 
@@ -74,10 +74,10 @@ automatically ([backend/routers/auth.py](backend/routers/auth.py#L301-L320)):
 After sign-in the backend issues two JSON Web Tokens
 ([backend/services/auth/service.py](backend/services/auth/service.py#L37-L76)):
 
-| Token | Lifetime | Purpose |
-| --- | --- | --- |
-| Access token | 60 minutes | Sent on every API request to prove identity |
-| Refresh token | 30 days | Used to obtain a new access token without re-login |
+| Token         | Lifetime   | Purpose                                            |
+| ------------- | ---------- | -------------------------------------------------- |
+| Access token  | 60 minutes | Sent on every API request to prove identity        |
+| Refresh token | 30 days    | Used to obtain a new access token without re-login |
 
 - Tokens are **signed with HS256** using a secret held in the OS keyring
   (see §5). Signature is verified on every request; an invalid or expired token
@@ -116,10 +116,10 @@ control**.
 
 ### 3.1 Roles
 
-| Role | Who | Capabilities |
-| --- | --- | --- |
-| `admin` | The application owner (`settings.admin_email`) | Full access, including admin-only operations and unconditional regulatory-file write |
-| `member` | All other approved-domain users | Full day-to-day access to their own workspace |
+| Role       | Who                                              | Capabilities                                                                         |
+| ---------- | ------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `admin`  | The application owner (`settings.admin_email`) | Full access, including admin-only operations and unconditional regulatory-file write |
+| `member` | All other approved-domain users                  | Full day-to-day access to their own workspace                                        |
 
 Admin-only routes are guarded by the `require_admin` dependency, which returns
 `403 Forbidden` for non-admins
@@ -174,11 +174,11 @@ detection, with the key sourced from the OS keyring (§4.1).
 
 Fernet-encrypted data includes:
 
-| Data | Where | Source |
-| --- | --- | --- |
-| Chat conversation attachments | Local file store | [backend/services/chat_attachments.py](backend/services/chat_attachments.py#L71-L81) |
-| Knowledge Base documents | Local file store | [backend/services/documents/ingestion.py](backend/services/documents/ingestion.py#L136-L147) |
-| Odoo ERP API key | Database column | [backend/services/odoo_service.py](backend/services/odoo_service.py#L39-L50) |
+| Data                          | Where            | Source                                                                                      |
+| ----------------------------- | ---------------- | ------------------------------------------------------------------------------------------- |
+| Chat conversation attachments | Local file store | [backend/services/chat_attachments.py](backend/services/chat_attachments.py#L71-L81)         |
+| Knowledge Base documents      | Local file store | [backend/services/documents/ingestion.py](backend/services/documents/ingestion.py#L136-L147) |
+| Odoo ERP API key              | Database column  | [backend/services/odoo_service.py](backend/services/odoo_service.py#L39-L50)                 |
 
 Files are written encrypted and only decrypted in memory when the owning user
 requests them.
@@ -256,15 +256,15 @@ provisioning) are written to an **append-only audit log** with a
 
 ## 8. Secret & credential management summary
 
-| Secret | Stored in | Notes |
-| --- | --- | --- |
-| JWT signing key | OS keyring | 64-byte random, generated on first run |
-| Fernet data-encryption key | OS keyring | Generated on first run |
-| AI provider API keys | OS keyring | Supplied per install |
-| Refresh tokens | Database | **SHA-256 hash only** — never the raw token |
-| Passwords | Database | **bcrypt** hash with per-hash salt |
-| Odoo API key | Database | **Fernet-encrypted** |
-| Google OAuth client secret | Not committed to source; git-ignored | Fetched/placed per install |
+| Secret                     | Stored in                            | Notes                                              |
+| -------------------------- | ------------------------------------ | -------------------------------------------------- |
+| JWT signing key            | OS keyring                           | 64-byte random, generated on first run             |
+| Fernet data-encryption key | OS keyring                           | Generated on first run                             |
+| AI provider API keys       | OS keyring                           | Supplied per install                               |
+| Refresh tokens             | Database                             | **SHA-256 hash only** — never the raw token |
+| Passwords                  | Database                             | **bcrypt** hash with per-hash salt           |
+| Odoo API key               | Database                             | **Fernet-encrypted**                         |
+| Google OAuth client secret | Not committed to source; git-ignored | Fetched/placed per install                         |
 
 ---
 
@@ -276,7 +276,6 @@ These are stated plainly so operators can make informed decisions:
    backend is bound to `127.0.0.1` and unreachable off-machine, but it does mean
    another process running **as the same OS user** could in principle observe
    loopback traffic. Protecting the OS login is part of the security model.
-
 2. **The Google OAuth token file is currently stored as plaintext JSON** on
    disk (`google_token.json`, written via `creds.to_json()` in
    [backend/services/google_service.py](backend/services/google_service.py#L48-L64)).
@@ -286,11 +285,9 @@ These are stated plainly so operators can make informed decisions:
    protection of the OS user account and file-system permissions only. Wrapping
    this file in Fernet (to match the other credentials) is a recommended
    hardening step.
-
 3. **Content is shared with third-party AI providers** to deliver assistant
    features (see §5.3). This is by design and should be reflected in any
    organizational data-handling policy.
-
 4. **Machine-level trust.** Full-disk encryption (BitLocker / FileVault), a
    strong OS login, and keeping the OS user account uncompromised are
    assumptions of this model, since all local data and keyring secrets are
@@ -303,4 +300,3 @@ These are stated plainly so operators can make informed decisions:
 If you discover a security vulnerability, do **not** open a public issue.
 Contact the application owner directly (`morganjkeane@pmi-llc.com`) with details
 and reproduction steps so it can be triaged and patched in a coordinated
-release.

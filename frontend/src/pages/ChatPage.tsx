@@ -305,6 +305,18 @@ export function ChatPage() {
     enabled: !!conversationId,
   });
 
+  // Remember the last open conversation so the left rail's chat button can
+  // jump straight back to it from anywhere in the app.
+  useEffect(() => {
+    if (conversationId) {
+      try {
+        localStorage.setItem("chat.lastConversationId", conversationId);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [conversationId]);
+
   // Approvals Gerry raised in THIS conversation — approve/reject inline.
   const { data: chatApprovals = [] } = usePendingApprovals({
     conversation_id: conversationId,

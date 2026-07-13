@@ -301,6 +301,14 @@ class LangGraphSupervisor:
             logger.exception("Failed to build attachment context")
             attach_ctx = ""
 
+        # Live followed document — re-read fresh every turn so the agent always
+        # sees the user's latest edits.
+        try:
+            from services.live_document import build_live_doc_context
+            attach_ctx += await build_live_doc_context(self.db, self.conversation_id)
+        except Exception:
+            logger.exception("Failed to build live document context")
+
         # Always-available company facts (fast local-cache read — never hits Drive).
         try:
             from services.company_context import get_company_context

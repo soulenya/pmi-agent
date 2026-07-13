@@ -624,6 +624,31 @@ def drive_search(query: str, max_results: int = 10) -> list[dict]:
     ]
 
 
+def drive_recent_files(max_results: int = 8) -> list[dict]:
+    """The user's most recently modified Drive files (docs first, newest first)."""
+    svc = _build("drive", "v3")
+    resp = svc.files().list(
+        q="trashed=false and mimeType != 'application/vnd.google-apps.folder'",
+        orderBy="modifiedTime desc",
+        pageSize=max_results,
+        fields="files(id,name,mimeType,modifiedTime,webViewLink,owners)",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        corpora="allDrives",
+    ).execute()
+    return [
+        {
+            "id": f["id"],
+            "name": f["name"],
+            "type": f.get("mimeType", ""),
+            "modified": f.get("modifiedTime", ""),
+            "url": f.get("webViewLink", ""),
+            "owner": (f.get("owners") or [{}])[0].get("displayName", ""),
+        }
+        for f in resp.get("files", [])
+    ]
+
+
 def drive_upload_file(
     local_path: str,
     name: str | None = None,
