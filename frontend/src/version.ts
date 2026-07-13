@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 132;
-export const BUILD_DATE = "2026-07-09";
+export const BUILD_NUMBER = 134;
+export const BUILD_DATE = "2026-07-13";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,24 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 134,
+    date: "2026-07-13",
+    title: "Work on Google Docs together with Gerry, live — plus one-click return to chat",
+    changes: [
+      "Say 'help me with this document' and Gerry lists your recent Google Docs, confirms which one, and follows it — re-reading your latest edits on every message so her feedback always matches what's on your screen",
+      "Paste a Google Docs link for instant feedback, or ask Gerry to 'follow' it for the whole conversation; 'stop following' ends it",
+      "A new chat button at the top of the left rail jumps straight back to your last open conversation from any page — no more convoluted navigation after visiting Generated Files or another moon",
+    ],
+  },
+  {
+    build: 133,
+    date: "2026-07-09",
+    title: "Installer sets up WSL 2 automatically — no Ubuntu, no Unix account prompt",
+    changes: [
+      "The installer now enables the WSL 2 kernel that Docker Desktop needs, without installing Ubuntu — new users are never dropped into a 'Create a default Unix user account' prompt",
+    ],
+  },
   {
     build: 132,
     date: "2026-07-09",

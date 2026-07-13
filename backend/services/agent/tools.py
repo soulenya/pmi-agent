@@ -567,20 +567,81 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "read_drive_file",
             "description": (
-                "Read the text content of a Google Drive file by its ID. "
-                "Only call when the user explicitly asks to open or read a specific Drive file. "
-                "Works for Docs, Sheets (as CSV), Slides, and plain text files."
+                "Read the text content of a Google Drive file — including live Google "
+                "Docs the user is currently writing. Call this whenever the user shares "
+                "a Drive/Docs/Sheets link or asks for feedback, input, or recommendations "
+                "on a document they're working on: read it, then give concrete suggestions. "
+                "Works for Docs, Sheets (as CSV), Slides, PDFs, and plain text files."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "file_id": {
                         "type": "string",
-                        "description": "The Google Drive file ID (from search_drive results).",
+                        "description": (
+                            "The Drive file ID (from search_drive results) OR a full pasted "
+                            "URL like https://docs.google.com/document/d/<id>/edit — the ID "
+                            "is extracted automatically."
+                        ),
                     },
                 },
                 "required": ["file_id"],
             },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_recent_drive_files",
+            "description": (
+                "List the user's most recently modified Google Drive files (newest "
+                "first). Call this when the user says 'help me with this document' or "
+                "similar WITHOUT a link — the doc they mean is almost always at the top. "
+                "Present the top few and confirm which one, then follow_drive_document."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_results": {
+                        "type": "integer",
+                        "description": "How many files to list (default 8).",
+                        "default": 8,
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "follow_drive_document",
+            "description": (
+                "Follow a Google Doc/Drive file in THIS conversation for live "
+                "collaboration: from then on its CURRENT contents are re-read "
+                "automatically on every message, so you always see the user's latest "
+                "edits. Use when the user wants ongoing help writing or revising a "
+                "document. Accepts a file ID or a pasted URL. Use unfollow_drive_document "
+                "to stop."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_id": {
+                        "type": "string",
+                        "description": "Drive file ID or full pasted Docs/Drive URL.",
+                    },
+                },
+                "required": ["file_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "unfollow_drive_document",
+            "description": "Stop following the live document in this conversation.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
     {
@@ -1555,10 +1616,15 @@ async def execute_search_drive_content(ctx: ToolContext, args: dict[str, Any]) -
 
 async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
+    import re as _re
     from services.google_service import drive_get_content, get_credentials
     if not get_credentials():
         return _google_not_connected()
     file_id = str(args.get("file_id", "")).strip()
+    # Accept full Docs/Drive/Sheets URLs — extract the file ID.
+    m = _re.search(r"/d/([\w-]{20,})", file_id) or _re.search(r"[?&]id=([\w-]{20,})", file_id)
+    if m:
+        file_id = m.group(1)
     if not file_id:
         return "Error: file_id is required."
     try:
@@ -1573,6 +1639,69 @@ async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
     return (
         f"File: {result['name']}\nType: {result['type']}\nURL: {result['url']}\n\n"
         f"{content[:8000]}"
+    )
+
+
+async def execute_list_recent_drive_files(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import drive_recent_files, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    max_results = min(int(args.get("max_results", 8) or 8), 20)
+    try:
+        files = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_recent_files(max_results)
+        )
+    except Exception as exc:
+        return f"Failed to list recent Drive files: {exc}"
+    if not files:
+        return "No recent Drive files found."
+    lines = ["Most recently modified Drive files (newest first):"]
+    for f in files:
+        lines.append(
+            f"- {f['name']} (modified {f['modified']}, owner {f['owner'] or 'unknown'}, "
+            f"id={f['id']})"
+        )
+    lines.append(
+        "Ask the user to confirm which one they mean, then call follow_drive_document."
+    )
+    return "\n".join(lines)
+
+
+async def execute_follow_drive_document(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import drive_get_content, get_credentials
+    from services.live_document import extract_drive_file_id, set_followed_doc
+    if not get_credentials():
+        return _google_not_connected()
+    file_id = extract_drive_file_id(str(args.get("file_id", "")))
+    if not file_id:
+        return "Error: file_id (or a pasted document URL) is required."
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_get_content(file_id)
+        )
+    except Exception as exc:
+        return f"Could not read that document: {exc}"
+    name = result.get("name") or "document"
+    url = result.get("url") or ""
+    await set_followed_doc(ctx.db, ctx.conversation_id, file_id, name, url)
+    content = (result.get("content") or "").strip()
+    preview = content[:2000] + ("…" if len(content) > 2000 else "")
+    return (
+        f"Now following \"{name}\" in this conversation — its current contents will be "
+        "re-read automatically on every message, so you always see the user's latest "
+        f"edits. Current text begins:\n---\n{preview}\n---"
+    )
+
+
+async def execute_unfollow_drive_document(ctx: ToolContext, _args: dict[str, Any]) -> str:
+    from services.live_document import clear_followed_doc
+    removed = await clear_followed_doc(ctx.db, ctx.conversation_id)
+    return (
+        "Stopped following the live document in this conversation."
+        if removed
+        else "No document was being followed in this conversation."
     )
 
 
@@ -1944,6 +2073,9 @@ TOOL_EXECUTORS = {
     "list_drive_folder": execute_list_drive_folder,
     "list_shared_drives": execute_list_shared_drives,
     "read_drive_file": execute_read_drive_file,
+    "list_recent_drive_files": execute_list_recent_drive_files,
+    "follow_drive_document": execute_follow_drive_document,
+    "unfollow_drive_document": execute_unfollow_drive_document,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
     "add_contacts": execute_add_contacts,
@@ -1975,6 +2107,8 @@ _PRIMARY_ARG = {
     "fetch_page": "url",
     "read_gmail_message": "message_id",
     "read_drive_file": "file_id",
+    "list_recent_drive_files": "max_results",
+    "follow_drive_document": "file_id",
     "list_drive_folder": "folder_id",
     "read_google_sheet": "spreadsheet_id",
 }

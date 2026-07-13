@@ -105,8 +105,9 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "list_drive_folder": "Browsing Drive folder…",
     "list_shared_drives": "Listing shared drives…",
     "search_drive_content": "Reading Drive files…",
-    "read_drive_file": "Reading Drive file…",
-    "get_calendar_events": "Fetching calendar…",
+    "read_drive_file": "Reading Drive file…",    "list_recent_drive_files": "Checking your recent documents…",
+    "follow_drive_document": "Opening your document…",
+    "unfollow_drive_document": "Closing the document…",    "get_calendar_events": "Fetching calendar…",
     "search_contacts": "Looking up contact…",
     "add_contacts": "Adding to contacts…",
     "read_google_sheet": "Reading spreadsheet…",
@@ -476,6 +477,16 @@ class AgentExecutor:
                 messages[0]["content"] += attach_ctx
         except Exception:  # noqa: BLE001 — attachments are best-effort context
             logger.exception("Failed to build attachment context")
+
+        # Live followed document — re-read fresh every turn so Gerry always
+        # sees the user's latest edits.
+        try:
+            from services.live_document import build_live_doc_context
+            live_doc = await build_live_doc_context(self.db, self.conversation_id)
+            if live_doc:
+                messages[0]["content"] += live_doc
+        except Exception:  # noqa: BLE001 — live doc is best-effort context
+            logger.exception("Failed to build live document context")
 
         # The most-recent window can begin mid-conversation on an assistant turn;
         # skip leading non-user messages so the conversation starts on a user

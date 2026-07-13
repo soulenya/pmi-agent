@@ -4,6 +4,18 @@
 
 ## Changelog
 
+### v3.2.13 — 2026-07-13
+**Live Google Docs collaboration in chat + quick return to the last conversation**
+
+- **Live document following (`services/live_document.py` + three new agent tools):** `follow_drive_document` pins a Doc to the conversation (SystemSetting sidecar `chat.live_doc.{conversation_id}` — no migration); `build_live_doc_context` re-fetches the CURRENT contents on EVERY turn in BOTH engines (v1 executor + v2 supervisor, appended after the attachments context, 30k-char cap, failure-tolerant) — so Gerry's feedback always reflects the user's latest edits. `list_recent_drive_files` (new `drive_recent_files` in `google_service.py`, `orderBy=modifiedTime desc`) answers “help me with this document” without a link by listing what the user just edited and confirming; `unfollow_drive_document` stops. Registered across TOOL_DEFINITIONS/EXECUTORS/_PRIMARY_ARG, v1 status labels, v2 `_TOOL_DOCS`, and all eight v2 agent whitelists.
+- **`read_drive_file` accepts pasted URLs and invites doc review (`tools.py` + `lc_tools.py`):** extracts the file ID from full Docs/Drive/Sheets URLs (`/d/<id>` or `?id=`), and the description changed from “only call when the user explicitly asks” to actively reading a linked doc and giving concrete feedback — one-shot review for when following isn't needed.
+- **Back-to-conversation button (`AncestorRail.tsx` + `ChatPage.tsx`):** ChatPage persists the active conversation id (`chat.lastConversationId` in localStorage); a MessageSquare button under the sun in the left rail jumps to `/chat/<last>` (or `/chat`) from anywhere — leaving a conversation for Generated Files (or any moon) is now one click back.
+
+### v3.2.12 — 2026-07-09
+**Installer bootstraps WSL 2 (distro-free) for Docker Desktop**
+
+- **WSL 2 setup in `scripts/install.ps1`:** Docker Desktop needs the WSL 2 kernel, but nothing installed it — fresh machines hit Docker's “WSL installation is incomplete” and users following generic advice ran bare `wsl --install`, which pulls in Ubuntu and prompts for a Unix account (observed in the field). The installer now checks `wsl --status` and runs `wsl --install --no-distribution` (or `wsl --update` when already present) before installing Docker Desktop — kernel only, no distro, no account prompt, with a note that a reboot may be needed. Also fixed a non-ASCII em-dash that broke PowerShell 5.1 parsing of the new block (ANSI-encoded script).
+
 ### v3.2.11 — 2026-07-09
 **Fix: first-run “No interpreter found” when Python isn't in the expected location**
 
