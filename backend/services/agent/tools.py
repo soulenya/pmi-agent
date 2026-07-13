@@ -1666,16 +1666,23 @@ async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
         return "Error: file_id is required."
     try:
         result = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: drive_get_content(file_id)
+            None, lambda: drive_get_content(file_id, max_chars=30_000)
         )
     except Exception as exc:
         return f"Failed to read Drive file: {exc}"
     content = result.get("content", "")
     if not content:
         return f"File '{result.get('name', file_id)}' has no readable text content."
+    note = ""
+    if result.get("truncated"):
+        note = (
+            f"\n\n[TRUNCATED: showing the first {len(content):,} of "
+            f"{result.get('total_chars', 0):,} characters. Tell the user the file is "
+            "too long to read in full and ask which section they need.]"
+        )
     return (
         f"File: {result['name']}\nType: {result['type']}\nURL: {result['url']}\n\n"
-        f"{content[:8000]}"
+        f"{content}{note}"
     )
 
 
