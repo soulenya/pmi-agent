@@ -167,7 +167,7 @@ Little Gerry can load a small **company profile** — key people, products, part
 | **Odoo ERP** | Connect your Odoo account (API key) so Little Gerry can read and propose ERP actions |
 | **Settings** | Configure AI providers, appearance, and Google integration |
 
-> **Finding your way around.** The home screen is a **solar system**: Little Gerry is the sun (click her to chat), **Dashboard** and the **Daily Assistant** orbit close in, and five planets group the modules — **Work**, **Knowledge**, **Communications**, **Odoo**, and **Compliance** — with each feature page as a moon. The narrow **left rail** shows the sun and the five planets from anywhere in the app: click a planet to zoom into it, or simply **hover over it** and a menu glides out listing its moons so you can jump straight to any page in one click. Esc zooms back out a level.
+> **Finding your way around.** The home screen is a **solar system**: Little Gerry is the sun (click her to chat), **Dashboard** and the **Daily Assistant** orbit close in, and five planets group the modules — **Work**, **Knowledge**, **Communications**, **Odoo**, and **Compliance** — with each feature page as a moon. The narrow **left rail** shows the sun and the five planets from anywhere in the app: click a planet to zoom into it, or simply **hover over it** and a menu glides out listing its moons so you can jump straight to any page in one click. The **chat bubble under the sun** returns you to your last open Gerry conversation from any page. Esc zooms back out a level.
 
 ---
 
@@ -189,6 +189,7 @@ When Google is connected, Little Gerry calls the appropriate tool immediately �
 - "Any emails about the 510k?" → searches Gmail immediately
 - "What's on my calendar this week?" → fetches calendar events immediately
 - "Add Jane Smith (jane@acme.com, Acme) to my contacts" → saves straight to the Contacts page — works for one contact or a whole pasted list
+- "Help me with this document" → Gerry lists your recently edited Google Docs, confirms which one, then **follows it live** — she re-reads your latest edits on every message, so ask anything ("how's the intro now?", "tighten section 3") while you write. Paste a Docs link for a one-time review instead, and say "stop following the doc" when you're done
 - "What do our VACTOR specs say about suction pressure?" → searches the Knowledge Base
 
 ### What requires your approval

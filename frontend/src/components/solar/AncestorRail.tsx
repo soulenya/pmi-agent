@@ -11,7 +11,7 @@
 import { useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Orbit } from "lucide-react";
+import { Orbit, MessageSquare } from "lucide-react";
 import { useNavStore } from "@/stores/navStore";
 import { PLANETS, type Planet } from "@/lib/solarSystem";
 import { BUILD_NUMBER, BUILD_DATE } from "@/version";
@@ -116,6 +116,25 @@ export function AncestorRail() {
         )}
       >
         <Orbit className="h-5 w-5 text-red-950/80" />
+      </button>
+
+      {/* Jump straight back to the last open Gerry conversation — one click
+          from any page, so leaving chat for a moon is never a dead end. */}
+      <button
+        type="button"
+        onClick={() => {
+          let last: string | null = null;
+          try {
+            last = localStorage.getItem("chat.lastConversationId");
+          } catch {
+            /* ignore */
+          }
+          navigate(last ? `/chat/${last}` : "/chat");
+        }}
+        title="Back to your Gerry conversation"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-500/20 to-red-700/20 border border-red-500/40 text-red-300 transition-all hover:scale-110 hover:border-red-400 hover:text-red-200"
+      >
+        <MessageSquare className="h-4 w-4" />
       </button>
 
       <div className="my-1 h-px w-7 shrink-0 bg-border" />
