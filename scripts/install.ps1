@@ -162,6 +162,31 @@ if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
+# WSL 2 kernel - required by Docker Desktop. Install/update it WITHOUT a Linux
+# distribution (Docker ships its own internal distros; bare `wsl --install`
+# would pull in Ubuntu and prompt for a Unix account, which we don't want).
+if (Get-Command wsl -ErrorAction SilentlyContinue) {
+    $wslOk = $false
+    try {
+        wsl --status *> $null
+        if ($LASTEXITCODE -eq 0) { $wslOk = $true }
+    } catch { }
+    if ($wslOk) {
+        Write-OK "WSL 2 already set up"
+        wsl --update *> $null  # keep the kernel current; harmless if already latest
+    } else {
+        Write-Info "Setting up WSL 2 (no Linux distribution - Docker brings its own)..."
+        wsl --install --no-distribution *> $null
+        if ($LASTEXITCODE -eq 0) {
+            Write-OK "WSL 2 installed - a reboot may be required before Docker Desktop can start"
+        } else {
+            Write-Warn "WSL 2 setup returned code $LASTEXITCODE - Docker Desktop will prompt if it needs it"
+        }
+    }
+} else {
+    Write-Warn "wsl.exe not found - Docker Desktop will guide WSL setup on first start if needed"
+}
+
 Install-WingetPackage -Name "Docker Desktop"  -Id "Docker.DockerDesktop"  -TestCmd "docker"
 Install-WingetPackage -Name "Python 3.14"      -Id "Python.Python.3.14"    -TestCmd "python"
 Install-WingetPackage -Name "Node.js 20 LTS"   -Id "OpenJS.NodeJS.LTS"     -TestCmd "node"
