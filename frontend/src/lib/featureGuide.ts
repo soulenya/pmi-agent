@@ -24,24 +24,28 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     tagline: "Your AI chief of staff — chat or talk out loud.",
     capabilities: [
       "Ask questions across your projects, documents, email and calendar in plain language",
-      "Talk hands-free with the voice assistant, or type in chat",
-      "Kick off tasks, research and drafts, then review the results",
+      "Gerry always knows PMI's people, products, partners and regulatory picture from the shared company profile — and knows who you are",
+      "Say \"help me with this document\" and Gerry follows your Google Doc live, re-reading your latest edits on every message",
+      "Talk hands-free with the voice assistant — Gerry answers out loud in short, natural replies and offers to go deeper",
+      "Draft emails (with your signature), create tasks and contacts, research topics, generate documents — then review the results",
+      "Approve Gerry's proposed actions right in the chat — anything that reaches the outside world waits for your OK first",
       "Click \"Ask Gerry\" on any task, contact, email, file, document, event or project to start a chat about it",
-      "Anything Gerry does that reaches the outside world waits for your OK first",
     ],
   },
   dashboard: {
     tagline: "Today at a glance.",
     capabilities: [
-      "See pending approvals, notifications and recent activity in one place",
+      "See pending approvals, notifications, today's meetings and recent activity in one place",
+      "Read your AI-generated daily briefing",
       "Jump straight to whatever needs your attention",
     ],
   },
   assistant: {
     tagline: "Your proactive daily briefing.",
     capabilities: [
-      "Start the day with unread email, upcoming meetings and due tasks in one view",
-      "Let Gerry suggest next actions you can approve with one click",
+      "A once-a-day scan of Gmail and Google Tasks surfaces follow-ups you may owe and emails that need replies",
+      "The briefing panel on the home screen shows today's schedule, unread email, tasks due, approvals, suggestions and Odoo balances at a glance",
+      "Accept a suggestion with one click to turn it into a task — the assistant never acts on its own",
     ],
   },
 
@@ -51,41 +55,49 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     capabilities: [
       "Projects, tasks, schedules, calendar and meeting notes together in one area",
       "Ask Gerry to plan, track and follow up across all of them",
+      "Turn emails, meetings and chats into tracked work in one step",
     ],
   },
   projects: {
     tagline: "Organise work into projects.",
     capabilities: [
       "Keep project details, files and linked tasks in one place",
-      "Ask Gerry to summarise a project or draft its next steps",
+      "Ask Gerry to summarise a project, draft its next steps or report its status",
+      "Use \"Ask Gerry\" on any project to start a conversation seeded with its details",
     ],
   },
   tasks: {
     tagline: "Track your to-dos on a board.",
     capabilities: [
-      "Create, assign and update tasks just by asking Gerry",
-      "Turn emails, meetings or chats into tasks automatically",
+      "Drag-and-drop kanban board with priorities, assignees and due dates",
+      "Create, assign and update tasks just by asking Gerry in chat or by voice",
+      "Turn emails, meeting action items or assistant suggestions into tasks automatically",
+      "Due tasks appear in your daily briefing and home-screen panel",
     ],
   },
   "scheduled-tasks": {
     tagline: "Put routine work on autopilot.",
     capabilities: [
-      "Set recurring jobs for Gerry to run on a schedule",
-      "Automate routine briefings, checks and reports",
+      "Set recurring jobs for Gerry to run on a schedule — daily, weekly or custom",
+      "Automate routine briefings, checks, reports and reminders",
+      "Review each run's output and adjust the schedule any time",
     ],
   },
   calendar: {
     tagline: "Your calendar, inside Gerry.",
     capabilities: [
-      "View your Google Calendar and upcoming events",
-      "Ask about your day and have Gerry find times or prep for meetings",
+      "View your Google Calendar and upcoming events without leaving the app",
+      "Ask about your day, have Gerry find open times or prep you for meetings",
+      "Gerry can create events for you — each one goes through your approval first",
+      "Today's schedule shows on the home-screen briefing panel",
     ],
   },
   meetings: {
     tagline: "Never lose what was said.",
     capabilities: [
       "Record or import meetings and get automatic transcripts and summaries",
-      "Pull out action items and turn them into tasks",
+      "Pull out action items and turn them into tasks with one click",
+      "Ask Gerry questions about any past meeting — 'what did we decide about the pump head?'",
     ],
   },
 
@@ -94,14 +106,18 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     tagline: "Answers grounded in your own documents.",
     capabilities: [
       "A searchable knowledge base, research tools and generated files",
-      "Ask Gerry anything and get answers backed by your sources",
+      "Ask Gerry anything and get answers backed by your sources — with citations",
+      "Gerry reads whole documents start-to-finish when you ask for summaries or analysis",
     ],
   },
   documents: {
     tagline: "Store what Gerry should know.",
     capabilities: [
-      "Organise documents Gerry can read and cite",
-      "Import from Google Drive and keep regulated files in their own categories",
+      "Upload PDFs, Word docs and text — auto-chunked and searchable in seconds",
+      "Import straight from Google Drive, email threads or Odoo datasets",
+      "Add email attachments to the knowledge base with one click from your inbox",
+      "Keep regulated files in their own categories with tighter controls",
+      "Share a knowledge-base manifest so teammates can import the same library",
     ],
   },
   search: {
@@ -109,20 +125,23 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     capabilities: [
       "Search across all your knowledge with natural-language questions",
       "Get answers with citations back to the source document",
+      "Filter by category to narrow where answers come from",
     ],
   },
   research: {
     tagline: "Let Gerry do the digging.",
     capabilities: [
-      "Ask Gerry to research a topic and compile the findings for you",
-      "Great for background on suppliers, regulations or markets",
+      "Ask Gerry to research a topic on the web and compile the findings for you",
+      "Great for background on suppliers, competitors, regulations or markets",
+      "Save findings into the knowledge base so they're citable later",
     ],
   },
   files: {
     tagline: "Everything Gerry has made for you.",
     capabilities: [
       "Find documents, spreadsheets and reports Gerry generated",
-      "Download them or ask Gerry to refine them further",
+      "Download them, upload them to Drive, or ask Gerry to refine them further",
+      "Use \"Ask Gerry\" on any file to discuss its actual contents",
     ],
   },
 
@@ -130,34 +149,36 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   communications: {
     tagline: "Your email, contacts and Google Workspace.",
     capabilities: [
-      "Read, draft and send email with Gerry's help — safely",
-      "Keep your contacts and Google connection in one place",
+      "Read, draft and send email with Gerry's help — safely, with approval on every AI-drafted send",
+      "A contacts book that builds itself from the people you email",
+      "Manage your Google connection and see everything it enables",
     ],
   },
   inbox: {
     tagline: "Your Gmail, with Gerry alongside.",
     capabilities: [
-      "Read your inbox with full threads, images and attachments",
-      "Open Word, Excel and PowerPoint attachments straight in Google Docs, Sheets and Slides",
-      "Compose new email yourself, or ask Gerry to draft one for your approval",
-      "Reply or Reply all — with an optional Cc line — right from a thread",
-      "Tick the emails you want, then 'Draft selected' to have Gerry prepare a reply to each",
-      "Edit Gerry's drafted emails on the Approvals page before they're sent",
-      "Move an email to Trash, and filter your inbox by any tag you've saved",
-      "Smart tags and a saved signature keep your mail organised",
+      "Browse all of Gmail's folders — Inbox, Sent, Drafts, Starred, Spam and more — with sorting, search, tags and auto-refresh every minute",
+      "Read full threads (newest message first) with images and attachments rendered legibly in dark mode",
+      "Open Word, Excel and PowerPoint attachments straight in Google Docs, Sheets and Slides — or add any attachment to the Knowledge Base in one click",
+      "Compose and send your own email instantly; ask Gerry to draft replies — they appear right in the thread for approval, complete with your signature",
+      "Tick several emails and 'Draft selected' to have Gerry prepare a reply to each",
+      "'Load 30 more' reaches older conversations as far back as you need",
     ],
   },
   contacts: {
     tagline: "A contacts book that builds itself.",
     capabilities: [
-      "Contacts are gathered automatically from the people you email",
-      "Add or edit contacts, and ask 'who's our contact at <company>?'",
+      "Contacts are gathered automatically from the people you email — plus Google Contacts",
+      "Ask Gerry to save a person or import a whole pasted list straight to this page",
+      "Gerry uses these contacts to fill in email addresses when drafting — and asks when it's ambiguous",
+      "Ask 'who's our contact at <company>?' any time",
     ],
   },
   google: {
     tagline: "Connect Gmail, Calendar and Drive.",
     capabilities: [
-      "Give Gerry access to your Google Workspace so it can work with it",
+      "One connection powers email, calendar, contacts, Drive search and live Google Docs collaboration",
+      "Gerry reads your Drive and Docs on request — writes always go through approvals",
       "Manage your connection and permissions any time",
     ],
   },
@@ -166,8 +187,10 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   odoo: {
     tagline: "Your ERP, a question away.",
     capabilities: [
-      "Connect your Odoo ERP so Gerry can look up business data",
-      "Ask about orders, inventory, contacts and more",
+      "Connect Odoo and ask about customers, sales, invoices, purchases, inventory and leads in plain language",
+      "Check bank balances instantly — they also show on the home-screen briefing panel",
+      "Import ERP datasets into the Knowledge Base so answers cite real business data",
+      "Gerry can propose ERP changes — every write goes through your approval first",
     ],
   },
 
@@ -176,35 +199,41 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     tagline: "Stay on the right side of the rules.",
     capabilities: [
       "Regulations, investors, approvals and your audit trail in one area",
+      "Compliance answers grounded in your regulated document library",
       "Gerry keeps a tamper-evident record of sensitive actions",
     ],
   },
   regulatory: {
     tagline: "Compliance answers you can trust.",
     capabilities: [
-      "Track regulatory requirements and ask Gerry compliance questions",
-      "Answers are grounded in your regulated document library",
+      "Track regulatory requirements, standards and submission status",
+      "Ask Gerry compliance questions — answers cite your regulated documents",
+      "Gerry knows PMI's regulatory context (510(k), ISO 13485, key standards) from the company profile",
     ],
   },
   investor: {
     tagline: "Keep investors in the loop.",
     capabilities: [
-      "Organise investor information and updates",
-      "Ask Gerry to help prepare investor communications",
+      "Organise investor information and updates in one place",
+      "Ask Gerry to help prepare investor communications — sends always need your approval",
+      "Investor identities stay confidential — Gerry treats them as NDA-covered",
     ],
   },
   approvals: {
     tagline: "Nothing happens without your say-so.",
     capabilities: [
-      "Review everything Gerry wants to do before it happens",
-      "Approve, edit or reject emails, tasks and other actions one by one",
+      "Every outbound action — emails, calendar events, ERP changes — waits here for your explicit OK",
+      "Approve from wherever you are: in the email thread, in chat, from a notification, or the top-bar drawer",
+      "Edit Gerry's drafted emails before approving; rejected drafts return for editing",
+      "A clear 'sent' confirmation follows every approved email",
     ],
   },
   audit: {
     tagline: "A record you can prove.",
     capabilities: [
-      "See a complete, tamper-evident log of important actions",
-      "Verify its integrity and export the record",
+      "A complete, tamper-evident log of important actions — kept forever, deletions impossible by design",
+      "Every entry is hash-chained so any alteration is detectable",
+      "Verify integrity and export the record any time",
     ],
   },
 
@@ -219,21 +248,22 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   notifications: {
     tagline: "Stay informed without checking everywhere.",
     capabilities: [
-      "See alerts about approvals, tasks and system activity",
-      "Catch what matters without visiting every page",
+      "See alerts about approvals, tasks, documents and system activity",
+      "Approve or reject Gerry's pending actions right from the notification",
+      "Every notification links straight to the page where it matters",
     ],
   },
   users: {
     tagline: "Manage who gets in.",
     capabilities: [
       "Add and manage people who can access Little Gerry",
-      "Control their roles and permissions",
+      "Control their roles and permissions — including regulated-document access",
     ],
   },
   agents: {
     tagline: "Tune Gerry's specialist helpers.",
     capabilities: [
-      "Configure the agents Gerry uses for different jobs",
+      "Configure the specialist agents Gerry uses — engineering, regulatory, QMS, research and more",
       "Pick models and adjust behaviour per task",
     ],
   },
@@ -247,8 +277,10 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   settings: {
     tagline: "Control how Gerry looks and behaves.",
     capabilities: [
-      "Set up API keys, models, theme and integrations",
-      "Fine-tune Little Gerry to your preferences",
+      "Set up API keys, AI models, theme, timezone and voice",
+      "View the always-loaded Company Profile and refresh it from the shared Drive file",
+      "Pick Gerry's voice — the newest natural voices are listed first",
+      "Check system health and install updates in-app",
     ],
   },
 };
