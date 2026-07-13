@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 134;
+export const BUILD_NUMBER = 135;
 export const BUILD_DATE = "2026-07-13";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 135,
+    date: "2026-07-13",
+    title: "'What Gerry can do' now shows the full picture",
+    changes: [
+      "The help popup on every page now advertises the section's real capabilities — live Google Docs collaboration, approve-anywhere, attachment-to-KB, voice, the briefing panel, company profile awareness, and more",
+      "Every section's guide grew from a couple of lines to a proper capability list, current with the latest features",
+    ],
+  },
   {
     build: 134,
     date: "2026-07-13",
