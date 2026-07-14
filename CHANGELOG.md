@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.20 — 2026-07-14
+**CORE GUARDIAN — a Marathon-style FPS easter egg defending Little Gerry's mind**
+
+- **New `MarathonInvader.tsx`:** every once in a while (first pass 25–70 s after opening the system view, then every 2.5–6 min) the ENTROPY'S HAND — an evil SVG dreadnought with a pulsing red eye, dorsal blades, and engine wash — flies across the solar-system overview. Clicking it launches **CORE GUARDIAN**, a software-rendered FPS in the style of Bungie's Marathon (1994) / Aleph One: 320×200 integer-scaled raycast renderer (DDA walls, fisheye-corrected, distance/side shading, z-buffered billboard sprites), procedurally generated everything (four wall textures incl. hazard stripes + circuit vault, 4-frame corruption-wisp sprites with death bursts, 4-frame fusion pistol with muzzle flash + slide-back reload), Marathon-style HUD (shield/core bars, ammo, sweeping motion sensor with player-relative blips), WebAudio synth SFX, and green-phosphor rampant-AI terminal screens with scanlines and typewriter text (VEXATION taunts on intro/win/lose). Three waves defend the Mind-Core; enemies path to the core and gnaw it or hunt the player up close.
+- **Original art only:** Aleph One's engine is GPL but Marathon's sprites/sounds remain Bungie-copyrighted (non-commercial license, binary Shapes format) — so all assets are procedural originals in that aesthetic.
+- Wired into `SolarSystemCanvas` alongside Precisian Defender/Sweeper (overlay blocks navigation while playing; idle layer and orbit controls suppressed). Pointer-lock failures degrade gracefully (arrow-key turning); pause on lock loss with resume/withdraw. Playtested end-to-end in-browser: renderer, combat, wave logic, defeat terminal all verified.
+
 ### v3.2.19 — 2026-07-14
 **File-templates truth folder — document structure by type, from a shared Drive folder**
 
