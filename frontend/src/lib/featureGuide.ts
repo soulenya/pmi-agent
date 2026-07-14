@@ -142,6 +142,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     capabilities: [
       "Find documents, spreadsheets and reports Gerry generated",
       "Download them, upload them to Drive, or ask Gerry to refine them further",
+      "Gerry follows your company's document templates (memo, SOP, letter…) from a shared Drive folder — drop in a new template doc and every teammate's output updates instantly",
       "Use \"Ask Gerry\" on any file to discuss its actual contents",
     ],
   },
