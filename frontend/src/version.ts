@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 145;
+export const BUILD_NUMBER = 146;
 export const BUILD_DATE = "2026-07-14";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 146,
+    date: "2026-07-14",
+    title: "File actions right in the chat window",
+    changes: [
+      "Every file Gerry creates now shows an action card in chat: Download, Open in Workspace, or Add to KB — no more trips to the Generated Files page",
+      "Open in Workspace copies the file to Drive and converts it to the matching Google format, opening Word docs straight into Google Docs for editing",
+      "Add to KB ingests the file into the Knowledge Base on the spot (with duplicate detection) while keeping the download available",
+      "Fixed: files with spaces in their names now get their action card reliably",
+    ],
+  },
   {
     build: 145,
     date: "2026-07-14",
