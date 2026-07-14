@@ -46,6 +46,7 @@ _TOOLS = [
     "follow_drive_document",
     "unfollow_drive_document",
     "add_to_knowledge_base",
+    "check_drive_backup_status",
     "search_drive_content",
     "create_task",
     "get_tasks",
