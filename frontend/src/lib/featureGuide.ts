@@ -180,6 +180,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     capabilities: [
       "One connection powers email, calendar, contacts, Drive search and live Google Docs collaboration",
       "Gerry reads your Drive and Docs on request — writes always go through approvals",
+      "Ask 'is the Drive backed up?' — Gerry checks the nightly backup bucket against live Drive and reports what's changed since",
       "Manage your connection and permissions any time",
     ],
   },

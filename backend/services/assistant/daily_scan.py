@@ -465,13 +465,13 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         # conversation becomes its own follow-up suggestion.
         thread_id = str(email.get("thread_id") or "").strip() or mid
         title = str(fu.get("title") or "Follow up on email")[:500]
-        summary = str(fu.get("summary") or "")
+        fu_summary = str(fu.get("summary") or "")
         await _add(
             "followup_email",
             f"thread:{thread_id}",
-            dedup_text=f"{title}\n{summary}",
+            dedup_text=f"{title}\n{fu_summary}",
             title=title,
-            summary=summary,
+            summary=fu_summary,
             source_type="gmail_thread",
             source_url=f"https://mail.google.com/mail/u/0/#all/{thread_id}",
             payload={
