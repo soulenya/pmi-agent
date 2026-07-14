@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 144;
+export const BUILD_NUMBER = 145;
 export const BUILD_DATE = "2026-07-14";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 145,
+    date: "2026-07-14",
+    title: "Cover banners and metadata tables render exactly like your templates",
+    changes: [
+      "Generated Word documents can now open with a real cover banner — the full-width colored title block (small label, large white title, subtitle) from your QMS and Technical Files templates",
+      "Metadata tables now render correctly as label/value grids: navy label columns with white text and thin borders — instead of being flattened into a header-row table",
+      "Tables follow standard markdown now: a separator row after the first row means a colored header table; no separator means a label/value grid — your templates tell Gerry which to use where",
+    ],
+  },
   {
     build: 144,
     date: "2026-07-14",
