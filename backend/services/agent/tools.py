@@ -829,11 +829,36 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "get_file_template",
+            "description": (
+                "Fetch the company's required structure/format for a document type "
+                "from the shared templates folder on Drive. ALWAYS call this before "
+                "creating a document with generate_file or create_docx (types like "
+                "memo, SOP, letter, report, meeting-minutes). If a template exists, "
+                "follow it exactly; if none exists you'll be told what is available."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_type": {
+                        "type": "string",
+                        "description": "Document type, e.g. 'memo', 'SOP', 'letter', 'report'.",
+                    },
+                },
+                "required": ["file_type"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "generate_file",
             "description": (
                 "Generate a downloadable file and save it to the server. "
                 "Use this when the user asks you to create a report, export data, "
                 "write a document, or produce any output they can download. "
+                "Before writing a business document, call get_file_template with the "
+                "document type and follow the returned structure. "
                 "Returns a download URL the user can click."
             ),
             "parameters": {
@@ -860,7 +885,9 @@ TOOL_DEFINITIONS: list[dict] = [
                 "Create a Microsoft Word (.docx) document and save it to the server's "
                 "Generated Files area so the user can download it. Use this whenever the "
                 "user asks for a Word document, a formatted report, a memo, a weekly update, "
-                "meeting notes, or any deliverable that should be a .docx. The 'content' "
+                "meeting notes, or any deliverable that should be a .docx. "
+                "Before writing, call get_file_template with the document type and follow "
+                "the returned structure. The 'content' "
                 "field accepts lightweight Markdown: lines starting with '# ', '## ', or "
                 "'### ' become headings; lines starting with '- ' or '* ' become bullet "
                 "points; lines starting with '1. ' become numbered list items; '**bold**' "
@@ -1833,6 +1860,16 @@ async def execute_add_to_knowledge_base(ctx: ToolContext, args: dict[str, Any]) 
     )
 
 
+async def execute_get_file_template(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Fetch the required structure for a document type from the templates doc."""
+    from services.file_templates import get_file_template
+
+    file_type = str(args.get("file_type", "")).strip()
+    if not file_type:
+        return "Error: file_type is required (e.g. 'memo', 'SOP', 'letter')."
+    return await get_file_template(ctx.db, file_type)
+
+
 async def execute_check_drive_backup_status(ctx: ToolContext, _args: dict[str, Any]) -> str:
     """Report whether the nightly Drive → GCS backup is current."""
     from services.backup_monitor import get_backup_status
@@ -2213,6 +2250,7 @@ TOOL_EXECUTORS = {
     "unfollow_drive_document": execute_unfollow_drive_document,
     "add_to_knowledge_base": execute_add_to_knowledge_base,
     "check_drive_backup_status": execute_check_drive_backup_status,
+    "get_file_template": execute_get_file_template,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
     "add_contacts": execute_add_contacts,
@@ -2247,6 +2285,7 @@ _PRIMARY_ARG = {
     "list_recent_drive_files": "max_results",
     "follow_drive_document": "file_id",
     "add_to_knowledge_base": "drive_file_id",
+    "get_file_template": "file_type",
     "list_drive_folder": "folder_id",
     "read_google_sheet": "spreadsheet_id",
 }

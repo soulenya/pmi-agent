@@ -40,6 +40,7 @@ _TOOL_DOCS = {
     "unfollow_drive_document": "Stop following the live document in this conversation. No arguments.",
     "add_to_knowledge_base": 'Add a file to the Knowledge Base (searchable + citable). JSON: {"drive_file_id": str (Drive ID or pasted URL)} OR {"generated_filename": str}; optional "title", "category". Duplicates reported; never regulated.',
     "check_drive_backup_status": "Verify the company Drive → GCS nightly backup is current: last backup write, CURRENT/STALE verdict, files changed since. No arguments.",
+    "get_file_template": 'Get the company\'s required structure for a document type from the shared Drive templates folder. ALWAYS call before generate_file/create_docx. JSON: {"file_type": "memo"|"SOP"|"letter"|...}.',
     "get_calendar_events": "Fetch upcoming Google Calendar events within a date range.",
     "search_contacts": "Look up a person's contact details by name, email, or company — searches PMI's own contacts (derived from email + manual entries) and Google Contacts. Good for 'who is our contact at <company>'.",
     "add_contacts": 'Add or update one or more contacts on PMI\'s own Contacts page (not Odoo, not Google). JSON: {"contacts": [{"email": str (required), "name": str, "company": str, "notes": str}, ...]}.',

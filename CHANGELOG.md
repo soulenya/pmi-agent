@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.19 — 2026-07-14
+**File-templates truth folder — document structure by type, from a shared Drive folder**
+
+- **New `services/file_templates.py` + `get_file_template` agent tool:** a shared Drive folder ("PMI Templates") dictates how Gerry structures each document type. Every readable doc in the folder (subfolders included — e.g. a permission-restricted Regulatory subfolder) is a template: a doc with `## <type>` headings contributes one template per section; a doc without them is a single template named after the doc ("Memo Template" → memo). **Adding a template = dropping a doc in the folder.** Unlike the always-injected company context, templates are fetched **on demand** right before file creation — zero token cost on unrelated turns. Reads hit Drive live (edits take effect immediately, no release; caps: 30 docs / 20k chars each / 60k merged) with the last good merged copy cached in a SystemSetting for offline use. Fuzzy type matching (case/punctuation/plural-insensitive); no match → the tool lists available types and tells Gerry to proceed with best judgment — never blocks. Distinct from the Regulatory page's curated static FDA/ISO deliverable catalog.
+- **`generate_file` / `create_docx` descriptions** now instruct calling `get_file_template` first and following the returned structure exactly.
+- **Config:** `templates.drive_folder_id` SystemSetting override → `file_templates_drive_folder_id` config default (baked in — zero per-user setup, same pattern as the company profile). Registered in all registries and all eight v2 agent whitelists.
+
 ### v3.2.18 — 2026-07-14
 **Auto-update crash loop fixed + bug reports that actually reach the developer**
 
