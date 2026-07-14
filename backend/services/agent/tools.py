@@ -888,11 +888,14 @@ TOOL_DEFINITIONS: list[dict] = [
                 "user asks for a Word document, a formatted report, a memo, a weekly update, "
                 "meeting notes, or any deliverable that should be a .docx. "
                 "Before writing, call get_file_template with the document type and follow "
-                "the returned structure. The 'content' "
-                "field accepts lightweight Markdown: lines starting with '# ', '## ', or "
-                "'### ' become headings; lines starting with '- ' or '* ' become bullet "
-                "points; lines starting with '1. ' become numbered list items; '**bold**' "
-                "renders as bold; blank lines separate paragraphs. Returns a download URL."
+                "the returned structure. When the template or style guide specifies page "
+                "headers/footers, fonts, or table colors, pass them via the optional "
+                "layout fields — they render as REAL Word headers/footers/styling. The "
+                "'content' field accepts lightweight Markdown: '# '/'## '/'### ' headings; "
+                "'- ' or '* ' bullets; '1. ' numbered items; '**bold**'; blank lines "
+                "separate paragraphs; and pipe tables ('| A | B |' rows, first row = "
+                "header) render as real Word tables with a colored header row and "
+                "alternating shading. Returns a download URL."
             ),
             "parameters": {
                 "type": "object",
@@ -908,6 +911,30 @@ TOOL_DEFINITIONS: list[dict] = [
                     "content": {
                         "type": "string",
                         "description": "Document body as lightweight Markdown (see tool description for supported syntax).",
+                    },
+                    "font": {
+                        "type": "string",
+                        "description": "Optional base font name for body text, e.g. 'Calibri' or 'Arial'.",
+                    },
+                    "font_size": {
+                        "type": "number",
+                        "description": "Optional base font size in points, e.g. 11.",
+                    },
+                    "header_left": {
+                        "type": "string",
+                        "description": "Optional page-header left text, e.g. the document title.",
+                    },
+                    "header_right": {
+                        "type": "string",
+                        "description": "Optional page-header right text, e.g. 'SOP-011 | v0.1'.",
+                    },
+                    "footer_left": {
+                        "type": "string",
+                        "description": "Optional page-footer left text, e.g. 'CONFIDENTIAL – INTERNAL USE ONLY'. 'Page X of Y' is added on the right automatically.",
+                    },
+                    "accent_color": {
+                        "type": "string",
+                        "description": "Optional hex color (no #) for table header rows, e.g. '1F3864' (navy) or '115E59' (dark teal).",
                     },
                 },
                 "required": ["filename", "content"],
@@ -2106,12 +2133,31 @@ def _add_markdown_runs(paragraph, text: str) -> None:
 
 
 async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
-    """Build a real Word (.docx) document from lightweight Markdown content."""
+    """Build a real Word (.docx) document from lightweight Markdown content.
+
+    Layout support (driven by company templates / style guide): base font and
+    size, real page headers/footers (with automatic 'Page X of Y' fields), and
+    pipe tables rendered as Word tables with a colored header row and
+    alternating row shading — so template rules like "navy header row" or
+    "footer: CONFIDENTIAL" actually appear in the file, not just in the text.
+    """
     import docx
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt, RGBColor
 
     filename = str(args.get("filename", "document.docx")).strip()
     title = str(args.get("title", "")).strip()
     content = str(args.get("content", ""))
+    font_name = str(args.get("font", "")).strip()
+    try:
+        font_size = float(args.get("font_size") or 0)
+    except (TypeError, ValueError):
+        font_size = 0
+    header_left = str(args.get("header_left", "")).strip()
+    header_right = str(args.get("header_right", "")).strip()
+    footer_left = str(args.get("footer_left", "")).strip()
+    accent = re.sub(r"[^0-9A-Fa-f]", "", str(args.get("accent_color", "")))[:6] or "1F3864"
 
     # Sanitize filename and force a .docx extension
     filename = re.sub(r"[^\w.\- ]", "_", filename).strip() or "document.docx"
@@ -2122,12 +2168,87 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         filename = Path(filename).stem + ".docx"
 
     document = docx.Document()
+
+    # Base typography (applies to Normal; headings keep their theme fonts).
+    if font_name:
+        document.styles["Normal"].font.name = font_name
+    if font_size > 0:
+        document.styles["Normal"].font.size = Pt(font_size)
+
+    def _page_field(paragraph, code: str) -> None:
+        """Append a Word field (PAGE / NUMPAGES) to a paragraph."""
+        run = paragraph.add_run()
+        begin = OxmlElement("w:fldChar")
+        begin.set(qn("w:fldCharType"), "begin")
+        instr = OxmlElement("w:instrText")
+        instr.set(qn("xml:space"), "preserve")
+        instr.text = f" {code} "
+        end = OxmlElement("w:fldChar")
+        end.set(qn("w:fldCharType"), "end")
+        run._r.append(begin)
+        run._r.append(instr)
+        run._r.append(end)
+
+    # Page header/footer — the built-in Header/Footer styles carry centre +
+    # right tab stops, so "left\t\tright" lands text on both edges.
+    section = document.sections[0]
+    if header_left or header_right:
+        hp = section.header.paragraphs[0]
+        hp.text = ""
+        hp.add_run(f"{header_left}\t\t{header_right}")
+    if footer_left or content:
+        fp = section.footer.paragraphs[0]
+        fp.text = ""
+        if footer_left:
+            fp.add_run(f"{footer_left}\t\tPage ")
+        else:
+            fp.add_run("\t\tPage ")
+        _page_field(fp, "PAGE")
+        fp.add_run(" of ")
+        _page_field(fp, "NUMPAGES")
+
+    def _shade(cell, fill: str) -> None:
+        tc_pr = cell._tc.get_or_add_tcPr()
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear")
+        shd.set(qn("w:fill"), fill)
+        tc_pr.append(shd)
+
+    def _flush_table(rows: list[list[str]]) -> None:
+        if not rows:
+            return
+        cols = max(len(r) for r in rows)
+        table = document.add_table(rows=len(rows), cols=cols)
+        for ri, row in enumerate(rows):
+            for ci in range(cols):
+                cell = table.rows[ri].cells[ci]
+                text = row[ci] if ci < len(row) else ""
+                para = cell.paragraphs[0]
+                _add_markdown_runs(para, text)
+                if ri == 0:
+                    _shade(cell, accent)
+                    for r in para.runs:
+                        r.bold = True
+                        r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+                elif ri % 2 == 0:
+                    _shade(cell, "F2F2F2")
+
     if title:
         document.add_heading(title, level=0)
 
+    table_rows: list[list[str]] = []
     for raw_line in content.splitlines():
         line = raw_line.rstrip()
         stripped = line.strip()
+        # Pipe-table rows are collected and flushed as one Word table.
+        if stripped.startswith("|") and stripped.endswith("|") and len(stripped) > 1:
+            cells = [c.strip() for c in stripped.strip("|").split("|")]
+            if all(re.fullmatch(r":?-{2,}:?", c or "---") for c in cells):
+                continue  # markdown separator row
+            table_rows.append(cells)
+            continue
+        _flush_table(table_rows)
+        table_rows = []
         if not stripped:
             continue
         if stripped.startswith("### "):
@@ -2145,6 +2266,7 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         else:
             p = document.add_paragraph()
             _add_markdown_runs(p, stripped)
+    _flush_table(table_rows)
 
     _GENERATED_FILES_DIR.mkdir(exist_ok=True)
     uid_prefix = uuid.uuid4().hex[:8]
