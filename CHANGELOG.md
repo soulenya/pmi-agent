@@ -4,6 +4,21 @@
 
 ## Changelog
 
+### v3.2.18 — 2026-07-14
+**Auto-update crash loop fixed + bug reports that actually reach the developer**
+
+- **Update retry loop (field report):** `apply_update.ps1` always relaunches the app after an install attempt (deliberate — never leave Gerry down), but when the install failed (UAC declined, or **Windows Smart App Control blocking the installer** — the actual culprit in the field logs: "An Application Control policy has blocked this file", dozens of times), the relaunched old version immediately re-downloaded the update and retried — an infinite "Little Gerry - Starting…" loop. The launcher now records each attempt in `backend/logs/update_attempt.json`; after **two failed attempts at the same version within 24 h** it skips auto-update and starts the current version. The apply script records the failure reason into the marker; when it's an Application Control block, the launcher's status message tells the user specifically to turn off Smart App Control (Windows Security → App & browser control) — SAC ignores locally-trusted certificates, so the Trust bat can't help. Both apply scripts clear the marker on a successful install.
+- **Launcher download crash (field log):** a leftover `LittleGerry_Setup_update.exe` still locked in %TEMP% made the download `open()` raise PermissionError and killed the launcher. The target is now unlinked first, with a PID-suffixed fallback name if still locked.
+- **Daily scan crash (field log, every scan since 06-25):** `run_daily_scan`'s follow-up loop assigned `summary = str(fu.get("summary")…)`, **shadowing the function's `summary` dict** — line 719 then crashed with "'str' object does not support item assignment" whenever any email follow-up suggestion was generated. Renamed to `fu_summary`.
+- **Cross-install bug submitter (`routers/feedback.py`):** the existing feedback button stored reports and notified owner/admins — but Little Gerry is local-first, so a teammate's report only ever reached their own machine's database. Reports are now **also emailed** (best-effort, via the submitter's connected Gmail) to `settings.feedback_recipient_email`. Bug reports attach diagnostics: app version, OS, and 100 KB tails of `backend_stderr.log`, `launcher.log`, `apply_update.log`, `inno_update.log`, and `update_attempt.json` — exactly the files needed to diagnose crashes and failed updates remotely. New `include_diagnostics` flag (default true) with a checkbox in the feedback modal.
+
+### v3.2.17 — 2026-07-14
+**Drive backup monitoring — "is the company Drive backed up?"**
+
+- **New `check_drive_backup_status` agent tool + `backup_monitor.py` service:** verifies the owner's nightly rclone → GCS backup (Cloud Run job, 2 AM ET) is current. Reads the `pmi-drive-backup` bucket via the GCS JSON API with a dedicated **read-only** service-account key (storage.objectViewer only — Gerry can never modify the backup): object count, total size, newest object write time. Compares against the live "PMI Share Drive" (found by name via `drives().list`, full file listing with modified times) and reports: last backup write in ET with age, CURRENT/STALE verdict (default threshold 30 h to absorb DST/slow runs), and exactly which files changed since the last backup write.
+- **Config via SystemSettings with sensible defaults:** `backup.gcs_bucket` (pmi-drive-backup), `backup.shared_drive_name` (PMI Share Drive), `backup.stale_hours` (30), `backup.sa_key_path` (defaults to `%LOCALAPPDATA%/Little Gerry/gcs-backup-viewer.json`, dev fallback in backend dir). Unconfigured machines get precise setup instructions from the tool instead of an error; all failure modes (missing key, IAM denied, Drive disconnected, drive not found) return honest, actionable messages — never raise.
+- Registered in all registries and all eight v2 agent whitelists.
+
 ### v3.2.16 — 2026-07-13
 **Full-document Drive reads — fixed the silent 10k-character truncation**
 

@@ -3,9 +3,12 @@ owner (or all admins) receives them as notifications."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import platform
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
@@ -30,6 +33,50 @@ _VALID_CATEGORIES = {"bug", "feature"}
 class FeedbackCreate(BaseModel):
     category: str = Field(..., description='"bug" or "feature"')
     message: str = Field(..., min_length=1, max_length=5000)
+    include_diagnostics: bool = Field(
+        True, description="Attach app version, OS and recent log tails (bug reports)."
+    )
+
+
+# Log files worth attaching to a bug report — covers backend crashes, launcher
+# crashes, and failed auto-updates (the field-diagnosis trifecta).
+_DIAGNOSTIC_LOGS = (
+    "backend_stderr.log",
+    "launcher.log",
+    "apply_update.log",
+    "inno_update.log",
+    "update_attempt.json",
+)
+_MAX_LOG_BYTES = 100_000  # tail per file
+
+
+def _collect_diagnostics() -> tuple[str, list[dict]]:
+    """Environment summary + recent log tails as email attachments. Never raises."""
+    root = Path(__file__).resolve().parents[2]
+    version = "unknown"
+    try:
+        version = (root / "VERSION").read_text(encoding="utf-8").strip()
+    except Exception:
+        pass
+    summary = (
+        f"App version: {version}\n"
+        f"OS: {platform.platform()}\n"
+        f"Python: {platform.python_version()}\n"
+    )
+    attachments: list[dict] = []
+    log_dir = root / "backend" / "logs"
+    for name in _DIAGNOSTIC_LOGS:
+        try:
+            p = log_dir / name
+            if p.is_file() and p.stat().st_size > 0:
+                attachments.append({
+                    "filename": name,
+                    "mime_type": "text/plain",
+                    "data": p.read_bytes()[-_MAX_LOG_BYTES:],
+                })
+        except Exception:
+            continue
+    return summary, attachments
 
 
 class FeedbackOut(BaseModel):
@@ -92,6 +139,33 @@ async def submit_feedback(
 
     await db.commit()
     await db.refresh(feedback)
+
+    # Cross-install delivery: Little Gerry is local-first, so the notifications
+    # above only reach admins on THIS machine's database. Email the report (via
+    # the submitter's connected Gmail) to the configured owner so bug reports
+    # from teammates' installs actually arrive — with logs attached for bugs.
+    try:
+        import services.google_service as gs
+
+        if gs.get_credentials() and settings.feedback_recipient_email:
+            diag_summary, attachments = ("", [])
+            if category == "bug" and body.include_diagnostics:
+                diag_summary, attachments = _collect_diagnostics()
+            email_body = (
+                f"{label} from {submitter} ({current_user.email}):\n\n{message}\n"
+                + (f"\n--- Diagnostics ---\n{diag_summary}" if diag_summary else "")
+            )
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: gs.gmail_send(
+                    to=settings.feedback_recipient_email,
+                    subject=f"[Little Gerry] {label} from {submitter}",
+                    body=email_body,
+                    attachments=attachments,
+                ),
+            )
+    except Exception:  # pragma: no cover — email is best-effort
+        logger.warning("Feedback email delivery failed", exc_info=True)
 
     # Best-effort real-time push to any connected recipient sockets.
     try:

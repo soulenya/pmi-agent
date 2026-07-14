@@ -211,6 +211,52 @@ def _update_token() -> str | None:
         return None
 
 
+# Failed-update loop breaker: the apply script ALWAYS relaunches the app (so a
+# failed install never leaves Gerry permanently down), but if the install fails
+# repeatedly (e.g. the user declines the UAC elevation prompt) the relaunched
+# old version would immediately re-download and retry forever. The launcher
+# records every attempt here; the apply script deletes the marker on a
+# successful install. Two failed attempts at the same version within 24h stops
+# auto-retrying and starts the current version instead.
+UPDATE_MARKER_FILE = BACKEND_DIR / "logs" / "update_attempt.json"
+
+
+def _load_update_marker() -> dict:
+    try:
+        return json.loads(UPDATE_MARKER_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _record_update_attempt(version_str: str) -> None:
+    try:
+        marker = _load_update_marker()
+        attempts = marker.get("attempts", 0) + 1 if marker.get("version") == version_str else 1
+        UPDATE_MARKER_FILE.parent.mkdir(parents=True, exist_ok=True)
+        UPDATE_MARKER_FILE.write_text(
+            json.dumps({
+                "version": version_str,
+                "attempts": attempts,
+                "last_attempt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }),
+            encoding="utf-8",
+        )
+    except Exception:
+        _log_error()
+
+
+def _too_many_failed_attempts(version_str: str) -> bool:
+    marker = _load_update_marker()
+    if marker.get("version") != version_str or marker.get("attempts", 0) < 2:
+        return False
+    try:
+        last = datetime.datetime.fromisoformat(marker.get("last_attempt", ""))
+        age_h = (datetime.datetime.now(datetime.timezone.utc) - last).total_seconds() / 3600
+    except Exception:
+        age_h = 0.0
+    return age_h < 24
+
+
 def _launch_updater(apply_script: Path, target: Path) -> None:
     """
     Hand off to the platform's apply-update script as a process that OUTLIVES
@@ -307,6 +353,24 @@ def _auto_update_release() -> bool:
         if latest <= _local_version():
             return False  # already current
 
+        version_str = ".".join(map(str, latest))
+        if _too_many_failed_attempts(version_str):
+            last_err = str(_load_update_marker().get("last_error") or "")
+            if "Application Control" in last_err:
+                hint = (
+                    "Windows Smart App Control is blocking the installer - turn it "
+                    "off under Windows Security > App & browser control > Smart App "
+                    "Control, then run 'Update Little Gerry'."
+                )
+            else:
+                hint = "Run 'Update Little Gerry' to retry."
+            _set_status(
+                f"Update {version_str} couldn't be installed automatically - "
+                f"starting the current version. {hint}",
+                0,
+            )
+            return False
+
         asset = next(
             (a for a in data.get("assets", []) if a.get("name") == UPDATE_ASSET_NAME),
             None,
@@ -324,10 +388,20 @@ def _auto_update_release() -> bool:
             },
         )
         target = Path(tempfile.gettempdir()) / UPDATE_TARGET_NAME
+        # A leftover installer from a previous failed attempt can still be
+        # locked (running installer, antivirus scan) - PermissionError on open
+        # crashed the launcher in the field. Remove it, or fall back to a
+        # unique name.
+        try:
+            if target.exists():
+                target.unlink()
+        except OSError:
+            target = target.with_name(f"{target.stem}_{os.getpid()}{target.suffix}")
         with urllib.request.urlopen(dl_req, timeout=300) as r, open(target, "wb") as out:
             shutil.copyfileobj(r, out)
 
         _set_status("Installing update...", 0)
+        _record_update_attempt(version_str)
         _launch_updater(APPLY_SCRIPT, target)
         return True
     except Exception:
