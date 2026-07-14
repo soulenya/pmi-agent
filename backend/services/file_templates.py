@@ -225,3 +225,34 @@ async def get_file_template(db: AsyncSession, file_type: str) -> str:
         f"No template found for '{file_type}'. Available template types: {available}. "
         "If none fits, proceed with your best professional judgment."
     )
+
+
+async def get_formatting_context(db: AsyncSession, hints: list[str] | None = None) -> str:
+    """Company formatting rules for injection into non-chat generation prompts
+    (e.g. the Regulatory page's document wizard): the best-matching template
+    for the FIRST hint that matches (tried in order, substring match both
+    ways), plus the company style guide. Returns "" when nothing is
+    configured — callers treat this as strictly optional."""
+    md = await _fetch_templates_md(db)
+    if not md:
+        return ""
+    templates, style = _split_style(_parse_sections(md))
+    parts: list[str] = []
+    for hint in hints or []:
+        h = _normalize(hint)
+        if not h:
+            continue
+        matched = False
+        for heading, body in templates.items():
+            hn = _normalize(heading)
+            if body and hn and (hn in h or h in hn):
+                parts.append(
+                    f"COMPANY TEMPLATE '{heading}' (authoritative formatting/structure rules):\n{body}"
+                )
+                matched = True
+                break
+        if matched:
+            break
+    if style:
+        parts.append(f"COMPANY STYLE GUIDE (applies to every document):\n{style}")
+    return "\n\n".join(parts)[:8_000]
