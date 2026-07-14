@@ -115,6 +115,7 @@ _TOOLS = [
     "follow_drive_document",
     "unfollow_drive_document",
     "add_to_knowledge_base",
+    "check_drive_backup_status",
     "get_calendar_events",
     "search_contacts",
     "add_contacts",

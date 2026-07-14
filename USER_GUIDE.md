@@ -191,6 +191,7 @@ When Google is connected, Little Gerry calls the appropriate tool immediately �
 - "Add Jane Smith (jane@acme.com, Acme) to my contacts" → saves straight to the Contacts page — works for one contact or a whole pasted list
 - "Help me with this document" → Gerry lists your recently edited Google Docs, confirms which one, then **follows it live** — she re-reads your latest edits on every message, so ask anything ("how's the intro now?", "tighten section 3") while you write. Paste a Docs link for a one-time review instead, and say "stop following the doc" when you're done
 - "Add that Drive file to the knowledge base" → Gerry imports it on the spot (works for her generated files too), with duplicate detection — regulated imports stay manual
+- "Is the company Drive backed up?" → Gerry reads the nightly backup bucket (read-only), reports the last backup time with a CURRENT/STALE verdict, and lists which files changed since
 - "What do our VACTOR specs say about suction pressure?" → searches the Knowledge Base
 
 ### What requires your approval
