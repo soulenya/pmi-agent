@@ -36,6 +36,7 @@ import {
 import { ShuttleCursor } from "@/components/solar/ShuttleCursor";
 import { AsteroidLauncher, PrecisianDefender } from "@/components/solar/PrecisianDefender";
 import { MineLauncher, PrecisianSweeper } from "@/components/solar/PrecisianSweeper";
+import { CoreGuardian, EntropysHand } from "@/components/solar/MarathonInvader";
 import { IdleSystemLayer } from "@/components/solar/IdleSystemLayer";
 import { cn } from "@/lib/utils";
 
@@ -562,6 +563,11 @@ export function SolarSystemCanvas({
   const [sweeperActive, setSweeperActive] = useState(false);
   const showSweeper = sweeperActive && !planet && !sunFocus;
 
+  // Core Guardian — the Marathon-style FPS started by intercepting the
+  // ENTROPY'S HAND dreadnought that occasionally invades the system view.
+  const [guardianActive, setGuardianActive] = useState(false);
+  const showGuardian = guardianActive && !planet && !sunFocus;
+
   // Deterministic starfield, generated once.
   const stars = useMemo(
     () =>
@@ -622,12 +628,19 @@ export function SolarSystemCanvas({
                 badgeCount={badgeCount}
                 onStartGame={() => setGameActive(true)}
                 onStartSweeper={() => setSweeperActive(true)}
-                idleEnabled={!showGame && !showSweeper}
+                idleEnabled={!showGame && !showSweeper && !showGuardian}
               />
             )}
           </div>
         </motion.div>
       </AnimatePresence>
+
+      {/* The ENTROPY'S HAND — an evil dreadnought that occasionally cruises
+          through the system intent on corrupting Little Gerry's mind. Clicking
+          it starts the Core Guardian FPS. Only on the system overview. */}
+      {!planet && !sunFocus && !showGame && !showSweeper && !showGuardian && (
+        <EntropysHand onEngage={() => setGuardianActive(true)} />
+      )}
 
       {/* Precisian Defender overlay — covers the system and captures clicks so
           planet/moon/sun navigation is blocked while the game is running. */}
@@ -636,8 +649,11 @@ export function SolarSystemCanvas({
       {/* Precisian Sweeper overlay — covers the system while the game runs. */}
       {showSweeper && <PrecisianSweeper onExit={() => setSweeperActive(false)} />}
 
+      {/* Core Guardian overlay — the Marathon-style FPS. */}
+      {showGuardian && <CoreGuardian onExit={() => setGuardianActive(false)} />}
+
       {/* Orbit-speed slider — only on space views with visible orbits. */}
-      {!sunFocus && !showGame && !showSweeper && <OrbitSpeedControl />}
+      {!sunFocus && !showGame && !showSweeper && !showGuardian && <OrbitSpeedControl />}
 
       {/* Spaceship cursor with engine trail — space views only. Always mounted
           (even under reduced motion, where the engine trail is suppressed) so the

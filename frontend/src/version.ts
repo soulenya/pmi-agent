@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 140;
+export const BUILD_NUMBER = 141;
 export const BUILD_DATE = "2026-07-14";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 141,
+    date: "2026-07-14",
+    title: "CORE GUARDIAN — defend Little Gerry's mind",
+    changes: [
+      "Keep watch on the solar system: every once in a while the ENTROPY'S HAND — a massive hostile dreadnought carrying the rogue AI VEXATION — cruises through, intent on corrupting Little Gerry's mind. Click it to intercept",
+      "Intercepting launches CORE GUARDIAN: a retro first-person shooter in the style of 1994's Marathon — 320×200 software-rendered corridors, green-phosphor terminals with scanlines, a motion sensor, and a fusion pistol",
+      "Hold the Mind-Core at the heart of Gerry's data vault against three waves of corruption wisps — WASD + mouse, click to fire, R to reload, shift to sprint",
+      "Lose your shields or the core, and VEXATION leaves you a message you won't forget",
+    ],
+  },
   {
     build: 140,
     date: "2026-07-14",
