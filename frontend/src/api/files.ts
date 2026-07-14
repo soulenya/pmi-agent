@@ -47,10 +47,14 @@ export interface KbMoveResult {
 }
 
 /** Ingest a generated file into the Knowledge Base and remove it from generated files. */
-export async function moveGeneratedFileToKB(name: string, title: string): Promise<KbMoveResult> {
+export async function moveGeneratedFileToKB(
+  name: string,
+  title: string,
+  keep = false,
+): Promise<KbMoveResult> {
   const r = await apiClient.post<KbMoveResult>(
     `/api/files/${encodeURIComponent(name)}/to-knowledge-base`,
-    { title },
+    { title, keep },
   );
   return r.data;
 }
@@ -69,6 +73,15 @@ export async function uploadGeneratedFileToDrive(
   const r = await apiClient.post<DriveUploadInfo>(
     `/api/files/${encodeURIComponent(name)}/to-drive`,
     { target_name: targetName },
+  );
+  return r.data;
+}
+
+/** Copy a generated file into Drive, converting to the native Google format,
+ * and return the Workspace link to open it in Docs/Sheets. */
+export async function openGeneratedFileInWorkspace(name: string): Promise<DriveUploadInfo> {
+  const r = await apiClient.post<DriveUploadInfo>(
+    `/api/files/${encodeURIComponent(name)}/open-in-workspace`,
   );
   return r.data;
 }
