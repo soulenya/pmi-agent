@@ -5,6 +5,7 @@ Serves files from backend/generated_files/ — created by the AI agent's generat
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -117,6 +118,7 @@ async def delete_file(name: str, _user=Depends(get_current_user)):
 class ToKnowledgeBaseRequest(BaseModel):
     title: str | None = None
     force: bool = False
+    keep: bool = False  # True = copy semantics (leave the generated file in place)
 
 
 class ToDriveRequest(BaseModel):
@@ -176,7 +178,8 @@ async def move_file_to_knowledge_base(
         raise HTTPException(500, f"Ingestion failed: {exc}")
 
     await db.commit()
-    p.unlink(missing_ok=True)
+    if not (body and body.keep):
+        p.unlink(missing_ok=True)
     return {"document_id": str(doc.id), "title": doc.title, "moved": name}
 
 
@@ -201,3 +204,31 @@ async def upload_file_to_drive(
         )
     except RuntimeError as e:
         raise HTTPException(401, str(e))
+
+
+@router.post("/{name}/open-in-workspace")
+async def open_file_in_workspace(name: str, _user=Depends(get_current_user)):
+    """Copy a generated file into Google Drive for editing in Google Workspace.
+
+    Office/text files (docx, csv, txt, md, …) are converted into the matching
+    native Google format so they open directly in Docs/Sheets; other types open
+    in the Drive viewer. Returns ``{id, name, url}`` — same contract as the
+    email-attachment open-in-drive endpoint.
+    """
+    p = _safe_path(name)
+    if not p.exists():
+        raise HTTPException(404, "File not found")
+
+    import services.google_service as gs
+
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+    clean_name = re.sub(r"^[0-9a-f]{8}_", "", name)
+    try:
+        result = gs.drive_import_attachment(p.read_bytes(), clean_name, None)
+    except Exception as exc:
+        logger.exception("Open-in-workspace failed for %s", name)
+        raise HTTPException(502, f"Could not open in Google Workspace: {exc}")
+    if not result.get("url"):
+        raise HTTPException(502, "Google Drive did not return an open link.")
+    return result

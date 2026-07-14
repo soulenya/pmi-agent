@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.25 — 2026-07-14
+**Chat file cards — Download / Open in Workspace / Add to KB inline**
+
+- **`MessageBubble.tsx`:** the plain download link card is now a three-action card on every `/api/files/…` link in chat: Download (unchanged), **Open in Workspace** (new `POST /api/files/{name}/open-in-workspace` — reuses `drive_import_attachment`, converting Office/text files to native Google formats and opening the returned link), and **Add to KB** (existing to-knowledge-base endpoint with a new `keep: true` body flag for copy-not-move semantics so the chat download link keeps working; 409 duplicate → friendly toast). Loading spinners per action; success/error toasts via the global toast store; strips the 8-hex generated-file prefix from display names.
+- **Filename regex fix:** the file-link matcher required `\S+`, so filenames containing spaces (e.g. "SOP-011 Supplier Control.docx") never got a card — now spans single spaces (non-greedy to nearest extension) and decodes %20.
+- Generated Files page behavior unchanged (still move semantics by default).
+
 ### v3.2.24 — 2026-07-14
 **create_docx: cover banners + label/value grids to exact template spec**
 
