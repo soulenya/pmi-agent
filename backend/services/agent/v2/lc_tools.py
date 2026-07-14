@@ -47,7 +47,7 @@ _TOOL_DOCS = {
     "read_google_sheet": "Read values from a Google Sheets spreadsheet.",
     "list_google_tasks": "List tasks from Google Tasks.",
     "generate_file": "Generate and export a document (PDF/DOCX/TXT) from provided content.",
-    "create_docx": 'Create a Word (.docx) document from lightweight Markdown (pipe tables render as real tables). JSON fields: {"filename": str, "title": str, "content": str (Markdown)}; optional layout from the company template/style guide: "font", "font_size", "header_left", "header_right", "footer_left" (Page X of Y auto), "accent_color" (hex, table header rows).',
+    "create_docx": 'Create a Word (.docx) document from lightweight Markdown. Pipe tables: with a "| --- |" separator after row 1 the first row is a colored header; without it the table is a label/value grid (label columns accent-filled, bold white). JSON: {"filename", "title", "content"}; optional layout from the company template/style guide: "font", "font_size", "header_left", "header_right", "footer_left" (Page X of Y auto), "accent_color" (hex), and a cover banner via "banner_label"/"banner_title"/"banner_subtitle" (do not repeat the title in content).',
     "upload_to_drive": (
         'Upload a previously generated file to Google Drive. REQUIRES explicit user confirmation first. '
         'JSON fields: {"filename": str (exact generated-file name), "drive_name": str (optional), "folder_id": str (optional)}.'

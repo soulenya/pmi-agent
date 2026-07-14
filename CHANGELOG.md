@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.24 — 2026-07-14
+**create_docx: cover banners + label/value grids to exact template spec**
+
+- **Field iteration 2 (user side-by-side screenshots):** the banner rendered as a thin strip below a duplicated title, and the metadata table was flattened into a header-row table. Extracted the EXACT spec from the desired QMS template via python-docx/XML: banner = single cell filled `0A2F41`, centred lines 9pt bold tinted `9DC3E6` label / 22pt bold white title / 10pt tinted subtitle; metadata table = label COLUMNS (1st/3rd) filled `0A2F41` with bold white 9pt, value cells unfilled, thin borders. Technical Files teal extracted: `064E44`.
+- **Builder (`execute_create_docx`):** new `banner_label`/`banner_title`/`banner_subtitle` args render the native cover block (accent fill, centred, tint auto-computed by lightening the accent 62%); pipe tables WITHOUT a `| --- |` separator now render as label/value grids — even-index columns accent-filled bold white, thin single borders (`404040`, sz 4) — while separator tables keep the header-row + alternating-shading style. Tool descriptions in both engines updated (banner args; "do not repeat the title in content").
+- **E2E verified** against the extracted spec: banner fill/sizes/colors/centring, 6 label-cell fills on a 3×4 grid, borders present, header table unaffected. Template text for both Drive docs updated in chat (exact hexes: QMS `0A2F41`, Technical Files `064E44`).
+
 ### v3.2.23 — 2026-07-14
 **create_docx layout upgrade — template rules become real Word formatting**
 

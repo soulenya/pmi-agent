@@ -893,9 +893,12 @@ TOOL_DEFINITIONS: list[dict] = [
                 "layout fields — they render as REAL Word headers/footers/styling. The "
                 "'content' field accepts lightweight Markdown: '# '/'## '/'### ' headings; "
                 "'- ' or '* ' bullets; '1. ' numbered items; '**bold**'; blank lines "
-                "separate paragraphs; and pipe tables ('| A | B |' rows, first row = "
-                "header) render as real Word tables with a colored header row and "
-                "alternating shading. Returns a download URL."
+                "separate paragraphs; and pipe tables ('| A | B |' rows). Put a "
+                "'| --- | --- |' separator after the first row to style it as a colored "
+                "header row with alternating shading; OMIT the separator for label/value "
+                "grids (metadata blocks) — their label columns (1st, 3rd) render "
+                "accent-filled with bold white text and thin borders. "
+                "Returns a download URL."
             ),
             "parameters": {
                 "type": "object",
@@ -934,7 +937,19 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "accent_color": {
                         "type": "string",
-                        "description": "Optional hex color (no #) for table header rows, e.g. '1F3864' (navy) or '115E59' (dark teal).",
+                        "description": "Optional hex color (no #) for banners, table header rows and label cells, e.g. '0A2F41' (PMI navy) or '064E44' (PMI teal).",
+                    },
+                    "banner_label": {
+                        "type": "string",
+                        "description": "Optional title-block banner: small top line, e.g. 'QMS DOCUMENTATION'. Renders a full-width colored block at the top of page 1.",
+                    },
+                    "banner_title": {
+                        "type": "string",
+                        "description": "Banner main title (large bold white), e.g. 'SOP-011 — Supplier Control'. When using the banner, do NOT repeat the title in content.",
+                    },
+                    "banner_subtitle": {
+                        "type": "string",
+                        "description": "Banner subtitle line, e.g. 'Standard Operating Procedure'.",
                     },
                 },
                 "required": ["filename", "content"],
@@ -2158,6 +2173,12 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     header_right = str(args.get("header_right", "")).strip()
     footer_left = str(args.get("footer_left", "")).strip()
     accent = re.sub(r"[^0-9A-Fa-f]", "", str(args.get("accent_color", "")))[:6] or "1F3864"
+    banner_label = str(args.get("banner_label", "")).strip()
+    banner_title = str(args.get("banner_title", "")).strip()
+    banner_subtitle = str(args.get("banner_subtitle", "")).strip()
+    # Light tint of the accent for banner secondary lines (label/subtitle).
+    _a = [int(accent[i : i + 2], 16) for i in (0, 2, 4)]
+    tint = "".join(f"{c + int((255 - c) * 0.62):02X}" for c in _a)
 
     # Sanitize filename and force a .docx extension
     filename = re.sub(r"[^\w.\- ]", "_", filename).strip() or "document.docx"
@@ -2214,41 +2235,95 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         shd.set(qn("w:fill"), fill)
         tc_pr.append(shd)
 
-    def _flush_table(rows: list[list[str]]) -> None:
+    def _thin_borders(table) -> None:
+        """Thin single borders on every edge — the label/value grid look."""
+        tbl_pr = table._tbl.tblPr
+        borders = OxmlElement("w:tblBorders")
+        for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+            el = OxmlElement(f"w:{edge}")
+            el.set(qn("w:val"), "single")
+            el.set(qn("w:sz"), "4")
+            el.set(qn("w:color"), "404040")
+            borders.append(el)
+        tbl_pr.append(borders)
+
+    if banner_label or banner_title or banner_subtitle:
+        # Title-block banner: one full-width accent-filled cell with centred
+        # label (small, tinted) / title (large, white) / subtitle (small, tinted)
+        # — matches the company template's cover banner.
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+        bt = document.add_table(rows=1, cols=1)
+        bcell = bt.rows[0].cells[0]
+        _shade(bcell, accent)
+        first = True
+        for text, size, bold, color in (
+            (banner_label, 9, True, tint),
+            (banner_title, 22, True, "FFFFFF"),
+            (banner_subtitle, 10, False, tint),
+        ):
+            if not text:
+                continue
+            bp = bcell.paragraphs[0] if first else bcell.add_paragraph()
+            first = False
+            bp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            br = bp.add_run(text)
+            br.bold = bold
+            br.font.size = Pt(size)
+            br.font.color.rgb = RGBColor.from_string(color)
+        document.add_paragraph()
+
+    def _flush_table(rows: list[list[str]], has_header: bool) -> None:
         if not rows:
             return
         cols = max(len(r) for r in rows)
         table = document.add_table(rows=len(rows), cols=cols)
+        if not has_header:
+            _thin_borders(table)
         for ri, row in enumerate(rows):
             for ci in range(cols):
                 cell = table.rows[ri].cells[ci]
                 text = row[ci] if ci < len(row) else ""
                 para = cell.paragraphs[0]
                 _add_markdown_runs(para, text)
-                if ri == 0:
+                if has_header and ri == 0:
                     _shade(cell, accent)
                     for r in para.runs:
                         r.bold = True
                         r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
-                elif ri % 2 == 0:
+                elif has_header and ri % 2 == 0:
                     _shade(cell, "F2F2F2")
+                elif not has_header and ci % 2 == 0:
+                    # Label/value grid: label COLUMNS (1st, 3rd, ...) carry the
+                    # accent fill with bold white text; value columns stay plain.
+                    _shade(cell, accent)
+                    for r in para.runs:
+                        r.bold = True
+                        r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
     if title:
         document.add_heading(title, level=0)
 
     table_rows: list[list[str]] = []
+    table_has_header = False
     for raw_line in content.splitlines():
         line = raw_line.rstrip()
         stripped = line.strip()
-        # Pipe-table rows are collected and flushed as one Word table.
+        # Pipe-table rows are collected and flushed as one Word table. A
+        # markdown separator row ('| --- | --- |') after the first row marks it
+        # as a HEADER table (colored first row); tables without a separator
+        # render as plain label/value grids with light alternating shading.
         if stripped.startswith("|") and stripped.endswith("|") and len(stripped) > 1:
             cells = [c.strip() for c in stripped.strip("|").split("|")]
             if all(re.fullmatch(r":?-{2,}:?", c or "---") for c in cells):
+                if len(table_rows) == 1:
+                    table_has_header = True
                 continue  # markdown separator row
             table_rows.append(cells)
             continue
-        _flush_table(table_rows)
+        _flush_table(table_rows, table_has_header)
         table_rows = []
+        table_has_header = False
         if not stripped:
             continue
         if stripped.startswith("### "):
@@ -2266,7 +2341,7 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         else:
             p = document.add_paragraph()
             _add_markdown_runs(p, stripped)
-    _flush_table(table_rows)
+    _flush_table(table_rows, table_has_header)
 
     _GENERATED_FILES_DIR.mkdir(exist_ok=True)
     uid_prefix = uuid.uuid4().hex[:8]
