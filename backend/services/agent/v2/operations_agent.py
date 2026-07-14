@@ -54,6 +54,7 @@ _TOOLS = [
     "unfollow_drive_document",
     "add_to_knowledge_base",
     "check_drive_backup_status",
+    "get_file_template",
     "search_knowledge_base",
     "read_knowledge_base_document",
     "generate_file",

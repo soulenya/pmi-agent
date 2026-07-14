@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # per-user setup; a SystemSetting ("company.profile_drive_file_id") set
     # via Settings → Company Profile overrides it on that machine.
     company_context_drive_file_id: str = "1aqx08UZ6J1qWAK4o9RMQMeonGvV1yI1C"
+    # Shared Drive folder of document templates (see services/file_templates.py).
+    # Every doc in it (and its subfolders) is a template.
+    file_templates_drive_folder_id: str = "1EFoPDRfAA1RaxRtWEEVj32eGfpeekV0F"
 
     # ── RAG ──────────────────────────────────────────────────────────────────
     chunk_size_tokens: int = 512
