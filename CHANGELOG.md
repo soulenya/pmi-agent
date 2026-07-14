@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.23 — 2026-07-14
+**create_docx layout upgrade — template rules become real Word formatting**
+
+- **Field report:** a user requested an SOP "in QMS template format"; Gerry fetched the template correctly and put the right content in the right order, but the generated .docx had no header/footer parts, zero tables, and no font defaults — the old builder only rendered headings/bullets/bold, so every layout rule was silently dropped.
+- **`execute_create_docx` rewrite (`tools.py`):** new optional args `font`, `font_size` (set on the Normal style), `header_left`/`header_right` (real page header via the built-in Header style's tab stops), `footer_left` (real footer with automatic `Page X of Y` via PAGE/NUMPAGES field codes), and `accent_color`. Markdown **pipe tables now render as real Word tables**: first row bold white on the accent color (default navy 1F3864), alternating body rows shaded F2F2F2, no heavy borders — exactly the QMS template's table spec. Tool descriptions in both engines instruct the model to pass layout fields from the company template/style guide.
+- **Verified end-to-end:** built a QMS-style SOP through the real tool and asserted header/footer XML parts, PAGE/NUMPAGES fields, Calibri 11 on Normal, both tables, and both shading fills.
+
 ### v3.2.22 — 2026-07-14
 **Regulatory wizard now follows the shared Drive templates + live company profile**
 
