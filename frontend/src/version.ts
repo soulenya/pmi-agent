@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 137;
-export const BUILD_DATE = "2026-07-13";
+export const BUILD_NUMBER = 139;
+export const BUILD_DATE = "2026-07-14";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,27 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 139,
+    date: "2026-07-14",
+    title: "Failed updates no longer loop — and bug reports now reach the developer",
+    changes: [
+      "Fixed a restart loop: if an update install failed (permission prompt declined, or Windows Smart App Control blocking it), the app relaunched, re-downloaded, and retried forever. After two failed attempts it now starts your current version normally — and tells you exactly why the update failed and what to do",
+      "Fixed a launcher crash when a leftover update file in the temp folder was still locked, and a daily-scan crash that stopped email follow-up suggestions from being saved",
+      "Bug reports from the feedback button (top bar) are now emailed to the developer from your connected Gmail — previously they only landed in your own install's notifications, where nobody could see them",
+      "Bug reports can attach diagnostic logs automatically (app version, OS, recent crash and update logs) — checked by default, one click to turn off",
+    ],
+  },
+  {
+    build: 138,
+    date: "2026-07-14",
+    title: "Ask Gerry if the company Drive backup is current",
+    changes: [
+      "New backup check: ask 'is the Drive backed up?' and Gerry reads the nightly backup bucket (read-only), reports the last backup write, object count and size, and gives a CURRENT or STALE verdict",
+      "She also compares against the live Shared Drive — telling you exactly which files changed since the last backup and confirming they'll be picked up on the next nightly run",
+      "One-time setup per machine: drop the read-only service-account key at Little Gerry's data folder — Gerry explains exactly where if it's missing",
+    ],
+  },
   {
     build: 137,
     date: "2026-07-13",
