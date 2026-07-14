@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.2.22 — 2026-07-14
+**Regulatory wizard now follows the shared Drive templates + live company profile**
+
+- **`regulatory/generator.py` → new `_company_blocks(db, template)`:** both wizard prompts (`recommend_formatting` and `generate_markdown`) now inject (a) the **live synced Company Profile** (falling back to the old hard-coded constant when unavailable) and (b) **company formatting rules from the Drive templates folder** via the new `file_templates.get_formatting_context(db, hints)` — hints tried in order: template label → category → "QMS", substring-matched both ways, so label matches (e.g. Technical Documentation) win and everything else falls back to the QMS rules; the Style Guide is always appended. A new formatting rule instructs the model to follow company conventions (language, numbering, headers/footers, metadata fields) wherever they don't conflict with the curated FDA/ISO section structure. Both lookups are best-effort — failures never block the wizard (8k char cap on injected rules).
+- Result: one formatting source of truth — chat documents (get_file_template tool) and Regulatory-page documents now follow the same shared Drive templates.
+
 ### v3.2.21 — 2026-07-14
 **Company style guide — uniform output for un-templated documents**
 

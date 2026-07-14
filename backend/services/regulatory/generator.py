@@ -35,6 +35,37 @@ COMPANY_CONTEXT = (
 )
 
 
+async def _company_blocks(db: AsyncSession, template: RegTemplate) -> tuple[str, str]:
+    """(company context, formatting rules) for prompt injection.
+
+    Context prefers the live synced company profile (shared Drive doc) over the
+    built-in fallback constant. Formatting rules come from the shared Drive
+    templates folder — the best-matching company template for this document
+    family plus the company style guide — so the Regulatory wizard follows the
+    same formatting truth as chat-generated documents. Both are best-effort:
+    failures never block generation.
+    """
+    ctx = COMPANY_CONTEXT
+    fmt = ""
+    try:
+        from services.company_context import get_company_context
+
+        live = (await get_company_context(db)).strip()
+        if live:
+            ctx = live
+    except Exception:  # noqa: BLE001 — optional enrichment
+        logger.debug("Live company context unavailable; using fallback.", exc_info=True)
+    try:
+        from services.file_templates import get_formatting_context
+
+        fmt = await get_formatting_context(
+            db, [template.label, template.category, "QMS"]
+        )
+    except Exception:  # noqa: BLE001 — optional enrichment
+        logger.debug("Drive formatting context unavailable.", exc_info=True)
+    return ctx, fmt
+
+
 def _parse_json_block(text: str) -> dict | None:
     """Extract the first JSON object from an LLM response, tolerating code fences."""
     cleaned = re.sub(r"```(?:json)?", "", text).strip().strip("`")
@@ -65,14 +96,21 @@ async def recommend_formatting(
     }
 
     notes_block = f"\nAdditional context from the author: {notes}" if notes else ""
+    company_ctx, fmt_rules = await _company_blocks(db, template)
+    fmt_block = (
+        f"\n\nCompany formatting requirements (from the shared templates folder — "
+        f"respect required sections and conventions where applicable):\n{fmt_rules}"
+        if fmt_rules
+        else ""
+    )
     prompt = (
         "You are a regulatory documentation expert for medical devices.\n\n"
-        f"{COMPANY_CONTEXT}\n\n"
+        f"{company_ctx}\n\n"
         f"A user is about to create: {template.label} — \"{title}\"\n"
         f"Governing standards: {', '.join(template.related_standards)}\n"
         f"Default section structure:\n"
         + "\n".join(f"- {s}" for s in template.default_sections)
-        + f"{notes_block}\n\n"
+        + f"{notes_block}{fmt_block}\n\n"
         "Based on current regulatory best practice, recommend the final section "
         "structure for THIS document. Keep, reorder, rename, add, or drop "
         "sections only where genuinely warranted — the defaults are sound.\n"
@@ -155,6 +193,13 @@ async def generate_markdown(
     )
     notes_block = f"\nAdditional author notes: {notes}" if notes else ""
 
+    company_ctx, fmt_rules = await _company_blocks(db, template)
+    fmt_block = (
+        f"\n\nCompany formatting requirements (from the shared templates folder):\n{fmt_rules}"
+        if fmt_rules
+        else ""
+    )
+
     if auto_populate:
         populate_rules = (
             "Auto-populate the document with specifics about PMI and VACTOR from "
@@ -174,7 +219,7 @@ async def generate_markdown(
     prompt = (
         "You are a regulatory affairs specialist at Precisian Medical "
         "Instruments (PMI).\n\n"
-        f"{COMPANY_CONTEXT}\n\n"
+        f"{company_ctx}\n\n"
         f"Draft a complete {template.label}.\n"
         f"Title: {title}\n"
         f"Document number: {doc_number or '[FILL IN: document number]'}\n"
@@ -185,6 +230,7 @@ async def generate_markdown(
         f"Required section structure (use '## ' headings, in this order):\n"
         f"{sections_block}\n\n"
         f"Template guidance: {template.guidance}\n"
+        f"{fmt_block}\n"
         f"{kb_block}\n\n"
         f"Population rules: {populate_rules}\n\n"
         "Formatting rules:\n"
@@ -196,6 +242,9 @@ async def generate_markdown(
         "**bold** for emphasis.\n"
         "- Do not use Markdown tables; render tabular data as labelled "
         "lists instead.\n"
+        "- Follow the company formatting requirements above (language "
+        "conventions, numbering, headers/footers, metadata fields) wherever "
+        "they do not conflict with the required section structure.\n"
         "- Output ONLY the document content — no meta-commentary."
     )
 
