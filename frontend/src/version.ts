@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 143;
+export const BUILD_NUMBER = 144;
 export const BUILD_DATE = "2026-07-14";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 144,
+    date: "2026-07-14",
+    title: "Word documents now honor your template layouts",
+    changes: [
+      "Fixed: Gerry knew your template's layout rules but the Word builder couldn't render them — documents came out as plain text with no headers, footers, tables, or fonts",
+      "Generated .docx files now support real page headers and footers (with automatic 'Page X of Y'), base font control (e.g. Calibri 11), and real Word tables with colored header rows and alternating shading",
+      "Gerry passes these straight from your template — ask for an SOP and the file arrives with the document-number header, CONFIDENTIAL footer, navy metadata table, and revision history table in place",
+    ],
+  },
   {
     build: 143,
     date: "2026-07-14",
