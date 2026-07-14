@@ -77,10 +77,33 @@ try {
     if (Test-Path $Installer) {
         $innoLog = Join-Path $logDir "inno_update.log"
         Write-Log "Running installer (silent). Inno log: $innoLog"
-        $proc = Start-Process -FilePath $Installer `
-            -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOCANCEL', "/LOG=`"$innoLog`"" `
-            -Verb RunAs -Wait -PassThru
-        Write-Log "Installer exit code: $($proc.ExitCode)"
+        try {
+            $proc = Start-Process -FilePath $Installer `
+                -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOCANCEL', "/LOG=`"$innoLog`"" `
+                -Verb RunAs -Wait -PassThru
+            Write-Log "Installer exit code: $($proc.ExitCode)"
+            if ($proc.ExitCode -eq 0) {
+                # Success: clear the failed-attempt marker so the launcher's
+                # retry guard resets (see launcher.py UPDATE_MARKER_FILE).
+                Remove-Item (Join-Path $logDir "update_attempt.json") -Force -ErrorAction SilentlyContinue
+                Write-Log "Install succeeded - cleared update attempt marker."
+            }
+        } catch {
+            # Most common causes: the user declined the UAC elevation prompt, or
+            # an Application Control policy (Windows Smart App Control) blocked
+            # the installer. Record the reason so the launcher can tell the user
+            # what to do instead of retrying forever.
+            $errMsg = $_.Exception.Message
+            Write-Log "Installer did not run (elevation declined or blocked): $errMsg"
+            try {
+                $markerPath = Join-Path $logDir "update_attempt.json"
+                if (Test-Path $markerPath) {
+                    $m = Get-Content $markerPath -Raw | ConvertFrom-Json
+                    $m | Add-Member -NotePropertyName last_error -NotePropertyValue $errMsg -Force
+                    $m | ConvertTo-Json -Compress | Set-Content $markerPath -Encoding UTF8
+                }
+            } catch {}
+        }
         Remove-Item $Installer -Force -ErrorAction SilentlyContinue
     } else {
         Write-Log "ERROR: Installer not found at $Installer"

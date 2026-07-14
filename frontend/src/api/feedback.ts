@@ -16,7 +16,12 @@ export interface Feedback {
 export async function submitFeedback(
   category: FeedbackCategory,
   message: string,
+  includeDiagnostics = true,
 ): Promise<Feedback> {
-  const { data } = await apiClient.post<Feedback>("/feedback", { category, message });
+  const { data } = await apiClient.post<Feedback>("/feedback", {
+    category,
+    message,
+    include_diagnostics: includeDiagnostics,
+  });
   return data;
 }

@@ -64,6 +64,9 @@ if [ -f "$INSTALLER" ]; then
   log "Running installer (silent, CurrentUserHomeDirectory)..."
   if installer -pkg "$INSTALLER" -target CurrentUserHomeDirectory >> "$LOGFILE" 2>&1; then
     log "Installer completed (exit 0)."
+    # Success: clear the failed-attempt marker so the launcher's retry guard
+    # resets (see launcher.py UPDATE_MARKER_FILE).
+    rm -f "$APPDIR/backend/logs/update_attempt.json" 2>/dev/null
   else
     code=$?
     log "Installer exit code: $code"

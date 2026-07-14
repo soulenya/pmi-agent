@@ -27,10 +27,11 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [category, setCategory] = useState<FeedbackCategory>("bug");
   const [message, setMessage] = useState("");
+  const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
   const [done, setDone] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: () => submitFeedback(category, message.trim()),
+    mutationFn: () => submitFeedback(category, message.trim(), includeDiagnostics),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
       setDone(true);
@@ -106,6 +107,21 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
                 {message.length}/{MAX_LEN}
               </p>
             </div>
+
+            {category === "bug" && (
+              <label className="flex cursor-pointer items-start gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={includeDiagnostics}
+                  onChange={(e) => setIncludeDiagnostics(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Attach diagnostic logs (recommended) — app version, OS, and recent
+                  crash/update logs so the issue can be fixed without back-and-forth
+                </span>
+              </label>
+            )}
 
             {error && (
               <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>
