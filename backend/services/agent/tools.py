@@ -835,7 +835,8 @@ TOOL_DEFINITIONS: list[dict] = [
                 "from the shared templates folder on Drive. ALWAYS call this before "
                 "creating a document with generate_file or create_docx (types like "
                 "memo, SOP, letter, report, meeting-minutes). If a template exists, "
-                "follow it exactly; if none exists you'll be told what is available."
+                "follow it exactly. Even when no template matches, the company STYLE "
+                "GUIDE is returned — apply it so every document looks uniform."
             ),
             "parameters": {
                 "type": "object",
