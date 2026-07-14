@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 142;
+export const BUILD_NUMBER = 143;
 export const BUILD_DATE = "2026-07-14";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 143,
+    date: "2026-07-14",
+    title: "Regulatory documents now follow your company templates",
+    changes: [
+      "The Regulatory page's document wizard now reads the shared Drive templates folder — your QMS/Technical Files formatting rules (metadata fields, numbering, shall/should language) and Style Guide shape every generated regulatory document",
+      "The wizard also now uses the live Company Profile instead of a built-in blurb — one source of truth for company facts across chat and regulatory generation",
+      "The curated FDA/ISO section structures remain the regulatory backbone — your templates govern formatting and conventions on top of them",
+    ],
+  },
   {
     build: 142,
     date: "2026-07-14",
