@@ -684,6 +684,21 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "check_drive_backup_status",
+            "description": (
+                "Verify the company Google Drive backup is current. Reads the GCS "
+                "backup bucket (read-only) for the last backup write, object count and "
+                "size, compares against the live Shared Drive, and reports a "
+                "CURRENT/STALE verdict plus which files changed since the last backup. "
+                "Use when the user asks whether the Drive is backed up or how fresh "
+                "the backup is."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_calendar_events",
             "description": (
                 "ONLY call this when the user explicitly asks to check their calendar, "
@@ -1818,6 +1833,13 @@ async def execute_add_to_knowledge_base(ctx: ToolContext, args: dict[str, Any]) 
     )
 
 
+async def execute_check_drive_backup_status(ctx: ToolContext, _args: dict[str, Any]) -> str:
+    """Report whether the nightly Drive → GCS backup is current."""
+    from services.backup_monitor import get_backup_status
+
+    return await get_backup_status(ctx.db)
+
+
 async def execute_get_calendar_events(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
     from services.google_service import calendar_events, get_credentials
@@ -2190,6 +2212,7 @@ TOOL_EXECUTORS = {
     "follow_drive_document": execute_follow_drive_document,
     "unfollow_drive_document": execute_unfollow_drive_document,
     "add_to_knowledge_base": execute_add_to_knowledge_base,
+    "check_drive_backup_status": execute_check_drive_backup_status,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
     "add_contacts": execute_add_contacts,

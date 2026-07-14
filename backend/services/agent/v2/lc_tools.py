@@ -39,6 +39,7 @@ _TOOL_DOCS = {
     "follow_drive_document": 'Follow a Google Doc in THIS conversation: its current contents are re-read automatically on every message so you always see the latest edits. JSON: {"file_id": str (ID or pasted URL)}.',
     "unfollow_drive_document": "Stop following the live document in this conversation. No arguments.",
     "add_to_knowledge_base": 'Add a file to the Knowledge Base (searchable + citable). JSON: {"drive_file_id": str (Drive ID or pasted URL)} OR {"generated_filename": str}; optional "title", "category". Duplicates reported; never regulated.',
+    "check_drive_backup_status": "Verify the company Drive → GCS nightly backup is current: last backup write, CURRENT/STALE verdict, files changed since. No arguments.",
     "get_calendar_events": "Fetch upcoming Google Calendar events within a date range.",
     "search_contacts": "Look up a person's contact details by name, email, or company — searches PMI's own contacts (derived from email + manual entries) and Google Contacts. Good for 'who is our contact at <company>'.",
     "add_contacts": 'Add or update one or more contacts on PMI\'s own Contacts page (not Odoo, not Google). JSON: {"contacts": [{"email": str (required), "name": str, "company": str, "notes": str}, ...]}.',
