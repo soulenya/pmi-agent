@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 139;
+export const BUILD_NUMBER = 140;
 export const BUILD_DATE = "2026-07-14";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 140,
+    date: "2026-07-14",
+    title: "Company document templates — Gerry follows your formats",
+    changes: [
+      "A shared templates folder on Drive now dictates how Gerry structures each document type (memo, SOP, letter, report…) — she checks it automatically before creating any file",
+      "Adding a template is just dropping a doc in the folder — regulatory templates can live in their own permission-restricted subfolder",
+      "Edit a template and Gerry's output changes immediately — no update needed, and every teammate's Gerry follows the same formats",
+      "No template for a type? Gerry is told what types exist and proceeds with best judgment — never blocked",
+    ],
+  },
   {
     build: 139,
     date: "2026-07-14",
