@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 141;
+export const BUILD_NUMBER = 142;
 export const BUILD_DATE = "2026-07-14";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 142,
+    date: "2026-07-14",
+    title: "Company style guide — uniform documents even without a template",
+    changes: [
+      "Add a doc named 'Style Guide' to the templates folder and its rules apply to every document Gerry creates — fonts, headers, tone, numbering — keeping output uniform",
+      "Templates dictate structure; the style guide dictates styling — Gerry receives both together when a template matches",
+      "For document types with no template, Gerry now formats using the style guide instead of improvising",
+    ],
+  },
   {
     build: 141,
     date: "2026-07-14",
