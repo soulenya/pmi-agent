@@ -162,9 +162,31 @@ def _normalize(name: str) -> str:
     return n[:-1] if n.endswith("s") else n  # naive singular
 
 
+# Reserved doc/section names for the company-wide style guide. A doc named
+# e.g. "Style Guide" in the templates folder is not a document type: it is
+# appended to EVERY template result (structure from the template, styling from
+# the guide) and returned alone when no template matches — so even un-templated
+# documents come out uniform.
+_STYLE_ALIASES = {"style", "style guide", "styling guide", "house style", "default style"}
+
+
+def _split_style(sections: dict[str, str]) -> tuple[dict[str, str], str]:
+    """Separate the style-guide section(s) from the real template types."""
+    templates: dict[str, str] = {}
+    style_parts: list[str] = []
+    for heading, body in sections.items():
+        if _normalize(heading) in _STYLE_ALIASES:
+            if body:
+                style_parts.append(body)
+        else:
+            templates[heading] = body
+    return templates, "\n\n".join(style_parts)
+
+
 async def get_file_template(db: AsyncSession, file_type: str) -> str:
-    """Human/agent-readable result: the matching template section, or an honest
-    explanation (no file configured / no such type + what IS available)."""
+    """Human/agent-readable result: the matching template section (plus the
+    company style guide, if one exists), the style guide alone when no template
+    matches, or an honest explanation of what IS available."""
     md = await _fetch_templates_md(db)
     if not md:
         return (
@@ -177,14 +199,28 @@ async def get_file_template(db: AsyncSession, file_type: str) -> str:
             "The templates folder has no usable templates yet. "
             "Proceed with your best professional judgment."
         )
+    templates, style = _split_style(sections)
+    style_block = (
+        f"\n\nCOMPANY STYLE GUIDE (apply to EVERY document, regardless of type):\n{style}"
+        if style
+        else ""
+    )
     want = _normalize(file_type)
-    for heading, body in sections.items():
+    if want in _STYLE_ALIASES and style:
+        return f"COMPANY STYLE GUIDE (apply to every document):\n\n{style}"
+    for heading, body in templates.items():
         if _normalize(heading) == want and body:
             return (
                 f"TEMPLATE for '{heading}' (from the shared templates folder — "
-                f"follow this structure exactly):\n\n{body}"
+                f"follow this structure exactly):\n\n{body}{style_block}"
             )
-    available = ", ".join(sections.keys())
+    available = ", ".join(templates.keys()) or "none"
+    if style:
+        return (
+            f"No template found for '{file_type}' (available types: {available}). "
+            f"Format the document using the company style guide so it stays uniform."
+            f"{style_block}"
+        )
     return (
         f"No template found for '{file_type}'. Available template types: {available}. "
         "If none fits, proceed with your best professional judgment."

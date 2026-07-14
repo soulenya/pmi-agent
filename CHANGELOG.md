@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.2.21 — 2026-07-14
+**Company style guide — uniform output for un-templated documents**
+
+- **Reserved "Style Guide" doc in the templates folder (`file_templates.py`):** a doc (or `## section`) named Style Guide / House Style / Default Style is excluded from the template-type list and instead applied globally: appended to every matching template result ("structure from the template, styling from the guide"), and returned **alone** when no template matches — so documents without a template are formatted per company rules instead of best judgment. Asking for the "style guide" type directly returns it too.
+- **Tool descriptions updated** (`get_file_template` in both engines): Gerry is told the style guide comes back even without a template match, so the pre-creation call is always worthwhile.
+
 ### v3.2.20 — 2026-07-14
 **CORE GUARDIAN — a Marathon-style FPS easter egg defending Little Gerry's mind**
 
