@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 146;
-export const BUILD_DATE = "2026-07-14";
+export const BUILD_NUMBER = 147;
+export const BUILD_DATE = "2026-07-15";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 147,
+    date: "2026-07-15",
+    title: "Document polish — branded headings and proper header/footer type",
+    changes: [
+      "Generated Word documents now render page headers and footers in the company style: small 9pt gray type instead of default black",
+      "Section headings take the document's accent color (PMI navy or teal) instead of Word's default blue — matching the reference QMS documents",
+      "Templates updated to include the Approval signature block and Version History table layout from the reference SOP",
+    ],
+  },
   {
     build: 146,
     date: "2026-07-14",

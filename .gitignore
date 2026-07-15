@@ -42,6 +42,9 @@ Thumbs.db
 # Encrypted document storage — never commit user files
 .pmi-agent/
 
+# Shelved feature plans — local working docs, keep out of git
+WORKROOMS-PLAN.md
+
 # Split / working document sets (large source PDFs — keep out of git)
 mil-std-810h-split/
 /MIL-STD-810H.pdf
