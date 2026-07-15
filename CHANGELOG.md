@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.26 — 2026-07-15
+**create_docx polish from reference SOP: header/footer typography + branded headings**
+
+- **Reference doc analysis (SOP-020 Supplier Control):** extracted the remaining spec deltas — header/footer runs are Calibri **9pt #666666** (builder previously emitted default-size black); headings are the brand navy, not Word-default blue; end matter after References is unnumbered **Approval** (3×5 signature table: Action | Role | Name | Signature | Date, signature/date cells blank) then **Version History** (4×4: Ver. | Date | Author | Description of Change, newest first, blank rows below).
+- **Builder (`execute_create_docx`):** header/footer runs now styled 9pt `666666` in the document font; Heading 1–3 styles take the accent color (and base font). Verified end-to-end.
+- **Template text:** end-matter block (Approval + Version History) and Records/Definitions refinements provided for both Drive template docs — content-side, no release dependency.
+
 ### v3.2.25 — 2026-07-14
 **Chat file cards — Download / Open in Workspace / Add to KB inline**
 

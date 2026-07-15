@@ -2195,6 +2195,15 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         document.styles["Normal"].font.name = font_name
     if font_size > 0:
         document.styles["Normal"].font.size = Pt(font_size)
+    # Brand the heading styles with the accent color (reference docs use the
+    # company navy/teal for headings rather than Word's default blue).
+    for h in ("Heading 1", "Heading 2", "Heading 3"):
+        try:
+            document.styles[h].font.color.rgb = RGBColor.from_string(accent)
+            if font_name:
+                document.styles[h].font.name = font_name
+        except Exception:  # noqa: BLE001 — style may be absent in exotic bases
+            pass
 
     def _page_field(paragraph, code: str) -> None:
         """Append a Word field (PAGE / NUMPAGES) to a paragraph."""
@@ -2211,12 +2220,21 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         run._r.append(end)
 
     # Page header/footer — the built-in Header/Footer styles carry centre +
-    # right tab stops, so "left\t\tright" lands text on both edges.
+    # right tab stops, so "left\t\tright" lands text on both edges. Reference
+    # documents render these in small gray type: 9pt, #666666.
+    def _hf_style(paragraph) -> None:
+        for r in paragraph.runs:
+            r.font.size = Pt(9)
+            r.font.color.rgb = RGBColor.from_string("666666")
+            if font_name:
+                r.font.name = font_name
+
     section = document.sections[0]
     if header_left or header_right:
         hp = section.header.paragraphs[0]
         hp.text = ""
         hp.add_run(f"{header_left}\t\t{header_right}")
+        _hf_style(hp)
     if footer_left or content:
         fp = section.footer.paragraphs[0]
         fp.text = ""
@@ -2227,6 +2245,7 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         _page_field(fp, "PAGE")
         fp.add_run(" of ")
         _page_field(fp, "NUMPAGES")
+        _hf_style(fp)
 
     def _shade(cell, fill: str) -> None:
         tc_pr = cell._tc.get_or_add_tcPr()
