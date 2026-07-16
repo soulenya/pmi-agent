@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 147;
+export const BUILD_NUMBER = 148;
 export const BUILD_DATE = "2026-07-15";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 148,
+    date: "2026-07-15",
+    title: "Google Workspace stays connected between sessions",
+    changes: [
+      "Fixed the bug behind daily reconnects: the stored Google token was validated against the app's full permission list on every refresh — if your original consent granted even one permission less (unchecked consent boxes, or tokens from older versions), every refresh silently failed and the next launch showed 'disconnected'",
+      "Token refresh failures are no longer silent — they're logged and included in bug-report diagnostics, along with Google connection metadata (never your actual token)",
+      "Tip when connecting: check ALL permission boxes on Google's consent screen so every feature works",
+    ],
+  },
   {
     build: 147,
     date: "2026-07-15",

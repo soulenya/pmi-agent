@@ -46,6 +46,8 @@ _DIAGNOSTIC_LOGS = (
     "apply_update.log",
     "inno_update.log",
     "update_attempt.json",
+    "google_auth.log",
+    "google_refresh.log",
 )
 _MAX_LOG_BYTES = 100_000  # tail per file
 
@@ -63,6 +65,25 @@ def _collect_diagnostics() -> tuple[str, list[dict]]:
         f"OS: {platform.platform()}\n"
         f"Python: {platform.python_version()}\n"
     )
+    # Google token METADATA (never the token itself) — answers "why does
+    # Workspace disconnect between sessions" without any back-and-forth.
+    tok = root / "backend" / "google_token.json"
+    try:
+        if tok.is_file():
+            import json as _json
+
+            tdata = _json.loads(tok.read_text(encoding="utf-8"))
+            summary += (
+                "Google token: present, "
+                f"modified={datetime.fromtimestamp(tok.stat().st_mtime).isoformat(timespec='seconds')}, "
+                f"refresh_token={'yes' if tdata.get('refresh_token') else 'NO'}, "
+                f"expiry={tdata.get('expiry', '?')}, "
+                f"scopes={' '.join(tdata.get('scopes') or [])}\n"
+            )
+        else:
+            summary += "Google token: MISSING\n"
+    except Exception:
+        summary += "Google token: unreadable\n"
     attachments: list[dict] = []
     log_dir = root / "backend" / "logs"
     for name in _DIAGNOSTIC_LOGS:
