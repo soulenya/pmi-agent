@@ -40,6 +40,22 @@ _auth_lock = threading.Lock()
 
 # ── credential helpers ────────────────────────────────────────────────────
 
+def _log_refresh_failure(exc: Exception) -> None:
+    """Token refresh failures were silently swallowed, which made the field
+    problem ('Workspace disconnects between sessions') undiagnosable. Leave a
+    breadcrumb the feedback diagnostics bundle picks up."""
+    try:
+        log_dir = _BACKEND / "logs"
+        log_dir.mkdir(exist_ok=True)
+        with open(log_dir / "google_refresh.log", "a", encoding="utf-8") as f:
+            f.write(
+                f"{datetime.now(timezone.utc).isoformat()} REFRESH FAILED: "
+                f"{type(exc).__name__}: {exc}\n"
+            )
+    except Exception:
+        pass
+
+
 def get_credentials():
     """Return valid Credentials or None."""
     from google.oauth2.credentials import Credentials
@@ -47,12 +63,22 @@ def get_credentials():
 
     if not TOKEN_FILE.exists():
         return None
-    creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+    # Load with the token's OWN granted scopes (scopes=None). Forcing the
+    # current SCOPES list here made EVERY refresh fail with "Not all requested
+    # scopes were granted" whenever the stored grant was narrower than the
+    # app's list — granular consent checkboxes, or tokens issued by an older
+    # build before a scope was added. That was the field cause of "Workspace
+    # disconnects between sessions": access tokens live one hour, so the
+    # session worked, then the next launch's refresh failed silently. A
+    # refresh can never widen a grant anyway; a genuinely missing scope now
+    # surfaces as a 403 on the specific call, fixed by reconnecting.
+    creds = Credentials.from_authorized_user_file(str(TOKEN_FILE))
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
             TOKEN_FILE.write_text(creds.to_json())
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 — log, then report disconnected
+            _log_refresh_failure(exc)
             return None
     return creds if (creds and creds.valid) else None
 
