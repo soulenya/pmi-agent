@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 148;
-export const BUILD_DATE = "2026-07-15";
+export const BUILD_NUMBER = 149;
+export const BUILD_DATE = "2026-07-16";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 149,
+    date: "2026-07-16",
+    title: "Gerry can now read documents of any length",
+    changes: [
+      "Drive file reads are no longer capped at the first 30,000 characters — long contracts, specs, and agreements are read in pages, and Gerry keeps turning pages until she reaches the end",
+      "Every page tells her exactly where she is ('characters 30,000–60,000 of 142,000') and instructs her not to draw final conclusions until she's read the whole document",
+      "Ask for a review of a specific article or section in a long agreement and she'll page to it instead of reporting it's out of reach",
+    ],
+  },
   {
     build: 148,
     date: "2026-07-15",
