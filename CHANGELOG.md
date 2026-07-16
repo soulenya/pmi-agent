@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.27 — 2026-07-15
+**Google Workspace session persistence — refresh no longer fails on scope mismatch**
+
+- **Field diagnosis (Lindsey's logs):** google_auth.log showed re-auth June 18 → silence → July 14 → July 15 (next morning), and app.log showed "Google account not connected" from July 1 — the connection silently died and even a fresh consent lasted <24 h. Root cause in `get_credentials()`: `Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)` forces the app's CURRENT scope list onto the stored token; whenever the actual grant is narrower (Google's granular consent checkboxes left unticked, or tokens issued before a scope was added in an update), google-auth rejects **every refresh** ("not all requested scopes were granted"). Access tokens live 1 h → session works, next launch's refresh fails → swallowed by a bare `except: return None` → "disconnected" with zero logs.
+- **Fix:** load the token with its OWN granted scopes (`scopes=None`) — a refresh can never widen a grant anyway; a genuinely missing scope now surfaces as a 403 on the specific call instead of killing the whole connection nightly. Refresh failures are now logged to `logs/google_refresh.log` (new `_log_refresh_failure`).
+- **Diagnostics:** bug reports now attach `google_auth.log` + `google_refresh.log` and a synthesized Google-token metadata line (present/modified/refresh_token/expiry/scopes — never the token itself).
+
 ### v3.2.26 — 2026-07-15
 **create_docx polish from reference SOP: header/footer typography + branded headings**
 
