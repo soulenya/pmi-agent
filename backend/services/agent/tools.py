@@ -571,7 +571,11 @@ TOOL_DEFINITIONS: list[dict] = [
                 "Docs the user is currently writing. Call this whenever the user shares "
                 "a Drive/Docs/Sheets link or asks for feedback, input, or recommendations "
                 "on a document they're working on: read it, then give concrete suggestions. "
-                "Works for Docs, Sheets (as CSV), Slides, PDFs, and plain text files."
+                "Works for Docs, Sheets (as CSV), Slides, PDFs, and plain text files. "
+                "Long documents are returned in 30,000-character pages — when the result "
+                "ends with a CONTINUE note, call again with the suggested offset to read "
+                "the next page. NEVER review only the first page of a long document and "
+                "present conclusions as complete — page through to the end first."
             ),
             "parameters": {
                 "type": "object",
@@ -582,6 +586,14 @@ TOOL_DEFINITIONS: list[dict] = [
                             "The Drive file ID (from search_drive results) OR a full pasted "
                             "URL like https://docs.google.com/document/d/<id>/edit — the ID "
                             "is extracted automatically."
+                        ),
+                    },
+                    "offset": {
+                        "type": "number",
+                        "description": (
+                            "Character position to start reading from (default 0). Use the "
+                            "offset suggested in the CONTINUE note to read the next page of "
+                            "a long document."
                         ),
                     },
                 },
@@ -1750,24 +1762,46 @@ async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
     if not file_id:
         return "Error: file_id is required."
     try:
+        offset = max(0, int(args.get("offset") or 0))
+    except (TypeError, ValueError):
+        offset = 0
+    try:
+        # Fetch the FULL text and slice a page locally — pagination lets the
+        # model walk arbitrarily long contracts/specs instead of only ever
+        # seeing the first page (field report: an Article-IV IP review was cut
+        # mid-sentence with no way to page further).
         result = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: drive_get_content(file_id, max_chars=30_000)
+            None, lambda: drive_get_content(file_id, max_chars=None)
         )
     except Exception as exc:
         return f"Failed to read Drive file: {exc}"
     content = result.get("content", "")
     if not content:
         return f"File '{result.get('name', file_id)}' has no readable text content."
-    note = ""
-    if result.get("truncated"):
+    total = len(content)
+    if offset >= total:
+        return (
+            f"Offset {offset:,} is past the end of '{result.get('name', file_id)}' "
+            f"({total:,} characters total). The document has been fully read."
+        )
+    page = content[offset : offset + 30_000]
+    end = offset + len(page)
+    if end < total:
         note = (
-            f"\n\n[TRUNCATED: showing the first {len(content):,} of "
-            f"{result.get('total_chars', 0):,} characters. Tell the user the file is "
-            "too long to read in full and ask which section they need.]"
+            f"\n\n[PAGE ENDS at character {end:,} of {total:,} — the document CONTINUES. "
+            f"Call read_drive_file again with offset={end} to read the next page. Do not "
+            "draw final conclusions until you have read to the end.]"
+        )
+    else:
+        note = (
+            f"\n\n[END OF DOCUMENT — characters {offset:,}–{end:,} of {total:,}.]"
+            if offset > 0
+            else ""
         )
     return (
-        f"File: {result['name']}\nType: {result['type']}\nURL: {result['url']}\n\n"
-        f"{content}{note}"
+        f"File: {result['name']}\nType: {result['type']}\nURL: {result['url']}\n"
+        f"Characters {offset:,}–{end:,} of {total:,}:\n\n"
+        f"{page}{note}"
     )
 
 

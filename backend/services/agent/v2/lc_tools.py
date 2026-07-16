@@ -34,7 +34,7 @@ _TOOL_DOCS = {
     "list_drive_folder": "List files and folders inside a Google Drive folder (default: root of My Drive). For a shared drive's root, pass folder_id AND drive_id = the shared drive ID from list_shared_drives.",
     "list_shared_drives": "List all Google shared (team) drives — the top-level folder trees beside My Drive. Use FIRST when top-level folders (Communications, Knowledge, Compliance, etc.) are not in My Drive.",
     "search_drive_content": "Read and search inside Google Drive files (by name keyword).",
-    "read_drive_file": "Read the full text of a Google Drive file — including a live Google Doc the user is writing. Accepts a file ID or a full pasted Docs/Drive URL. Use whenever the user shares a doc link or asks for feedback/recommendations on a document.",
+    "read_drive_file": "Read the full text of a Google Drive file — including a live Google Doc the user is writing. Accepts a file ID or a full pasted Docs/Drive URL. Long documents return in 30k-character pages: when a CONTINUE note appears, call again with the suggested offset and read to the end before concluding. JSON: {\"file_id\": str, \"offset\": int (optional, default 0)}.",
     "list_recent_drive_files": 'List the user\'s most recently modified Drive files (newest first). Use when they say "help me with this document" without a link — confirm which one, then follow it. JSON: {"max_results": int (optional)}.',
     "follow_drive_document": 'Follow a Google Doc in THIS conversation: its current contents are re-read automatically on every message so you always see the latest edits. JSON: {"file_id": str (ID or pasted URL)}.',
     "unfollow_drive_document": "Stop following the live document in this conversation. No arguments.",
