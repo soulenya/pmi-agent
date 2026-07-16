@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.2.28 — 2026-07-16
+**read_drive_file pagination — no more 30k ceiling on document reviews**
+
+- **Field report:** reviewing Article IV (IP/data rights) of a long agreement, Gerry could only ever fetch the same first ~30k characters — the review cut off mid-sentence in Section F with no way to page further, and she honestly flagged the gap.
+- **Fix (`execute_read_drive_file`):** the tool now fetches the FULL text and returns a 30,000-character window at an optional `offset`. Page results carry an explicit position line ("Characters 30,000–60,000 of 142,000") and a CONTINUE note with the exact next offset; the final page is marked END OF DOCUMENT. Tool descriptions in both engines instruct paging to the end before drawing conclusions — never presenting a first-page review as complete. Past-the-end offsets return an honest "fully read" message.
+
 ### v3.2.27 — 2026-07-15
 **Google Workspace session persistence — refresh no longer fails on scope mismatch**
 
