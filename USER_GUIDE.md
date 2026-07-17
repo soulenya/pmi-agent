@@ -244,6 +244,7 @@ A **Workroom** is a persistent co-work space you share with Little Gerry — bui
 - **Gerry works the room too**: ask her to pin something ("pin that SOP to this room") or log progress ("note that we finished section 4") — and files she creates, docs she imports to the KB, and Drive docs she follows inside the room are **pinned and journaled automatically**. File cards in chat also get a **Pin to Room** button.
 - **Enter the room** to chat — every room has its own conversation, and every message you send there automatically carries the room's goal, pinned items, and recent progress. No re-explaining context each session.
 - **Log progress** in the room's journal ("Sent draft to Lindsey for review"). The latest entries travel with the room chat, so Gerry always knows where things stand.
+- **Gerry works between sessions**: give a room a **standing task** ("check for new FDA guidance every morning") from the Scheduled Tasks page or by asking Gerry in the room — runs happen in the room chat with full room context. Each morning a **digest** posts into active rooms (pinned docs edited, deadlines approaching, progress logged), and Gerry proposes **next steps** you can accept (creates a task, pinned to the room) or dismiss.
 - **Archive** a room when the work wraps up — archived rooms stop injecting context but keep their history; restore them anytime.
 
 ---

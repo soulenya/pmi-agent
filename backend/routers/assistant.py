@@ -6,6 +6,7 @@ read/update the scan settings, and trigger a manual scan.
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -23,6 +24,8 @@ from models.db.user import User
 from repositories.task_repo import TaskRepository
 from services.assistant import daily_scan
 from services.embeddings.service import EmbeddingService, get_embedding_service_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
@@ -166,7 +169,7 @@ async def accept_suggestion(
 
     task_id: uuid.UUID | None = None
 
-    if s.kind in ("task_recommendation", "followup_email"):
+    if s.kind in ("task_recommendation", "followup_email", "workroom_todo"):
         task = (s.payload or {}).get("task") or {}
         title = (task.get("title") or s.title or "Task").strip()[:500]
         if not title:
@@ -185,6 +188,29 @@ async def accept_suggestion(
         task_id = created.id
         s.result_entity_type = "task"
         s.result_entity_id = created.id
+
+        # A workroom to-do lives in its room: pin the task + journal the accept.
+        if s.kind == "workroom_todo":
+            try:
+                from models.db.workroom import Workroom
+                from services.workroom_context import add_journal_entry, pin_workroom_item
+
+                room_id = (s.payload or {}).get("workroom_id")
+                room = None
+                if room_id:
+                    room = (
+                        await db.execute(
+                            select(Workroom).where(
+                                Workroom.id == uuid.UUID(str(room_id)),
+                                Workroom.user_id == user.id,
+                            )
+                        )
+                    ).scalar_one_or_none()
+                if room is not None:
+                    await pin_workroom_item(db, room, "task", title, str(created.id))
+                    await add_journal_entry(db, room, f"Accepted next step: {title}")
+            except Exception:  # noqa: BLE001 — room bookkeeping is best-effort
+                logger.exception("Failed to journal workroom_todo accept")
 
     # meeting_import: accepting means "keep it" — the document is already in the KB.
     # followup_task: accepting means "acknowledged".

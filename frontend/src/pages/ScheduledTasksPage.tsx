@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { listWorkrooms } from "@/api/workrooms";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, Loader2, Play, Plus, Power, Trash2, CalendarClock } from "lucide-react";
 import {
@@ -59,6 +60,12 @@ export function ScheduledTasksPage() {
       query.state.data?.some((t) => t.last_run_status === "running")
         ? 3_000
         : 30_000,
+  });
+
+  const { data: workrooms = [] } = useQuery({
+    queryKey: ["workrooms", false],
+    queryFn: () => listWorkrooms(false),
+    staleTime: 60_000,
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["scheduled-tasks"] });
@@ -147,6 +154,29 @@ export function ScheduledTasksPage() {
               className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             />
           </div>
+          {workrooms.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Workroom (optional)</label>
+              <select
+                value={form.workroom_id ?? ""}
+                onChange={(e) =>
+                  setForm({ ...form, workroom_id: e.target.value || null })
+                }
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">None — runs in its own conversation</option>
+                {workrooms.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.title}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Standing room tasks run inside the room's chat with the room's
+                goal and pinned items, and log each run to the journal.
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Frequency</label>
