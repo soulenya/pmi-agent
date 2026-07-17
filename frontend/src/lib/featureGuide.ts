@@ -48,6 +48,15 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Accept a suggestion with one click to turn it into a task — the assistant never acts on its own",
     ],
   },
+  workrooms: {
+    tagline: "Persistent co-work spaces with Gerry.",
+    capabilities: [
+      "Create a room around a goal — a 510(k) submission, an audit prep, a fundraise — and work in it for days or weeks",
+      "Pin Drive docs, KB documents, generated files, notes, email threads, tasks, Odoo records and regulatory documents to the room",
+      "Every message in the room's chat carries the goal, pinned items and recent progress — no re-explaining context each session",
+      "Log progress in the journal so Gerry (and future you) always knows where things stand",
+    ],
+  },
 
   // ── Work ────────────────────────────────────────────────────────────────
   work: {

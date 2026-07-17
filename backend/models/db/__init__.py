@@ -20,6 +20,7 @@ from models.db.scheduled_task import ScheduledTask
 from models.db.settings import ModelRoutingRule, SystemSetting
 from models.db.task import Project, Task, TaskComment
 from models.db.user import User, UserSession
+from models.db.workroom import Workroom, WorkroomItem, WorkroomJournalEntry
 
 __all__ = [
     "Base",
@@ -56,4 +57,7 @@ __all__ = [
     "ScheduledTask",
     "OdooConnection",
     "DeviceToken",
+    "Workroom",
+    "WorkroomItem",
+    "WorkroomJournalEntry",
 ]

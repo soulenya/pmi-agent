@@ -40,6 +40,7 @@ from routers.conversation_backup import router as backups_router
 from routers.odoo_integration import router as odoo_router
 from routers.files import router as files_router
 from routers.feedback import router as feedback_router
+from routers.workrooms import router as workrooms_router
 from routers.assistant import router as assistant_router
 from routers.scheduled_tasks import router as scheduled_tasks_router
 from routers.voice import router as voice_router
@@ -493,6 +494,7 @@ def create_app() -> FastAPI:
     app.include_router(odoo_router)
     app.include_router(files_router)
     app.include_router(feedback_router)
+    app.include_router(workrooms_router)
     app.include_router(assistant_router)
     app.include_router(scheduled_tasks_router)
     app.include_router(push_router)

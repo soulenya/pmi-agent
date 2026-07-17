@@ -31,23 +31,24 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 6. [Talking to Little Gerry](#talking-to-little-gerry)
 7. [Ask Gerry About Anything](#ask-gerry-about-anything)
 8. [Daily Assistant](#daily-assistant)
-9. [Knowledge Base](#knowledge-base)
-10. [Semantic Search](#semantic-search)
-11. [Research](#research)
-12. [Tasks & Projects](#tasks--projects)
-13. [Calendar](#calendar)
-14. [Gmail (Inbox, Compose & Replies)](#gmail-inbox-compose--replies)
-15. [Email Drafts](#email-drafts)
-16. [Meeting Notes](#meeting-notes)
-17. [Regulatory Documents](#regulatory-documents)
-18. [Investor Relations](#investor-relations)
-19. [Google Workspace](#google-workspace)
-20. [Odoo ERP](#odoo-erp)
-21. [Approvals Queue](#approvals-queue)
-22. [Notifications](#notifications)
-23. [Settings](#settings)
-24. [Updating Little Gerry](#updating-little-gerry)
-25. [Tips & Example Prompts](#tips--example-prompts)
+9. [Workrooms](#workrooms)
+10. [Knowledge Base](#knowledge-base)
+11. [Semantic Search](#semantic-search)
+12. [Research](#research)
+13. [Tasks & Projects](#tasks--projects)
+14. [Calendar](#calendar)
+15. [Gmail (Inbox, Compose & Replies)](#gmail-inbox-compose--replies)
+16. [Email Drafts](#email-drafts)
+17. [Meeting Notes](#meeting-notes)
+18. [Regulatory Documents](#regulatory-documents)
+19. [Investor Relations](#investor-relations)
+20. [Google Workspace](#google-workspace)
+21. [Odoo ERP](#odoo-erp)
+22. [Approvals Queue](#approvals-queue)
+23. [Notifications](#notifications)
+24. [Settings](#settings)
+25. [Updating Little Gerry](#updating-little-gerry)
+26. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -150,6 +151,7 @@ Little Gerry can load a small **company profile** — key people, products, part
 | **Ask Gerry** | One-click "Ask Gerry about this" button on any task, email, file, contact, or event — opens a chat already primed with that item |
 | **Dashboard** | Daily briefing, open tasks, pending approvals, today's meetings |
 | **Daily Assistant** | A once-a-day scan of your Gmail and Google Tasks that suggests follow-ups and to-dos for you to review |
+| **Workrooms** | Persistent co-work spaces — a goal, pinned documents and a progress journal that Gerry carries into every message of the room's chat |
 | **Knowledge Base** | Upload and manage your company documents; Little Gerry can read a whole document in full when you ask her to summarize or analyze it |
 | **Search** | Natural language search across all uploaded documents |
 | **Research** | AI-powered web research with cited reports |
@@ -167,7 +169,7 @@ Little Gerry can load a small **company profile** — key people, products, part
 | **Odoo ERP** | Connect your Odoo account (API key) so Little Gerry can read and propose ERP actions |
 | **Settings** | Configure AI providers, appearance, and Google integration |
 
-> **Finding your way around.** The home screen is a **solar system**: Little Gerry is the sun (click her to chat), **Dashboard** and the **Daily Assistant** orbit close in, and five planets group the modules — **Work**, **Knowledge**, **Communications**, **Odoo**, and **Compliance** — with each feature page as a moon. The narrow **left rail** shows the sun and the five planets from anywhere in the app: click a planet to zoom into it, or simply **hover over it** and a menu glides out listing its moons so you can jump straight to any page in one click. The **chat bubble under the sun** returns you to your last open Gerry conversation from any page. Esc zooms back out a level.
+> **Finding your way around.** The home screen is a **solar system**: Little Gerry is the sun (click her to chat), **Dashboard**, the **Daily Assistant** and **Workrooms** orbit close in, and five planets group the modules — **Work**, **Knowledge**, **Communications**, **Odoo**, and **Compliance** — with each feature page as a moon. The narrow **left rail** shows the sun and the five planets from anywhere in the app: click a planet to zoom into it, or simply **hover over it** and a menu glides out listing its moons so you can jump straight to any page in one click. The **chat bubble under the sun** returns you to your last open Gerry conversation from any page. Esc zooms back out a level.
 
 ---
 
@@ -230,6 +232,18 @@ The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Go
 - Each suggestion is something to **review** — the assistant never acts on its own. You decide what to do with it.
 - Suggestions are generated about **once per day**; the scan runs automatically in the background while the app is open.
 - Requires **Google Workspace** to be connected (see [Google Workspace](#google-workspace)) for the email/schedule sections. Without it, the assistant still shows your tasks, approvals, and Odoo data.
+
+---
+
+## Workrooms
+
+A **Workroom** is a persistent co-work space you share with Little Gerry — built for work that spans days or weeks, like a regulatory submission, an audit prep, or a fundraise.
+
+- **Create a room** from the Workrooms satellite next to the sun (or the Workrooms section in the chat sidebar). Give it a title and a **goal** — what you're working toward.
+- **Pin artifacts** to the room: Drive docs, Knowledge Base documents, generated files, notes, email threads, tasks, Odoo records, and regulatory documents. Each pin has a label and an optional reference/ID.
+- **Enter the room** to chat — every room has its own conversation, and every message you send there automatically carries the room's goal, pinned items, and recent progress. No re-explaining context each session.
+- **Log progress** in the room's journal ("Sent draft to Lindsey for review"). The latest entries travel with the room chat, so Gerry always knows where things stand.
+- **Archive** a room when the work wraps up — archived rooms stop injecting context but keep their history; restore them anytime.
 
 ---
 
