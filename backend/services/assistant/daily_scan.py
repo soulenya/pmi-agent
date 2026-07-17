@@ -260,6 +260,16 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         "skipped": None,
     }
 
+    # Workroom daily automations (digest + proactive to-dos) run BEFORE the
+    # Google gate — rooms work even without a connected Google account.
+    try:
+        from services.workroom_daily import run_workroom_daily
+
+        wr = await run_workroom_daily(db)
+        summary["notifications"].extend(wr.get("notifications", []))
+    except Exception:  # noqa: BLE001 — room automations must never block the scan
+        logger.exception("Workroom daily automations failed")
+
     try:
         creds = gs.get_credentials()
     except Exception:

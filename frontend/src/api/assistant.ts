@@ -4,7 +4,8 @@ export type SuggestionKind =
   | "followup_email"
   | "followup_task"
   | "task_recommendation"
-  | "meeting_import";
+  | "meeting_import"
+  | "workroom_todo";
 
 export type SuggestionStatus = "pending" | "accepted" | "dismissed";
 

@@ -332,11 +332,30 @@ async def execute_manage_scheduled_task(ctx: "ToolContext", args: dict[str, Any]
             minute=int(args.get("minute", 0)),
             enabled=True,
         )
+        # Created from inside a workroom conversation → standing ROOM task:
+        # runs post into the room chat and journal automatically.
+        room_note = ""
+        try:
+            from services.workroom_context import get_workroom_for_conversation
+
+            room = await get_workroom_for_conversation(ctx.db, ctx.conversation_id)
+            if room is not None:
+                task.workroom_id = room.id
+                room_note = f' (standing task in workroom "{room.title}")'
+        except Exception:  # noqa: BLE001 — room binding is best-effort
+            pass
         task.next_run_at = compute_next_run(
-            task.frequency, task.day_of_week, task.day_of_month, task.hour, task.minute
+            frequency=task.frequency,
+            hour=task.hour,
+            minute=task.minute,
+            day_of_week=task.day_of_week,
+            day_of_month=task.day_of_month,
         )
         ctx.db.add(task)
-        return f"Scheduled task '{task.title}' created ({frequency}, next run {task.next_run_at:%Y-%m-%d %H:%M})."
+        return (
+            f"Scheduled task '{task.title}' created ({frequency}, next run "
+            f"{task.next_run_at:%Y-%m-%d %H:%M}){room_note}."
+        )
 
     task_id = _parse_uuid(args.get("task_id"))
     if task_id is None:

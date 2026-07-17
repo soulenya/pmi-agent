@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.31 — 2026-07-17
+**Workrooms Phase 3 — Gerry works between sessions**
+
+- **Standing room tasks:** `scheduled_tasks.workroom_id` (migration 015). Room-bound tasks run inside the room's conversation — inheriting the WORKROOM CONTEXT block — and journal each successful run. Creatable from the Scheduled Tasks page (new Workroom dropdown) or by asking Gerry inside the room (`manage_scheduled_task` auto-binds; also fixed its pre-existing keyword-only `compute_next_run` crash).
+- **Morning room digest** (`services/workroom_daily.py`): once per local day per active room — pinned Drive docs edited in the last 24h (metadata-only calls), tasks due/overdue (pinned refs + room-born tasks), journal activity → one assistant message in the room chat + journal entry + notification. Deterministic, no LLM. Runs from the daily assistant scan BEFORE the Google gate, so rooms work without Google.
+- **Proactive to-dos:** the configured LLM reviews each room (goal, pins, journal, latest chat) and proposes ≤2 next steps as `workroom_todo` suggestions with the standard accept/dismiss flow + dismissal suppression. Accepting creates a task, pins it to the room, and journals it. Surfaced in the Daily Assistant and in a new "Suggested next steps" section on the room page.
+
 ### v3.2.30 — 2026-07-17
 **Workrooms Phase 2 — working in the room**
 

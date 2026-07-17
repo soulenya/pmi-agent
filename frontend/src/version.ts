@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 151;
+export const BUILD_NUMBER = 152;
 export const BUILD_DATE = "2026-07-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 152,
+    date: "2026-07-17",
+    title: "Gerry works between sessions — Workrooms Phase 3",
+    changes: [
+      "Standing room tasks: bind a scheduled task to a workroom (or just ask Gerry in the room — 'check for new FDA guidance every morning') and each run happens inside the room chat with full room context, logged to the journal",
+      "Morning room digest: every day each active room gets a summary of pinned documents edited since yesterday, deadlines approaching, and progress logged — posted right into the room chat",
+      "Proactive next steps: Gerry reviews each room's goal, pins, journal and chat daily and proposes up to two concrete next steps — accept one to create a task (pinned to the room), or dismiss it",
+      "Suggested next steps and standing tasks now appear on the room page; next steps also appear in the Daily Assistant",
+    ],
+  },
   {
     build: 151,
     date: "2026-07-17",
