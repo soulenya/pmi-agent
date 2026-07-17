@@ -108,3 +108,98 @@ async def build_workroom_context(db: AsyncSession, conversation_id) -> str:
     except Exception:  # noqa: BLE001 — context must never break a turn
         logger.exception("Failed to build workroom context for %s", conversation_id)
         return ""
+
+
+# ── Phase 2 helpers — used by agent tools and auto-journal hooks ─────────
+
+
+async def list_active_workrooms(db: AsyncSession, user_id: uuid.UUID) -> list[Workroom]:
+    return list(
+        (
+            await db.execute(
+                select(Workroom)
+                .where(Workroom.user_id == user_id, Workroom.status == "active")
+                .order_by(desc(Workroom.updated_at))
+            )
+        ).scalars()
+    )
+
+
+async def resolve_workroom(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    conversation_id,
+    title_hint: str = "",
+) -> tuple[Workroom | None, list[str]]:
+    """Find the target workroom: by title hint if given, else the room bound
+    to this conversation. Returns (room, active_room_titles) — titles let the
+    caller compose a helpful error when no room matches."""
+    rooms = await list_active_workrooms(db, user_id)
+    titles = [r.title for r in rooms]
+    hint = title_hint.strip().lower()
+    if hint:
+        for r in rooms:
+            if hint == r.title.lower():
+                return r, titles
+        for r in rooms:
+            if hint in r.title.lower() or r.title.lower() in hint:
+                return r, titles
+        return None, titles
+    return await get_workroom_for_conversation(db, conversation_id), titles
+
+
+async def pin_workroom_item(
+    db: AsyncSession,
+    room: Workroom,
+    kind: str,
+    label: str,
+    ref_id: str = "",
+) -> tuple[WorkroomItem, bool]:
+    """Pin an item, deduplicating on kind + ref_id (or label when no ref).
+    Returns (item, created)."""
+    stmt = select(WorkroomItem).where(
+        WorkroomItem.workroom_id == room.id, WorkroomItem.kind == kind
+    )
+    if ref_id:
+        stmt = stmt.where(WorkroomItem.ref_id == ref_id)
+    else:
+        stmt = stmt.where(WorkroomItem.label == label)
+    existing = (await db.execute(stmt)).scalars().first()
+    if existing is not None:
+        return existing, False
+    item = WorkroomItem(workroom_id=room.id, kind=kind, ref_id=ref_id, label=label)
+    db.add(item)
+    await db.flush()
+    return item, True
+
+
+async def add_journal_entry(
+    db: AsyncSession, room: Workroom, entry: str
+) -> WorkroomJournalEntry:
+    j = WorkroomJournalEntry(workroom_id=room.id, entry=entry.strip())
+    db.add(j)
+    await db.flush()
+    return j
+
+
+async def log_room_event(db: AsyncSession, conversation_id, entry: str) -> None:
+    """Auto-journal a significant action IF this conversation is a workroom.
+    Silent no-op otherwise; never raises."""
+    try:
+        room = await get_workroom_for_conversation(db, conversation_id)
+        if room is not None:
+            await add_journal_entry(db, room, entry)
+    except Exception:  # noqa: BLE001 — journaling must never break a tool
+        logger.exception("Failed to auto-journal room event for %s", conversation_id)
+
+
+async def auto_pin_if_room(
+    db: AsyncSession, conversation_id, kind: str, label: str, ref_id: str = ""
+) -> None:
+    """Auto-pin an artifact IF this conversation is a workroom. Never raises."""
+    try:
+        room = await get_workroom_for_conversation(db, conversation_id)
+        if room is not None:
+            await pin_workroom_item(db, room, kind, label, ref_id)
+    except Exception:  # noqa: BLE001 — pinning must never break a tool
+        logger.exception("Failed to auto-pin room item for %s", conversation_id)

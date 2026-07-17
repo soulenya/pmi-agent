@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 150;
+export const BUILD_NUMBER = 151;
 export const BUILD_DATE = "2026-07-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 151,
+    date: "2026-07-17",
+    title: "Working in the room — Gerry pins, lists, and logs",
+    changes: [
+      "Gerry can now pin artifacts to a workroom herself (add_to_workroom), review what's pinned (list_workroom_items), and log progress to the room journal (log_workroom_progress) — just ask her in chat",
+      "Files Gerry creates in a room conversation are pinned automatically, KB imports auto-pin, and following a Drive doc pins it — the room remembers its documents",
+      "Significant room actions (files created, emails drafted, docs imported) are journaled automatically — a growing timeline of what you've done together",
+      "Chat file cards gain a Pin to Room button — one click inside a room, or pick a room from anywhere else",
+    ],
+  },
   {
     build: 150,
     date: "2026-07-17",

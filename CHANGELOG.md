@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.2.30 — 2026-07-17
+**Workrooms Phase 2 — working in the room**
+
+- **Room tools for Gerry (both engines, all eight v2 agents):** `add_to_workroom` (pin any of the eight artifact kinds; fuzzy `workroom_title` targeting from outside the room; dedup on kind+ref), `list_workroom_items` (goal + pins + last 10 journal entries), `log_workroom_progress` (one-sentence journal entries). Room resolution errors list the active room titles.
+- **Auto-pin + auto-journal hooks** in `generate_file`, `create_docx` (generated_file pins + journal), `add_to_knowledge_base` (kb_doc pin + journal), `create_email_draft` (journal), `follow_drive_document` (drive_doc pin — the room remembers its followed doc). All best-effort via `auto_pin_if_room` / `log_room_event`, silent no-ops outside rooms.
+- **Chat file cards:** new **Pin to Room** button — pins directly inside a room conversation, offers a room picker elsewhere; **Add to KB from a room auto-pins** the KB doc to that room.
+
 ### v3.2.29 — 2026-07-17
 **Workrooms — persistent co-work spaces with Gerry (Phase 1)**
 

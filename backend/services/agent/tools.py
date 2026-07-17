@@ -865,6 +865,95 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "add_to_workroom",
+            "description": (
+                "Pin an artifact to a Workroom (persistent co-work space) so it is "
+                "carried into every future conversation turn in that room. Use when "
+                "the user says to pin/add/keep something in the room, or when an "
+                "artifact is clearly central to the room's goal. In a room "
+                "conversation the current room is used automatically; otherwise (or "
+                "to target another room) pass workroom_title."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "drive_doc", "kb_doc", "generated_file", "note",
+                            "email_thread", "task", "odoo_record", "regulatory_doc",
+                        ],
+                        "description": "Artifact kind. Use 'note' for plain facts/decisions worth keeping.",
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Short human-readable label, e.g. 'QMS Manual draft'. For notes, the note text itself.",
+                    },
+                    "ref_id": {
+                        "type": "string",
+                        "description": "Reference: Drive file ID, KB document id, generated filename, Gmail thread id, task id, etc. Omit for notes.",
+                    },
+                    "workroom_title": {
+                        "type": "string",
+                        "description": "Target room title (fuzzy matched). Omit inside a room conversation.",
+                    },
+                },
+                "required": ["kind", "label"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_workroom_items",
+            "description": (
+                "List a Workroom's goal, pinned artifacts, and recent journal "
+                "entries. In a room conversation the current room is used "
+                "automatically; otherwise pass workroom_title (or omit to see "
+                "which rooms exist)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "workroom_title": {
+                        "type": "string",
+                        "description": "Room title (fuzzy matched). Omit inside a room conversation.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "log_workroom_progress",
+            "description": (
+                "Append a progress entry to a Workroom's journal — a shared "
+                "timeline of what you and the user have accomplished. Log when a "
+                "milestone is reached, a decision is made, or the user asks you to "
+                "note progress. Keep entries to one crisp sentence. In a room "
+                "conversation the current room is used automatically."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "entry": {
+                        "type": "string",
+                        "description": "One-sentence progress note, e.g. 'Finished section 4 of the risk analysis'.",
+                    },
+                    "workroom_title": {
+                        "type": "string",
+                        "description": "Target room title (fuzzy matched). Omit inside a room conversation.",
+                    },
+                },
+                "required": ["entry"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "generate_file",
             "description": (
                 "Generate a downloadable file and save it to the server. "
@@ -1334,6 +1423,13 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
     ctx.db.add(draft)
     await ctx.db.flush()
     await ctx.db.refresh(draft)
+
+    from services.workroom_context import log_room_event
+    await log_room_event(
+        ctx.db, ctx.conversation_id,
+        f"Gerry drafted email: \"{subject}\""
+        + (f" to {recipient_name or recipient_email}" if (recipient_name or recipient_email) else ""),
+    )
 
     to_str = ""
     if recipient_name or recipient_email:
@@ -1849,6 +1945,8 @@ async def execute_follow_drive_document(ctx: ToolContext, args: dict[str, Any]) 
     name = result.get("name") or "document"
     url = result.get("url") or ""
     await set_followed_doc(ctx.db, ctx.conversation_id, file_id, name, url)
+    from services.workroom_context import auto_pin_if_room
+    await auto_pin_if_room(ctx.db, ctx.conversation_id, "drive_doc", name, file_id)
     content = (result.get("content") or "").strip()
     preview = content[:2000] + ("…" if len(content) > 2000 else "")
     return (
@@ -1930,6 +2028,12 @@ async def execute_add_to_knowledge_base(ctx: ToolContext, args: dict[str, Any]) 
     except Exception as exc:  # noqa: BLE001
         return f"Knowledge Base import failed: {exc}"
 
+    from services.workroom_context import auto_pin_if_room, log_room_event
+    await auto_pin_if_room(ctx.db, ctx.conversation_id, "kb_doc", doc.title, str(doc.id))
+    await log_room_event(
+        ctx.db, ctx.conversation_id, f'Imported "{doc.title}" into the Knowledge Base'
+    )
+
     return (
         f"Added to the Knowledge Base: \"{doc.title}\" [id={doc.id}"
         + (f", category={category}" if category else "")
@@ -1952,6 +2056,122 @@ async def execute_check_drive_backup_status(ctx: ToolContext, _args: dict[str, A
     from services.backup_monitor import get_backup_status
 
     return await get_backup_status(ctx.db)
+
+
+# ── Workroom tools ────────────────────────────────────────────────────────────
+
+_WORKROOM_KINDS = (
+    "drive_doc", "kb_doc", "generated_file", "note",
+    "email_thread", "task", "odoo_record", "regulatory_doc",
+)
+
+
+async def _resolve_room_or_error(ctx: ToolContext, args: dict[str, Any]):
+    """Shared resolution: (room, None) on success, (None, error_message) otherwise."""
+    from services.workroom_context import resolve_workroom
+
+    title_hint = str(args.get("workroom_title", "")).strip()
+    room, titles = await resolve_workroom(
+        ctx.db, ctx.user_id, ctx.conversation_id, title_hint
+    )
+    if room is not None:
+        return room, None
+    if not titles:
+        return None, (
+            "No workrooms exist yet. The user can create one from the Workrooms "
+            "page (satellite next to the sun)."
+        )
+    listing = "; ".join(f'"{t}"' for t in titles)
+    if title_hint:
+        return None, (
+            f'No workroom matches "{title_hint}". Active rooms: {listing}. '
+            "Call again with one of these titles."
+        )
+    return None, (
+        "This conversation is not inside a workroom. Pass workroom_title to "
+        f"target one of the active rooms: {listing}."
+    )
+
+
+async def execute_add_to_workroom(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services.workroom_context import pin_workroom_item
+
+    kind = str(args.get("kind", "")).strip().lower()
+    label = str(args.get("label", "")).strip()
+    ref_id = str(args.get("ref_id", "")).strip()
+    if kind not in _WORKROOM_KINDS:
+        return f"Error: kind must be one of: {', '.join(_WORKROOM_KINDS)}."
+    if not label:
+        return "Error: label is required."
+    room, err = await _resolve_room_or_error(ctx, args)
+    if err:
+        return err
+    item, created = await pin_workroom_item(ctx.db, room, kind, label, ref_id)
+    if not created:
+        return f'Already pinned in "{room.title}": [{kind}] {item.label}.'
+    return (
+        f'Pinned to workroom "{room.title}": [{kind}] {label}'
+        + (f" (ref: {ref_id})" if ref_id else "")
+        + ". It will appear in the room's context every turn."
+    )
+
+
+async def execute_list_workroom_items(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from sqlalchemy import desc as _desc, select as _select
+
+    from models.db.workroom import WorkroomItem, WorkroomJournalEntry
+
+    room, err = await _resolve_room_or_error(ctx, args)
+    if err:
+        return err
+    items = list(
+        (
+            await ctx.db.execute(
+                _select(WorkroomItem)
+                .where(WorkroomItem.workroom_id == room.id)
+                .order_by(WorkroomItem.created_at)
+            )
+        ).scalars()
+    )
+    journal = list(
+        (
+            await ctx.db.execute(
+                _select(WorkroomJournalEntry)
+                .where(WorkroomJournalEntry.workroom_id == room.id)
+                .order_by(_desc(WorkroomJournalEntry.created_at))
+                .limit(10)
+            )
+        ).scalars()
+    )
+    lines = [f'Workroom "{room.title}"']
+    if room.goal.strip():
+        lines.append(f"Goal: {room.goal.strip()}")
+    if items:
+        lines.append(f"Pinned items ({len(items)}):")
+        for it in items:
+            ref = f" (ref: {it.ref_id})" if it.ref_id else ""
+            lines.append(f"- [{it.kind}] {it.label}{ref}")
+    else:
+        lines.append("No items pinned yet.")
+    if journal:
+        lines.append("Recent journal (newest first):")
+        for j in journal:
+            stamp = j.created_at.strftime("%Y-%m-%d") if j.created_at else ""
+            lines.append(f"- {stamp}: {j.entry}")
+    return "\n".join(lines)
+
+
+async def execute_log_workroom_progress(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services.workroom_context import add_journal_entry
+
+    entry = str(args.get("entry", "")).strip()
+    if not entry:
+        return "Error: entry is required — one sentence describing the progress."
+    room, err = await _resolve_room_or_error(ctx, args)
+    if err:
+        return err
+    await add_journal_entry(ctx.db, room, entry)
+    return f'Logged to "{room.title}" journal: {entry}'
 
 
 async def execute_get_calendar_events(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -2169,6 +2389,9 @@ async def execute_generate_file(ctx: ToolContext, args: dict[str, Any]) -> str:
     written = out_path.stat().st_size
     if content and written == 0:
         return "Error: file was created empty despite having content. Treat as failed."
+    from services.workroom_context import auto_pin_if_room, log_room_event
+    await auto_pin_if_room(ctx.db, ctx.conversation_id, "generated_file", filename, safe_name)
+    await log_room_event(ctx.db, ctx.conversation_id, f"Gerry generated file: {filename}")
     return f"File created and verified ({written} bytes): /api/files/{safe_name}"
 
 
@@ -2410,6 +2633,9 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         docx.Document(str(out_path))  # re-open to prove it's a valid .docx
     except Exception as exc:  # noqa: BLE001 — report a corrupt write honestly
         return f"Error: Word document was written but is not a valid file ({exc}). Treat as failed."
+    from services.workroom_context import auto_pin_if_room, log_room_event
+    await auto_pin_if_room(ctx.db, ctx.conversation_id, "generated_file", filename, safe_name)
+    await log_room_event(ctx.db, ctx.conversation_id, f"Gerry created Word document: {filename}")
     return (
         f"Word document created and verified ({out_path.stat().st_size} bytes): "
         f"/api/files/{safe_name}"
@@ -2502,6 +2728,9 @@ TOOL_EXECUTORS = {
     "add_to_knowledge_base": execute_add_to_knowledge_base,
     "check_drive_backup_status": execute_check_drive_backup_status,
     "get_file_template": execute_get_file_template,
+    "add_to_workroom": execute_add_to_workroom,
+    "list_workroom_items": execute_list_workroom_items,
+    "log_workroom_progress": execute_log_workroom_progress,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
     "add_contacts": execute_add_contacts,
@@ -2537,6 +2766,9 @@ _PRIMARY_ARG = {
     "follow_drive_document": "file_id",
     "add_to_knowledge_base": "drive_file_id",
     "get_file_template": "file_type",
+    "add_to_workroom": "label",
+    "list_workroom_items": "workroom_title",
+    "log_workroom_progress": "entry",
     "list_drive_folder": "folder_id",
     "read_google_sheet": "spreadsheet_id",
 }
