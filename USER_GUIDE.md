@@ -241,6 +241,7 @@ A **Workroom** is a persistent co-work space you share with Little Gerry — bui
 
 - **Create a room** from the Workrooms satellite next to the sun (or the Workrooms section in the chat sidebar). Give it a title and a **goal** — what you're working toward.
 - **Pin artifacts** to the room: Drive docs, Knowledge Base documents, generated files, notes, email threads, tasks, Odoo records, and regulatory documents. Each pin has a label and an optional reference/ID.
+- **Gerry works the room too**: ask her to pin something ("pin that SOP to this room") or log progress ("note that we finished section 4") — and files she creates, docs she imports to the KB, and Drive docs she follows inside the room are **pinned and journaled automatically**. File cards in chat also get a **Pin to Room** button.
 - **Enter the room** to chat — every room has its own conversation, and every message you send there automatically carries the room's goal, pinned items, and recent progress. No re-explaining context each session.
 - **Log progress** in the room's journal ("Sent draft to Lindsey for review"). The latest entries travel with the room chat, so Gerry always knows where things stand.
 - **Archive** a room when the work wraps up — archived rooms stop injecting context but keep their history; restore them anytime.

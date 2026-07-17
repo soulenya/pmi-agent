@@ -2,6 +2,7 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types/chat";
 import {
@@ -15,12 +16,14 @@ import {
   BookPlus,
   Loader2,
   FileText,
+  Pin,
 } from "lucide-react";
 import {
   getFileDownloadUrl,
   moveGeneratedFileToKB,
   openGeneratedFileInWorkspace,
 } from "@/api/files";
+import { addWorkroomItem, listWorkrooms } from "@/api/workrooms";
 import { useToastStore } from "@/stores/toastStore";
 
 // Import a highlight.js theme (dark-compatible)
@@ -52,13 +55,50 @@ function extractFileLinks(content: string): string[] {
   return matches;
 }
 
-function FileActionCard({ filename }: { filename: string }) {
+function FileActionCard({ filename, conversationId }: { filename: string; conversationId?: string }) {
   const displayName = filename
     .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[-_]/, "")
     .replace(/^[0-9a-f]{8}_/, "");
   const push = useToastStore((s) => s.push);
-  const [busy, setBusy] = useState<"" | "workspace" | "kb">("");
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState<"" | "workspace" | "kb" | "pin">("");
   const [kbDone, setKbDone] = useState(false);
+  const [pinDone, setPinDone] = useState(false);
+  const [showRoomPicker, setShowRoomPicker] = useState(false);
+
+  const { data: rooms = [] } = useQuery({
+    queryKey: ["workrooms", false],
+    queryFn: () => listWorkrooms(false),
+    staleTime: 60_000,
+  });
+  const currentRoom = conversationId
+    ? rooms.find((r) => r.conversation_id === conversationId)
+    : undefined;
+
+  const pinToRoom = async (roomId: string, roomTitle: string, kind: "generated_file" | "kb_doc" = "generated_file") => {
+    setBusy("pin");
+    setShowRoomPicker(false);
+    try {
+      await addWorkroomItem(roomId, { kind, ref_id: filename, label: displayName });
+      setPinDone(true);
+      qc.invalidateQueries({ queryKey: ["workroom", roomId] });
+      push("success", `Pinned to "${roomTitle}"`);
+    } catch {
+      push("error", "Couldn't pin to the workroom.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const onPinClick = () => {
+    if (currentRoom) {
+      void pinToRoom(currentRoom.id, currentRoom.title);
+    } else if (rooms.length === 0) {
+      push("info", "No workrooms yet — create one from the Workrooms page.");
+    } else {
+      setShowRoomPicker((v) => !v);
+    }
+  };
 
   const openInWorkspace = async () => {
     setBusy("workspace");
@@ -80,6 +120,15 @@ function FileActionCard({ filename }: { filename: string }) {
       await moveGeneratedFileToKB(filename, title, true /* keep the file */);
       setKbDone(true);
       push("success", `Added to the Knowledge Base: ${title}`);
+      // KB imports from a room conversation auto-pin to that room.
+      if (currentRoom) {
+        try {
+          await addWorkroomItem(currentRoom.id, { kind: "kb_doc", ref_id: "", label: title });
+          qc.invalidateQueries({ queryKey: ["workroom", currentRoom.id] });
+        } catch {
+          /* pin is best-effort */
+        }
+      }
     } catch (e) {
       const resp = (e as { response?: { status?: number; data?: { detail?: { message?: string } | string } } })
         ?.response;
@@ -135,7 +184,34 @@ function FileActionCard({ filename }: { filename: string }) {
           )}
           {kbDone ? "In Knowledge Base" : "Add to KB"}
         </button>
+        <button
+          type="button"
+          onClick={onPinClick}
+          disabled={busy !== "" || pinDone}
+          className={btn}
+        >
+          {busy === "pin" ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Pin className="h-3 w-3" />
+          )}
+          {pinDone ? "Pinned" : currentRoom ? "Pin to Room" : "Pin to Workroom"}
+        </button>
       </div>
+      {showRoomPicker && !pinDone && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {rooms.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => void pinToRoom(r.id, r.title)}
+              className={btn}
+            >
+              {r.title}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -227,7 +303,9 @@ export function MessageBubble({ message, compact = false }: Props) {
         )}
 
         {/* File download cards */}
-        {fileLinks.map((f) => <FileActionCard key={f} filename={f} />)}
+        {fileLinks.map((f) => (
+          <FileActionCard key={f} filename={f} conversationId={message.conversation_id} />
+        ))}
 
         {/* Tool calls (persisted) */}
         {isAssistant && message.tool_calls && message.tool_calls.length > 0 && (

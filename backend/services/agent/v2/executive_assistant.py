@@ -61,6 +61,9 @@ _TOOLS = [
     "unfollow_drive_document",
     "add_to_knowledge_base",
     "check_drive_backup_status",
+    "add_to_workroom",
+    "list_workroom_items",
+    "log_workroom_progress",
     "get_file_template",
     "generate_file",
 ]
