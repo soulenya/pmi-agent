@@ -13,6 +13,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
   ArchiveRestore,
+  CalendarClock,
+  Check,
+  Lightbulb,
   Loader2,
   MessageSquare,
   NotebookPen,
@@ -33,6 +36,12 @@ import {
   updateWorkroom,
   type WorkroomItemKind,
 } from "@/api/workrooms";
+import { listScheduledTasks } from "@/api/scheduledTasks";
+import {
+  acceptSuggestion,
+  dismissSuggestion,
+  listSuggestions,
+} from "@/api/assistant";
 import { cn } from "@/lib/utils";
 
 const KIND_OPTIONS = Object.entries(ITEM_KIND_LABELS) as [WorkroomItemKind, string][];
@@ -263,6 +272,40 @@ function RoomDetail({
     },
   });
 
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+
+  // Standing tasks bound to this room (scheduled tasks with workroom_id).
+  const { data: allScheduled = [] } = useQuery({
+    queryKey: ["scheduled-tasks"],
+    queryFn: listScheduledTasks,
+    staleTime: 30_000,
+  });
+  const standingTasks = allScheduled.filter((t) => t.workroom_id === room.id);
+
+  // Proactive next steps proposed by Gerry for this room.
+  const { data: pendingTodos = [] } = useQuery({
+    queryKey: ["assistant-suggestions", "workroom_todo"],
+    queryFn: () => listSuggestions({ status: "pending", kind: "workroom_todo" }),
+    staleTime: 30_000,
+  });
+  const roomTodos = pendingTodos.filter(
+    (s) => (s.payload as { workroom_id?: string })?.workroom_id === room.id,
+  );
+  const [todoBusy, setTodoBusy] = useState<string | null>(null);
+
+  const resolveTodo = async (id: string, action: "accept" | "dismiss") => {
+    setTodoBusy(id);
+    try {
+      if (action === "accept") await acceptSuggestion(id);
+      else await dismissSuggestion(id);
+      qc.invalidateQueries({ queryKey: ["assistant-suggestions"] });
+      onChanged();
+    } finally {
+      setTodoBusy(null);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
@@ -394,6 +437,88 @@ function RoomDetail({
             {addItemMutation.isPending ? "Pinning…" : "Pin"}
           </button>
         </div>
+      </section>
+
+      {/* Suggested next steps — proactive to-dos from the daily room scan */}
+      {roomTodos.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <Lightbulb className="h-4 w-4" />
+            Suggested next steps
+          </h3>
+          <ul className="space-y-1">
+            {roomTodos.map((s) => (
+              <li
+                key={s.id}
+                className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+              >
+                <div className="flex-1">
+                  <div>{s.title.replace(/^\[[^\]]*\]\s*/, "")}</div>
+                  {s.summary && (
+                    <div className="text-xs text-muted-foreground">{s.summary}</div>
+                  )}
+                </div>
+                <button
+                  onClick={() => void resolveTodo(s.id, "accept")}
+                  disabled={todoBusy !== null}
+                  className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+                  title="Create a task from this"
+                >
+                  {todoBusy === s.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Check className="h-3 w-3" />
+                  )}
+                  Create task
+                </button>
+                <button
+                  onClick={() => void resolveTodo(s.id, "dismiss")}
+                  disabled={todoBusy !== null}
+                  className="rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
+                >
+                  Dismiss
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Standing tasks — scheduled tasks bound to this room */}
+      <section className="space-y-2">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <CalendarClock className="h-4 w-4" />
+          Standing tasks
+          <button
+            onClick={() => navigate("/scheduled-tasks")}
+            className="ml-auto text-xs font-normal text-muted-foreground hover:text-foreground"
+          >
+            Manage
+          </button>
+        </h3>
+        {standingTasks.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            None yet. Create a scheduled task and pick this room — or just ask
+            Gerry in the room chat (e.g. "check for new FDA guidance every
+            morning"). Runs post into the room chat and journal.
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {standingTasks.map((t) => (
+              <li
+                key={t.id}
+                className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+              >
+                <span className="flex-1 truncate">{t.title}</span>
+                <span className="text-xs text-muted-foreground">
+                  {t.frequency}
+                  {t.enabled ? "" : " · disabled"}
+                  {t.last_run_status ? ` · last run: ${t.last_run_status}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* Journal */}

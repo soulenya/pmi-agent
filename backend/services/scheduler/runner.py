@@ -98,10 +98,28 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
     conv_repo = ConversationRepository(db)
     msg_repo = MessageRepository(db)
 
+    # Standing room task — run inside the workroom's conversation so the agent
+    # inherits the WORKROOM CONTEXT block (goal, pins, journal) and the results
+    # land in the room chat.
+    room = None
+    if task.workroom_id:
+        from models.db.workroom import Workroom
+
+        room = (
+            await db.execute(
+                select(Workroom).where(
+                    Workroom.id == task.workroom_id,
+                    Workroom.status == "active",
+                )
+            )
+        ).scalar_one_or_none()
+
     # Reuse a single conversation per task so its run history accumulates in one
     # place the user can open in chat; create it on first run.
     conv = None
-    if task.conversation_id:
+    if room is not None and room.conversation_id:
+        conv = await conv_repo.get(room.conversation_id, task.user_id)
+    if conv is None and task.conversation_id:
         conv = await conv_repo.get(task.conversation_id, task.user_id)
     if conv is None:
         conv = await conv_repo.create(
@@ -134,6 +152,17 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
         logger.exception("Scheduled task %s failed", task.id)
         status = "failed"
         output = f"Run failed: {exc}"
+
+    # Standing room task — journal the run so the room timeline stays complete.
+    if room is not None and status == "success":
+        try:
+            from services.workroom_context import add_journal_entry
+
+            await add_journal_entry(
+                db, room, f'Standing task "{task.title}" ran — results in the room chat'
+            )
+        except Exception:  # noqa: BLE001 — journaling must never fail the run
+            logger.exception("Failed to journal standing task run for %s", task.id)
 
     # Record outcome + reschedule.
     now = datetime.now()

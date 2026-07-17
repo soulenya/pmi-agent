@@ -60,6 +60,13 @@ const KIND_META: Record<
     dismiss: "Remove",
     tint: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300",
   },
+  workroom_todo: {
+    label: "Workroom next step",
+    icon: CheckSquare,
+    accept: "Create task",
+    dismiss: "Dismiss",
+    tint: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+  },
 };
 
 function SuggestionCard({

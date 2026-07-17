@@ -43,6 +43,7 @@ class ScheduledTaskOut(BaseModel):
     last_run_status: str | None = None
     last_run_output: str | None = None
     conversation_id: uuid.UUID | None = None
+    workroom_id: uuid.UUID | None = None
     run_count: int
     created_at: datetime
     updated_at: datetime
@@ -60,6 +61,7 @@ class ScheduledTaskCreate(BaseModel):
     hour: int = Field(default=8, ge=0, le=23)
     minute: int = Field(default=0, ge=0, le=59)
     enabled: bool = True
+    workroom_id: uuid.UUID | None = None
 
 
 class ScheduledTaskUpdate(BaseModel):
@@ -71,6 +73,7 @@ class ScheduledTaskUpdate(BaseModel):
     hour: int | None = Field(default=None, ge=0, le=23)
     minute: int | None = Field(default=None, ge=0, le=59)
     enabled: bool | None = None
+    workroom_id: uuid.UUID | None = None
 
 
 # ── helpers ───────────────────────────────────────────────────────────────
@@ -96,6 +99,24 @@ async def _get_owned(
     if row is None:
         raise HTTPException(404, "Scheduled task not found")
     return row
+
+
+async def _validate_workroom(
+    db: AsyncSession, workroom_id: uuid.UUID | None, user: User
+) -> None:
+    if workroom_id is None:
+        return
+    from models.db.workroom import Workroom
+
+    room = (
+        await db.execute(
+            select(Workroom).where(
+                Workroom.id == workroom_id, Workroom.user_id == user.id
+            )
+        )
+    ).scalar_one_or_none()
+    if room is None:
+        raise HTTPException(404, "Workroom not found")
 
 
 def _recompute(task: ScheduledTask) -> None:
@@ -132,6 +153,7 @@ async def create_scheduled_task(
     user: User = Depends(get_current_user),
 ):
     _validate_frequency(body.frequency)
+    await _validate_workroom(db, body.workroom_id, user)
     task = ScheduledTask(
         user_id=user.id,
         title=body.title.strip(),
@@ -142,6 +164,7 @@ async def create_scheduled_task(
         hour=body.hour,
         minute=body.minute,
         enabled=body.enabled,
+        workroom_id=body.workroom_id,
     )
     if task.enabled:
         _recompute(task)
@@ -162,6 +185,8 @@ async def update_scheduled_task(
     data = body.model_dump(exclude_unset=True)
     if "frequency" in data and data["frequency"] is not None:
         _validate_frequency(data["frequency"])
+    if "workroom_id" in data:
+        await _validate_workroom(db, data["workroom_id"], user)
     for key, value in data.items():
         setattr(task, key, value)
     # Re-derive the next run whenever the schedule or enabled flag changes.

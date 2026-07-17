@@ -55,6 +55,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Pin Drive docs, KB documents, generated files, notes, email threads, tasks, Odoo records and regulatory documents to the room",
       "Every message in the room's chat carries the goal, pinned items and recent progress — no re-explaining context each session",
       "Ask Gerry to pin things or log progress herself — and files she creates, docs she imports and documents she follows in the room are pinned and journaled automatically",
+      "Gerry works between sessions: standing room tasks run on a schedule inside the room, a morning digest reports what changed since yesterday, and Gerry proposes next steps you can accept or dismiss",
       "Log progress in the journal so Gerry (and future you) always knows where things stand",
     ],
   },
