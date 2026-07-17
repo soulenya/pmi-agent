@@ -63,6 +63,14 @@ class ScheduledTask(Base):
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
+    # When set, this is a STANDING ROOM TASK: runs happen inside the workroom's
+    # conversation (inheriting the WORKROOM CONTEXT block) and journal there.
+    workroom_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("workrooms.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     run_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     created_at: Mapped[datetime] = mapped_column(

@@ -17,6 +17,7 @@ export interface ScheduledTask {
   last_run_status: string | null;
   last_run_output: string | null;
   conversation_id: string | null;
+  workroom_id: string | null;
   run_count: number;
   created_at: string;
   updated_at: string;
@@ -31,6 +32,7 @@ export interface ScheduledTaskInput {
   hour: number;
   minute: number;
   enabled?: boolean;
+  workroom_id?: string | null;
 }
 
 export async function listScheduledTasks(): Promise<ScheduledTask[]> {
