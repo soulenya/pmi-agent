@@ -33,6 +33,7 @@ import { ScheduledTasksPage } from "@/pages/ScheduledTasksPage";
 import InvestorPage from "@/pages/InvestorPage";
 import { SolarSystemPage } from "@/pages/SolarSystemPage";
 import { AgentsPage } from "@/pages/AgentsPage";
+import { WorkroomsPage } from "@/pages/WorkroomsPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
 
@@ -89,6 +90,7 @@ function ThemedApp() {
             <Route path="google" element={<ErrorBoundary><GoogleIntegrationPage /></ErrorBoundary>} />
             <Route path="odoo" element={<ErrorBoundary><OdooIntegrationPage /></ErrorBoundary>} />
             <Route path="files" element={<ErrorBoundary><GeneratedFilesPage /></ErrorBoundary>} />
+            <Route path="workrooms" element={<ErrorBoundary><WorkroomsPage /></ErrorBoundary>} />
             <Route path="investor" element={<ErrorBoundary><InvestorPage /></ErrorBoundary>} />
           </Route>
         </Route>

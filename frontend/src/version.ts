@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 149;
-export const BUILD_DATE = "2026-07-16";
+export const BUILD_NUMBER = 150;
+export const BUILD_DATE = "2026-07-17";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 150,
+    date: "2026-07-17",
+    title: "Workrooms — persistent co-work spaces with Gerry",
+    changes: [
+      "Create a Workroom around a goal (a submission, an audit, a fundraise) and work in it across days or weeks — Gerry carries the room's goal, pinned items and recent progress into every message, so you never re-explain context",
+      "Pin anything to a room: Drive docs, knowledge base documents, generated files, notes, email threads, tasks, Odoo records and regulatory documents",
+      "Log progress in the room journal — the latest entries travel with the room's chat so Gerry always knows where things stand",
+      "Find Workrooms as a new satellite orbiting the sun, or jump between rooms from the new Workrooms section in the chat sidebar",
+    ],
+  },
   {
     build: 149,
     date: "2026-07-16",

@@ -491,6 +491,16 @@ class AgentExecutor:
         except Exception:  # noqa: BLE001 — live doc is best-effort context
             logger.exception("Failed to build live document context")
 
+        # Workroom — if this conversation is pinned to a co-work room, inject
+        # the room's goal, pinned artifacts, and recent journal every turn.
+        try:
+            from services.workroom_context import build_workroom_context
+            room_ctx = await build_workroom_context(self.db, self.conversation_id)
+            if room_ctx:
+                messages[0]["content"] += room_ctx
+        except Exception:  # noqa: BLE001 — workroom is best-effort context
+            logger.exception("Failed to build workroom context")
+
         # The most-recent window can begin mid-conversation on an assistant turn;
         # skip leading non-user messages so the conversation starts on a user
         # turn (Anthropic requires the first message to use the user role).
