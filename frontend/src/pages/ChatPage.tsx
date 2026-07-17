@@ -18,6 +18,7 @@ import {
   listMessages,
   updateConversation,
 } from "@/api/chat";
+import { listWorkrooms } from "@/api/workrooms";
 import { getSettings } from "@/api/settings";
 import { deleteDocument } from "@/api/documents";
 import { speakText } from "@/api/voice";
@@ -287,6 +288,12 @@ export function ChatPage() {
   const { data: conversations = [] } = useQuery({
     queryKey: ["conversations"],
     queryFn: listConversations,
+  });
+
+  // Active workrooms — shown as a pinned section above the conversation list.
+  const { data: workrooms = [] } = useQuery({
+    queryKey: ["workrooms", false],
+    queryFn: () => listWorkrooms(false),
   });
 
   // â”€â”€ Messages for active conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -605,6 +612,37 @@ export function ChatPage() {
           <PlusCircle className="h-4 w-4" />
           New conversation
         </button>
+
+        {workrooms.length > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between px-1 pt-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Workrooms
+              </span>
+              <button
+                onClick={() => navigate("/workrooms")}
+                className="text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                Manage
+              </button>
+            </div>
+            {workrooms.map((w) => (
+              <button
+                key={w.id}
+                onClick={() => w.conversation_id && navigate(`/chat/${w.conversation_id}`)}
+                disabled={!w.conversation_id}
+                className={cn(
+                  "w-full truncate rounded-md px-3 py-1.5 text-left text-sm transition-colors",
+                  w.conversation_id === conversationId ? "bg-accent" : "hover:bg-accent/50",
+                )}
+                title={w.goal || w.title}
+              >
+                {w.title}
+              </button>
+            ))}
+            <div className="border-b pt-1" />
+          </div>
+        )}
 
         <div className="flex-1 space-y-1 overflow-y-auto">
           {conversations.map((c) => (

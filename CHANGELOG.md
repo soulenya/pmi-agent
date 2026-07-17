@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.2.29 — 2026-07-17
+**Workrooms — persistent co-work spaces with Gerry (Phase 1)**
+
+- **New concept:** a Workroom = a goal + pinned artifacts + a dedicated conversation + a progress journal. Chat answers questions; a Workroom *carries work* — Gerry always knows what you're working on, what's pinned, and what's already done, across days and weeks.
+- **Data & API:** migration 014 (`workrooms`, `workroom_items`, `workroom_journal`); full CRUD under `/workrooms`; creating a room also creates its pinned conversation. Eight artifact kinds: drive_doc, kb_doc, generated_file, note, email_thread, task, odoo_record, regulatory_doc.
+- **Context injection (both engines):** `services/workroom_context.py` builds a WORKROOM CONTEXT block (goal, pinned items with refs, five latest journal entries, 4k-char cap) injected every turn in the room's conversation — v1 executor and v2 supervisor, same failure-tolerant pattern as live-doc/company context.
+- **UI:** new Workrooms satellite in the solar system + `/workrooms` page (room list, goal editor, pinned-items rail, journal, "Enter room" opens the room chat) + Workrooms section at the top of the chat sidebar.
+
 ### v3.2.28 — 2026-07-16
 **read_drive_file pagination — no more 30k ceiling on document reviews**
 
