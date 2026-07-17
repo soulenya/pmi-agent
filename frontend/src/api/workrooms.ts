@@ -1,0 +1,110 @@
+import { apiClient } from "./client";
+
+// ── Workrooms — persistent co-work spaces with Gerry ────────────────────────
+
+export type WorkroomItemKind =
+  | "drive_doc"
+  | "kb_doc"
+  | "generated_file"
+  | "note"
+  | "email_thread"
+  | "task"
+  | "odoo_record"
+  | "regulatory_doc";
+
+export const ITEM_KIND_LABELS: Record<WorkroomItemKind, string> = {
+  drive_doc: "Drive doc",
+  kb_doc: "KB document",
+  generated_file: "Generated file",
+  note: "Note",
+  email_thread: "Email thread",
+  task: "Task",
+  odoo_record: "Odoo record",
+  regulatory_doc: "Regulatory doc",
+};
+
+export interface WorkroomItem {
+  id: string;
+  kind: WorkroomItemKind;
+  ref_id: string;
+  label: string;
+  created_at: string;
+}
+
+export interface WorkroomJournalEntry {
+  id: string;
+  entry: string;
+  created_at: string;
+}
+
+export interface Workroom {
+  id: string;
+  title: string;
+  goal: string;
+  status: "active" | "archived";
+  conversation_id: string | null;
+  created_at: string;
+  updated_at: string;
+  item_count: number;
+}
+
+export interface WorkroomDetail extends Workroom {
+  items: WorkroomItem[];
+  journal: WorkroomJournalEntry[];
+}
+
+export async function listWorkrooms(includeArchived = false): Promise<Workroom[]> {
+  const { data } = await apiClient.get<Workroom[]>("/workrooms", {
+    params: { include_archived: includeArchived },
+  });
+  return data;
+}
+
+export async function createWorkroom(title: string, goal: string): Promise<Workroom> {
+  const { data } = await apiClient.post<Workroom>("/workrooms", { title, goal });
+  return data;
+}
+
+export async function getWorkroom(id: string): Promise<WorkroomDetail> {
+  const { data } = await apiClient.get<WorkroomDetail>(`/workrooms/${id}`);
+  return data;
+}
+
+export async function updateWorkroom(
+  id: string,
+  fields: Partial<Pick<Workroom, "title" | "goal" | "status">>,
+): Promise<Workroom> {
+  const { data } = await apiClient.patch<Workroom>(`/workrooms/${id}`, fields);
+  return data;
+}
+
+export async function deleteWorkroom(id: string): Promise<void> {
+  await apiClient.delete(`/workrooms/${id}`);
+}
+
+export async function addWorkroomItem(
+  roomId: string,
+  item: { kind: WorkroomItemKind; ref_id?: string; label: string },
+): Promise<WorkroomItem> {
+  const { data } = await apiClient.post<WorkroomItem>(`/workrooms/${roomId}/items`, {
+    kind: item.kind,
+    ref_id: item.ref_id ?? "",
+    label: item.label,
+  });
+  return data;
+}
+
+export async function removeWorkroomItem(roomId: string, itemId: string): Promise<void> {
+  await apiClient.delete(`/workrooms/${roomId}/items/${itemId}`);
+}
+
+export async function addWorkroomJournal(
+  roomId: string,
+  entry: string,
+): Promise<WorkroomJournalEntry> {
+  const { data } = await apiClient.post<WorkroomJournalEntry>(
+    `/workrooms/${roomId}/journal`,
+    { entry },
+  );
+  return data;
+}

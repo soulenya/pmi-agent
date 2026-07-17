@@ -309,6 +309,14 @@ class LangGraphSupervisor:
         except Exception:
             logger.exception("Failed to build live document context")
 
+        # Workroom — if this conversation is pinned to a co-work room, inject
+        # the room's goal, pinned artifacts, and recent journal every turn.
+        try:
+            from services.workroom_context import build_workroom_context
+            attach_ctx += await build_workroom_context(self.db, self.conversation_id)
+        except Exception:
+            logger.exception("Failed to build workroom context")
+
         # Always-available company facts (fast local-cache read — never hits Drive).
         try:
             from services.company_context import get_company_context
