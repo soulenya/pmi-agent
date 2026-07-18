@@ -81,6 +81,7 @@ class WorkroomOut(BaseModel):
     goal: str
     status: str
     conversation_id: uuid.UUID | None
+    share_file_id: str | None = None
     created_at: datetime
     updated_at: datetime
     item_count: int = 0
@@ -282,3 +283,69 @@ async def add_journal_entry(
     await db.refresh(entry)
     await db.commit()
     return JournalOut.model_validate(entry)
+
+
+# ── Sharing — room manifests on the shared Drive (Phase 4) ────────────────
+
+
+@router.get("/shared/available")
+async def list_shared_rooms(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    from services.workroom_share import ShareError, list_shared_manifests
+
+    try:
+        return await list_shared_manifests(db, current_user.id)
+    except ShareError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.post("/shared/{file_id}/join", response_model=WorkroomOut, status_code=201)
+async def join_shared_room(
+    file_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> WorkroomOut:
+    from services.workroom_share import ShareError, join_shared
+
+    try:
+        room = await join_shared(db, current_user.id, file_id)
+    except ShareError as exc:
+        raise HTTPException(400, str(exc))
+    await db.commit()
+    return WorkroomOut.model_validate(room)
+
+
+@router.post("/{room_id}/share")
+async def share_room(
+    room_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    from services.workroom_share import ShareError, push_room
+
+    room = await _get_owned_room(db, room_id, current_user.id)
+    try:
+        result = await push_room(db, room)
+    except ShareError as exc:
+        raise HTTPException(400, str(exc))
+    await db.commit()
+    return result
+
+
+@router.post("/{room_id}/pull")
+async def pull_shared_room(
+    room_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    from services.workroom_share import ShareError, pull_room
+
+    room = await _get_owned_room(db, room_id, current_user.id)
+    try:
+        result = await pull_room(db, room)
+    except ShareError as exc:
+        raise HTTPException(400, str(exc))
+    await db.commit()
+    return result
