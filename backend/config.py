@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # Shared Drive folder of document templates (see services/file_templates.py).
     # Every doc in it (and its subfolders) is a template.
     file_templates_drive_folder_id: str = "1EFoPDRfAA1RaxRtWEEVj32eGfpeekV0F"
+    # Shared Drive folder where workroom manifests live (see
+    # services/workroom_share.py); a SystemSetting
+    # ("workrooms.share_folder_id_override") overrides it on that machine.
+    workrooms_share_folder_id: str = "1rk-Pg-Ly9cIrHF87Cr7Gnu7-VRUjamT7"
 
     # ── RAG ──────────────────────────────────────────────────────────────────
     chunk_size_tokens: int = 512

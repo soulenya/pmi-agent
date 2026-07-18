@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.2.33 — 2026-07-17
+**Workroom sharing polish — designated company folder + first-visit guide**
+
+- **Manifest folder:** config default `workrooms_share_folder_id` = `1rk-Pg-Ly9cIrHF87Cr7Gnu7-VRUjamT7` (Morgan's designated subfolder). Resolution: SystemSetting `workrooms.share_folder_id_override` → config → find/create fallback. The override key was RENAMED (was `workrooms.share_folder_id`) so any folder id auto-cached by v3.2.32 can't shadow the company folder.
+- **How-to guide:** `WorkroomsGuideDialog` on the Workrooms page — auto-opens on first visit (localStorage `workrooms-guide-seen`), reopenable via the ? icon; explains room context, pinning, journal, between-session automations, and the share/join/push/pull co-working model.
+
 ### v3.2.32 — 2026-07-17
 **Workrooms Phase 4 — shared rooms via Drive manifest**
 

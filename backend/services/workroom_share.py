@@ -29,7 +29,10 @@ from services.workroom_context import add_journal_entry, pin_workroom_item
 logger = logging.getLogger(__name__)
 
 SHARE_FOLDER_NAME = "Little Gerry Workrooms"
-SETTING_FOLDER_ID = "workrooms.share_folder_id"
+# Explicit per-machine override. NOTE: deliberately NOT the old
+# "workrooms.share_folder_id" key — v3.2.32 auto-cached a self-created folder
+# id there, which must not shadow the company folder now baked into config.
+SETTING_FOLDER_ID = "workrooms.share_folder_id_override"
 MANIFEST_SCHEMA = 1
 _MAX_MANIFEST_BYTES = 256 * 1024  # sanity cap when reading
 
@@ -52,7 +55,8 @@ async def _run(fn):
 
 
 async def _get_share_folder_id(db: AsyncSession) -> str:
-    """Resolve the share folder: setting override → find/create on Drive."""
+    """Resolve the manifests folder: setting override → config → find/create."""
+    from config import settings
     from models.db.settings import SystemSetting
     from services import google_service as gs
 
@@ -62,8 +66,10 @@ async def _get_share_folder_id(db: AsyncSession) -> str:
     if row is not None and row.value:
         return str(row.value)
 
-    # Prefer creating inside the first shared drive so teammates see it
-    # automatically; fall back to My Drive.
+    if settings.workrooms_share_folder_id.strip():
+        return settings.workrooms_share_folder_id.strip()
+
+    # No configured folder — find or create one and remember it.
     parent = None
     try:
         drives = await _run(lambda: gs.drive_list_shared_drives(5))
