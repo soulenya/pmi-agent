@@ -43,6 +43,7 @@ export interface Workroom {
   goal: string;
   status: "active" | "archived";
   conversation_id: string | null;
+  share_file_id: string | null;
   created_at: string;
   updated_at: string;
   item_count: number;
@@ -51,6 +52,17 @@ export interface Workroom {
 export interface WorkroomDetail extends Workroom {
   items: WorkroomItem[];
   journal: WorkroomJournalEntry[];
+}
+
+export interface SharedRoomManifest {
+  file_id: string;
+  file_name: string;
+  title: string;
+  goal: string;
+  item_count?: number;
+  modified: string;
+  url: string;
+  joined: boolean;
 }
 
 export async function listWorkrooms(includeArchived = false): Promise<Workroom[]> {
@@ -106,5 +118,35 @@ export async function addWorkroomJournal(
     `/workrooms/${roomId}/journal`,
     { entry },
   );
+  return data;
+}
+
+// ── Sharing — room manifests on the shared Drive ─────────────────────────────
+
+export async function shareWorkroom(
+  roomId: string,
+): Promise<{ file_id: string; url: string }> {
+  const { data } = await apiClient.post<{ file_id: string; url: string }>(
+    `/workrooms/${roomId}/share`,
+  );
+  return data;
+}
+
+export async function pullWorkroom(
+  roomId: string,
+): Promise<{ added_items: number; title: string }> {
+  const { data } = await apiClient.post<{ added_items: number; title: string }>(
+    `/workrooms/${roomId}/pull`,
+  );
+  return data;
+}
+
+export async function listSharedRooms(): Promise<SharedRoomManifest[]> {
+  const { data } = await apiClient.get<SharedRoomManifest[]>("/workrooms/shared/available");
+  return data;
+}
+
+export async function joinSharedRoom(fileId: string): Promise<Workroom> {
+  const { data } = await apiClient.post<Workroom>(`/workrooms/shared/${fileId}/join`);
   return data;
 }

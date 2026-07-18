@@ -49,6 +49,9 @@ class Workroom(Base):
         nullable=True,
         index=True,
     )
+    # Drive file id of the room's shared manifest (JSON on the shared Drive).
+    # Set for both the sharer and anyone who joined from the manifest.
+    share_file_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
