@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 152;
+export const BUILD_NUMBER = 153;
 export const BUILD_DATE = "2026-07-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 153,
+    date: "2026-07-17",
+    title: "Shared workrooms — mirror a room with a teammate",
+    changes: [
+      "Share a room's definition (goal + pinned items) to the shared Drive with one click — it lands in a 'Little Gerry Workrooms' folder as a small manifest file",
+      "Teammates see shared rooms in a new 'Shared on Drive' section and can join — creating their own mirror of the room, with their own Gerry, chat, and journal",
+      "'Push update' re-publishes your latest definition; 'Pull latest' refreshes your mirror (adds new pins, never deletes yours)",
+      "Journals, conversations, and standing tasks stay personal by design — what's shared is the goal and the artifact list",
+    ],
+  },
   {
     build: 152,
     date: "2026-07-17",

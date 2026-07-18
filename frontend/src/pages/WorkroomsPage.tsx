@@ -15,12 +15,15 @@ import {
   ArchiveRestore,
   CalendarClock,
   Check,
+  CloudDownload,
   Lightbulb,
   Loader2,
   MessageSquare,
   NotebookPen,
   Pin,
   PlusCircle,
+  RefreshCw,
+  Share2,
   Trash2,
   X,
 } from "lucide-react";
@@ -31,8 +34,12 @@ import {
   createWorkroom,
   deleteWorkroom,
   getWorkroom,
+  joinSharedRoom,
+  listSharedRooms,
   listWorkrooms,
+  pullWorkroom,
   removeWorkroomItem,
+  shareWorkroom,
   updateWorkroom,
   type WorkroomItemKind,
 } from "@/api/workrooms";
@@ -42,6 +49,7 @@ import {
   dismissSuggestion,
   listSuggestions,
 } from "@/api/assistant";
+import { useToastStore } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 
 const KIND_OPTIONS = Object.entries(ITEM_KIND_LABELS) as [WorkroomItemKind, string][];
@@ -180,10 +188,13 @@ export function WorkroomsPage() {
               <div className="truncate font-medium">{r.title}</div>
               <div className="truncate text-xs text-muted-foreground">
                 {r.item_count} item{r.item_count === 1 ? "" : "s"}
+                {r.share_file_id && " · shared"}
                 {r.status === "archived" && " · archived"}
               </div>
             </button>
           ))}
+
+          <SharedRoomsRail onJoined={(id) => { setSelectedId(id); invalidate(); }} />
         </div>
       </aside>
 
@@ -219,6 +230,69 @@ export function WorkroomsPage() {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Shared rooms rail — manifests on the shared Drive not yet joined ───────
+
+function SharedRoomsRail({ onJoined }: { onJoined: (roomId: string) => void }) {
+  const push = useToastStore((s) => s.push);
+  const qc = useQueryClient();
+
+  // Silently absent when Google is disconnected or the folder is empty.
+  const { data: shared = [] } = useQuery({
+    queryKey: ["workrooms-shared"],
+    queryFn: listSharedRooms,
+    staleTime: 120_000,
+    retry: false,
+  });
+  const [joining, setJoining] = useState<string | null>(null);
+
+  const unjoined = shared.filter((s) => !s.joined);
+  if (unjoined.length === 0) return null;
+
+  const join = async (fileId: string) => {
+    setJoining(fileId);
+    try {
+      const room = await joinSharedRoom(fileId);
+      qc.invalidateQueries({ queryKey: ["workrooms"] });
+      qc.invalidateQueries({ queryKey: ["workrooms-shared"] });
+      push("success", `Joined "${room.title}" — you now have your own mirror of the room.`);
+      onJoined(room.id);
+    } catch (e) {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      push("error", detail || "Couldn't join the shared room.");
+    } finally {
+      setJoining(null);
+    }
+  };
+
+  return (
+    <div className="space-y-1 border-t pt-2">
+      <div className="px-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Shared on Drive
+      </div>
+      {unjoined.map((s) => (
+        <div key={s.file_id} className="rounded-md border px-3 py-2">
+          <div className="truncate text-sm font-medium">{s.title}</div>
+          {s.goal && (
+            <div className="truncate text-xs text-muted-foreground">{s.goal}</div>
+          )}
+          <button
+            onClick={() => void join(s.file_id)}
+            disabled={joining !== null}
+            className="mt-1.5 flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+          >
+            {joining === s.file_id ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <CloudDownload className="h-3 w-3" />
+            )}
+            Join room
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -274,6 +348,31 @@ function RoomDetail({
 
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const push = useToastStore((s) => s.push);
+
+  const shareMutation = useMutation({
+    mutationFn: () => shareWorkroom(room.id),
+    onSuccess: () => {
+      push("success", "Room definition shared to Drive — teammates can join it from their Workrooms page.");
+      onChanged();
+    },
+    onError: (e) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      push("error", detail || "Couldn't share the room to Drive.");
+    },
+  });
+
+  const pullMutation = useMutation({
+    mutationFn: () => pullWorkroom(room.id),
+    onSuccess: (r) => {
+      push("success", r.added_items ? `Pulled latest — ${r.added_items} new pinned item(s).` : "Already up to date with the shared definition.");
+      onChanged();
+    },
+    onError: (e) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      push("error", detail || "Couldn't pull the shared definition.");
+    },
+  });
 
   // Standing tasks bound to this room (scheduled tasks with workroom_id).
   const { data: allScheduled = [] } = useQuery({
@@ -326,6 +425,34 @@ function RoomDetail({
             <MessageSquare className="h-4 w-4" />
             Enter room
           </button>
+          <button
+            onClick={() => shareMutation.mutate()}
+            disabled={shareMutation.isPending}
+            className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-60"
+            title={room.share_file_id ? "Update the shared definition on Drive" : "Share this room's definition (goal + pins) to the shared Drive"}
+          >
+            {shareMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Share2 className="h-4 w-4" />
+            )}
+            {room.share_file_id ? "Push update" : "Share to Drive"}
+          </button>
+          {room.share_file_id && (
+            <button
+              onClick={() => pullMutation.mutate()}
+              disabled={pullMutation.isPending}
+              className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-60"
+              title="Refresh this room from the shared definition (adds pins, never deletes)"
+            >
+              {pullMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Pull latest
+            </button>
+          )}
           <button
             onClick={onArchiveToggle}
             className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent"
