@@ -939,6 +939,78 @@ def drive_list_shared_drives(max_results: int = 20) -> list[dict]:
     ]
 
 
+def drive_find_or_create_folder(name: str, parent_id: str | None = None) -> dict:
+    """Find a folder by exact name (across all drives) or create it.
+
+    ``parent_id`` scopes creation (a folder id, or a shared-drive id to create
+    in that drive's root). Returns ``{id, name, url, created}``.
+    """
+    svc = _build("drive", "v3")
+    safe = name.replace("'", "\\'")
+    q = (
+        f"name = '{safe}' and mimeType = 'application/vnd.google-apps.folder' "
+        "and trashed = false"
+    )
+    resp = svc.files().list(
+        q=q,
+        pageSize=5,
+        fields="files(id,name,webViewLink)",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        corpora="allDrives",
+    ).execute()
+    files = resp.get("files", [])
+    if files:
+        f = files[0]
+        return {"id": f["id"], "name": f["name"], "url": f.get("webViewLink", ""), "created": False}
+
+    metadata: dict[str, Any] = {
+        "name": name,
+        "mimeType": "application/vnd.google-apps.folder",
+    }
+    if parent_id:
+        metadata["parents"] = [parent_id]
+    created = svc.files().create(
+        body=metadata,
+        fields="id,name,webViewLink",
+        supportsAllDrives=True,
+    ).execute()
+    return {
+        "id": created.get("id", ""),
+        "name": created.get("name", name),
+        "url": created.get("webViewLink", ""),
+        "created": True,
+    }
+
+
+def drive_update_bytes(file_id: str, data: bytes, mime_type: str | None = None) -> dict:
+    """Overwrite an existing Drive file's content in place, keeping its id.
+
+    Returns ``{id, name, url}``. Raises googleapiclient HttpError on 404 so
+    callers can fall back to creating a fresh file.
+    """
+    import io
+    from googleapiclient.http import MediaIoBaseUpload
+
+    svc = _build("drive", "v3")
+    media = MediaIoBaseUpload(
+        io.BytesIO(data),
+        mimetype=mime_type or "application/octet-stream",
+        resumable=False,
+    )
+    updated = svc.files().update(
+        fileId=file_id,
+        media_body=media,
+        fields="id,name,webViewLink",
+        supportsAllDrives=True,
+    ).execute()
+    return {
+        "id": updated.get("id", file_id),
+        "name": updated.get("name", ""),
+        "url": updated.get("webViewLink", ""),
+    }
+
+
 def drive_get_content(file_id: str, max_chars: int | None = 10_000) -> dict:
     """Fetch a Drive file's text content.
 

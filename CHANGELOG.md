@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.2.32 — 2026-07-17
+**Workrooms Phase 4 — shared rooms via Drive manifest**
+
+- **Honest local-first sharing:** no server, so no real-time shared rooms — instead each shared room writes a JSON manifest (schema 1: title, goal, items) to a "Little Gerry Workrooms" folder on the shared Drive (created in the first shared drive's root when available; folder id cached in SystemSetting `workrooms.share_folder_id`). Migration 016 adds `workrooms.share_file_id`.
+- **Flows:** Share to Drive / Push update (overwrites the manifest, recreates if deleted), Join (new local mirror room + own conversation + pinned items), Pull latest (updates title/goal, adds missing pins — never deletes local ones). All journaled. Last-writer-wins by design.
+- **New Drive helpers:** `drive_find_or_create_folder` (allDrives search + create) and `drive_update_bytes` (in-place content update) in google_service.py.
+- **UI:** room detail gains Share to Drive / Push update / Pull latest; the room rail gains a "Shared on Drive" section listing unjoined manifests with one-click Join; shared rooms show a "shared" tag. Manifest listing hides silently when Google is disconnected.
+
 ### v3.2.31 — 2026-07-17
 **Workrooms Phase 3 — Gerry works between sessions**
 
