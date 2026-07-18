@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 153;
+export const BUILD_NUMBER = 154;
 export const BUILD_DATE = "2026-07-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 154,
+    date: "2026-07-17",
+    title: "Workroom sharing polish — company folder + how-to guide",
+    changes: [
+      "Shared room manifests now live in the designated company Drive folder instead of an auto-created one",
+      "A 'How Workrooms work' guide pops up on your first visit to the Workrooms page — reopen it anytime from the ? icon next to the page title",
+    ],
+  },
   {
     build: 153,
     date: "2026-07-17",

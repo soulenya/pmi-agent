@@ -7,7 +7,7 @@
  * into every agent turn there).
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -16,6 +16,7 @@ import {
   CalendarClock,
   Check,
   CloudDownload,
+  HelpCircle,
   Lightbulb,
   Loader2,
   MessageSquare,
@@ -54,6 +55,8 @@ import { cn } from "@/lib/utils";
 
 const KIND_OPTIONS = Object.entries(ITEM_KIND_LABELS) as [WorkroomItemKind, string][];
 
+const GUIDE_SEEN_KEY = "workrooms-guide-seen";
+
 export function WorkroomsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -62,6 +65,25 @@ export function WorkroomsPage() {
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newGoal, setNewGoal] = useState("");
+  const [showGuide, setShowGuide] = useState(false);
+
+  // First visit → open the how-to guide automatically.
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(GUIDE_SEEN_KEY)) setShowGuide(true);
+    } catch {
+      /* storage unavailable — skip */
+    }
+  }, []);
+
+  const closeGuide = () => {
+    setShowGuide(false);
+    try {
+      localStorage.setItem(GUIDE_SEEN_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+  };
 
   const { data: rooms = [], isLoading } = useQuery({
     queryKey: ["workrooms", showArchived],
@@ -109,7 +131,16 @@ export function WorkroomsPage() {
       {/* ── Room list ─────────────────────────────────────────────────── */}
       <aside className="flex w-72 flex-col gap-2 border-r pr-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Workrooms</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-lg font-semibold">Workrooms</h1>
+            <button
+              onClick={() => setShowGuide(true)}
+              className="text-muted-foreground hover:text-foreground"
+              title="How Workrooms work"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </button>
+          </div>
           <button
             onClick={() => setShowArchived((v) => !v)}
             className="text-xs text-muted-foreground hover:text-foreground"
@@ -229,6 +260,114 @@ export function WorkroomsPage() {
             onChanged={invalidate}
           />
         )}
+      </div>
+
+      {showGuide && <WorkroomsGuideDialog onClose={closeGuide} />}
+    </div>
+  );
+}
+
+// ── How-to guide dialog — shown on first visit, reopenable anytime ────────
+
+function WorkroomsGuideDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl border bg-card p-6 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <h2 className="text-lg font-semibold">How Workrooms work</h2>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground"
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 text-sm">
+          <p>
+            A <strong>Workroom</strong> is a persistent co-work space you share
+            with Gerry — built for work that spans days or weeks, like a
+            regulatory submission, an audit prep, or a fundraise.
+          </p>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-medium">
+              <MessageSquare className="h-4 w-4 shrink-0" /> The room chat remembers
+            </div>
+            <p className="text-muted-foreground">
+              Every room has its own conversation. Every message you send there
+              automatically carries the room's goal, pinned items, and recent
+              progress — you never re-explain context between sessions.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-medium">
+              <Pin className="h-4 w-4 shrink-0" /> Pin what matters
+            </div>
+            <p className="text-muted-foreground">
+              Pin Drive docs, KB documents, files, notes, email threads, tasks,
+              Odoo records, and regulatory documents. You can pin here on the
+              room page, from file cards in chat, or just ask Gerry ("pin that
+              SOP to this room"). Files Gerry creates in the room, docs she
+              imports, and Drive docs she follows pin themselves.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-medium">
+              <NotebookPen className="h-4 w-4 shrink-0" /> The journal is the timeline
+            </div>
+            <p className="text-muted-foreground">
+              Log progress yourself or ask Gerry to ("note that we finished
+              section 4"). Significant actions are journaled automatically, and
+              the latest entries travel with every room message.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-medium">
+              <CalendarClock className="h-4 w-4 shrink-0" /> Gerry works between sessions
+            </div>
+            <p className="text-muted-foreground">
+              Give the room a <strong>standing task</strong> ("check for new FDA
+              guidance every morning") — runs happen in the room chat. Each
+              morning a <strong>digest</strong> posts what changed since
+              yesterday, and Gerry proposes <strong>next steps</strong> you can
+              accept or dismiss.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 font-medium">
+              <Share2 className="h-4 w-4 shrink-0" /> Co-work with a teammate
+            </div>
+            <p className="text-muted-foreground">
+              <strong>Share to Drive</strong> publishes the room's definition
+              (goal + pins) to the company Drive. Teammates see it under
+              <strong> Shared on Drive</strong> and can <strong>join</strong> —
+              they get their own mirror of the room with their own Gerry, chat,
+              and journal. <strong>Push update</strong> publishes your changes;
+              <strong> Pull latest</strong> refreshes your mirror (it adds new
+              pins, never deletes yours). Chats and journals stay private to
+              each person.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="mt-5 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+        >
+          Got it
+        </button>
       </div>
     </div>
   );
