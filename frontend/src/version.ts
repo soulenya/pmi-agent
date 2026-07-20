@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 155;
+export const BUILD_NUMBER = 158;
 export const BUILD_DATE = "2026-07-20";
 
 export interface ChangelogEntry {
@@ -14,6 +14,40 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 158,
+    date: "2026-07-20",
+    title: "One obvious tool per job",
+    changes: [
+      "Approvals: one tool now covers pending items and history — ask about either and Gerry sees risk levels, statuses, and dates",
+      "Knowledge Base deletion has exactly one path, always ending in your confirmation popup — no second route",
+      "Gerry picks the right Drive search on the first try more often: find-a-file vs read-what's-inside are now clearly distinguished",
+      "Workroom notes vs journal: durable facts get pinned, dated events get journaled — Gerry now knows the difference",
+    ],
+  },
+  {
+    build: 157,
+    date: "2026-07-20",
+    title: "Gerry reads Odoo, tidies workrooms, and specialists write Word docs",
+    changes: [
+      "Ask Gerry about your ERP directly: bank balances, invoices and bills, sales and purchase orders, inventory, CRM leads, manufacturing orders, employees — instant, read-only, no approval needed",
+      "Workroom housekeeping from chat: unpin items, rewrite the goal, rename a room, archive it when the work wraps — all journaled",
+      "Specialist agents (QMS, Regulatory, Engineering, IR, Executive Assistant) can now produce formatted Word documents, not just fetch the templates for them",
+      "The Operations agent finally has ERP access — reads and proposed writes",
+    ],
+  },
+  {
+    build: 156,
+    date: "2026-07-20",
+    title: "Engine parity — Gerry's everyday chat gains task and schedule control",
+    changes: [
+      "Gerry can now mark tasks done, reprioritize, retitle, and (with your confirmation) delete them right from chat — previously she could only create them",
+      "Standing tasks work from any chat: 'check for new FDA guidance every morning' creates, updates, enables, or disables scheduled tasks — and still auto-binds to the workroom when asked inside a room",
+      "She can list her generated files and answer 'what version am I running' with a one-shot app snapshot",
+      "Gerry now knows she can send threaded email replies (reply-to a Gmail thread) through the approval flow",
+      "Polished the working indicators for several tools that showed raw internal names",
+    ],
+  },
   {
     build: 155,
     date: "2026-07-20",

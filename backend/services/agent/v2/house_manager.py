@@ -96,7 +96,6 @@ _TOOLS = [
     "list_users",
     "get_audit_trail",
     "get_approvals",
-    "get_pending_approvals",
     "get_regulatory_status",
     # Knowledge & web
     "search_knowledge_base",
@@ -118,6 +117,9 @@ _TOOLS = [
     "check_drive_backup_status",
     "create_workroom",
     "add_to_workroom",
+    "remove_from_workroom",
+    "update_workroom",
+    "read_odoo",
     "list_workroom_items",
     "log_workroom_progress",
     "get_file_template",
