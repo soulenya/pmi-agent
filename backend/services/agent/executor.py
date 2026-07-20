@@ -111,6 +111,7 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "add_to_knowledge_base": "Adding to the Knowledge Base…",
     "check_drive_backup_status": "Checking the Drive backup…",
     "get_file_template": "Checking the document template…",    "get_calendar_events": "Fetching calendar…",
+    "create_workroom": "Creating the workroom…",
     "add_to_workroom": "Pinning to the workroom…",
     "list_workroom_items": "Checking the workroom…",
     "log_workroom_progress": "Logging progress…",

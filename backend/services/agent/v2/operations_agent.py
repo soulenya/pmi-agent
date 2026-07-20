@@ -54,6 +54,7 @@ _TOOLS = [
     "unfollow_drive_document",
     "add_to_knowledge_base",
     "check_drive_backup_status",
+    "create_workroom",
     "add_to_workroom",
     "list_workroom_items",
     "log_workroom_progress",
