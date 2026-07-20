@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, String, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.db.base import Base
@@ -36,6 +36,8 @@ class EmailDraft(Base):
     )
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
+    # Generated-file attachments: [{"filename": <safe name>, "display_name": str}]
+    attachments: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )

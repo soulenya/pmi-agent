@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.2.34 — 2026-07-20
+**Two capability gaps closed: create_workroom tool + email draft attachments**
+
+- **Field report (Morgan):** Gerry said "I don't have a tool to create a workroom myself" and "my email draft tool doesn't support file attachments." Both fixed.
+- **`create_workroom` tool** (full checklist: defs/executors/_PRIMARY_ARG/v1 labels/v2 docs/8 whitelists): creates room + dedicated conversation + journals "Room created by Gerry in chat"; duplicate-title guard suggests using the existing room.
+- **Email attachments end-to-end:** migration 017 `email_drafts.attachments` jsonb; `create_email_draft` accepts `attachments` (Generated Files names — exact safe name or display name, suffix-matched when unique; clear errors on missing/ambiguous); attachments ride the SEND_EMAIL approval payload; on approved send `_load_generated_attachments` loads bytes (path-traversal guarded, missing files skipped with log) into `gmail_send`'s existing multipart support. Draft cards show Paperclip chips linking to the file.
+- **Pre-existing v2 bug found & fixed:** `create_email_draft` was whitelisted by the executive assistant but missing from lc_tools `_TOOL_DOCS` — v2 agents could never draft emails. Entry added (with attachments).
+
 ### v3.2.33 — 2026-07-17
 **Workroom sharing polish — designated company folder + first-visit guide**
 
