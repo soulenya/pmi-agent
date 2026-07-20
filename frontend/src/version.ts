@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 154;
-export const BUILD_DATE = "2026-07-17";
+export const BUILD_NUMBER = 155;
+export const BUILD_DATE = "2026-07-20";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 155,
+    date: "2026-07-20",
+    title: "Gerry creates workrooms and attaches files to email drafts",
+    changes: [
+      "Ask Gerry to set up a workroom in chat ('create a room for the audit prep') — she creates it, goal and all, ready for pinning",
+      "Email drafts now carry attachments: ask Gerry to draft an email with a generated file attached (she can create the document first, then attach it)",
+      "Attachments ride through the approval flow and are attached to the real Gmail message when you approve the send",
+      "Draft cards on the Email Drafts page show attachment chips — click to preview the file",
+      "Also fixed: v2 engine agents couldn't draft emails at all (missing tool wiring)",
+    ],
+  },
   {
     build: 154,
     date: "2026-07-17",

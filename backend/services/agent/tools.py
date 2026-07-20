@@ -238,6 +238,9 @@ TOOL_DEFINITIONS: list[dict] = [
                 "name, the tool automatically looks the address up in the user's contacts — when "
                 "exactly one match exists it is used; when none or several match, the tool tells "
                 "you and you MUST ask the user which address to use before drafting again. "
+                "ATTACHMENTS: pass generated filenames in 'attachments' to attach files from the "
+                "Generated Files store. To attach a document that doesn't exist yet, create it "
+                "FIRST with create_docx/generate_file, then pass the returned filename here. "
                 "Only use request_approval(intent_type='send_email') instead when the user explicitly "
                 "asks you to SEND an email right now."
             ),
@@ -262,6 +265,16 @@ TOOL_DEFINITIONS: list[dict] = [
                         "enum": ["professional", "friendly", "formal", "concise", "empathetic", "persuasive"],
                         "description": "Tone of the email.",
                         "default": "professional",
+                    },
+                    "attachments": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Filenames from the Generated Files store to attach (as returned by "
+                            "create_docx/generate_file, e.g. 'ab12cd34_Report.docx'; the plain "
+                            "display name also works). They are attached to the real email when "
+                            "the user approves the send."
+                        ),
                     },
                 },
                 "required": ["subject", "body"],
@@ -865,6 +878,33 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "create_workroom",
+            "description": (
+                "Create a new Workroom — a persistent co-work space with a goal, "
+                "pinned artifacts, a dedicated conversation, and a progress "
+                "journal. Use when the user asks to set up a room / workspace "
+                "for an ongoing effort (a submission, an audit, a fundraise). "
+                "After creating, you can pin items with add_to_workroom."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Room title, e.g. '510(k) Submission'.",
+                    },
+                    "goal": {
+                        "type": "string",
+                        "description": "What the room is working toward (one or two sentences).",
+                    },
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "add_to_workroom",
             "description": (
                 "Pin an artifact to a Workroom (persistent co-work space) so it is "
@@ -1407,6 +1447,43 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
     tone_raw = str(args.get("tone", "professional")).strip().lower()
     tone = tone_raw if tone_raw in _TONES else "professional"
 
+    # Attachments — resolve names against the Generated Files store. Accept the
+    # exact safe name or a plain display name (matched by suffix, unique only).
+    att_arg = args.get("attachments") or []
+    if isinstance(att_arg, str):
+        att_arg = [att_arg]
+    attachments: list[dict] = []
+    for raw_name in att_arg[:10]:
+        want = str(raw_name).strip().lstrip("/")
+        if want.startswith("api/files/"):
+            want = want[len("api/files/"):]
+        if not want:
+            continue
+        path = (_GENERATED_FILES_DIR / want).resolve()
+        if str(path).startswith(str(_GENERATED_FILES_DIR.resolve())) and path.is_file():
+            safe_name = path.name
+        else:
+            candidates = [
+                p.name
+                for p in _GENERATED_FILES_DIR.glob("*")
+                if p.is_file() and p.name.lower().endswith("_" + want.lower())
+            ] if _GENERATED_FILES_DIR.is_dir() else []
+            if len(candidates) == 1:
+                safe_name = candidates[0]
+            elif len(candidates) > 1:
+                return (
+                    f"Cannot attach '{want}': several generated files match "
+                    f"({', '.join(candidates[:5])}). Pass the exact filename."
+                )
+            else:
+                return (
+                    f"Cannot attach '{want}': no such file in Generated Files. "
+                    "Create it first with create_docx/generate_file, then pass the "
+                    "filename it returns."
+                )
+        display = re.sub(r"^[0-9a-f]{8}_", "", safe_name)
+        attachments.append({"filename": safe_name, "display_name": display})
+
     draft = EmailDraft(
         id=uuid.uuid4(),
         subject=subject,
@@ -1418,6 +1495,7 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
         draft_body=body,
         status="draft",
         tags=["assistant"],
+        attachments=attachments,
         created_by=ctx.user_id,
     )
     ctx.db.add(draft)
@@ -1436,8 +1514,13 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
         to_str = f" to {recipient_name or recipient_email}"
         if recipient_email and recipient_name:
             to_str += f" <{recipient_email}>"
+    att_str = (
+        " with attachment(s): " + ", ".join(a["display_name"] for a in attachments)
+        if attachments
+        else ""
+    )
     return (
-        f"Email draft saved to Communications → Email Drafts: \"{subject}\"{to_str}{resolved_note} "
+        f"Email draft saved to Communications → Email Drafts: \"{subject}\"{to_str}{resolved_note}{att_str} "
         f"[id={draft.id}, status=draft]. The user can review, edit, and send it from the "
         "Email Drafts page."
     )
@@ -2093,6 +2176,43 @@ async def _resolve_room_or_error(ctx: ToolContext, args: dict[str, Any]):
     )
 
 
+async def execute_create_workroom(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from models.db.workroom import Workroom
+    from repositories.conversation_repo import ConversationRepository
+    from services.workroom_context import add_journal_entry, list_active_workrooms
+
+    title = str(args.get("title", "")).strip()[:200]
+    goal = str(args.get("goal", "")).strip()[:4000]
+    if not title:
+        return "Error: title is required."
+    # Guard against accidental duplicates of an existing active room.
+    for r in await list_active_workrooms(ctx.db, ctx.user_id):
+        if r.title.lower() == title.lower():
+            return (
+                f'A workroom named "{r.title}" already exists. Use it directly '
+                "(add_to_workroom / list_workroom_items) or pick another title."
+            )
+    conv = await ConversationRepository(ctx.db).create(
+        user_id=ctx.user_id, title=f"Workroom: {title}"
+    )
+    room = Workroom(
+        user_id=ctx.user_id,
+        title=title,
+        goal=goal,
+        conversation_id=conv.id,
+    )
+    ctx.db.add(room)
+    await ctx.db.flush()
+    await add_journal_entry(ctx.db, room, "Room created by Gerry in chat")
+    return (
+        f'Workroom "{title}" created'
+        + (f" with goal: {goal}" if goal else "")
+        + ". It has its own room conversation (open it from the Workrooms page "
+        "or the chat sidebar). You can now pin items with add_to_workroom "
+        f'(workroom_title="{title}") and log progress with log_workroom_progress.'
+    )
+
+
 async def execute_add_to_workroom(ctx: ToolContext, args: dict[str, Any]) -> str:
     from services.workroom_context import pin_workroom_item
 
@@ -2728,6 +2848,7 @@ TOOL_EXECUTORS = {
     "add_to_knowledge_base": execute_add_to_knowledge_base,
     "check_drive_backup_status": execute_check_drive_backup_status,
     "get_file_template": execute_get_file_template,
+    "create_workroom": execute_create_workroom,
     "add_to_workroom": execute_add_to_workroom,
     "list_workroom_items": execute_list_workroom_items,
     "log_workroom_progress": execute_log_workroom_progress,
@@ -2766,6 +2887,7 @@ _PRIMARY_ARG = {
     "follow_drive_document": "file_id",
     "add_to_knowledge_base": "drive_file_id",
     "get_file_template": "file_type",
+    "create_workroom": "title",
     "add_to_workroom": "label",
     "list_workroom_items": "workroom_title",
     "log_workroom_progress": "entry",

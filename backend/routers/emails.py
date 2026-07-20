@@ -49,6 +49,7 @@ class EmailDraftOut(BaseModel):
     approval_intent_id: uuid.UUID | None
     is_archived: bool
     tags: list[str]
+    attachments: list[dict] = []
     created_by: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
@@ -264,6 +265,12 @@ async def submit_for_approval(
         intent_description=(
             f"To: {draft.recipient_name or draft.recipient_email or 'Unknown'}\n"
             f"Purpose: {draft.purpose}"
+            + (
+                "\nAttachments: "
+                + ", ".join(a.get("display_name", a.get("filename", "?")) for a in draft.attachments)
+                if draft.attachments
+                else ""
+            )
         ),
         intent_payload={
             "draft_id": str(draft.id),
@@ -271,6 +278,7 @@ async def submit_for_approval(
             "recipient_name": draft.recipient_name,
             "recipient_email": draft.recipient_email,
             "draft_body": draft.draft_body,
+            "attachments": draft.attachments or [],
         },
         risk_level=RiskLevel.MEDIUM,
     )

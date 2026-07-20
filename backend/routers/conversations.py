@@ -280,6 +280,40 @@ async def count_pending_approvals(
     return {"count": count}
 
 
+def _load_generated_attachments(payload_attachments) -> list[dict]:
+    """Resolve draft attachment refs to {filename, mime_type, data} for gmail_send.
+
+    Entries reference files in the generated_files store by safe name. Missing
+    files are skipped (logged) rather than blocking the send.
+    """
+    import logging
+    import mimetypes
+
+    from services.agent.tools import _GENERATED_FILES_DIR
+
+    out: list[dict] = []
+    for att in payload_attachments or []:
+        if not isinstance(att, dict):
+            continue
+        safe_name = str(att.get("filename", "")).strip()
+        if not safe_name:
+            continue
+        path = (_GENERATED_FILES_DIR / safe_name).resolve()
+        if not str(path).startswith(str(_GENERATED_FILES_DIR.resolve())) or not path.is_file():
+            logging.getLogger(__name__).warning(
+                "Email attachment missing from generated files, skipping: %s", safe_name
+            )
+            continue
+        out.append(
+            {
+                "filename": str(att.get("display_name") or safe_name),
+                "mime_type": mimetypes.guess_type(safe_name)[0] or "application/octet-stream",
+                "data": path.read_bytes(),
+            }
+        )
+    return out
+
+
 async def _set_linked_email_draft_status(db, draft_id_raw, new_status: str) -> None:
     """Best-effort: update the EmailDraft linked to an approval to ``new_status``.
 
@@ -352,6 +386,7 @@ async def _execute_approved_action(
                 reply_to_message_id=payload.get("reply_to_message_id"),
                 cc=payload.get("cc") or None,
                 bcc=payload.get("bcc") or None,
+                attachments=_load_generated_attachments(payload.get("attachments")),
             )
 
             # If this came from an email draft, mark it sent
