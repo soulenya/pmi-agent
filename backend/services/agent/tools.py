@@ -119,13 +119,15 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "request_kb_deletion",
             "description": (
-                "Request permanent deletion of a Knowledge Base document. "
-                "Use this ONLY when the user explicitly asks to delete or remove a KB document. "
-                "This does NOT delete anything itself — it shows the user a confirmation popup where "
-                "they give final approval; the document is only removed if they confirm there. "
-                "Identify the document by document_id (preferred — get it from manage_knowledge_base "
-                "list or search_knowledge_base) or by a title/query. After calling this, stop and wait "
-                "for the user's decision; do not call it again for the same document."
+                "Request permanent deletion of a Knowledge Base document — the ONLY "
+                "way to delete KB documents. Use ONLY when the user explicitly asks "
+                "to delete or remove one. This does NOT delete anything itself — it "
+                "shows the user a confirmation popup where they give final approval; "
+                "the document is only removed if they confirm there. Identify the "
+                "document by document_id (from search_knowledge_base results) or by "
+                "a title/query — ambiguous matches are listed back to you. After "
+                "calling this, stop and wait for the user's decision; do not call it "
+                "again for the same document."
             ),
             "parameters": {
                 "type": "object",
@@ -179,7 +181,11 @@ TOOL_DEFINITIONS: list[dict] = [
                 "Submit an action for human approval before execution. "
                 "MUST be used for any action with real-world consequences: "
                 "sending emails, external communications, document modifications, "
-                "regulatory submissions, purchases, or anything irreversible."
+                "regulatory submissions, purchases, or anything irreversible. "
+                "For send_email the payload supports 'to', 'subject', 'body', 'cc', "
+                "'bcc', 'attachments', and REPLY THREADING: pass 'thread_id' and "
+                "'reply_to_message_id' (from search_gmail/read_gmail_message) to send "
+                "the email as a threaded reply instead of a new conversation."
             ),
             "parameters": {
                 "type": "object",
@@ -284,6 +290,42 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "read_odoo",
+            "description": (
+                "READ data from the connected Odoo ERP — bank balances, customers, "
+                "sales orders, invoices & bills, products/inventory, CRM leads, "
+                "purchase orders, manufacturing orders, employees. Read-only and "
+                "instant (no approval needed). Use for questions like 'what's our "
+                "bank balance', 'open invoices for Acme', 'stock of part X'. For "
+                "WRITES use propose_odoo_write instead."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "dataset": {
+                        "type": "string",
+                        "enum": [
+                            "bank_balances", "customers", "sales", "invoices",
+                            "products", "leads", "purchases", "manufacturing", "employees",
+                        ],
+                        "description": "Which dataset to read.",
+                    },
+                    "search": {
+                        "type": "string",
+                        "description": "Optional name filter (e.g. a customer, order number, or product name).",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max rows (default 20, max 100).",
+                    },
+                },
+                "required": ["dataset"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "propose_odoo_write",
             "description": (
                 "Propose a WRITE to the connected Odoo ERP. This NEVER writes directly — "
@@ -325,11 +367,26 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
-            "name": "get_pending_approvals",
-            "description": "Retrieve a list of pending approval requests awaiting human decision.",
+            "name": "get_approvals",
+            "description": (
+                "View approval requests — pending items awaiting the user's "
+                "decision, or resolved history. READ ONLY: only the user can "
+                "approve or reject, on the Approvals page or in chat cards. "
+                "Use status='pending' for open items."
+            ),
             "parameters": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "approved", "rejected", "expired", "cancelled"],
+                        "description": "Filter by status. Omit for recent history of all statuses.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max rows (default 25, max 100).",
+                    },
+                },
                 "required": [],
             },
         },
@@ -478,9 +535,12 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "search_drive",
             "description": (
-                "Search for files in Google Drive by keyword. Use this when the user wants to "
-                "find a specific file or search across file content. "
-                "To list or browse folders, use list_drive_folder instead."
+                "FIND files in Google Drive by keyword (full-text match) — returns "
+                "names, links, and dates but does NOT read file contents. Use to "
+                "locate a file or link it to the user. To answer questions ABOUT "
+                "what's inside matching files, use search_drive_content instead; to "
+                "browse folders use list_drive_folder. If this finds nothing, try "
+                "search_drive_content — and vice versa."
             ),
             "parameters": {
                 "type": "object",
@@ -552,11 +612,12 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "search_drive_content",
             "description": (
-                "Search Google Drive files by keyword and read their full text content. "
-                "Use this to answer questions about documents stored on Google Drive that have NOT "
-                "been imported into the Knowledge Base. Searches across file names and content, "
-                "then automatically reads the text of matching files. "
-                "Use search_knowledge_base for already-imported documents instead."
+                "Search Google Drive by keyword AND READ the full text of the top "
+                "matching files — use to answer questions about documents on Drive "
+                "that have NOT been imported into the Knowledge Base. Heavier than "
+                "search_drive (which only lists matches without reading them) — "
+                "prefer search_drive when the user just wants to find/locate a file. "
+                "Use search_knowledge_base for already-imported documents."
             ),
             "parameters": {
                 "type": "object",
@@ -923,7 +984,11 @@ TOOL_DEFINITIONS: list[dict] = [
                             "drive_doc", "kb_doc", "generated_file", "note",
                             "email_thread", "task", "odoo_record", "regulatory_doc",
                         ],
-                        "description": "Artifact kind. Use 'note' for plain facts/decisions worth keeping.",
+                        "description": (
+                            "Artifact kind. Use 'note' for DURABLE facts or decisions that "
+                            "should stay visible every turn (e.g. 'Predicate device: K123456') "
+                            "— for dated progress events use log_workroom_progress instead."
+                        ),
                     },
                     "label": {
                         "type": "string",
@@ -967,13 +1032,71 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "remove_from_workroom",
+            "description": (
+                "Unpin an item from a Workroom. Identify the item by its label "
+                "(case-insensitive) or ref_id. In a room conversation the current "
+                "room is used automatically; otherwise pass workroom_title. "
+                "Ambiguous matches are listed so you can be precise."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string",
+                        "description": "Label (or ref_id) of the pinned item to remove.",
+                    },
+                    "workroom_title": {
+                        "type": "string",
+                        "description": "Target room title (fuzzy matched). Omit inside a room conversation.",
+                    },
+                },
+                "required": ["label"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_workroom",
+            "description": (
+                "Update a Workroom's goal or title, or archive/reactivate it "
+                "(status). Archived rooms stop injecting context but keep their "
+                "history. In a room conversation the current room is used "
+                "automatically; otherwise pass workroom_title. Archive only when "
+                "the user asks."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "goal": {"type": "string", "description": "New goal text."},
+                    "new_title": {"type": "string", "description": "New room title."},
+                    "status": {
+                        "type": "string",
+                        "enum": ["active", "archived"],
+                        "description": "Set 'archived' to close the room, 'active' to restore it.",
+                    },
+                    "workroom_title": {
+                        "type": "string",
+                        "description": "Target room title (fuzzy matched). Omit inside a room conversation.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "log_workroom_progress",
             "description": (
-                "Append a progress entry to a Workroom's journal — a shared "
-                "timeline of what you and the user have accomplished. Log when a "
-                "milestone is reached, a decision is made, or the user asks you to "
-                "note progress. Keep entries to one crisp sentence. In a room "
-                "conversation the current room is used automatically."
+                "Append a DATED progress entry to a Workroom's journal — a shared "
+                "timeline of what you and the user have accomplished (events, not "
+                "facts: for durable facts/decisions pin a 'note' with "
+                "add_to_workroom). Log when a milestone is reached, a decision is "
+                "made, or the user asks you to note progress. Keep entries to one "
+                "crisp sentence. In a room conversation the current room is used "
+                "automatically."
             ),
             "parameters": {
                 "type": "object",
@@ -1126,6 +1249,118 @@ TOOL_DEFINITIONS: list[dict] = [
                 },
                 "required": ["filename"],
             },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_task",
+            "description": (
+                "Update an existing Little Gerry task — change its status (e.g. mark "
+                "it done), priority, title, or description. Use get_tasks first to "
+                "find the task_id. To DELETE a task, pass action='delete' with "
+                "confirm=true, but only after the user has explicitly confirmed."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "The task's id (from get_tasks)."},
+                    "title": {"type": "string", "description": "New title."},
+                    "description": {"type": "string", "description": "New description."},
+                    "status": {
+                        "type": "string",
+                        "enum": ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"],
+                        "description": "New status — 'done' completes the task.",
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high", "critical"],
+                        "description": "New priority.",
+                    },
+                    "action": {
+                        "type": "string",
+                        "enum": ["delete"],
+                        "description": "Pass 'delete' to remove the task (requires confirm=true).",
+                    },
+                    "confirm": {
+                        "type": "boolean",
+                        "description": "Must be true for delete, only after the user explicitly confirmed.",
+                    },
+                },
+                "required": ["task_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_scheduled_tasks",
+            "description": (
+                "List the user's recurring scheduled tasks (standing instructions "
+                "Little Gerry runs on a schedule), with ids, recurrence, next run, "
+                "and last outcome. Use before manage_scheduled_task."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "manage_scheduled_task",
+            "description": (
+                "Create, update, enable, disable, or delete a recurring scheduled "
+                "task — a standing instruction Little Gerry runs daily/weekly/monthly "
+                "at a local time (e.g. 'check for new FDA guidance every morning'). "
+                "Created inside a workroom conversation, the task auto-binds to that "
+                "room: runs post into the room chat and journal. delete/disable "
+                "require confirm=true after the user explicitly confirms."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["create", "update", "enable", "disable", "delete"],
+                        "description": "What to do.",
+                    },
+                    "task_id": {"type": "string", "description": "Required for update/enable/disable/delete (from list_scheduled_tasks)."},
+                    "title": {"type": "string", "description": "Task title (create/update)."},
+                    "prompt": {"type": "string", "description": "The natural-language instruction to run each time (create/update)."},
+                    "frequency": {"type": "string", "enum": ["daily", "weekly", "monthly"], "description": "Recurrence (default weekly)."},
+                    "day_of_week": {"type": "integer", "description": "0=Monday .. 6=Sunday (weekly)."},
+                    "day_of_month": {"type": "integer", "description": "1..31 (monthly; clamped to month length)."},
+                    "hour": {"type": "integer", "description": "Local hour 0-23 (default 8)."},
+                    "minute": {"type": "integer", "description": "Minute 0-59 (default 0)."},
+                    "confirm": {"type": "boolean", "description": "Must be true for delete/disable, only after the user explicitly confirmed."},
+                },
+                "required": ["action"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_generated_files",
+            "description": (
+                "List the files in the Generated Files store (name, size, modified), "
+                "newest first — files created by create_docx/generate_file. Use to "
+                "find exact filenames for upload_to_drive, add_to_knowledge_base, or "
+                "email attachments."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_app_overview",
+            "description": (
+                "One-shot snapshot of the app: version/build and counts of "
+                "conversations, tasks, KB documents, scheduled tasks, generated "
+                "files, and pending approvals. Use for 'what version am I running' "
+                "or a quick status check."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
 ]
@@ -1558,6 +1793,63 @@ async def execute_request_approval(ctx: ToolContext, args: dict[str, Any]) -> st
         f"[risk={risk_level}, id={intent.id}, expires in {expires_hours}h]. "
         "Waiting for human review before this action can proceed."
     )
+
+
+async def execute_read_odoo(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Read-only Odoo ERP queries — curated datasets + bank balances."""
+    from sqlalchemy import select
+
+    from models.db.odoo import OdooConnection
+    from services import odoo_service as odoo
+
+    dataset = str(args.get("dataset", "")).strip().lower()
+    valid = ("bank_balances",) + tuple(odoo.MODEL_CONFIG)
+    if dataset not in valid:
+        return f"Error: dataset must be one of: {', '.join(valid)}."
+    conn = (await ctx.db.execute(
+        select(OdooConnection).where(OdooConnection.user_id == ctx.user_id)
+    )).scalar_one_or_none()
+    if conn is None:
+        return "Error: Odoo is not connected. Ask the user to connect it on the Odoo page first."
+    try:
+        api_key = odoo.decrypt_secret(conn.api_key_encrypted)
+        if dataset == "bank_balances":
+            data = await odoo.bank_balances(conn.url, conn.database, conn.username, api_key)
+            accounts = data.get("accounts", [])
+            if not accounts:
+                return "No bank or cash journals found in Odoo."
+            cur = data.get("currency", "")
+            lines = [f"Bank & cash balances ({cur}):"]
+            for a in accounts:
+                lines.append(f"- {a['journal']} ({a['type']}): {a['balance']:,.2f}")
+            lines.append(f"TOTAL: {data.get('total', 0):,.2f} {cur}")
+            return "\n".join(lines)
+        search = str(args.get("search", "")).strip() or None
+        try:
+            limit = max(1, min(int(args.get("limit", 20)), 100))
+        except (TypeError, ValueError):
+            limit = 20
+        result = await odoo.search_read(
+            conn.url, conn.database, conn.username, api_key, dataset, search, limit
+        )
+        rows = result.get("rows", [])
+        if not rows:
+            return (
+                f"No {result['label']} rows found"
+                + (f" matching '{search}'" if search else "")
+                + "."
+            )
+        lines = [f"{result['label']} — {len(rows)} row(s) ({' | '.join(result['fields'])}):"]
+        for row in rows:
+            rendered = " | ".join(
+                odoo._field_text(row.get(f)) or "—" for f in result["fields"]
+            )
+            lines.append(f"- {rendered}")
+        return "\n".join(lines)
+    except odoo.OdooError as exc:
+        return f"Odoo error: {exc}"
+    except Exception as exc:  # noqa: BLE001 — surface honestly, never crash the turn
+        return f"Odoo read failed: {exc}"
 
 
 async def execute_propose_odoo_write(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -2281,6 +2573,68 @@ async def execute_list_workroom_items(ctx: ToolContext, args: dict[str, Any]) ->
     return "\n".join(lines)
 
 
+async def execute_remove_from_workroom(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from sqlalchemy import select as _select
+
+    from models.db.workroom import WorkroomItem
+
+    wanted = str(args.get("label", "")).strip()
+    if not wanted:
+        return "Error: label is required — the pinned item's label or ref_id."
+    room, err = await _resolve_room_or_error(ctx, args)
+    if err:
+        return err
+    items = list(
+        (
+            await ctx.db.execute(
+                _select(WorkroomItem).where(WorkroomItem.workroom_id == room.id)
+            )
+        ).scalars()
+    )
+    if not items:
+        return f'Workroom "{room.title}" has no pinned items.'
+    low = wanted.lower()
+    matches = [
+        i for i in items
+        if i.label.lower() == low or (i.ref_id and i.ref_id == wanted)
+    ] or [i for i in items if low in i.label.lower()]
+    if not matches:
+        listing = "; ".join(f"[{i.kind}] {i.label}" for i in items[:15])
+        return f'No pinned item matches "{wanted}". Currently pinned: {listing}.'
+    if len(matches) > 1:
+        listing = "; ".join(f"[{i.kind}] {i.label}" for i in matches[:10])
+        return f'Several items match "{wanted}": {listing}. Call again with the exact label.'
+    item = matches[0]
+    await ctx.db.delete(item)
+    return f'Unpinned from "{room.title}": [{item.kind}] {item.label}.'
+
+
+async def execute_update_workroom(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services.workroom_context import add_journal_entry
+
+    room, err = await _resolve_room_or_error(ctx, args)
+    if err:
+        return err
+    changed = []
+    new_title = str(args.get("new_title", "")).strip()
+    if new_title:
+        room.title = new_title[:200]
+        changed.append(f'title → "{room.title}"')
+    if args.get("goal") is not None and "goal" in args:
+        room.goal = str(args["goal"]).strip()[:4000]
+        changed.append("goal updated")
+    status = str(args.get("status", "")).strip().lower()
+    if status:
+        if status not in ("active", "archived"):
+            return "Error: status must be 'active' or 'archived'."
+        room.status = status
+        changed.append(f"status → {status}")
+    if not changed:
+        return "Nothing to update — provide goal, new_title, or status."
+    await add_journal_entry(ctx.db, room, "Room updated: " + ", ".join(changed))
+    return f'Workroom "{room.title}" updated ({", ".join(changed)}).'
+
+
 async def execute_log_workroom_progress(ctx: ToolContext, args: dict[str, Any]) -> str:
     from services.workroom_context import add_journal_entry
 
@@ -2826,6 +3180,8 @@ TOOL_EXECUTORS = {
     "create_email_draft": execute_create_email_draft,
     "request_approval": execute_request_approval,
     "propose_odoo_write": execute_propose_odoo_write,
+    # ALIAS (v3.3.0): superseded by get_approvals — kept dispatchable for old
+    # conversation histories; no longer advertised. Remove next minor release.
     "get_pending_approvals": execute_get_pending_approvals,
     "get_tasks": execute_get_tasks,
     "get_regulatory_status": execute_get_regulatory_status,
@@ -2850,8 +3206,11 @@ TOOL_EXECUTORS = {
     "get_file_template": execute_get_file_template,
     "create_workroom": execute_create_workroom,
     "add_to_workroom": execute_add_to_workroom,
+    "remove_from_workroom": execute_remove_from_workroom,
+    "update_workroom": execute_update_workroom,
     "list_workroom_items": execute_list_workroom_items,
     "log_workroom_progress": execute_log_workroom_progress,
+    "read_odoo": execute_read_odoo,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
     "add_contacts": execute_add_contacts,
@@ -2889,10 +3248,16 @@ _PRIMARY_ARG = {
     "get_file_template": "file_type",
     "create_workroom": "title",
     "add_to_workroom": "label",
+    "remove_from_workroom": "label",
+    "update_workroom": "goal",
+    "read_odoo": "dataset",
+    "get_approvals": "status",
     "list_workroom_items": "workroom_title",
     "log_workroom_progress": "entry",
     "list_drive_folder": "folder_id",
     "read_google_sheet": "spreadsheet_id",
+    "update_task": "task_id",
+    "manage_scheduled_task": "action",
 }
 
 

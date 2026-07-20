@@ -352,6 +352,9 @@ async def execute_manage_scheduled_task(ctx: "ToolContext", args: dict[str, Any]
             day_of_month=task.day_of_month,
         )
         ctx.db.add(task)
+        # Session runs with autoflush=False — flush so the new task is visible
+        # to list_scheduled_tasks within the same agent turn.
+        await ctx.db.flush()
         return (
             f"Scheduled task '{task.title}' created ({frequency}, next run "
             f"{task.next_run_at:%Y-%m-%d %H:%M}){room_note}."
@@ -386,7 +389,11 @@ async def execute_manage_scheduled_task(ctx: "ToolContext", args: dict[str, Any]
     if action == "enable":
         task.enabled = True
         task.next_run_at = compute_next_run(
-            task.frequency, task.day_of_week, task.day_of_month, task.hour, task.minute
+            frequency=task.frequency,
+            hour=task.hour,
+            minute=task.minute,
+            day_of_week=task.day_of_week,
+            day_of_month=task.day_of_month,
         )
         return f"Scheduled task '{task.title}' enabled (next run {task.next_run_at:%Y-%m-%d %H:%M})."
 
@@ -411,7 +418,11 @@ async def execute_manage_scheduled_task(ctx: "ToolContext", args: dict[str, Any]
         if not changed:
             return "Nothing to update — provide title, prompt, frequency, day_of_week, day_of_month, hour, or minute."
         task.next_run_at = compute_next_run(
-            task.frequency, task.day_of_week, task.day_of_month, task.hour, task.minute
+            frequency=task.frequency,
+            hour=task.hour,
+            minute=task.minute,
+            day_of_week=task.day_of_week,
+            day_of_month=task.day_of_month,
         )
         return (
             f"Scheduled task '{task.title}' updated ({', '.join(changed)}). "
@@ -443,20 +454,14 @@ async def execute_manage_knowledge_base(ctx: "ToolContext", args: dict[str, Any]
         return f"{len(docs)} knowledge base documents:\n" + "\n".join(lines)
 
     if action == "delete":
-        doc_id = _parse_uuid(args.get("document_id"))
-        if doc_id is None:
-            return "Error: a valid document_id is required. Use action 'list' to find IDs."
-        doc = await repo.get_active(doc_id)
-        if doc is None:
-            return "Document not found in the knowledge base."
-        # Never delete server-side here. Stage a confirm/cancel popup; the
-        # frontend performs the deletion only after the user confirms.
-        ctx.pending_confirmation = {
-            "type": "confirm_delete",
-            "target": "kb_document",
-            "document_id": str(doc.id),
-            "title": doc.title,
-        }
+        # Single deletion path policy: KB deletions go through request_kb_deletion
+        # (same confirm popup, one advertised tool) — keep this action as a pointer
+        # so older prompts/histories degrade gracefully.
+        return (
+            "Knowledge Base deletions go through request_kb_deletion — call that "
+            "with the document_id (or a title/query) and the user will get a "
+            "confirmation popup."
+        )
         return (
             f"A confirmation popup is now shown to the user asking them to permanently "
             f"delete '{doc.title}' from the knowledge base. It is only removed if they "
@@ -613,8 +618,9 @@ async def execute_get_approvals(ctx: "ToolContext", args: dict[str, Any]) -> str
     if not intents:
         return "No approval requests found."
     lines = [
-        f"- {i.created_at:%Y-%m-%d} | {getattr(i.intent_type, 'value', i.intent_type)} | "
-        f"{i.intent_title} | status={getattr(i.status, 'value', i.status)}"
+        f"- {i.created_at:%Y-%m-%d} | [{str(getattr(i.risk_level, 'value', i.risk_level)).upper()}] "
+        f"{getattr(i.intent_type, 'value', i.intent_type)} | "
+        f"{i.intent_title} | status={getattr(i.status, 'value', i.status)} | id={i.id}"
         for i in intents
     ]
     return (
