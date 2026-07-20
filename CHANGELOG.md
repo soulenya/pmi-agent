@@ -4,6 +4,30 @@
 
 ## Changelog
 
+### v3.3.0 — 2026-07-20
+**Capability reconciliation — all three sprints from the 2026-07-20 tool-tree audit (minor version bump)**
+
+Sprint 3 — consolidation:
+
+- **Approvals merge (B2):** `get_approvals(status?, limit?)` is canonical everywhere (promoted to v1 defs, output now includes risk level + id); `get_pending_approvals` removed from defs/docs/whitelists but kept as a dispatch alias for old conversation histories — delete next minor release.
+- **KB deletion merge (B1):** `request_kb_deletion` is the single advertised deletion path (both engines); `manage_knowledge_base(action=delete)` now returns a pointer instead of staging its own popup; stale guidance referencing house-only tools removed from v1 descriptions.
+- **Drive search (B3):** descriptions-first — search_drive = FIND (names/links, no contents), search_drive_content = READ (answers about contents), each cross-referencing the other, in both engines.
+- **Note vs journal (B4):** add_to_workroom 'note' = durable facts/decisions; log_workroom_progress = dated events — disambiguated in both engines.
+
+Sprint 1 (engine parity, was staged v3.2.35):
+
+- **Root cause:** the default (v1) engine only advertises TOOL_DEFINITIONS — all 14 custodian tools were invisible to it (documented behaviors like in-room standing-task creation only worked on v2).
+- **Promoted to v1 defs** (full JSON schemas + _PRIMARY_ARG + status labels; executors shared): `update_task`, `list_scheduled_tasks`, `manage_scheduled_task`, `list_generated_files`, `get_app_overview`. Admin tools stay house-manager-only.
+- **Bonus bugs fixed:** `manage_scheduled_task` enable/update still called keyword-only `compute_next_run` positionally; custodian create now flushes (session is autoflush=False — new task was invisible to same-turn lists).
+- **C5:** four missing v1 status labels. **C6:** `request_approval` documents send_email reply threading (thread_id + reply_to_message_id) in both engines.
+
+Sprint 2:
+
+- **`read_odoo` tool (C1):** read-only ERP queries — bank_balances + the eight curated datasets (customers, sales, invoices, products, leads, purchases, manufacturing, employees), optional name filter, no approval. Whitelisted for ea/house/ops/ir. Verified live against the connected Odoo.
+- **Workroom lifecycle (C2):** `remove_from_workroom` (label/ref match, ambiguity listing) + `update_workroom` (goal/new_title/status archive|active, journaled). All eight v2 agents.
+- **v2 whitelist fixes (C3/C4):** create_docx → qms/regulatory/engineering/ea/ir; propose_odoo_write + search_drive_content → ops; search_drive_content → ea.
+- **Migration 018 — ownership repair:** migrations 010/012/013 never handed `conversation_attachments`, `odoo_connections`, `device_tokens` to pmi_app → InsufficientPrivilegeError on split-role installs (found when read_odoo hit it). Idempotent, role-guarded ALTERs.
+
 ### v3.2.34 — 2026-07-20
 **Two capability gaps closed: create_workroom tool + email draft attachments**
 
