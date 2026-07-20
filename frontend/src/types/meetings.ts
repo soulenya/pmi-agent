@@ -42,6 +42,7 @@ export interface EmailDraft {
   approval_intent_id: string | null;
   is_archived: boolean;
   tags: string[];
+  attachments: { filename: string; display_name: string }[];
   created_by: string | null;
   created_at: string;
   updated_at: string;

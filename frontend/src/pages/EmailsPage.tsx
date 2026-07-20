@@ -14,6 +14,7 @@ import {
   CheckCircle,
   XCircle,
   Edit3,
+  Paperclip,
   ShieldCheck,
   ShieldX,
 } from "lucide-react";
@@ -279,6 +280,22 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
             <span className="capitalize">Tone: {draft.tone}</span>
             <span>{new Date(draft.created_at).toLocaleDateString()}</span>
           </div>
+          {(draft.attachments?.length ?? 0) > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {draft.attachments.map((a) => (
+                <a
+                  key={a.filename}
+                  href={`/api/files/${encodeURIComponent(a.filename)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
+                  title="Attached on send — click to preview the file"
+                >
+                  <Paperclip className="h-3 w-3" /> {a.display_name}
+                </a>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <AskGerryButton
