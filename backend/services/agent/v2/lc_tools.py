@@ -15,7 +15,7 @@ _TOOL_DOCS = {
     "search_knowledge_base": "Semantic search over uploaded PMI internal documents. Use for regulatory docs, SOPs, device specs, meeting notes. Returns only the few most-similar chunks.",
     "read_knowledge_base_document": "Read the COMPLETE text of one imported KB document (every section, start to finish). Use when asked to summarize, review, or analyze a WHOLE document — search only returns scattered chunks. JSON fields: {\"document_id\": str (preferred) or \"query\": str (title).}",
     "create_task": "Create a new task in the PMI task tracker (Kanban board). Auto-approved.",
-    "request_approval": "Submit an irreversible action for human approval before execution. Required for emails, calendar events, and any external write.",
+    "request_approval": "Submit an irreversible action for human approval before execution. Required for emails, calendar events, and any external write. For send_email the payload supports to/subject/body/cc/bcc/attachments and reply threading via 'thread_id' + 'reply_to_message_id' (from search_gmail/read_gmail_message).",
     "propose_odoo_write": (
         'Propose a WRITE to the connected Odoo ERP (queues an approval; never writes directly). '
         'JSON fields: {"action": "confirm_quotation"|"register_payment"|"create_lead"|"log_note"|"update_field"|"create_contact", '
@@ -23,17 +23,17 @@ _TOOL_DOCS = {
         'create_lead {name, contact_name?, email_from?, phone?, expected_revenue?, description?}; '
         'log_note {model, record_id, body}; update_field {model, record_id, values}; create_contact {name, email?, phone?, city?}.'
     ),
-    "get_pending_approvals": "List all pending approval requests waiting for human review.",
+    "get_approvals": 'View approval requests — pending or resolved. READ ONLY: only the user can approve or reject. JSON fields: {"status": "pending"|"approved"|"rejected"|"expired"|"cancelled" (optional; omit for recent history), "limit": int (optional)}.',
     "get_tasks": "List tasks from the PMI task tracker with optional status/priority filters.",
     "get_regulatory_status": "Get the current regulatory filing status and compliance overview for the VACTOR program.",
     "search_web": "Search the public web (DuckDuckGo) for research, news, or regulatory guidance.",
     "fetch_page": "Download and extract readable text from a public URL.",
     "search_gmail": "Search the connected Gmail inbox using a query string.",
     "read_gmail_message": "Read the full body of a specific Gmail message by ID.",
-    "search_drive": "Search Google Drive files by name or keyword.",
+    "search_drive": "FIND Google Drive files by keyword (full-text match) — returns names/links/dates, does NOT read contents. For questions about what's INSIDE files use search_drive_content; if one finds nothing, try the other.",
     "list_drive_folder": "List files and folders inside a Google Drive folder (default: root of My Drive). For a shared drive's root, pass folder_id AND drive_id = the shared drive ID from list_shared_drives.",
     "list_shared_drives": "List all Google shared (team) drives — the top-level folder trees beside My Drive. Use FIRST when top-level folders (Communications, Knowledge, Compliance, etc.) are not in My Drive.",
-    "search_drive_content": "Read and search inside Google Drive files (by name keyword).",
+    "search_drive_content": "Search Google Drive by keyword AND READ the full text of top matches — for answering questions about non-imported Drive documents. Heavier than search_drive (which only lists matches).",
     "read_drive_file": "Read the full text of a Google Drive file — including a live Google Doc the user is writing. Accepts a file ID or a full pasted Docs/Drive URL. Long documents return in 30k-character pages: when a CONTINUE note appears, call again with the suggested offset and read to the end before concluding. JSON: {\"file_id\": str, \"offset\": int (optional, default 0)}.",
     "list_recent_drive_files": 'List the user\'s most recently modified Drive files (newest first). Use when they say "help me with this document" without a link — confirm which one, then follow it. JSON: {"max_results": int (optional)}.',
     "follow_drive_document": 'Follow a Google Doc in THIS conversation: its current contents are re-read automatically on every message so you always see the latest edits. JSON: {"file_id": str (ID or pasted URL)}.',
@@ -43,9 +43,12 @@ _TOOL_DOCS = {
     "get_file_template": 'Get the company\'s required structure for a document type from the shared Drive templates folder. ALWAYS call before generate_file/create_docx. Returns the template plus the company style guide; with no matching template the style guide alone is returned — apply it. JSON: {"file_type": "memo"|"SOP"|"letter"|...}.',
     "create_workroom": 'Create a new Workroom (persistent co-work space: goal + pinned artifacts + dedicated conversation + journal). Use when the user asks to set up a room/workspace for an ongoing effort. JSON: {"title": str, "goal"?: str}. Then pin items with add_to_workroom.',
     "add_to_workroom": 'Pin an artifact to a Workroom (persistent co-work space) so it is carried into every future turn there. JSON: {"kind": "drive_doc"|"kb_doc"|"generated_file"|"note"|"email_thread"|"task"|"odoo_record"|"regulatory_doc", "label": str, "ref_id"?: str, "workroom_title"?: str (omit inside a room conversation)}.',
+    "remove_from_workroom": 'Unpin an item from a Workroom by label or ref_id (ambiguous matches are listed). JSON: {"label": str, "workroom_title"?: str (omit inside a room conversation)}.',
+    "update_workroom": 'Update a Workroom\'s goal or title, or archive/reactivate it. Archive only when the user asks. JSON: {"goal"?: str, "new_title"?: str, "status"?: "active"|"archived", "workroom_title"?: str (omit inside a room conversation)}.',
+    "read_odoo": 'READ the connected Odoo ERP (read-only, no approval): bank_balances, customers, sales, invoices, products, leads, purchases, manufacturing, employees. JSON: {"dataset": str, "search"?: str (name filter), "limit"?: int (default 20)}. For writes use propose_odoo_write.',
     "create_email_draft": 'Draft an email into Communications → Email Drafts for the user to review and send — never sends anything. You write the full body yourself. JSON: {"subject": str, "body": str (full email, real line breaks, simple sign-off — no signature block), "recipient_email"?: str, "recipient_name"?: str, "purpose"?: str, "tone"?: "professional"|"friendly"|"formal"|"concise"|"empathetic"|"persuasive", "attachments"?: [str] (Generated Files filenames — create the file FIRST with create_docx/generate_file, then pass its returned filename; attached on approved send)}.',
     "list_workroom_items": 'List a Workroom\'s goal, pinned artifacts, and recent journal entries. JSON: {"workroom_title"?: str} — omit inside a room conversation; with no match the active room titles are listed.',
-    "log_workroom_progress": 'Append a one-sentence progress entry to a Workroom\'s journal (shared timeline of accomplishments). JSON: {"entry": str, "workroom_title"?: str (omit inside a room conversation)}.',
+    "log_workroom_progress": 'Append a one-sentence DATED progress entry to a Workroom\'s journal (events, not facts — for durable facts/decisions pin a "note" with add_to_workroom). JSON: {"entry": str, "workroom_title"?: str (omit inside a room conversation)}.',
     "get_calendar_events": "Fetch upcoming Google Calendar events within a date range.",
     "search_contacts": "Look up a person's contact details by name, email, or company — searches PMI's own contacts (derived from email + manual entries) and Google Contacts. Good for 'who is our contact at <company>'.",
     "add_contacts": 'Add or update one or more contacts on PMI\'s own Contacts page (not Odoo, not Google). JSON: {"contacts": [{"email": str (required), "name": str, "company": str, "notes": str}, ...]}.',
@@ -85,8 +88,8 @@ _TOOL_DOCS = {
         '"confirm": bool (required true for disable/delete, only after the user explicitly confirms)}.'
     ),
     "manage_knowledge_base": (
-        'List or remove knowledge base documents. JSON fields: {"action": "list"|"delete", "document_id": str (UUID, for delete), '
-        '"confirm": bool (required true for delete, only after the user explicitly confirms)}.'
+        'List knowledge base documents. JSON fields: {"action": "list"}. '
+        "Deletions go through request_kb_deletion (single confirm-gated path)."
     ),
     "request_kb_deletion": (
         "Request permanent deletion of a Knowledge Base document. Use ONLY when the user explicitly asks "
@@ -98,7 +101,6 @@ _TOOL_DOCS = {
     "get_app_settings": "READ ONLY: list app settings (secrets are masked). Settings can only be changed by the user in the Settings page.",
     "list_users": "READ ONLY: list user accounts with roles and status. User management is done by the user in Settings.",
     "get_audit_trail": 'READ ONLY: view the append-only audit log. JSON fields: {"limit": int (optional), "event_type": str (optional filter)}.',
-    "get_approvals": 'READ ONLY: view approval request history. Only the user can approve or reject. JSON fields: {"status": "pending"|"approved"|"rejected" (optional), "limit": int (optional)}.',
     "delegate_to_agent": (
         "Delegate a task to a specialist agent and get their full answer back. "
         'JSON fields: {"agent": "research"|"engineering"|"regulatory"|"qms"|"operations"|"ir"|"executive_assistant", '
