@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 160;
+export const BUILD_NUMBER = 161;
 export const BUILD_DATE = "2026-07-21";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 161,
+    date: "2026-07-21",
+    title: "Gerry attaches Drive files to emails — as-is",
+    changes: [
+      "Ask Gerry to attach a Google Drive file to an email draft — she takes a snapshot of the file in its current state, formatting and all, and the original on Drive is never touched",
+      "Later edits on Drive don't change the attachment — what you saw when drafting is what gets sent",
+      "Native Google Docs, Sheets, and Slides export to Word, Excel, and PowerPoint; PDFs, Office files, and images attach byte-for-byte",
+      "Files over 20 MB are declined with a suggestion to share the Drive link instead",
+    ],
+  },
   {
     build: 160,
     date: "2026-07-21",

@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.3.3 — 2026-07-21
+**Drive-file email attachments — snapshot current state, never modify the original**
+
+- **Field report (Morgan via Gerry):** create_email_draft could only attach Generated Files — no way to attach a Drive file as-is with formatting/track-changes preserved.
+- **Fix:** new `drive_attachments` arg (Drive ids or URLs, both engines' docs updated). At draft time each file's CURRENT bytes are snapshotted into the Generated Files store (uuid-prefixed) and ride the existing attachment pipeline — approval payload → `_load_generated_attachments` → Gmail multipart. `drive_download_bytes` preserves originals byte-for-byte; native Google formats export to .docx/.xlsx/.pptx. 20 MB per-file cap with a share-the-link suggestion; honest errors (bad ref, empty download, not connected) file NO draft.
+- Live-verified: real Drive download → snapshot → draft attachment round-trip.
+
 ### v3.3.2 — 2026-07-21
 **Field reports: meeting-note KB duplication + missing email CC**
 
