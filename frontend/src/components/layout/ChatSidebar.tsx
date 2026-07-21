@@ -8,7 +8,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bot, ChevronRight, Loader2, Send, Wrench } from "lucide-react";
+import { Bot, ChevronRight, Loader2, RotateCcw, Send, Wrench } from "lucide-react";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { useChatSidebarStore } from "@/stores/chatSidebarStore";
 import { createConversation, listConversations, listMessages } from "@/api/chat";
@@ -94,6 +94,22 @@ export function ChatSidebar() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
+  // True once a sent message has gone 45s with no streaming/tool activity —
+  // gates the "No reply? Resend" chip so it never flashes during normal turns.
+  const [turnStuck, setTurnStuck] = useState(false);
+
+  useEffect(() => {
+    const waiting =
+      messages.length > 0 &&
+      messages[messages.length - 1].role === "user" &&
+      streamingContent === null;
+    if (!waiting) {
+      setTurnStuck(false);
+      return;
+    }
+    const t = window.setTimeout(() => setTurnStuck(true), 45_000);
+    return () => window.clearTimeout(t);
+  }, [messages, streamingContent, toolActivities]);
   // The conversation id whose websocket is currently OPEN, used to fire a
   // queued "Ask Gerry about this" seed message once connected.
   const [wsReadyConvId, setWsReadyConvId] = useState<string | null>(null);
@@ -425,6 +441,30 @@ export function ChatSidebar() {
             <span className="truncate">{a.label}</span>
           </div>
         ))}
+        {/* Hung turn — 45s with no reply and nothing streaming */}
+        {turnStuck &&
+          streamingContent === null &&
+          messages.length > 0 &&
+          messages[messages.length - 1].role === "user" && (
+            <button
+              onClick={() => {
+                const last = [...messages].reverse().find((m) => m.role === "user");
+                if (!last?.content || wsRef.current?.readyState !== WebSocket.OPEN) return;
+                setToolActivities([]);
+                setTurnStuck(false);
+                setMessages((prev) => [
+                  ...prev,
+                  { ...last, id: crypto.randomUUID(), created_at: new Date().toISOString() },
+                ]);
+                wsRef.current.send(JSON.stringify({ type: "human", content: last.content }));
+              }}
+              className="ml-2 flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+              title="Send the last message again"
+            >
+              <RotateCcw className="h-3 w-3" />
+              No reply? Resend
+            </button>
+          )}
         <div ref={messagesEndRef} />
       </div>
 

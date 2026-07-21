@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.3.1 — 2026-07-20
+**Chat resend — recover hung turns without retyping**
+
+- **Field request (Morgan):** a way to resend a chat message when a turn gets hung up.
+- **Main chat:** the busy indicator gains "Stuck? Resend message" at 90s elapsed or whenever the socket is disconnected — clears busy state/tool activity, queues via the pendingMessage path + forces a WS retry when the socket is dead, or re-sends directly when open. A "No reply arrived — resend" button appears when the last message is the user's and nothing is busy/streaming (covers turns that died silently or reloads mid-turn).
+- **Side panel:** "No reply? Resend" chip gated by a 45s stuck timer (prevents flashing during normal turns); resets on any streaming/assistant activity.
+
 ### v3.3.0 — 2026-07-20
 **Capability reconciliation — all three sprints from the 2026-07-20 tool-tree audit (minor version bump)**
 

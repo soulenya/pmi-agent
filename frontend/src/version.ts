@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 158;
+export const BUILD_NUMBER = 159;
 export const BUILD_DATE = "2026-07-20";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 159,
+    date: "2026-07-20",
+    title: "Resend a hung chat message",
+    changes: [
+      "If a reply gets stuck, the working indicator now offers 'Stuck? Resend message' after 90 seconds (or immediately when the connection drops) — one click clears the stall, reconnects if needed, and sends your message again",
+      "If a turn dies without an answer, a 'No reply arrived — resend' button appears under your message",
+      "The Little Gerry side panel gets the same recovery: a 'No reply? Resend' chip appears when a message has gone 45 seconds with no response",
+    ],
+  },
   {
     build: 158,
     date: "2026-07-20",

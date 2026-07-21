@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines, Volume2 } from "lucide-react";
+import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines, Volume2, RotateCcw } from "lucide-react";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { SentenceSpeaker } from "@/lib/sentenceSpeaker";
 import {
@@ -600,6 +600,24 @@ export function ChatPage() {
   );
   handleSendRef.current = handleSend;
 
+  // ── Resend — recover a hung turn ─────────────────────────────────────
+  // Re-sends the most recent user message: clears any stuck busy state, forces
+  // a WebSocket reconnect when the socket is dead, and fires the text again.
+  const resendLast = useCallback(() => {
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    if (!lastUser?.content) return;
+    setBusySince(null);
+    setToolActivities([]);
+    setStreamingContent(null);
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      handleSend(lastUser.content);
+    } else {
+      // Dead socket — queue the text (fires on reconnect) and force a retry now.
+      setPendingMessage(lastUser.content);
+      setWsRetry((n) => n + 1);
+    }
+  }, [messages, handleSend, setPendingMessage]);
+
   return (
     <div className="flex h-full gap-4">
       {/* â”€â”€ Conversation sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
@@ -768,9 +786,38 @@ export function ChatPage() {
                     background; the answer will appear here when it's ready.
                   </p>
                 )}
+                {(elapsedSec >= 90 || !wsConnected) && (
+                  <button
+                    onClick={resendLast}
+                    className="mt-1 flex w-fit items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-accent"
+                    title="Give up on this attempt and send your last message again (a duplicate reply may still arrive)"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    Stuck? Resend message
+                  </button>
+                )}
               </div>
             </div>
           )}
+
+          {/* No reply arrived — the turn died without an answer (crash, missed
+              frame, restart). Offer a one-click resend of the last message. */}
+          {!busySince &&
+            !streamingContent &&
+            !messagesLoading &&
+            messages.length > 0 &&
+            messages[messages.length - 1].role === "user" && (
+              <div className="ml-11">
+                <button
+                  onClick={resendLast}
+                  className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                  title="Send this message again"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  No reply arrived — resend
+                </button>
+              </div>
+            )}
 
           {/* Streaming token buffer */}
           {streamingContent && (
