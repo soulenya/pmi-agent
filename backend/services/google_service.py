@@ -1162,6 +1162,86 @@ def drive_download_bytes(file_id: str) -> dict:
     }
 
 
+def drive_list_comments(file_id: str, max_results: int = 50) -> list[dict]:
+    """List comment threads on a Drive file (any type) — author, anchor text,
+    content, resolved state, and replies. Deleted comments are excluded."""
+    svc = _build("drive", "v3")
+    out: list[dict] = []
+    page_token = None
+    while len(out) < max_results:
+        resp = svc.comments().list(
+            fileId=file_id,
+            fields=(
+                "nextPageToken,comments(author(displayName),content,"
+                "quotedFileContent(value),resolved,createdTime,"
+                "replies(author(displayName),content,createdTime))"
+            ),
+            pageSize=min(100, max_results),
+            pageToken=page_token,
+            includeDeleted=False,
+        ).execute()
+        for c in resp.get("comments", []):
+            out.append(
+                {
+                    "author": (c.get("author") or {}).get("displayName", ""),
+                    "content": c.get("content", ""),
+                    "anchor": (c.get("quotedFileContent") or {}).get("value", ""),
+                    "resolved": bool(c.get("resolved")),
+                    "created": (c.get("createdTime") or "")[:10],
+                    "replies": [
+                        {
+                            "author": (r.get("author") or {}).get("displayName", ""),
+                            "content": r.get("content", ""),
+                            "created": (r.get("createdTime") or "")[:10],
+                        }
+                        for r in c.get("replies", [])
+                    ],
+                }
+            )
+        page_token = resp.get("nextPageToken")
+        if not page_token:
+            break
+    return out[:max_results]
+
+
+def docs_get_suggestions(file_id: str) -> dict:
+    """Suggested edits on a NATIVE Google Doc, rendered per paragraph with
+    inline markers: {++suggested insertion++} / {--suggested deletion--}.
+
+    Only paragraphs containing suggestions are returned. Raises HttpError for
+    non-Docs files (400/404) — callers translate that honestly. Note: the Docs
+    API does not expose WHO made a suggestion, only its content.
+    """
+    svc = _build("docs", "v1")
+    doc = svc.documents().get(
+        documentId=file_id, suggestionsViewMode="SUGGESTIONS_INLINE"
+    ).execute()
+
+    paragraphs: list[str] = []
+    for element in (doc.get("body") or {}).get("content", []):
+        para = element.get("paragraph")
+        if not para:
+            continue
+        parts: list[str] = []
+        has_suggestion = False
+        for pe in para.get("elements", []):
+            run = pe.get("textRun")
+            if not run:
+                continue
+            text = run.get("content", "")
+            if run.get("suggestedInsertionIds"):
+                parts.append("{++" + text.rstrip("\n") + "++}")
+                has_suggestion = True
+            elif run.get("suggestedDeletionIds"):
+                parts.append("{--" + text.rstrip("\n") + "--}")
+                has_suggestion = True
+            else:
+                parts.append(text)
+        if has_suggestion:
+            paragraphs.append("".join(parts).strip())
+    return {"title": doc.get("title", ""), "paragraphs": paragraphs}
+
+
 def drive_get_metadata(file_id: str) -> dict | None:
     """Fetch lightweight Drive file metadata for update detection.
 

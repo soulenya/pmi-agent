@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.4 — 2026-07-21
+**read_drive_annotations — the review layer read_drive_file can't see**
+
+- **Field report (Morgan via Gerry):** no tool exposed Google Docs comments or Suggesting-mode edits — only committed body text.
+- **New google_service helpers:** `drive_list_comments` (Drive API comments().list — author/anchor/replies/resolved, any file type, paginated) and `docs_get_suggestions` (Docs API documents().get with SUGGESTIONS_INLINE — paragraphs containing suggestions rendered as {++insertion++}/{--deletion--}; the API does not expose suggestion authors).
+- **New tool `read_drive_annotations`** (full checklist, all 8 v2 agents): combined comments + suggestions report; degrades honestly per layer — non-Docs files skip suggestions, SERVICE_DISABLED → "enable the Google Docs API in GCP", 403 → "reconnect with all boxes ticked". read_drive_file descriptions in both engines now point here for review-layer questions. Scopes already requested (documents.readonly since the beginning).
+- Live-verified on a real Drive file (comments path + honest non-Doc degradation).
+
 ### v3.3.3 — 2026-07-21
 **Drive-file email attachments — snapshot current state, never modify the original**
 
