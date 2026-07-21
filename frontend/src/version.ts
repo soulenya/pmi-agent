@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 161;
+export const BUILD_NUMBER = 162;
 export const BUILD_DATE = "2026-07-21";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 162,
+    date: "2026-07-21",
+    title: "Gerry sees comments and suggested edits on Drive documents",
+    changes: [
+      "Ask Gerry about the review layer of any Drive file: comment threads with authors, the text they're anchored to, replies, and resolved status",
+      "On native Google Docs she also reads Suggesting-mode edits — pending insertions and deletions shown inline, paragraph by paragraph",
+      "'What did Lindsey comment on the QMS manual?' and 'summarize the suggested changes' now work",
+      "Honest limits stated up front: Google doesn't reveal who made a suggestion (only comments carry authors), and suggestion reading only works on native Google Docs",
+    ],
+  },
   {
     build: 161,
     date: "2026-07-21",

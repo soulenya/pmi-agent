@@ -106,6 +106,7 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "list_shared_drives": "Listing shared drives…",
     "search_drive_content": "Reading Drive files…",
     "read_drive_file": "Reading Drive file…",    "list_recent_drive_files": "Checking your recent documents…",
+    "read_drive_annotations": "Reading comments and suggestions…",
     "follow_drive_document": "Opening your document…",
     "unfollow_drive_document": "Closing the document…",
     "add_to_knowledge_base": "Adding to the Knowledge Base…",
