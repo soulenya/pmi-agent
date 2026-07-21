@@ -400,7 +400,18 @@ function MeetingCard({ note }: { note: MeetingNote }) {
 
   const addToKbMutation = useMutation({
     mutationFn: () => addMeetingToKnowledgeBase(note.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["meetings"] }),
+    onError: (e) => {
+      const detail = (e as { response?: { status?: number; data?: { detail?: { message?: string } | string } } })?.response;
+      if (detail?.status === 409) {
+        const d = detail.data?.detail;
+        window.alert(typeof d === "object" && d?.message ? d.message : "These notes are already in the Knowledge Base.");
+        qc.invalidateQueries({ queryKey: ["meetings"] });
+      }
+    },
   });
+
+  const inKb = Boolean(note.kb_document_id) || addToKbMutation.isSuccess;
 
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -464,23 +475,27 @@ function MeetingCard({ note }: { note: MeetingNote }) {
           )}
           <button
             onClick={() => addToKbMutation.mutate()}
-            disabled={addToKbMutation.isPending || addToKbMutation.isSuccess}
-            title="Add this meeting to the knowledge base"
+            disabled={addToKbMutation.isPending || inKb}
+            title={
+              inKb
+                ? "Already in the Knowledge Base — delete the KB copy first to re-add, or delete this note if you no longer need it here"
+                : "Add this meeting to the knowledge base"
+            }
             className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-50",
-              addToKbMutation.isSuccess
+              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-70",
+              inKb
                 ? "bg-green-500/10 text-green-700 dark:text-green-400"
                 : "bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-500/20",
             )}
           >
             {addToKbMutation.isPending ? (
               <Loader2 className="h-3 w-3 animate-spin" />
-            ) : addToKbMutation.isSuccess ? (
+            ) : inKb ? (
               <Check className="h-3 w-3" />
             ) : (
               <BookPlus className="h-3 w-3" />
             )}
-            {addToKbMutation.isSuccess ? "Added to KB" : "Add to KB"}
+            {inKb ? "In Knowledge Base" : "Add to KB"}
           </button>
           <button
             onClick={() => setExpanded((p) => !p)}

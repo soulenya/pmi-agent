@@ -22,6 +22,9 @@ class EmailDraft(Base):
     subject: Mapped[str] = mapped_column(String(500), nullable=False)
     recipient_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     recipient_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Comma-separated additional recipients (passed straight to gmail_send)
+    cc: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    bcc: Mapped[str | None] = mapped_column(String(500), nullable=True)
     purpose: Mapped[str] = mapped_column(Text, nullable=False)  # what the email should accomplish
     tone: Mapped[str] = mapped_column(String(50), nullable=False, default="professional")
     key_points: Mapped[str | None] = mapped_column(Text, nullable=True)  # user notes/bullet points
