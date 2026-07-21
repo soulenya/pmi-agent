@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 159;
-export const BUILD_DATE = "2026-07-20";
+export const BUILD_NUMBER = 160;
+export const BUILD_DATE = "2026-07-21";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 160,
+    date: "2026-07-21",
+    title: "Meeting notes can't be double-added to the KB; emails get CC/BCC",
+    changes: [
+      "Adding meeting notes to the Knowledge Base now remembers it — the button becomes 'In Knowledge Base' and stays that way across sessions; trying again explains the notes are already there",
+      "If you delete the KB copy, the meeting note becomes addable again automatically",
+      "Email drafts now carry CC and BCC — ask Gerry ('draft an email to Matthew, CC Lindsey') or use the new fields in the compose form; they ride the approval and land on the real email",
+      "Draft cards show CC/BCC so you can verify recipients before approving the send",
+    ],
+  },
   {
     build: 159,
     date: "2026-07-20",

@@ -32,6 +32,10 @@ class MeetingNote(Base):
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
     # IDs of tasks auto-created from action items
     generated_task_ids: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
+    # KB document this note was ingested as (guards against duplicate adds)
+    kb_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )

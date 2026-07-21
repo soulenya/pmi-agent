@@ -10,6 +10,7 @@ export interface MeetingNote {
   attendees: string[];
   tags: string[];
   generated_task_ids: string[];
+  kb_document_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -34,6 +35,8 @@ export interface EmailDraft {
   subject: string;
   recipient_name: string | null;
   recipient_email: string | null;
+  cc: string | null;
+  bcc: string | null;
   purpose: string;
   tone: string;
   key_points: string | null;
@@ -52,6 +55,8 @@ export interface EmailDraftCreate {
   subject: string;
   recipient_name?: string;
   recipient_email?: string;
+  cc?: string;
+  bcc?: string;
   purpose: string;
   tone?: string;
   key_points?: string;
