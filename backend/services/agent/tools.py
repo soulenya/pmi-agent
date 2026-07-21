@@ -247,6 +247,11 @@ TOOL_DEFINITIONS: list[dict] = [
                 "ATTACHMENTS: pass generated filenames in 'attachments' to attach files from the "
                 "Generated Files store. To attach a document that doesn't exist yet, create it "
                 "FIRST with create_docx/generate_file, then pass the returned filename here. "
+                "To attach a file from Google Drive AS-IS (formatting preserved, no changes), pass "
+                "its Drive id or URL in 'drive_attachments' — a snapshot of the file's CURRENT "
+                "state is taken immediately, so later Drive edits never alter the attachment. "
+                "Native Google Docs/Sheets/Slides are exported to .docx/.xlsx/.pptx; everything "
+                "else (PDF, Word, images) is attached byte-for-byte. "
                 "Only use request_approval(intent_type='send_email') instead when the user explicitly "
                 "asks you to SEND an email right now."
             ),
@@ -282,6 +287,15 @@ TOOL_DEFINITIONS: list[dict] = [
                             "create_docx/generate_file, e.g. 'ab12cd34_Report.docx'; the plain "
                             "display name also works). They are attached to the real email when "
                             "the user approves the send."
+                        ),
+                    },
+                    "drive_attachments": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Google Drive file ids or URLs to attach AS-IS. A snapshot of each "
+                            "file's current state is taken now — the original on Drive is never "
+                            "modified and later Drive edits don't change the attachment."
                         ),
                     },
                 },
@@ -1722,6 +1736,45 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
                 )
         display = re.sub(r"^[0-9a-f]{8}_", "", safe_name)
         attachments.append({"filename": safe_name, "display_name": display})
+
+    # Drive attachments — snapshot each file's CURRENT state into the Generated
+    # Files store so the attachment is frozen even if Drive edits continue. The
+    # original file on Drive is never touched. Native Google formats export to
+    # Office equivalents; everything else downloads byte-for-byte.
+    drive_refs = args.get("drive_attachments") or []
+    if isinstance(drive_refs, str):
+        drive_refs = [drive_refs]
+    if drive_refs:
+        import asyncio
+
+        from services.google_service import drive_download_bytes, get_credentials
+        from services.live_document import extract_drive_file_id
+
+        if not get_credentials():
+            return _google_not_connected()
+        _GENERATED_FILES_DIR.mkdir(exist_ok=True)
+        for ref in drive_refs[:10]:
+            fid = extract_drive_file_id(str(ref).strip())
+            if not fid:
+                return f"Error: '{ref}' is not a Google Drive file id or URL."
+            try:
+                blob = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda f=fid: drive_download_bytes(f)
+                )
+            except Exception as exc:  # noqa: BLE001 — report honestly, file the draft only when complete
+                return f"Could not download Drive file '{ref}': {exc}. No draft was filed."
+            content = blob.get("content") or b""
+            name = (blob.get("name") or "attachment").replace("/", "_").replace("\\", "_").strip()
+            if not content:
+                return f"Drive file '{name}' downloaded empty — cannot attach it. No draft was filed."
+            if len(content) > 20 * 1024 * 1024:
+                return (
+                    f"Drive file '{name}' is {len(content) / (1024 * 1024):.1f} MB — too large to "
+                    "email (20 MB cap). Consider sharing the Drive link in the body instead."
+                )
+            snap_name = f"{uuid.uuid4().hex[:8]}_{name}"[:200]
+            (_GENERATED_FILES_DIR / snap_name).write_bytes(content)
+            attachments.append({"filename": snap_name, "display_name": name})
 
     draft = EmailDraft(
         id=uuid.uuid4(),
