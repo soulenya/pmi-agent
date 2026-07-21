@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.3.2 — 2026-07-21
+**Field reports: meeting-note KB duplication + missing email CC**
+
+- **Meeting notes (Morgan):** "Add to KB" used `allow_duplicate=True` with no tracking — every click minted a new KB document and the button state was session-only. Migration 019 adds `meeting_notes.kb_document_id`; the endpoint 409s (`already_in_kb`) while the KB copy exists, auto-clears the link if it was deleted (re-add allowed), and the card shows a persistent "In Knowledge Base" state.
+- **Email CC/BCC (Morgan via Gerry):** "the email draft tool doesn't have a CC field." Migration 019 adds `email_drafts.cc/bcc`; `create_email_draft` accepts comma-separated cc/bcc (both engines' docs updated); compose form + update schema gain the fields; approval payload carries them; the send execution path already forwarded payload cc/bcc to `gmail_send` — now it actually receives them. Draft cards display CC/BCC.
+
 ### v3.3.1 — 2026-07-20
 **Chat resend — recover hung turns without retyping**
 

@@ -30,6 +30,8 @@ class EmailDraftCreate(BaseModel):
     subject: str = Field(..., min_length=1, max_length=500)
     recipient_name: str | None = None
     recipient_email: str | None = None
+    cc: str | None = Field(default=None, max_length=500)
+    bcc: str | None = Field(default=None, max_length=500)
     purpose: str = Field(..., min_length=10, max_length=2000)
     tone: str = Field(default="professional")
     key_points: str | None = None
@@ -41,6 +43,8 @@ class EmailDraftOut(BaseModel):
     subject: str
     recipient_name: str | None
     recipient_email: str | None
+    cc: str | None = None
+    bcc: str | None = None
     purpose: str
     tone: str
     key_points: str | None
@@ -61,6 +65,8 @@ class EmailDraftUpdate(BaseModel):
     subject: str | None = None
     recipient_name: str | None = None
     recipient_email: str | None = None
+    cc: str | None = Field(default=None, max_length=500)
+    bcc: str | None = Field(default=None, max_length=500)
     purpose: str | None = None
     tone: str | None = None
     key_points: str | None = None
@@ -154,6 +160,8 @@ async def create_and_draft(
         subject=body.subject,
         recipient_name=body.recipient_name,
         recipient_email=body.recipient_email,
+        cc=body.cc,
+        bcc=body.bcc,
         purpose=body.purpose,
         tone=body.tone,
         key_points=body.key_points,
@@ -277,6 +285,8 @@ async def submit_for_approval(
             "subject": draft.subject,
             "recipient_name": draft.recipient_name,
             "recipient_email": draft.recipient_email,
+            "cc": draft.cc,
+            "bcc": draft.bcc,
             "draft_body": draft.draft_body,
             "attachments": draft.attachments or [],
         },
