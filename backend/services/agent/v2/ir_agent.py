@@ -42,6 +42,7 @@ _TOOLS = [
     "fetch_page",
     "search_drive",
     "read_drive_file",
+    "read_drive_annotations",
     "list_recent_drive_files",
     "follow_drive_document",
     "unfollow_drive_document",

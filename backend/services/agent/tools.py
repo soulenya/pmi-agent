@@ -626,6 +626,32 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "read_drive_annotations",
+            "description": (
+                "Read the REVIEW LAYER of a Google Drive file that read_drive_file "
+                "cannot see: comment threads (author, anchored text, replies, "
+                "resolved state — works on any Drive file) and, for native Google "
+                "Docs, SUGGESTED EDITS from Suggesting mode rendered inline as "
+                "{++insertion++} / {--deletion--}. Use when the user asks about "
+                "comments, feedback, suggestions, tracked changes, or 'what did X "
+                "say about this doc'. Note: the Docs API does not reveal who made "
+                "a suggestion — only comments carry authors."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_id": {
+                        "type": "string",
+                        "description": "Drive file id or a pasted document URL.",
+                    },
+                },
+                "required": ["file_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_drive_content",
             "description": (
                 "Search Google Drive by keyword AND READ the full text of the top "
@@ -665,7 +691,9 @@ TOOL_DEFINITIONS: list[dict] = [
                 "Long documents are returned in 30,000-character pages — when the result "
                 "ends with a CONTINUE note, call again with the suggested offset to read "
                 "the next page. NEVER review only the first page of a long document and "
-                "present conclusions as complete — page through to the end first."
+                "present conclusions as complete — page through to the end first. "
+                "NOTE: this returns the committed body text only — for comment threads "
+                "and Suggesting-mode edits, call read_drive_annotations."
             ),
             "parameters": {
                 "type": "object",
@@ -2280,6 +2308,79 @@ async def execute_search_drive_content(ctx: ToolContext, args: dict[str, Any]) -
     return "\n\n".join(lines)
 
 
+async def execute_read_drive_annotations(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Comments + suggested edits — the review layer read_drive_file can't see."""
+    import asyncio
+
+    from services.google_service import (
+        docs_get_suggestions,
+        drive_list_comments,
+        get_credentials,
+    )
+    from services.live_document import extract_drive_file_id
+
+    if not get_credentials():
+        return _google_not_connected()
+    file_id = extract_drive_file_id(str(args.get("file_id", "")))
+    if not file_id:
+        return "Error: file_id (or a pasted document URL) is required."
+
+    loop = asyncio.get_event_loop()
+    sections: list[str] = []
+
+    # 1. Comment threads (any Drive file type)
+    try:
+        comments = await loop.run_in_executor(None, lambda: drive_list_comments(file_id))
+    except Exception as exc:  # noqa: BLE001 — surface honestly
+        return f"Could not read comments on that file: {exc}"
+    if comments:
+        lines = [f"COMMENTS ({len(comments)} thread(s)):"]
+        for c in comments:
+            status = " [RESOLVED]" if c["resolved"] else ""
+            anchor = f' on "{c["anchor"][:120]}"' if c["anchor"] else ""
+            lines.append(f'- {c["author"]} ({c["created"]}){status}{anchor}: {c["content"]}')
+            for r in c["replies"]:
+                lines.append(f'    \u21b3 {r["author"]} ({r["created"]}): {r["content"]}')
+        sections.append("\n".join(lines))
+    else:
+        sections.append("COMMENTS: none.")
+
+    # 2. Suggested edits (native Google Docs only)
+    try:
+        sugg = await loop.run_in_executor(None, lambda: docs_get_suggestions(file_id))
+        if sugg["paragraphs"]:
+            lines = [
+                f"SUGGESTED EDITS ({len(sugg['paragraphs'])} paragraph(s) affected) — "
+                "{++text++} = suggested insertion, {--text--} = suggested deletion "
+                "(the Docs API does not reveal the suggester):"
+            ]
+            lines.extend(f"- {p}" for p in sugg["paragraphs"])
+            sections.append("\n".join(lines))
+        else:
+            sections.append("SUGGESTED EDITS: none pending.")
+    except Exception as exc:  # noqa: BLE001
+        msg = str(exc)
+        if "SERVICE_DISABLED" in msg or "has not been used" in msg:
+            sections.append(
+                "SUGGESTED EDITS: unavailable — the Google Docs API is not enabled "
+                "for this Google Cloud project. Ask the user to enable it in the "
+                "GCP console (APIs & Services → Google Docs API)."
+            )
+        elif "403" in msg or "insufficient" in msg.lower():
+            sections.append(
+                "SUGGESTED EDITS: unavailable — the Google connection is missing the "
+                "Docs permission. Ask the user to reconnect Google Workspace in "
+                "Settings and tick ALL permission boxes."
+            )
+        else:
+            sections.append(
+                "SUGGESTED EDITS: not available for this file (suggestion inspection "
+                "only works on native Google Docs, not Word/PDF files)."
+            )
+
+    return "\n\n".join(sections)
+
+
 async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
     import re as _re
@@ -3259,6 +3360,7 @@ TOOL_EXECUTORS = {
     "list_drive_folder": execute_list_drive_folder,
     "list_shared_drives": execute_list_shared_drives,
     "read_drive_file": execute_read_drive_file,
+    "read_drive_annotations": execute_read_drive_annotations,
     "list_recent_drive_files": execute_list_recent_drive_files,
     "follow_drive_document": execute_follow_drive_document,
     "unfollow_drive_document": execute_unfollow_drive_document,
@@ -3303,6 +3405,7 @@ _PRIMARY_ARG = {
     "fetch_page": "url",
     "read_gmail_message": "message_id",
     "read_drive_file": "file_id",
+    "read_drive_annotations": "file_id",
     "list_recent_drive_files": "max_results",
     "follow_drive_document": "file_id",
     "add_to_knowledge_base": "drive_file_id",
