@@ -61,6 +61,8 @@ function NewDraftForm({ onClose }: { onClose: () => void }) {
     tone: "professional",
     recipient_name: "",
     recipient_email: "",
+    cc: "",
+    bcc: "",
     key_points: "",
   });
 
@@ -113,6 +115,27 @@ function NewDraftForm({ onClose }: { onClose: () => void }) {
             value={form.recipient_email}
             onChange={(e) => set("recipient_email", e.target.value)}
             placeholder="jane@example.com"
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">CC (comma-separated)</label>
+          <input
+            value={form.cc}
+            onChange={(e) => set("cc", e.target.value)}
+            placeholder="matthew@example.com, lindsey@example.com"
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">BCC (comma-separated)</label>
+          <input
+            value={form.bcc}
+            onChange={(e) => set("bcc", e.target.value)}
+            placeholder=""
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
@@ -277,6 +300,8 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
             {draft.recipient_name && (
               <span>To: {draft.recipient_name}{draft.recipient_email ? ` <${draft.recipient_email}>` : ""}</span>
             )}
+            {draft.cc && <span>CC: {draft.cc}</span>}
+            {draft.bcc && <span>BCC: {draft.bcc}</span>}
             <span className="capitalize">Tone: {draft.tone}</span>
             <span>{new Date(draft.created_at).toLocaleDateString()}</span>
           </div>

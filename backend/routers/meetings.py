@@ -48,6 +48,7 @@ class MeetingNoteOut(BaseModel):
     attendees: list[str]
     tags: list[str]
     generated_task_ids: list[str]
+    kb_document_id: uuid.UUID | None = None
     created_by: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
@@ -489,6 +490,26 @@ async def add_meeting_to_kb(
     if meeting.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+    # Duplicate guard — this note was already ingested. Re-adding is only
+    # allowed after the KB copy has been deleted.
+    if meeting.kb_document_id:
+        from repositories.document_repo import DocumentRepository
+
+        existing = await DocumentRepository(db).get_active(meeting.kb_document_id)
+        if existing is not None:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "already_in_kb",
+                    "message": (
+                        f'These notes are already in the Knowledge Base as "{existing.title}". '
+                        "Delete that KB document first if you want to re-add them."
+                    ),
+                    "document_id": str(existing.id),
+                },
+            )
+        meeting.kb_document_id = None  # KB copy was deleted — allow re-add
+
     markdown = _meeting_to_markdown(meeting)
     safe_title = (meeting.title or "Meeting").strip()[:200]
 
@@ -511,6 +532,7 @@ async def add_meeting_to_kb(
             f"Could not add meeting to the knowledge base: {exc}",
         ) from exc
 
+    meeting.kb_document_id = doc.id
     await db.commit()
     return AddToKbOut(
         document_id=doc.id,

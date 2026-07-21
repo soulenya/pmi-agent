@@ -265,6 +265,8 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "recipient_name": {"type": "string", "description": "Recipient's name, if known."},
                     "recipient_email": {"type": "string", "description": "Recipient's email address, if known."},
+                    "cc": {"type": "string", "description": "CC recipients — comma-separated email addresses."},
+                    "bcc": {"type": "string", "description": "BCC recipients — comma-separated email addresses."},
                     "purpose": {"type": "string", "description": "One line on what the email accomplishes (optional)."},
                     "tone": {
                         "type": "string",
@@ -1647,6 +1649,8 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
 
     recipient_name = str(args.get("recipient_name", "")).strip() or None
     recipient_email = str(args.get("recipient_email", "")).strip() or None
+    cc = str(args.get("cc", "")).strip()[:500] or None
+    bcc = str(args.get("bcc", "")).strip()[:500] or None
     resolved_note = ""
 
     # The user's configured signature (Settings → Inbox → Signature: gmail /
@@ -1724,6 +1728,8 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
         subject=subject,
         recipient_name=recipient_name,
         recipient_email=recipient_email,
+        cc=cc,
+        bcc=bcc,
         purpose=purpose,
         tone=tone,
         key_points=None,
@@ -1749,6 +1755,8 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
         to_str = f" to {recipient_name or recipient_email}"
         if recipient_email and recipient_name:
             to_str += f" <{recipient_email}>"
+    if cc:
+        to_str += f" (cc: {cc})"
     att_str = (
         " with attachment(s): " + ", ".join(a["display_name"] for a in attachments)
         if attachments
