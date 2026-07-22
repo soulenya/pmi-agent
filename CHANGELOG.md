@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.3.12 — 2026-07-22
+**Fixes: external sheets without a Ledger tab + Drive folder links (Morgan field reports)**
+
+- **"Unable to parse range: Ledger…" (HttpError 400):** `refresh_budget` tolerated missing Categories/Settings tabs on linked external sheets but hard-required a "Ledger" tab. Now: when the Ledger read fails with Unable-to-parse-range, the FIRST tab is read best-effort instead (columns A–F mapped as date/description/category/amount/source/note; quoted tab titles handled). Read-only path — nothing can be hurt. Error text capped at 200 chars.
+- **"Google couldn't find that folder":** `extract_drive_file_id` only understood `/d/<id>` and `?id=<id>` — Drive FOLDER links use `/drive/folders/<id>`, so pasted folder URLs went to the API verbatim. The shared extractor now handles `/folders/<id>` too (fixes budget folder linking and every other pasted-folder consumer).
+
 ### v3.3.11 — 2026-07-22
 **Central company budgets folder (Morgan standing rule)**
 

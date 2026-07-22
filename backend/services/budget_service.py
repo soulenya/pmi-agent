@@ -173,7 +173,19 @@ async def refresh_budget(db: AsyncSession, budget: Budget, force: bool = False) 
         return budget  # cache is current
 
     def _read_all() -> tuple[list, list, list]:
-        ledger = gs.sheets_read(budget.drive_file_id, "Ledger!A2:F2000").get("rows", [])
+        try:
+            ledger = gs.sheets_read(budget.drive_file_id, "Ledger!A2:F2000").get("rows", [])
+        except Exception as exc:  # noqa: BLE001 — external sheets may have no Ledger tab
+            if "Unable to parse range" not in str(exc):
+                raise
+            # Linked external sheet without Gerry's layout — read the first
+            # tab best-effort (columns mapped A–F as date/description/
+            # category/amount/source/note; read-only, so nothing can be hurt).
+            tabs = gs.sheets_get_metadata(budget.drive_file_id).get("sheets", [])
+            if not tabs:
+                raise
+            first = tabs[0].replace("'", "''")
+            ledger = gs.sheets_read(budget.drive_file_id, f"'{first}'!A2:F2000").get("rows", [])
         try:
             cats = gs.sheets_read(budget.drive_file_id, "Categories!A2:B200").get("rows", [])
         except Exception:  # noqa: BLE001 — external sheets may lack the tab
@@ -187,7 +199,7 @@ async def refresh_budget(db: AsyncSession, budget: Budget, force: bool = False) 
     try:
         ledger_rows, cat_rows, settings_rows = await _run(_read_all)
     except Exception as exc:  # noqa: BLE001
-        raise BudgetError(f"Couldn't read the budget sheet: {exc}") from exc
+        raise BudgetError(f"Couldn't read the budget sheet: {str(exc)[:200]}") from exc
 
     entries = []
     for i, row in enumerate(ledger_rows):
