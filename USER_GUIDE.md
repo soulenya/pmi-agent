@@ -182,6 +182,7 @@ Navigate to **AI Assistant** in the sidebar.
 - Little Gerry streams her response in real time
 - When she uses a tool (searching Drive, reading an email, querying the KB), a status indicator appears
 - When Gerry **creates** something during a chat — an email draft, an approval request, a task, a budget entry, a filed invoice — a **"take me to it" chip** appears under her reply: one click jumps straight to the draft/approval/budget instead of you hunting it down. Chips work in the sidebar chat too and stay on the message in history
+- **Restricted sources**: Gerry never reads or references the QMS folder (or its subfolders) or any file with "draft" in its name unless you explicitly ask — and she'll confirm first, naming the folder and file she's about to open
 - Hover over a conversation in the left panel to rename or archive it
 - Click **+** to start a new conversation
 

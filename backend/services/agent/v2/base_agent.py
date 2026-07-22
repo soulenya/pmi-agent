@@ -14,7 +14,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from services.agent.guardrails import HONESTY_CONTRACT
+from services.agent.guardrails import HONESTY_CONTRACT, RESTRICTED_SOURCES_NOTE
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,7 @@ class BaseAgent:
             + google_note
             + (company_context or "")
             + HONESTY_CONTRACT
+            + RESTRICTED_SOURCES_NOTE
             + (extra_context or "")
         )
 

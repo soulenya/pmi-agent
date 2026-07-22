@@ -28,7 +28,7 @@ from config import settings
 from models.db.enums import MessageRole
 from models.schemas.conversations import WSDone, WSError, WSToken, WSToolStatus
 from repositories.conversation_repo import ConversationRepository, MessageRepository
-from services.agent.guardrails import HONESTY_CONTRACT
+from services.agent.guardrails import HONESTY_CONTRACT, RESTRICTED_SOURCES_NOTE
 from services.agent.tools import TOOL_DEFINITIONS, ToolContext, artifact_links_for, dispatch_tool
 from services.embeddings.service import get_embedding_service_for_db
 from services.llm.ollama import OllamaClient, OllamaError, get_ollama_client
@@ -480,7 +480,7 @@ class AgentExecutor:
         messages: list[dict[str, Any]] = [
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT.format(today=today) + google_note + HONESTY_CONTRACT,
+                "content": SYSTEM_PROMPT.format(today=today) + google_note + HONESTY_CONTRACT + RESTRICTED_SOURCES_NOTE,
             }
         ]
 
