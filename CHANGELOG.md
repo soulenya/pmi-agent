@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.3.11 — 2026-07-22
+**Central company budgets folder (Morgan standing rule)**
+
+- Budget sheets for EVERY user are now created in the baked-in company budgets folder (`1k-tBw0UomODw-nwJjjkNteHaQltuNs2D`) instead of a per-install auto-created "Little Gerry Budgets" folder. The `budgets.folder_id_override` SystemSetting still wins when deliberately set.
+- Migration 023 clears the stale override cache the Phase-1 code wrote (it cached the auto-created folder id there, which would have silently kept new budgets in the old location). Existing budget sheets are untouched — they're linked by file id.
+- Folder reachability is verified at creation; an unshared folder produces a plain "ask Morgan to share the budgets folder (edit access)" message. Docs/tool descriptions updated in both engines.
+
 ### v3.3.10 — 2026-07-22
 **Restricted Drive sources: QMS folder + draft files (Morgan standing rule)**
 

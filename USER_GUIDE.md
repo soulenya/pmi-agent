@@ -491,7 +491,7 @@ Open **Odoo ERP** from the home screen to connect your Odoo account.
 
 Navigate to **Manage Budgets** (a moon on the **Enterprise** planet). A personal financial-management aid — **not** the company's official books.
 
-- **Create a budget** with a title, optional allotment, and categories — it's created as a **Google Sheet on your own Drive** (in a "Little Gerry Budgets" folder). You own the data.
+- **Create a budget** with a title, optional allotment, and categories — it's created as a **Google Sheet in the company's shared budgets folder** on Drive, so every budget lives in one known place. You own your sheet and can open it anytime.
 - **One ledger, two surfaces**: add, edit, or delete entries in Little Gerry OR directly in Google Sheets — changes reflect in both. The page refreshes automatically while open, and every edit re-checks the sheet first so nothing gets clobbered.
 - **Allotments**: set one and watch spending against it with progress bars (amber at 80%, red at 100%).
 - **Filter and isolate**: tap the category chips above the ledger to filter it (multi-select, live subtotal), or check specific entries and "Isolate selected" to view just those rows for a reference.
