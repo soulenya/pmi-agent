@@ -1359,6 +1359,27 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "get_budget_snapshot",
+            "description": (
+                "Instant answer to 'how much is left on X?' — one-line "
+                "spent/allotment/remaining per budget, straight from the "
+                "cached mirror (no sheet calls, no waiting). For the full "
+                "ledger or a guaranteed-fresh read use read_budget instead."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Budget title (fuzzy matched). Omit for a snapshot of every budget.",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "generate_file",
             "description": (
                 "Generate a downloadable file and save it to the server. "
@@ -3387,6 +3408,37 @@ async def execute_remove_budget_entry(ctx: ToolContext, args: dict[str, Any]) ->
     return f'Deleted from "{budget.title}": {label}. Now {_budget_summary_line(budget)}.'
 
 
+async def execute_get_budget_snapshot(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from sqlalchemy import desc as _desc, select as _select
+
+    from models.db.budget import Budget
+
+    hint = str(args.get("title", "")).strip()
+    if hint:
+        budget, err = await _resolve_budget(ctx, args, key="title")
+        if err:
+            return err
+        budgets = [budget]
+    else:
+        budgets = list(
+            (
+                await ctx.db.execute(
+                    _select(Budget)
+                    .where(Budget.user_id == ctx.user_id)
+                    .order_by(_desc(Budget.updated_at))
+                )
+            ).scalars()
+        )
+        if not budgets:
+            return (
+                "No budgets yet. Create one with create_budget, or the user can "
+                "use the Manage Budgets page (moon on the Enterprise planet)."
+            )
+    lines = [f'"{b.title}": {_budget_summary_line(b)}' for b in budgets]
+    lines.append("(Cached snapshot — for the full ledger or a fresh read use read_budget.)")
+    return "\n".join(lines)
+
+
 async def execute_get_calendar_events(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
     from services.google_service import calendar_events, get_credentials
@@ -3956,6 +4008,7 @@ TOOL_EXECUTORS = {
     "add_budget_entry": execute_add_budget_entry,
     "update_budget_entry": execute_update_budget_entry,
     "remove_budget_entry": execute_remove_budget_entry,
+    "get_budget_snapshot": execute_get_budget_snapshot,
     "read_odoo": execute_read_odoo,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
@@ -4006,6 +4059,7 @@ _PRIMARY_ARG = {
     "add_budget_entry": "description",
     "update_budget_entry": "description",
     "remove_budget_entry": "description",
+    "get_budget_snapshot": "title",
     "list_drive_folder": "folder_id",
     "read_google_sheet": "spreadsheet_id",
     "update_task": "task_id",

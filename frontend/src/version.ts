@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 164;
+export const BUILD_NUMBER = 165;
 export const BUILD_DATE = "2026-07-21";
 
 export interface ChangelogEntry {
@@ -14,6 +14,20 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 165,
+    date: "2026-07-21",
+    title: "The budget watches itself — thresholds, rollups, digest lines",
+    changes: [
+      "Crossing 80% or 100% of a budget's allotment now raises a notification — once per crossing, re-armed if spending drops back",
+      "Categories with caps warn the moment they're hit",
+      "First scan of each month delivers a one-line rollup of last month's spending per budget",
+      "Workroom morning digests report pinned budgets whose totals changed since yesterday",
+      "The home-screen briefing panel gains a Budgets section showing anything at 80%+ of allotment",
+      "New instant answer in chat: 'how much is left on X?' — straight from the cache, no waiting",
+      "All read-only nudges: nothing here ever writes to your sheet",
+    ],
+  },
   {
     build: 164,
     date: "2026-07-21",

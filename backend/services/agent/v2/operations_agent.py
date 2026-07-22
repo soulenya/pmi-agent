@@ -66,6 +66,7 @@ _TOOLS = [
     "add_budget_entry",
     "update_budget_entry",
     "remove_budget_entry",
+    "get_budget_snapshot",
     "propose_odoo_write",
     "search_drive_content",
     "list_workroom_items",

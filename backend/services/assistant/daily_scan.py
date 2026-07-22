@@ -260,6 +260,17 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         "skipped": None,
     }
 
+    # Budget nudges run BEFORE the workroom automations (so morning digests
+    # compare fresh totals) and BEFORE the Google gate — threshold checks work
+    # from the cached mirror even without a connected Google account.
+    try:
+        from services.budget_daily import run_budget_daily
+
+        bd = await run_budget_daily(db)
+        summary["notifications"].extend(bd.get("notifications", []))
+    except Exception:  # noqa: BLE001 — budget nudges must never block the scan
+        logger.exception("Budget daily automations failed")
+
     # Workroom daily automations (digest + proactive to-dos) run BEFORE the
     # Google gate — rooms work even without a connected Google account.
     try:
