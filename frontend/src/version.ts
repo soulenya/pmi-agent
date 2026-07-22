@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 162;
+export const BUILD_NUMBER = 163;
 export const BUILD_DATE = "2026-07-21";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 163,
+    date: "2026-07-21",
+    title: "Manage Budgets — personal budgets that live on your Drive",
+    changes: [
+      "New 'Manage Budgets' page on the Enterprise planet (the Odoo planet, renamed): create personal budgets with optional allotments and categories",
+      "Each budget is a Google Sheet on YOUR Drive — edit entries in Little Gerry or straight in Sheets, and changes reflect in both surfaces automatically",
+      "Progress bars track spending against allotments (amber at 80%, red over)",
+      "A per-budget toggle lets Gerry add and edit entries at your request — deletions always confirm with you, and you can revoke anytime",
+      "Link existing spreadsheets read-only; unlinking never touches your sheet. A personal aid — not the company books",
+    ],
+  },
   {
     build: 162,
     date: "2026-07-21",

@@ -1377,6 +1377,132 @@ def sheets_get_metadata(spreadsheet_id: str) -> dict:
     }
 
 
+# ── Sheets write helpers (Little Gerry Budgets) ───────────────────────────
+# These only ever touch spreadsheets CREATED by Little Gerry — which is why
+# they work under the existing drive.file scope with no re-consent.
+
+def sheets_create_budget_spreadsheet(
+    title: str,
+    allotment: float | None,
+    currency: str,
+    categories: list[str],
+    folder_id: str | None = None,
+) -> dict:
+    """Create a standardized budget spreadsheet (Ledger/Categories/Settings
+    tabs, headers, and summary formulas), optionally moved into a folder.
+    Returns ``{id, url}``."""
+    svc = _build("sheets", "v4")
+
+    body = {
+        "properties": {"title": f"{title} — Little Gerry Budget"},
+        "sheets": [
+            {"properties": {"title": "Ledger", "gridProperties": {"frozenRowCount": 1}}},
+            {"properties": {"title": "Categories", "gridProperties": {"frozenRowCount": 1}}},
+            {"properties": {"title": "Settings"}},
+        ],
+    }
+    created = svc.spreadsheets().create(
+        body=body, fields="spreadsheetId,spreadsheetUrl"
+    ).execute()
+    sid = created["spreadsheetId"]
+
+    from datetime import datetime as _dt
+
+    values_payload = [
+        {"range": "Ledger!A1:F1",
+         "values": [["Date", "Description", "Category", "Amount", "Source", "Note"]]},
+        {"range": "Categories!A1:B1", "values": [["Category", "Cap"]]},
+        {"range": "Settings!A1:B7", "values": [
+            ["Title", title],
+            ["Allotment", allotment if allotment is not None else ""],
+            ["Currency", currency],
+            ["Created", _dt.now().strftime("%Y-%m-%d")],
+            ["Managed By", "Little Gerry"],
+            ["Total Spent", "=SUM(Ledger!D2:D)"],
+            ["Remaining", "=IF(B2=\"\",\"\",B2-B6)"],
+        ]},
+    ]
+    if categories:
+        values_payload.append({
+            "range": f"Categories!A2:A{1 + len(categories)}",
+            "values": [[c] for c in categories],
+        })
+    svc.spreadsheets().values().batchUpdate(
+        spreadsheetId=sid,
+        body={"valueInputOption": "USER_ENTERED", "data": values_payload},
+    ).execute()
+
+    url = created.get("spreadsheetUrl", f"https://docs.google.com/spreadsheets/d/{sid}")
+
+    if folder_id:
+        drive = _build("drive", "v3")
+        try:
+            meta = drive.files().get(fileId=sid, fields="parents", supportsAllDrives=True).execute()
+            prev = ",".join(meta.get("parents", []))
+            drive.files().update(
+                fileId=sid,
+                addParents=folder_id,
+                removeParents=prev,
+                fields="id",
+                supportsAllDrives=True,
+            ).execute()
+        except Exception:  # noqa: BLE001 — placement is cosmetic; the sheet works from root
+            logger.warning("Budget sheet %s created but could not be moved to folder", sid)
+
+    return {"id": sid, "url": url}
+
+
+def sheets_append_row(spreadsheet_id: str, range_: str, values: list) -> None:
+    """Append one row of values to a table range (e.g. 'Ledger!A:F')."""
+    svc = _build("sheets", "v4")
+    svc.spreadsheets().values().append(
+        spreadsheetId=spreadsheet_id,
+        range=range_,
+        valueInputOption="USER_ENTERED",
+        insertDataOption="INSERT_ROWS",
+        body={"values": [values]},
+    ).execute()
+
+
+def sheets_update_range(spreadsheet_id: str, range_: str, values: list[list]) -> None:
+    """Overwrite an exact range with values (targeted, never wholesale)."""
+    svc = _build("sheets", "v4")
+    svc.spreadsheets().values().update(
+        spreadsheetId=spreadsheet_id,
+        range=range_,
+        valueInputOption="USER_ENTERED",
+        body={"values": values},
+    ).execute()
+
+
+def sheets_delete_row(spreadsheet_id: str, tab_title: str, row_index_1based: int) -> None:
+    """Delete a single row from a named tab (row 1 = first row)."""
+    svc = _build("sheets", "v4")
+    meta = svc.spreadsheets().get(
+        spreadsheetId=spreadsheet_id, fields="sheets.properties"
+    ).execute()
+    gid = None
+    for s in meta.get("sheets", []):
+        if s["properties"].get("title") == tab_title:
+            gid = s["properties"].get("sheetId")
+            break
+    if gid is None:
+        raise ValueError(f"Tab '{tab_title}' not found in spreadsheet.")
+    svc.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={"requests": [{
+            "deleteDimension": {
+                "range": {
+                    "sheetId": gid,
+                    "dimension": "ROWS",
+                    "startIndex": row_index_1based - 1,
+                    "endIndex": row_index_1based,
+                }
+            }
+        }]},
+    ).execute()
+
+
 # ── Tasks ─────────────────────────────────────────────────────────────────
 
 def tasks_list(max_results: int = 25, show_completed: bool = False) -> list[dict]:
