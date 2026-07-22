@@ -4,6 +4,16 @@
 
 ## Changelog
 
+### v3.3.5 — 2026-07-21
+**Budget Phase 1 — personal Drive-backed budgets (two surfaces, one ledger)**
+
+- **Construct:** each budget = a standardized Google Sheet (Ledger/Categories/Settings tabs + summary formulas) created by Gerry in a "Little Gerry Budgets" Drive folder — writable under the existing drive.file scope, zero new OAuth consent. Migration 020 `budgets` table = link + mirror cache (OWNER TO pmi_app included).
+- **Sync contract:** page writes → Sheet immediately via new google_service helpers (sheets_create_budget_spreadsheet, sheets_append_row, sheets_update_range, sheets_delete_row); Sheets-side edits → modifiedTime-gated refresh on read + 30s poll while the page is visible; every row update/delete re-reads and verifies the target row first (mismatch → honest 409, never a clobber).
+- **budget_service.py:** create/link(read-only external)/refresh/parse/add/update/delete/update_settings. Sheet remains authoritative; title/allotment edited in Sheets flow back into the mirror.
+- **UI:** BudgetsPage — list with allotment progress bars, ledger table with inline edit/delete, add-entry row with category datalist, per-budget "Let Gerry manage entries" toggle (gates Phase-2 agent writes), Open in Sheets, refresh, not-official-books disclaimer. Unlink never deletes the sheet.
+- **Solar system:** Odoo planet renamed **Enterprise** (id unchanged); moons = Odoo ERP + **Manage Budgets**.
+- Live-verified round trip: create → append → verified update → stale-expectation conflict → delete → allotment change (smoke sheet trashed after).
+
 ### v3.3.4 — 2026-07-21
 **read_drive_annotations — the review layer read_drive_file can't see**
 

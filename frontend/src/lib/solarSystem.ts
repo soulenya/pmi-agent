@@ -35,6 +35,7 @@ import {
   Bot,
   Archive,
   Handshake,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -129,7 +130,7 @@ export const PLANETS: Planet[] = [
   },
   {
     id: "odoo",
-    label: "Odoo",
+    label: "Enterprise",
     icon: Boxes,
     accent: "#fb923c",
     orbit: 0.66,
@@ -137,6 +138,7 @@ export const PLANETS: Planet[] = [
     size: 54,
     moons: [
       { id: "odoo", route: "/odoo", label: "Odoo ERP", icon: Boxes },
+      { id: "budgets", route: "/budgets", label: "Manage Budgets", icon: Wallet },
     ],
   },
   {

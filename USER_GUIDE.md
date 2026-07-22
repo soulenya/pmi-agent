@@ -44,11 +44,12 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 19. [Investor Relations](#investor-relations)
 20. [Google Workspace](#google-workspace)
 21. [Odoo ERP](#odoo-erp)
-22. [Approvals Queue](#approvals-queue)
-23. [Notifications](#notifications)
-24. [Settings](#settings)
-25. [Updating Little Gerry](#updating-little-gerry)
-26. [Tips & Example Prompts](#tips--example-prompts)
+22. [Manage Budgets](#manage-budgets)
+23. [Approvals Queue](#approvals-queue)
+24. [Notifications](#notifications)
+25. [Settings](#settings)
+26. [Updating Little Gerry](#updating-little-gerry)
+27. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -481,6 +482,18 @@ Open **Odoo ERP** from the home screen to connect your Odoo account.
 
 - The organization URL, database, and your login are pre-filled — you only paste your **Odoo API key**, which is stored **encrypted** on your machine.
 - Once connected, Little Gerry can read Odoo data and **propose** ERP actions. Like all write actions, anything that changes Odoo goes through the **Approvals** queue for your sign-off.
+
+---
+
+## Manage Budgets
+
+Navigate to **Manage Budgets** (a moon on the **Enterprise** planet). A personal financial-management aid — **not** the company's official books.
+
+- **Create a budget** with a title, optional allotment, and categories — it's created as a **Google Sheet on your own Drive** (in a "Little Gerry Budgets" folder). You own the data.
+- **One ledger, two surfaces**: add, edit, or delete entries in Little Gerry OR directly in Google Sheets — changes reflect in both. The page refreshes automatically while open, and every edit re-checks the sheet first so nothing gets clobbered.
+- **Allotments**: set one and watch spending against it with progress bars (amber at 80%, red at 100%).
+- **Let Gerry help**: a per-budget toggle grants Gerry permission to add and edit entries when you ask in chat. Deletions always require your confirmation. You can revoke the grant anytime.
+- **Link an existing spreadsheet** read-only. **Unlinking** a budget never deletes the sheet — it stays on your Drive.
 
 ---
 

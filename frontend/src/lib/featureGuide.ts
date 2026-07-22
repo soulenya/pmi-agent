@@ -199,7 +199,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     ],
   },
 
-  // ── Odoo ────────────────────────────────────────────────────────────────
+  // ── Odoo / Enterprise ───────────────────────────────────────────────────
   odoo: {
     tagline: "Your ERP, a question away.",
     capabilities: [
@@ -207,6 +207,16 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Check bank balances instantly — they also show on the home-screen briefing panel",
       "Import ERP datasets into the Knowledge Base so answers cite real business data",
       "Gerry can propose ERP changes — every write goes through your approval first",
+    ],
+  },
+  budgets: {
+    tagline: "Your personal budgets — one ledger, two surfaces.",
+    capabilities: [
+      "Create a budget and it lives as a Google Sheet on your Drive — edit it here or in Sheets, changes reflect in both",
+      "Set an optional allotment and watch spending against it with live progress bars",
+      "Grant Gerry per-budget permission to add and edit entries at your request — deletions always confirm with you first",
+      "Link any existing spreadsheet read-only; unlinking never deletes your sheet",
+      "A personal financial-management aid — not the company's official books",
     ],
   },
 
