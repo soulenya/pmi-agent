@@ -60,6 +60,7 @@ _TOOLS = [
     "update_budget_entry",
     "remove_budget_entry",
     "get_budget_snapshot",
+    "compare_budget_to_odoo",
     "create_docx",
     "list_workroom_items",
     "log_workroom_progress",
