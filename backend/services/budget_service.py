@@ -100,15 +100,33 @@ async def create_budget(
 
 
 async def link_external_budget(db: AsyncSession, user_id: uuid.UUID, file_id: str) -> Budget:
-    """Link a sheet Gerry didn't create — READ-ONLY (drive.file boundary)."""
+    """Link a sheet Gerry didn't create — READ-ONLY (drive.file boundary).
+
+    Accepts a bare spreadsheet ID or any pasted Google Sheets URL.
+    """
     from services import google_service as gs
+    from services.live_document import extract_drive_file_id
 
     _require_google()
-    file_id = file_id.strip()
+    file_id = extract_drive_file_id(file_id)
+    if not file_id:
+        raise BudgetError("Paste the spreadsheet's link (or its ID) to link it.")
     try:
         meta = await _run(lambda: gs.sheets_get_metadata(file_id))
     except Exception as exc:  # noqa: BLE001
-        raise BudgetError(f"Couldn't read that spreadsheet: {exc}") from exc
+        text = str(exc)
+        if "404" in text:
+            raise BudgetError(
+                "Google couldn't find that spreadsheet. Check the link, and make "
+                "sure the sheet is shared with the Google account connected in "
+                "Settings (a teammate must share it with you first)."
+            ) from exc
+        if "403" in text:
+            raise BudgetError(
+                "Google refused access to that spreadsheet — ask its owner to "
+                "share it with the Google account connected in Settings."
+            ) from exc
+        raise BudgetError(f"Couldn't read that spreadsheet: {text[:200]}") from exc
     budget = Budget(
         user_id=user_id,
         title=(meta.get("title") or "Linked budget")[:200],
@@ -357,3 +375,146 @@ async def update_settings(
             )
         )
     return await refresh_budget(db, budget, force=True)
+
+
+# ── cross-budget references ───────────────────────────────────────────────
+
+_REF_NOTE_PREFIX = "budget-ref:"
+
+
+def _ref_note(ref_budget_id) -> str:
+    return f"{_REF_NOTE_PREFIX}{ref_budget_id} (auto-synced total — edit in the source budget)"
+
+
+def _find_ref_row(budget: Budget, ref_budget_id) -> dict | None:
+    marker = f"{_REF_NOTE_PREFIX}{ref_budget_id}"
+    for e in budget.cached_ledger or []:
+        if marker in str(e.get("note", "")):
+            return e
+    return None
+
+
+async def check_reference_cycle(db: AsyncSession, budget_id, ref_budget_id) -> bool:
+    """True when linking budget_id → ref_budget_id would create a cycle."""
+    from models.db.budget import BudgetReference
+
+    refs = list((await db.execute(select(BudgetReference))).scalars())
+    edges: dict = {}
+    for r in refs:
+        edges.setdefault(r.budget_id, set()).add(r.ref_budget_id)
+    edges.setdefault(budget_id, set()).add(ref_budget_id)
+    # DFS from ref target: can we get back to the referencing budget?
+    stack, seen = [ref_budget_id], set()
+    while stack:
+        node = stack.pop()
+        if node == budget_id:
+            return True
+        if node in seen:
+            continue
+        seen.add(node)
+        stack.extend(edges.get(node, ()))
+    return False
+
+
+async def sync_budget_references(db: AsyncSession, budget: Budget) -> list[dict]:
+    """Refresh referenced budgets and keep line-item rows in sync.
+
+    Returns panel data for each reference. Line-item rows are ONE marked row
+    per referenced budget ("[Budget] <title>", source='budget-ref') that the
+    user set up explicitly — updating them on refresh is that standing
+    instruction, not a silent write. Never raises.
+    """
+    from models.db.budget import BudgetReference
+    from services import google_service as gs
+
+    refs = list(
+        (
+            await db.execute(
+                select(BudgetReference)
+                .where(BudgetReference.budget_id == budget.id)
+                .order_by(BudgetReference.created_at)
+            )
+        ).scalars()
+    )
+    if not refs:
+        return []
+    out: list[dict] = []
+    rows_changed = False
+    for ref in refs:
+        target = (
+            await db.execute(select(Budget).where(Budget.id == ref.ref_budget_id))
+        ).scalar_one_or_none()
+        if target is None:
+            continue
+        try:
+            await refresh_budget(db, target)
+        except BudgetError:
+            logger.info("Reference sync: target %s refresh failed; using cache", target.id)
+        ts = target.cached_summary or {}
+        total = float(ts.get("total_spent") or 0)
+        out.append(
+            {
+                "id": str(ref.id),
+                "ref_budget_id": str(target.id),
+                "ref_title": target.title,
+                "include_as_entry": ref.include_as_entry,
+                "total_spent": total,
+                "allotment": ts.get("allotment"),
+                "remaining": ts.get("remaining"),
+                "entry_count": ts.get("entry_count", 0),
+                "external_readonly": target.external_readonly,
+            }
+        )
+        if not ref.include_as_entry or budget.external_readonly:
+            continue
+        try:
+            row = _find_ref_row(budget, target.id)
+            desc = f"[Budget] {target.title}"[:300]
+            if row is None:
+                await _run(
+                    lambda d=desc, t=total, rid=target.id: gs.sheets_append_row(
+                        budget.drive_file_id,
+                        "Ledger!A:F",
+                        [datetime.now(timezone.utc).strftime("%Y-%m-%d"), d, "", t,
+                         "budget-ref", _ref_note(rid)],
+                    )
+                )
+                rows_changed = True
+            elif (
+                row.get("amount") is None
+                or abs(float(row["amount"]) - total) > 0.005
+                or str(row.get("description", "")) != desc
+            ):
+                await _run(
+                    lambda r=row, d=desc, t=total, rid=target.id: gs.sheets_update_range(
+                        budget.drive_file_id,
+                        f"Ledger!A{r['row']}:F{r['row']}",
+                        [[datetime.now(timezone.utc).strftime("%Y-%m-%d"), d,
+                          str(r.get("category", "")), t, "budget-ref", _ref_note(rid)]],
+                    )
+                )
+                rows_changed = True
+        except Exception:  # noqa: BLE001 — one ref row must not break the read
+            logger.exception("Reference sync: row update failed for %s→%s", budget.id, target.id)
+    if rows_changed:
+        try:
+            await refresh_budget(db, budget, force=True)
+        except BudgetError:
+            logger.info("Reference sync: post-sync refresh failed for %s", budget.id)
+    return out
+
+
+async def remove_reference_row(db: AsyncSession, budget: Budget, ref_budget_id) -> bool:
+    """Delete the managed line-item row for a reference, if present."""
+    row = _find_ref_row(budget, ref_budget_id)
+    if row is None:
+        return False
+    try:
+        await delete_entry(
+            db, budget, int(row["row"]),
+            {"description": row.get("description"), "amount": row.get("amount")},
+        )
+        return True
+    except BudgetError:
+        logger.info("Reference row removal failed for %s (ref %s)", budget.id, ref_budget_id)
+        return False

@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bot, ChevronRight, Loader2, RotateCcw, Send, Wrench } from "lucide-react";
-import { MessageBubble } from "@/components/chat/MessageBubble";
+import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
 import { useChatSidebarStore } from "@/stores/chatSidebarStore";
 import { createConversation, listConversations, listMessages } from "@/api/chat";
 import { useAuthStore } from "@/stores/authStore";
@@ -94,6 +94,7 @@ export function ChatSidebar() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
+  const [turnArtifacts, setTurnArtifacts] = useState<ArtifactLink[]>([]);
   // True once a sent message has gone 45s with no streaming/tool activity —
   // gates the "No reply? Resend" chip so it never flashes during normal turns.
   const [turnStuck, setTurnStuck] = useState(false);
@@ -234,11 +235,23 @@ export function ChatSidebar() {
             });
             return;
           }
+          if (frame.type === "artifact_link") {
+            const art = (frame as { artifact?: ArtifactLink }).artifact;
+            if (art?.label) {
+              setTurnArtifacts((prev) =>
+                prev.some((p) => p.label === art.label && p.route === art.route && p.url === art.url)
+                  ? prev
+                  : [...prev, art],
+              );
+            }
+            return;
+          }
           if (frame.type === "done") {
             // Reload persisted messages from DB
             if (convId) listMessages(convId).then(setMessages).catch(() => {});
             setStreamingContent(null);
             setToolActivities([]);
+            setTurnArtifacts([]); // the persisted message carries the chips now
             return;
           }
           if (frame.type === "error") {
@@ -260,6 +273,7 @@ export function ChatSidebar() {
             ]);
             setStreamingContent(null);
             setToolActivities([]);
+            setTurnArtifacts([]);
           }
         } catch { /* ignore */ }
       };
@@ -429,7 +443,7 @@ export function ChatSidebar() {
               model_name: null,
               cited_chunk_ids: [],
               tool_calls: null,
-              tool_results: null,
+              tool_results: turnArtifacts,
               created_at: new Date().toISOString(),
             }}
             compact

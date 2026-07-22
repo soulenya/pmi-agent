@@ -75,6 +75,13 @@ const KIND_META: Record<
     dismiss: "Dismiss",
     tint: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
   },
+  gmail_invoice: {
+    label: "Invoice in Gmail",
+    icon: Mail,
+    accept: "File & log",
+    dismiss: "Dismiss",
+    tint: "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300",
+  },
 };
 
 function SuggestionCard({

@@ -4343,3 +4343,53 @@ async def dispatch_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> st
         # WARNING so it reaches app.log (the file handler drops INFO)
         logger.warning("Tool %s returned error (args keys=%s): %s", name, sorted(args), result[:200])
     return result
+
+
+# ── Artifact links — "take me to it" chips for things created in chat ────────
+#
+# When a tool creates something that lives on another page (an email draft,
+# an approval, a task, a budget entry…), the chat offers a one-click chip to
+# jump straight there instead of making the user hunt it down. Success is
+# detected from each executor's known result phrasing; anything ambiguous
+# simply produces no chip.
+
+_ARTIFACT_SPECS: dict[str, tuple[str, str, str]] = {
+    # tool: (success marker in result, in-app route, chip label)
+    "create_email_draft": ("Email draft saved", "/emails", "Open the email draft"),
+    "create_task": ("Task created", "/tasks", "View the task"),
+    "request_approval": ("Approval request submitted", "/approvals", "Review the approval"),
+    "propose_odoo_write": ("queued for approval", "/approvals", "Review the approval"),
+    "create_workroom": ("created", "/workrooms", "Open the workroom"),
+    "add_to_workroom": ("Pinned to workroom", "/workrooms", "Open the workroom"),
+    "log_workroom_progress": ("Logged to", "/workrooms", "Open the workroom"),
+    "create_budget": ("created", "/budgets", "Open Manage Budgets"),
+    "add_budget_entry": ("Added to", "/budgets", "Open the budget"),
+    "update_budget_entry": ("Updated in", "/budgets", "Open the budget"),
+    "remove_budget_entry": ("Deleted from", "/budgets", "Open the budget"),
+    "add_to_knowledge_base": ("Knowledge Base", "/documents", "Open the Knowledge Base"),
+    "add_contacts": ("contact", "/contacts", "Open Contacts"),
+    "manage_scheduled_task": ("Scheduled task", "/scheduled-tasks", "View scheduled tasks"),
+}
+
+_URL_RE = re.compile(r"https://[^\s)\"'\]]+")
+
+
+def artifact_links_for(tool_name: str, result: Any) -> list[dict]:
+    """Navigation chips for what a successful tool call created, or []."""
+    if not isinstance(result, str) or result.startswith(("Error", "Unknown tool", "Tool '")):
+        return []
+    chips: list[dict] = []
+    spec = _ARTIFACT_SPECS.get(tool_name)
+    if spec and spec[0].lower() in result.lower():
+        chips.append({"type": "artifact_link", "tool": tool_name, "route": spec[1], "label": spec[2]})
+    if tool_name == "upload_to_drive" and "Uploaded and verified" in result:
+        m = _URL_RE.search(result)
+        if m:
+            chips.append({"type": "artifact_link", "tool": tool_name, "url": m.group(0), "label": "Open in Drive"})
+    if tool_name == "file_invoice_from_email" and result.startswith('Filed "'):
+        m = _URL_RE.search(result)
+        if m:
+            chips.append({"type": "artifact_link", "tool": tool_name, "url": m.group(0), "label": "Open the filed invoice"})
+        if "suggested logging" in result:
+            chips.append({"type": "artifact_link", "tool": tool_name, "route": "/assistant", "label": "Review the budget suggestion"})
+    return chips

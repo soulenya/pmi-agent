@@ -4,6 +4,19 @@
 
 ## Changelog
 
+### v3.3.9 — 2026-07-22
+**Budget Phases 5–7 (filters/isolation · folders/extraction/automations · references/ERP cross-checks) + link fix (Morgan requests)**
+
+- **Phase 7 — cross-budget references**: migration 022 `budget_references` (unique pair, self-ref CHECK, cycle DFS at link time). A reference always shows the target's live numbers in the referencing budget; with include_as_entry it maintains ONE marked row ("[Budget] <title>", source=budget-ref, note carries `budget-ref:<id>`) in the referencing sheet, synced to the target's total on every detail read — master-sheet formulas include sub-budgets on both surfaces. Unlink optionally deletes the row (verified delete) or keeps it as a frozen snapshot.
+- **Phase 7 — Odoo cross-check panel**: POST /budgets/{id}/odoo-compare (invoices/sales/purchases/customers/bank_balances; totals summed where amount_total exists, row previews otherwise) rendered side-by-side in every budget with the advisory framing baked in.
+- **"Take me to it" chips (build 171, Morgan request)**: anything created during a chat turn now offers a one-click navigation chip under the reply — email drafts → /emails, approvals → /approvals, tasks, workrooms, budgets, KB imports, contacts, scheduled tasks; Drive uploads and filed invoices link straight to Drive; invoice filings with a budget suggestion also chip to the Assistant page. Central `artifact_links_for(tool, result)` map keyed on each executor's success phrasing (no chip on ambiguity); emitted live as `artifact_link` WS frames from BOTH engines and persisted in the assistant message's tool_results — chips survive reload and render in the main chat and the sidebar (shared MessageBubble).
+- **Phase 6 — linked folders & extraction**: migration 021 `budget_folders` (registry jsonb `scanned_files` prevents re-processing; OWNER TO pmi_app) + `budgets.gmail_check_enabled`. New services/budget_folder_service.py: link (URL parsed, verified, deduped), read-only scan (≤8 files/pass: PyMuPDF text → Drive-OCR-via-temp-app-created-Google-Doc fallback for images/scanned PDFs → LLM extracts vendor/date/amount/category constrained to the budget's categories) → `budget_entry` suggestions (existing accept path). New google_service.drive_ocr_extract_text (temp doc always trashed).
+- **Per-budget automations**: folder `auto_scan` + Gmail invoice check toggles ride budget_daily (opt-in, suggest-first). Gmail finds = `gmail_invoice` suggestions; accept files the attachment into the linked invoice folder (registered against re-suggestion) AND logs the entry.
+- **UI**: Linked-folders card (link invoice/receipts folder → offer to scan now; per-folder files-read / extracted-total / last-scan, Daily-scan checkbox, Scan now, unlink keeps folder), Gmail toggle, and an in-budget bulk review panel (accept/dismiss each, Accept all — sequential, each write re-reads the sheet).
+- **Phase 5 — ledger filters & isolation**: category chips are toggle filters (multi-select, ad-hoc + uncategorized included, live "showing N of M · subtotal"); row checkboxes + "Isolate selected" show only checked rows with their subtotal. In-app only.
+- **Fix**: external-sheet linking now parses pasted URLs (was: raw 404 spilled into a truncated toast) with honest 404/403 guidance.
+- Live-verified end-to-end: OCR on a rendered receipt image, folder scan extracting "OVYL LLC / $123.45" from a generated PDF via the real LLM, registry dedup on re-scan, Gmail check pass (temp Drive artifacts trashed).
+
 ### v3.3.8 — 2026-07-21
 **Budget Phase 4 + Invoice Phase 1 — interconnects**
 

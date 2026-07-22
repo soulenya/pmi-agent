@@ -181,6 +181,7 @@ Navigate to **AI Assistant** in the sidebar.
 - Type your message and press **Enter** (use **Shift+Enter** for a new line without sending)
 - Little Gerry streams her response in real time
 - When she uses a tool (searching Drive, reading an email, querying the KB), a status indicator appears
+- When Gerry **creates** something during a chat — an email draft, an approval request, a task, a budget entry, a filed invoice — a **"take me to it" chip** appears under her reply: one click jumps straight to the draft/approval/budget instead of you hunting it down. Chips work in the sidebar chat too and stay on the message in history
 - Hover over a conversation in the left panel to rename or archive it
 - Click **+** to start a new conversation
 
@@ -492,10 +493,15 @@ Navigate to **Manage Budgets** (a moon on the **Enterprise** planet). A personal
 - **Create a budget** with a title, optional allotment, and categories — it's created as a **Google Sheet on your own Drive** (in a "Little Gerry Budgets" folder). You own the data.
 - **One ledger, two surfaces**: add, edit, or delete entries in Little Gerry OR directly in Google Sheets — changes reflect in both. The page refreshes automatically while open, and every edit re-checks the sheet first so nothing gets clobbered.
 - **Allotments**: set one and watch spending against it with progress bars (amber at 80%, red at 100%).
+- **Filter and isolate**: tap the category chips above the ledger to filter it (multi-select, live subtotal), or check specific entries and "Isolate selected" to view just those rows for a reference.
 - **Let Gerry help**: a per-budget toggle grants Gerry permission to add and edit entries when you ask in chat ("log $89.99 for the torque wrench against Lab Tools"). Edits and deletions also require your explicit confirmation in chat. Reading is always allowed, and you can revoke the grant anytime.
 - **Create from chat** too: ask Gerry to set up a budget with an allotment and categories — her write permission still starts OFF until you enable it.
 - **The budget watches itself**: crossing 80% or 100% of an allotment raises a notification (once per crossing), categories warn when they hit their caps, and the first scan of each month delivers a rollup of last month's spending. Budgets at 80%+ also appear in the home-screen briefing panel, and workroom digests report pinned budgets whose totals changed since yesterday. All read-only — nudges never touch your sheet.
 - **Invoices connect**: ask Gerry to file an invoice from an email ("file the invoice from OVYL's email") — it lands in the company's invoice folder on Drive for the invoice sheet's daily pipeline. If the amount is readable and a budget matches, Gerry suggests the ledger entry on the Assistant page — accept or dismiss, never silent.
+- **Linked folders**: link invoice or receipts folders from Drive to any budget. Gerry scans them read-only — reads each PDF/image/CSV (OCR when needed), extracts vendor, date, and amount, picks a category, and totals what she found. Every document becomes a suggestion you review inside the budget (accept, dismiss, or accept all). Your files are never modified or moved.
+- **Per-budget automation**: turn on daily folder scans and daily Gmail invoice checks per budget. Accepting a Gmail find files the attachment into your linked invoice folder and logs the entry — nothing ever happens without your accept.
+- **Master budgets**: reference any other budget to pull its numbers in — shown live, and optionally as a synced "[Budget]" line item in the master's sheet so its totals include the sub-budget on both surfaces.
+- **Cross-check against Odoo**: every budget has a compare panel — bounce your tracking off live ERP invoices, sales, customers, or bank balances, side by side. Advisory only.
 - **Cross-check against Odoo**: ask Gerry to compare a budget's tracking with ERP actuals — an advisory side-by-side, not a reconciliation.
 - **Share a budget**: share the Google Sheet with a teammate from Sheets; they paste its link on their Manage Budgets page to follow it read-only.
 - **Link an existing spreadsheet** read-only. **Unlinking** a budget never deletes the sheet — it stays on your Drive.
