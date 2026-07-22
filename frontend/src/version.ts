@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 173;
+export const BUILD_NUMBER = 174;
 export const BUILD_DATE = "2026-07-22";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 174,
+    date: "2026-07-22",
+    title: "Fixes: linked sheets without a Ledger tab, and folder links",
+    changes: [
+      "Linking your own existing spreadsheet as a budget now works even when it doesn't have Gerry's 'Ledger' tab — the first tab is read best-effort instead of erroring (reported by Morgan)",
+      "Pasting a Drive FOLDER link (drive.google.com/drive/folders/…) now parses correctly when linking invoice/receipt folders — the URL parser only understood file links (reported by Morgan)",
+      "Budget sheet read errors are trimmed to a readable length instead of overflowing the toast",
+    ],
+  },
   {
     build: 173,
     date: "2026-07-22",
