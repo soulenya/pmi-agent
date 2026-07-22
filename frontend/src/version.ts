@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 172;
+export const BUILD_NUMBER = 173;
 export const BUILD_DATE = "2026-07-22";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 173,
+    date: "2026-07-22",
+    title: "All budget sheets live in one company folder",
+    changes: [
+      "Every new budget sheet — from any user — is now created in the company's shared budgets folder on Drive, so budgets have one known home",
+      "Existing budgets are untouched (they're linked by file id); only where NEW sheets land changes",
+      "If the folder isn't shared with your Google account yet, budget creation says so plainly instead of failing cryptically",
+    ],
+  },
   {
     build: 172,
     date: "2026-07-22",

@@ -101,7 +101,7 @@ export function BudgetsPage() {
       setNewCategories("");
       setSelectedId(b.id);
       invalidate();
-      push("success", `Budget "${b.title}" created — its Google Sheet is in the Little Gerry Budgets folder.`);
+      push("success", `Budget "${b.title}" created — its Google Sheet is in the company budgets folder on Drive.`);
     },
     onError: (e) => {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
