@@ -74,6 +74,8 @@ _TOOLS = [
     "update_budget_entry",
     "remove_budget_entry",
     "get_budget_snapshot",
+    "file_invoice_from_email",
+    "compare_budget_to_odoo",
     "create_docx",
     "search_drive_content",
     "list_workroom_items",

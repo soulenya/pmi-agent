@@ -174,6 +174,8 @@ export function BudgetsPage() {
             />
             <p className="text-xs text-muted-foreground">
               Links an existing sheet read-only (only Gerry-created sheets are editable here).
+              A teammate can share their budget sheet with you from Google Sheets — paste its
+              link here to follow it.
             </p>
             <div className="flex gap-2">
               <button
