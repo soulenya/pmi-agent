@@ -4,6 +4,16 @@
 
 ## Changelog
 
+### v3.3.8 — 2026-07-21
+**Budget Phase 4 + Invoice Phase 1 — interconnects**
+
+- **`file_invoice_from_email`** (new services/invoice_service.py): Gmail attachment → the right "<Company> Invoices" Drive folder, byte-for-byte (the Apps Script's OCR needs original binaries). Company folder fuzzy-matched from sender/company arg with honest ask-backs on ambiguity; folders are NEVER auto-created (new companies need the sheet's PMI Control Panel); filename dedup before upload; parent folder configurable via `invoices.parent_folder_id_override`. Gerry never writes to the invoice workbook — the script owns everything downstream. Auto-journals in workrooms.
+- **Budget tie-in**: a filed invoice with a parseable amount and an unambiguous target budget produces an accept/dismiss `budget_entry` suggestion (+ notification); accepting writes the entry through the Phase-1 verified path (accept = explicit user action, so no Gerry grant needed; external sheets still refuse). Never silent, deduped per message+attachment.
+- **`compare_budget_to_odoo`**: advisory side-by-side of tracked spending vs Odoo actuals (default dataset `invoices` — live smoke found this instance lacks the Purchase module; friendly message steers around missing modules). Read-only.
+- **Sharing**: link-external hint on Manage Budgets spells out the teammate flow (share from Sheets → paste link → read-only follow).
+- Registration: both engines; file_invoice → ea/house/operations, compare → ea/house/ir/operations. 55 v1 defs / 64 v2 docs.
+- Verified: amount/folder matching offline, live read-only listing of the real invoice parent (15 company folders), suggestion payload round-trip + dedup, live Odoo advisory comparison. Actual upload path deliberately NOT live-tested (would feed the real 9am pipeline); it composes previously live-tested plumbing.
+
 ### v3.3.7 — 2026-07-21
 **Budget Phase 3 — the budget watches itself (read-only nudges)**
 

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 165;
+export const BUILD_NUMBER = 166;
 export const BUILD_DATE = "2026-07-21";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 166,
+    date: "2026-07-21",
+    title: "Interconnects — invoices meet budgets, budgets meet Odoo",
+    changes: [
+      "'Gerry, file the invoice from OVYL's email' — the attachment lands byte-for-byte in the right '<Company> Invoices' Drive folder, where the invoice sheet's daily pipeline ingests it. Gerry never writes to the invoice workbook itself",
+      "When a filed invoice has a readable amount and a matching personal budget, Gerry SUGGESTS the ledger entry — accept it on the Assistant page or dismiss it, never silent",
+      "New advisory cross-check: compare a budget's tracked spending against Odoo actuals side by side — a sanity check, not a reconciliation",
+      "Sharing spelled out: a teammate shares their budget sheet from Google Sheets, you paste the link on Manage Budgets to follow it read-only",
+    ],
+  },
   {
     build: 165,
     date: "2026-07-21",

@@ -128,6 +128,8 @@ _TOOLS = [
     "update_budget_entry",
     "remove_budget_entry",
     "get_budget_snapshot",
+    "file_invoice_from_email",
+    "compare_budget_to_odoo",
     "list_workroom_items",
     "log_workroom_progress",
     "get_file_template",
