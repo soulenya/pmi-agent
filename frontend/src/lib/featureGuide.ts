@@ -216,6 +216,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Set an optional allotment and watch spending against it with live progress bars",
       "Grant Gerry per-budget permission to add and edit entries at your request — deletions always confirm with you first",
       "Proactive nudges: 80%/100% allotment alerts, category-cap warnings, and monthly rollups — read-only, never touching your sheet",
+      "Link Drive folders of invoices or receipts — Gerry reads them (OCR included), extracts the amounts, and suggests entries you accept or dismiss",
       "Link any existing spreadsheet read-only; unlinking never deletes your sheet",
       "A personal financial-management aid — not the company's official books",
     ],

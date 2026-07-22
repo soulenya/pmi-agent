@@ -144,6 +144,16 @@ class BaseAgent:
 
                 yield {"type": "tool_done", "tool": tool_name, "label": str(result)[:80]}
 
+                # "Take me to it" chips — offer navigation to whatever this
+                # tool just created (draft, approval, task, budget entry…).
+                try:
+                    from services.agent.tools import artifact_links_for
+
+                    for art in artifact_links_for(tool_name, result):
+                        yield {"type": "artifact_link", "artifact": art}
+                except Exception:  # noqa: BLE001 — chips must never break a turn
+                    pass
+
                 # If a tool staged a confirm/cancel popup (e.g. KB deletion),
                 # emit it to the client and clear it. The deletion runs
                 # client-side only after the user confirms.

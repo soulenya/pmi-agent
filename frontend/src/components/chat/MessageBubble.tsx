@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -17,6 +18,7 @@ import {
   Loader2,
   FileText,
   Pin,
+  ArrowRight,
 } from "lucide-react";
 import {
   getFileDownloadUrl,
@@ -216,6 +218,59 @@ function FileActionCard({ filename, conversationId }: { filename: string; conver
   );
 }
 
+// ── "Take me to it" chips — jump straight to whatever Gerry just created ──
+
+export interface ArtifactLink {
+  type: "artifact_link";
+  tool: string;
+  label: string;
+  route?: string;
+  url?: string;
+}
+
+export function extractArtifacts(toolResults: unknown[] | null | undefined): ArtifactLink[] {
+  if (!Array.isArray(toolResults)) return [];
+  return toolResults.filter(
+    (r): r is ArtifactLink =>
+      typeof r === "object" && r !== null &&
+      (r as { type?: string }).type === "artifact_link" &&
+      typeof (r as { label?: string }).label === "string",
+  );
+}
+
+export function ArtifactChips({ artifacts }: { artifacts: ArtifactLink[] }) {
+  const navigate = useNavigate();
+  if (artifacts.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {artifacts.map((a, i) =>
+        a.url ? (
+          <a
+            key={`${a.label}-${i}`}
+            href={a.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-full border border-primary/50 bg-background/60 px-2.5 py-1 text-xs text-primary hover:bg-primary/10"
+          >
+            <ExternalLink className="h-3 w-3" />
+            {a.label}
+          </a>
+        ) : (
+          <button
+            key={`${a.label}-${i}`}
+            type="button"
+            onClick={() => a.route && navigate(a.route)}
+            className="inline-flex items-center gap-1 rounded-full border border-primary/50 bg-background/60 px-2.5 py-1 text-xs text-primary hover:bg-primary/10"
+          >
+            <ArrowRight className="h-3 w-3" />
+            {a.label}
+          </button>
+        ),
+      )}
+    </div>
+  );
+}
+
 function ToolCallsSection({ toolCalls }: { toolCalls: unknown[] }) {
   const [open, setOpen] = useState(false);
   if (!toolCalls || toolCalls.length === 0) return null;
@@ -306,6 +361,9 @@ export function MessageBubble({ message, compact = false }: Props) {
         {fileLinks.map((f) => (
           <FileActionCard key={f} filename={f} conversationId={message.conversation_id} />
         ))}
+
+        {/* "Take me to it" chips for artifacts created during this turn */}
+        {isAssistant && <ArtifactChips artifacts={extractArtifacts(message.tool_results)} />}
 
         {/* Tool calls (persisted) */}
         {isAssistant && message.tool_calls && message.tool_calls.length > 0 && (

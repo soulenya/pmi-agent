@@ -814,6 +814,39 @@ def drive_import_attachment(
     }
 
 
+def drive_ocr_extract_text(data: bytes, name: str, source_mime: str | None = None) -> str:
+    """OCR image/PDF bytes by converting them into a TEMPORARY Google Doc.
+
+    The temp doc is app-created (rides the ``drive.file`` scope), its text is
+    exported, and it is trashed immediately — nothing is left behind. Returns
+    the extracted text ("" when Google couldn't OCR the content).
+    """
+    import io
+    import mimetypes
+    from googleapiclient.http import MediaIoBaseUpload
+
+    src = (source_mime or mimetypes.guess_type(name)[0] or "application/octet-stream")
+    svc = _build("drive", "v3")
+    media = MediaIoBaseUpload(io.BytesIO(data), mimetype=src.split(";")[0].strip(), resumable=False)
+    created = svc.files().create(
+        body={"name": f"[gerry-ocr-temp] {name}"[:200],
+              "mimeType": "application/vnd.google-apps.document"},
+        media_body=media,
+        fields="id",
+    ).execute()
+    temp_id = created.get("id", "")
+    if not temp_id:
+        return ""
+    try:
+        raw = svc.files().export(fileId=temp_id, mimeType="text/plain").execute()
+        return raw.decode("utf-8", errors="ignore") if isinstance(raw, bytes) else str(raw or "")
+    finally:
+        try:
+            svc.files().update(fileId=temp_id, body={"trashed": True}).execute()
+        except Exception:  # noqa: BLE001 — a stray temp doc is cosmetic, not fatal
+            logger.warning("Failed to trash OCR temp doc %s", temp_id)
+
+
 def drive_find_file_matches(name: str, max_results: int = 25) -> list[dict]:
     """Find non-trashed Drive files whose name EXACTLY equals ``name``.
 
