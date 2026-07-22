@@ -178,7 +178,50 @@ async def _digest_for_room(db: AsyncSession, room: Workroom) -> str | None:
             t_lines.append(f"- **{t.title}** — {state} ({due})")
         sections.append("**Deadlines:**\n" + "\n".join(t_lines))
 
-    # 3. Journal activity in the last 24h (excluding the digest's own entries).
+    # 3. Pinned budgets whose totals changed since yesterday (cache-only).
+    budget_lines: list[str] = []
+    budget_items = [i for i in items if i.kind == "budget"]
+    if budget_items:
+        try:
+            from models.db.budget import Budget
+            from services.budget_daily import get_digest_baseline
+
+            budgets = list(
+                (
+                    await db.execute(
+                        select(Budget).where(Budget.user_id == room.user_id)
+                    )
+                ).scalars()
+            )
+            by_ref = {str(b.id): b for b in budgets}
+            by_ref.update({b.drive_file_id: b for b in budgets})
+            by_label = {b.title.lower(): b for b in budgets}
+            seen_budget_ids: set = set()
+            for it in budget_items:
+                b = by_ref.get(it.ref_id) or by_label.get(it.label.lower())
+                if b is None or b.id in seen_budget_ids:
+                    continue
+                seen_budget_ids.add(b.id)
+                s = b.cached_summary or {}
+                total = float(s.get("total_spent") or 0)
+                baseline = await get_digest_baseline(db, b.id)
+                if baseline is None or abs(total - float(baseline)) < 0.005:
+                    continue
+                cur = b.currency or "USD"
+                sym = "$" if cur.upper() == "USD" else f"{cur} "
+                line = (
+                    f"- **{b.title}** — spending now {sym}{total:,.2f} "
+                    f"(was {sym}{float(baseline):,.2f} yesterday"
+                )
+                if s.get("remaining") is not None:
+                    line += f"; {sym}{float(s['remaining']):,.2f} remaining"
+                budget_lines.append(line + ")")
+        except Exception:  # noqa: BLE001 — budget lines are best-effort
+            logger.info("Room digest: budget check failed for %s", room.id)
+    if budget_lines:
+        sections.append("**Pinned budgets:**\n" + "\n".join(budget_lines))
+
+    # 4. Journal activity in the last 24h (excluding the digest's own entries).
     try:
         recent_journal = list(
             (

@@ -126,6 +126,7 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "add_budget_entry": "Adding the budget entry…",
     "update_budget_entry": "Updating the budget entry…",
     "remove_budget_entry": "Removing the budget entry…",
+    "get_budget_snapshot": "Checking the budget snapshot…",
     "create_email_draft": "Drafting the email…",
     "propose_odoo_write": "Queuing the Odoo action for approval…",
     "read_knowledge_base_document": "Reading the document…",

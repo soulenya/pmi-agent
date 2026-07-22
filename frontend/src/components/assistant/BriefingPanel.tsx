@@ -16,6 +16,7 @@ import {
   ClipboardCheck,
   Lightbulb,
   Landmark,
+  Wallet,
   ChevronRight,
   PanelRightClose,
   PanelRightOpen,
@@ -26,6 +27,7 @@ import { listGoogleCalendarEvents } from "@/api/google";
 import { listTasks } from "@/api/tasks";
 import { listSuggestions } from "@/api/assistant";
 import { getOdooStatus, getOdooBankBalance } from "@/api/odoo";
+import { listBudgets } from "@/api/budgets";
 import { usePendingApprovals } from "@/components/approvals/ApprovalCard";
 
 const GOOGLE_PREFIX = "/api/google";
@@ -193,6 +195,21 @@ export function BriefingPanel() {
     enabled: open && odooConnected,
     refetchInterval: 15 * 60_000,
     retry: false,
+  });
+
+  // Personal budgets (cached mirror — no sheet calls)
+  const budgets = useQuery({
+    queryKey: ["briefing", "budgets"],
+    queryFn: listBudgets,
+    enabled: open,
+    refetchInterval: 15 * 60_000,
+    retry: false,
+  });
+  const budgetList = budgets.data ?? [];
+  const budgetWarnings = budgetList.filter((b) => {
+    const s = b.cached_summary;
+    if (!s || s.allotment == null || s.allotment <= 0 || s.total_spent == null) return false;
+    return s.total_spent / s.allotment >= 0.8;
   });
 
   if (!open) {
@@ -371,6 +388,40 @@ export function BriefingPanel() {
             <Empty text="Connected — open for details." />
           )}
         </Section>
+
+        {/* Personal budgets — only rendered when the user has any */}
+        {budgetList.length > 0 && (
+          <Section
+            icon={<Wallet className="h-3.5 w-3.5" />}
+            title="Budgets"
+            to="/budgets"
+            count={budgetWarnings.length || undefined}
+          >
+            {budgetWarnings.length === 0 ? (
+              <Empty text="All budgets within allotment." />
+            ) : (
+              <ul className="space-y-1">
+                {budgetWarnings.slice(0, 4).map((b) => {
+                  const s = b.cached_summary!;
+                  const pct = Math.round(((s.total_spent ?? 0) / (s.allotment || 1)) * 100);
+                  return (
+                    <li key={b.id} className="flex items-baseline justify-between gap-2 text-xs">
+                      <span className="truncate text-muted-foreground">{b.title}</span>
+                      <span
+                        className={cn(
+                          "shrink-0 font-medium",
+                          pct >= 100 ? "text-red-400" : "text-amber-400",
+                        )}
+                      >
+                        {pct}%
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Section>
+        )}
       </div>
     </div>
   );

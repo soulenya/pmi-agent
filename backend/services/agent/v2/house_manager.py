@@ -127,6 +127,7 @@ _TOOLS = [
     "add_budget_entry",
     "update_budget_entry",
     "remove_budget_entry",
+    "get_budget_snapshot",
     "list_workroom_items",
     "log_workroom_progress",
     "get_file_template",
