@@ -1027,11 +1027,14 @@ TOOL_DEFINITIONS: list[dict] = [
                         "enum": [
                             "drive_doc", "kb_doc", "generated_file", "note",
                             "email_thread", "task", "odoo_record", "regulatory_doc",
+                            "budget",
                         ],
                         "description": (
                             "Artifact kind. Use 'note' for DURABLE facts or decisions that "
                             "should stay visible every turn (e.g. 'Predicate device: K123456') "
-                            "— for dated progress events use log_workroom_progress instead."
+                            "— for dated progress events use log_workroom_progress instead. "
+                            "For 'budget' pass the budget title as label (ref_id optional) — "
+                            "Gerry's writes to a pinned budget auto-journal in the room."
                         ),
                     },
                     "label": {
@@ -1155,6 +1158,201 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                 },
                 "required": ["entry"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_budgets",
+            "description": (
+                "List the user's personal budgets (Manage Budgets page): title, "
+                "total spent, allotment, remaining, and whether you have "
+                "permission to write entries. Personal financial-management "
+                "aids — NOT the company's official books. No arguments."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_budget",
+            "description": (
+                "Read one budget in full: summary (total / allotment / "
+                "remaining), per-category spend, and the ledger entries. "
+                "Always allowed (read-only). The budget lives as a Google "
+                "Sheet on the user's Drive — the sheet is re-checked so you "
+                "see edits made directly in Sheets."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Budget title (fuzzy matched). Omit if the user has exactly one budget.",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_budget",
+            "description": (
+                "Create a new personal budget for the user: a standardized "
+                "Google Sheet on THEIR Drive (Little Gerry Budgets folder) "
+                "plus a card on the Manage Budgets page. Self-serve — no "
+                "approval needed. Note: your permission to write ENTRIES "
+                "into it stays OFF until the user enables it on the budget's "
+                "page."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Budget title, e.g. 'Lab consumables H2'.",
+                    },
+                    "allotment": {
+                        "type": "number",
+                        "description": "Optional spending allotment (total budget amount).",
+                    },
+                    "categories": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional starting category names.",
+                    },
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_budget_entry",
+            "description": (
+                "Append a spending entry to a budget's ledger (written "
+                "straight into the Google Sheet, Source='gerry'). REQUIRES "
+                "the per-budget 'Let Gerry manage entries' permission — if "
+                "it's off, tell the user to flip the toggle on the Manage "
+                "Budgets page. Linked external sheets are always read-only."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "What the money was spent on, e.g. 'Stainless fittings — McMaster'.",
+                    },
+                    "amount": {
+                        "type": "number",
+                        "description": "Amount spent (positive number).",
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Entry date YYYY-MM-DD. Defaults to today.",
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "Optional category (use one of the budget's categories when it fits).",
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "Optional short note.",
+                    },
+                    "budget_title": {
+                        "type": "string",
+                        "description": "Budget title (fuzzy matched). Omit if the user has exactly one budget.",
+                    },
+                },
+                "required": ["description", "amount"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_budget_entry",
+            "description": (
+                "Change an existing ledger entry (identified by its "
+                "description; date/amount disambiguate). Requires the "
+                "per-budget 'Let Gerry manage entries' permission PLUS "
+                "confirm=true — only after the user has explicitly confirmed "
+                "the exact change. The sheet row is re-read first, so an "
+                "entry edited in Sheets meanwhile is never clobbered."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Current description of the entry to change (matched against the ledger).",
+                    },
+                    "match_amount": {
+                        "type": "number",
+                        "description": "Current amount — REQUIRED when several entries share a description.",
+                    },
+                    "match_date": {
+                        "type": "string",
+                        "description": "Current date YYYY-MM-DD — further disambiguation if needed.",
+                    },
+                    "new_description": {"type": "string"},
+                    "new_amount": {"type": "number"},
+                    "new_date": {"type": "string", "description": "YYYY-MM-DD"},
+                    "new_category": {"type": "string"},
+                    "new_note": {"type": "string"},
+                    "budget_title": {
+                        "type": "string",
+                        "description": "Budget title (fuzzy matched). Omit if the user has exactly one budget.",
+                    },
+                    "confirm": {
+                        "type": "boolean",
+                        "description": "Must be true, and only after the user explicitly confirmed the change.",
+                    },
+                },
+                "required": ["description", "confirm"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remove_budget_entry",
+            "description": (
+                "Delete ONE ledger entry (identified by description; "
+                "date/amount disambiguate — ambiguous matches are listed, "
+                "nothing deleted). Requires the per-budget 'Let Gerry manage "
+                "entries' permission PLUS confirm=true — only after the user "
+                "explicitly confirmed THIS deletion."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Description of the entry to delete.",
+                    },
+                    "match_amount": {
+                        "type": "number",
+                        "description": "Amount — REQUIRED when several entries share a description.",
+                    },
+                    "match_date": {
+                        "type": "string",
+                        "description": "Date YYYY-MM-DD — further disambiguation if needed.",
+                    },
+                    "budget_title": {
+                        "type": "string",
+                        "description": "Budget title (fuzzy matched). Omit if the user has exactly one budget.",
+                    },
+                    "confirm": {
+                        "type": "boolean",
+                        "description": "Must be true, and only after the user explicitly confirmed this deletion.",
+                    },
+                },
+                "required": ["description", "confirm"],
             },
         },
     },
@@ -2599,7 +2797,7 @@ async def execute_check_drive_backup_status(ctx: ToolContext, _args: dict[str, A
 
 _WORKROOM_KINDS = (
     "drive_doc", "kb_doc", "generated_file", "note",
-    "email_thread", "task", "odoo_record", "regulatory_doc",
+    "email_thread", "task", "odoo_record", "regulatory_doc", "budget",
 )
 
 
@@ -2808,6 +3006,385 @@ async def execute_log_workroom_progress(ctx: ToolContext, args: dict[str, Any]) 
         return err
     await add_journal_entry(ctx.db, room, entry)
     return f'Logged to "{room.title}" journal: {entry}'
+
+
+# ── Budget tools (Manage Budgets — Drive-backed personal budgets) ───────────
+
+
+def _fmt_money(value, currency: str = "USD") -> str:
+    if value is None:
+        return "—"
+    sym = "$" if currency.upper() == "USD" else f"{currency} "
+    return f"{sym}{float(value):,.2f}"
+
+
+async def _resolve_budget(ctx: ToolContext, args: dict[str, Any], key: str = "budget_title"):
+    """(budget, None) on success, (None, error_message) otherwise."""
+    from sqlalchemy import desc as _desc, select as _select
+
+    from models.db.budget import Budget
+
+    budgets = list(
+        (
+            await ctx.db.execute(
+                _select(Budget)
+                .where(Budget.user_id == ctx.user_id)
+                .order_by(_desc(Budget.updated_at))
+            )
+        ).scalars()
+    )
+    if not budgets:
+        return None, (
+            "No budgets exist yet. Create one with create_budget, or the user "
+            "can use the Manage Budgets page (moon on the Enterprise planet)."
+        )
+    hint = str(args.get(key, "") or args.get("title", "")).strip().lower()
+    if not hint:
+        if len(budgets) == 1:
+            return budgets[0], None
+        listing = "; ".join(f'"{b.title}"' for b in budgets)
+        return None, f"The user has several budgets: {listing}. Call again with the title."
+    for b in budgets:
+        if b.title.lower() == hint:
+            return b, None
+    matches = [b for b in budgets if hint in b.title.lower() or b.title.lower() in hint]
+    if len(matches) == 1:
+        return matches[0], None
+    listing = "; ".join(f'"{b.title}"' for b in (matches or budgets))
+    return None, f'No single budget matches "{hint}". Budgets: {listing}.'
+
+
+def _budget_write_blocked(budget) -> str | None:
+    if budget.external_readonly:
+        return (
+            f'"{budget.title}" is a linked external sheet — read-only for Little '
+            "Gerry. The user can edit it directly in Google Sheets."
+        )
+    if not budget.gerry_write_enabled:
+        return (
+            f'You don\'t have write permission on "{budget.title}". The user can '
+            "enable it with the 'Let Gerry manage entries' toggle on that "
+            "budget's page (Manage Budgets, on the Enterprise planet) — it's "
+            "per-budget and revocable anytime."
+        )
+    return None
+
+
+async def _journal_budget_write(ctx: ToolContext, budget, entry: str) -> None:
+    """Auto-journal a budget write to the current room AND any rooms where
+    this budget is pinned (kind='budget'). Never raises."""
+    try:
+        from sqlalchemy import select as _select
+
+        from models.db.workroom import Workroom, WorkroomItem
+        from services.workroom_context import add_journal_entry, get_workroom_for_conversation
+
+        rooms: dict = {}
+        current = await get_workroom_for_conversation(ctx.db, ctx.conversation_id)
+        if current is not None:
+            rooms[current.id] = current
+        pinned = list(
+            (
+                await ctx.db.execute(
+                    _select(Workroom)
+                    .join(WorkroomItem, WorkroomItem.workroom_id == Workroom.id)
+                    .where(
+                        Workroom.user_id == ctx.user_id,
+                        Workroom.status == "active",
+                        WorkroomItem.kind == "budget",
+                        WorkroomItem.ref_id.in_([str(budget.id), budget.drive_file_id]),
+                    )
+                )
+            ).scalars()
+        )
+        for room in pinned:
+            rooms.setdefault(room.id, room)
+        for room in rooms.values():
+            await add_journal_entry(ctx.db, room, entry)
+    except Exception:  # noqa: BLE001 — journaling must never break a write
+        logger.exception("Failed to journal budget write for %s", budget.id)
+
+
+def _budget_summary_line(budget) -> str:
+    s = budget.cached_summary or {}
+    cur = budget.currency or "USD"
+    parts = [f"spent {_fmt_money(s.get('total_spent', 0), cur)}"]
+    if s.get("allotment") is not None:
+        parts.append(f"of {_fmt_money(s['allotment'], cur)}")
+        parts.append(f"remaining {_fmt_money(s.get('remaining'), cur)}")
+    parts.append(f"{s.get('entry_count', 0)} entries")
+    return ", ".join(parts)
+
+
+async def execute_list_budgets(ctx: ToolContext, _args: dict[str, Any]) -> str:
+    from sqlalchemy import desc as _desc, select as _select
+
+    from models.db.budget import Budget
+
+    budgets = list(
+        (
+            await ctx.db.execute(
+                _select(Budget)
+                .where(Budget.user_id == ctx.user_id)
+                .order_by(_desc(Budget.updated_at))
+            )
+        ).scalars()
+    )
+    if not budgets:
+        return (
+            "No budgets yet. Create one with create_budget, or the user can use "
+            "the Manage Budgets page (moon on the Enterprise planet)."
+        )
+    lines = [f"Budgets ({len(budgets)}) — personal financial aids, not the company books:"]
+    for b in budgets:
+        flags = []
+        if b.external_readonly:
+            flags.append("linked sheet — read-only")
+        elif b.gerry_write_enabled:
+            flags.append("Gerry may write entries")
+        else:
+            flags.append("Gerry write permission OFF")
+        lines.append(f'- "{b.title}": {_budget_summary_line(b)} ({"; ".join(flags)})')
+    return "\n".join(lines)
+
+
+async def execute_read_budget(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args, key="title")
+    if err:
+        return err
+    try:
+        await bs.refresh_budget(ctx.db, budget)
+    except bs.BudgetError as exc:
+        return f"Warning — couldn't refresh from the sheet ({exc}); showing the cached copy.\n" + _read_budget_body(budget)
+    return _read_budget_body(budget)
+
+
+def _read_budget_body(budget) -> str:
+    s = budget.cached_summary or {}
+    cur = budget.currency or "USD"
+    lines = [f'Budget "{budget.title}" — {_budget_summary_line(budget)}']
+    if budget.external_readonly:
+        lines.append("(Linked external sheet — read-only for Little Gerry.)")
+    elif not budget.gerry_write_enabled:
+        lines.append("(Your write permission is OFF — the user can enable it on the budget's page.)")
+    by_cat = s.get("by_category") or {}
+    caps = {c["name"]: c.get("cap") for c in (budget.cached_categories or [])}
+    if by_cat or caps:
+        lines.append("By category:")
+        for name in sorted(set(by_cat) | set(caps)):
+            cap = caps.get(name)
+            cap_str = f" of {_fmt_money(cap, cur)} cap" if cap is not None else ""
+            lines.append(f"- {name}: {_fmt_money(by_cat.get(name, 0), cur)}{cap_str}")
+    entries = budget.cached_ledger or []
+    if entries:
+        shown = entries[-40:]
+        lines.append(f"Ledger ({len(entries)} entries{', last 40 shown' if len(entries) > 40 else ''}):")
+        for e in shown:
+            cat = f" [{e['category']}]" if e.get("category") else ""
+            note = f" — {e['note']}" if e.get("note") else ""
+            lines.append(
+                f"- {e.get('date', '?')}: {e.get('description', '')}{cat} "
+                f"{_fmt_money(e.get('amount'), cur)} (source: {e.get('source', '?')}){note}"
+            )
+    else:
+        lines.append("Ledger is empty.")
+    lines.append(f"Sheet: {budget.drive_url}")
+    return "\n".join(lines)
+
+
+async def execute_create_budget(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_service as bs
+
+    title = str(args.get("title", "")).strip()
+    if not title:
+        return "Error: title is required."
+    allotment = args.get("allotment")
+    try:
+        allotment = float(allotment) if allotment is not None else None
+    except (TypeError, ValueError):
+        return "Error: allotment must be a number."
+    raw_cats = args.get("categories") or []
+    if isinstance(raw_cats, str):
+        raw_cats = [c for c in raw_cats.split(",")]
+    categories = [str(c).strip() for c in raw_cats if str(c).strip()][:30]
+    try:
+        budget = await bs.create_budget(ctx.db, ctx.user_id, title, allotment, "USD", categories)
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    await _journal_budget_write(ctx, budget, f'Budget "{budget.title}" created by Gerry in chat')
+    return (
+        f'Budget "{budget.title}" created'
+        + (f" with allotment {_fmt_money(allotment)}" if allotment is not None else "")
+        + (f" and categories: {', '.join(categories)}" if categories else "")
+        + f". It's a Google Sheet on the user's Drive: {budget.drive_url} — also on "
+        "the Manage Budgets page. Note: your permission to write entries is OFF "
+        "until the user enables it there."
+    )
+
+
+def _match_budget_entries(budget, args: dict[str, Any]) -> list[dict]:
+    wanted = str(args.get("description", "")).strip().lower()
+    entries = budget.cached_ledger or []
+    matches = [e for e in entries if str(e.get("description", "")).strip().lower() == wanted] or [
+        e for e in entries if wanted in str(e.get("description", "")).lower()
+    ]
+    m_amount = args.get("match_amount")
+    if m_amount is not None and len(matches) > 1:
+        matches = [
+            e for e in matches
+            if e.get("amount") is not None and abs(float(e["amount"]) - float(m_amount)) <= 0.005
+        ] or matches
+    m_date = str(args.get("match_date", "")).strip()
+    if m_date and len(matches) > 1:
+        matches = [e for e in matches if str(e.get("date", "")).strip() == m_date] or matches
+    return matches
+
+
+def _entry_desc(e: dict, currency: str) -> str:
+    return f"{e.get('date', '?')}: {e.get('description', '')} {_fmt_money(e.get('amount'), currency)}"
+
+
+async def execute_add_budget_entry(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args)
+    if err:
+        return err
+    blocked = _budget_write_blocked(budget)
+    if blocked:
+        return blocked
+    description = str(args.get("description", "")).strip()
+    if not description:
+        return "Error: description is required."
+    try:
+        amount = float(args.get("amount"))
+    except (TypeError, ValueError):
+        return "Error: amount must be a number."
+    date = str(args.get("date", "")).strip() or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        await bs.add_entry(
+            ctx.db, budget,
+            date=date, description=description, amount=amount,
+            category=str(args.get("category", "")).strip(),
+            note=str(args.get("note", "")).strip(), source="gerry",
+        )
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    await _journal_budget_write(
+        ctx, budget,
+        f'Budget "{budget.title}": Gerry added {description} ({_fmt_money(amount, budget.currency)})',
+    )
+    return (
+        f'Added to "{budget.title}": {date} — {description} {_fmt_money(amount, budget.currency)}. '
+        f"Now {_budget_summary_line(budget)}. Sheet: {budget.drive_url}"
+    )
+
+
+async def execute_update_budget_entry(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args)
+    if err:
+        return err
+    blocked = _budget_write_blocked(budget)
+    if blocked:
+        return blocked
+    if not args.get("confirm"):
+        return (
+            "Confirmation required: describe the exact change to the user and "
+            "call again with confirm=true only after they explicitly agree."
+        )
+    try:
+        await bs.refresh_budget(ctx.db, budget)
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    matches = _match_budget_entries(budget, args)
+    if not matches:
+        return f'No ledger entry matches "{args.get("description", "")}" in "{budget.title}".'
+    if len(matches) > 1:
+        listing = "; ".join(_entry_desc(e, budget.currency) for e in matches[:10])
+        return (
+            f"Several entries match: {listing}. Call again with match_amount "
+            "and/or match_date to pin down one."
+        )
+    entry = matches[0]
+    fields: dict[str, Any] = {}
+    if str(args.get("new_description", "")).strip():
+        fields["description"] = str(args["new_description"]).strip()
+    if args.get("new_amount") is not None:
+        try:
+            fields["amount"] = float(args["new_amount"])
+        except (TypeError, ValueError):
+            return "Error: new_amount must be a number."
+    if str(args.get("new_date", "")).strip():
+        fields["date"] = str(args["new_date"]).strip()
+    if str(args.get("new_category", "")).strip():
+        fields["category"] = str(args["new_category"]).strip()
+    if args.get("new_note") is not None:
+        fields["note"] = str(args["new_note"]).strip()
+    if not fields:
+        return "Nothing to change — provide new_description, new_amount, new_date, new_category, or new_note."
+    before = _entry_desc(entry, budget.currency)
+    try:
+        await bs.update_entry(
+            ctx.db, budget, int(entry["row"]),
+            {"description": entry.get("description"), "amount": entry.get("amount")},
+            fields,
+        )
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    await _journal_budget_write(
+        ctx, budget, f'Budget "{budget.title}": Gerry updated entry — {before}'
+    )
+    return (
+        f'Updated in "{budget.title}": {before} → '
+        + ", ".join(f"{k}={v}" for k, v in fields.items())
+        + f". Now {_budget_summary_line(budget)}."
+    )
+
+
+async def execute_remove_budget_entry(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args)
+    if err:
+        return err
+    blocked = _budget_write_blocked(budget)
+    if blocked:
+        return blocked
+    if not args.get("confirm"):
+        return (
+            "Confirmation required: tell the user exactly which entry would be "
+            "deleted and call again with confirm=true only after they explicitly agree."
+        )
+    try:
+        await bs.refresh_budget(ctx.db, budget)
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    matches = _match_budget_entries(budget, args)
+    if not matches:
+        return f'No ledger entry matches "{args.get("description", "")}" in "{budget.title}". Nothing deleted.'
+    if len(matches) > 1:
+        listing = "; ".join(_entry_desc(e, budget.currency) for e in matches[:10])
+        return (
+            f"Several entries match — nothing deleted: {listing}. Call again "
+            "with match_amount and/or match_date to pin down exactly one."
+        )
+    entry = matches[0]
+    label = _entry_desc(entry, budget.currency)
+    try:
+        await bs.delete_entry(
+            ctx.db, budget, int(entry["row"]),
+            {"description": entry.get("description"), "amount": entry.get("amount")},
+        )
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    await _journal_budget_write(
+        ctx, budget, f'Budget "{budget.title}": Gerry deleted entry — {label}'
+    )
+    return f'Deleted from "{budget.title}": {label}. Now {_budget_summary_line(budget)}.'
 
 
 async def execute_get_calendar_events(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -3373,6 +3950,12 @@ TOOL_EXECUTORS = {
     "update_workroom": execute_update_workroom,
     "list_workroom_items": execute_list_workroom_items,
     "log_workroom_progress": execute_log_workroom_progress,
+    "list_budgets": execute_list_budgets,
+    "read_budget": execute_read_budget,
+    "create_budget": execute_create_budget,
+    "add_budget_entry": execute_add_budget_entry,
+    "update_budget_entry": execute_update_budget_entry,
+    "remove_budget_entry": execute_remove_budget_entry,
     "read_odoo": execute_read_odoo,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
@@ -3418,6 +4001,11 @@ _PRIMARY_ARG = {
     "get_approvals": "status",
     "list_workroom_items": "workroom_title",
     "log_workroom_progress": "entry",
+    "read_budget": "title",
+    "create_budget": "title",
+    "add_budget_entry": "description",
+    "update_budget_entry": "description",
+    "remove_budget_entry": "description",
     "list_drive_folder": "folder_id",
     "read_google_sheet": "spreadsheet_id",
     "update_task": "task_id",

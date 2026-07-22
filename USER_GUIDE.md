@@ -241,7 +241,7 @@ The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Go
 A **Workroom** is a persistent co-work space you share with Little Gerry — built for work that spans days or weeks, like a regulatory submission, an audit prep, or a fundraise.
 
 - **Create a room** from the Workrooms satellite next to the sun (or the Workrooms section in the chat sidebar). Give it a title and a **goal** — what you're working toward.
-- **Pin artifacts** to the room: Drive docs, Knowledge Base documents, generated files, notes, email threads, tasks, Odoo records, and regulatory documents. Each pin has a label and an optional reference/ID.
+- **Pin artifacts** to the room: Drive docs, Knowledge Base documents, generated files, notes, email threads, tasks, Odoo records, regulatory documents, and budgets. Each pin has a label and an optional reference/ID. When a budget is pinned, Gerry's budget writes are journaled in the room automatically.
 - **Gerry works the room too**: ask her to pin something ("pin that SOP to this room") or log progress ("note that we finished section 4") — and files she creates, docs she imports to the KB, and Drive docs she follows inside the room are **pinned and journaled automatically**. File cards in chat also get a **Pin to Room** button.
 - **Enter the room** to chat — every room has its own conversation, and every message you send there automatically carries the room's goal, pinned items, and recent progress. No re-explaining context each session.
 - **Log progress** in the room's journal ("Sent draft to Lindsey for review"). The latest entries travel with the room chat, so Gerry always knows where things stand.
@@ -492,7 +492,8 @@ Navigate to **Manage Budgets** (a moon on the **Enterprise** planet). A personal
 - **Create a budget** with a title, optional allotment, and categories — it's created as a **Google Sheet on your own Drive** (in a "Little Gerry Budgets" folder). You own the data.
 - **One ledger, two surfaces**: add, edit, or delete entries in Little Gerry OR directly in Google Sheets — changes reflect in both. The page refreshes automatically while open, and every edit re-checks the sheet first so nothing gets clobbered.
 - **Allotments**: set one and watch spending against it with progress bars (amber at 80%, red at 100%).
-- **Let Gerry help**: a per-budget toggle grants Gerry permission to add and edit entries when you ask in chat. Deletions always require your confirmation. You can revoke the grant anytime.
+- **Let Gerry help**: a per-budget toggle grants Gerry permission to add and edit entries when you ask in chat ("log $89.99 for the torque wrench against Lab Tools"). Edits and deletions also require your explicit confirmation in chat. Reading is always allowed, and you can revoke the grant anytime.
+- **Create from chat** too: ask Gerry to set up a budget with an allotment and categories — her write permission still starts OFF until you enable it.
 - **Link an existing spreadsheet** read-only. **Unlinking** a budget never deletes the sheet — it stays on your Drive.
 
 ---

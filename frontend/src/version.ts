@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 163;
+export const BUILD_NUMBER = 164;
 export const BUILD_DATE = "2026-07-21";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 164,
+    date: "2026-07-21",
+    title: "Gerry works your budgets — chat-native, permission-gated",
+    changes: [
+      "Ask Gerry about any budget: totals, remaining allotment, category breakdowns, full ledger — always allowed, read-only",
+      "With the per-budget 'Let Gerry manage entries' toggle ON, Gerry can log spending for you in chat — entries land straight in your Google Sheet marked Source=gerry",
+      "Edits and deletions additionally require your explicit in-chat confirmation, and ambiguous matches are listed instead of guessed",
+      "Create whole budgets from chat (title, allotment, categories) — Gerry's write permission still starts OFF",
+      "Pin a budget to a Workroom (new pin kind) and Gerry's budget writes are journaled in the room automatically",
+    ],
+  },
   {
     build: 163,
     date: "2026-07-21",
