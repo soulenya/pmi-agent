@@ -2,7 +2,7 @@
  * WorkroomsPage — persistent co-work spaces with Gerry.
  *
  * Left: room list + create form. Right: selected room detail — goal,
- * pinned artifacts (8 kinds), progress journal, and "Enter room" which
+ * pinned artifacts (9 kinds), progress journal, and "Enter room" which
  * opens the room's dedicated conversation (WORKROOM CONTEXT is injected
  * into every agent turn there).
  */
