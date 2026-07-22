@@ -28,9 +28,17 @@ MAX_LIVE_DOC_CHARS = 30_000
 
 
 def extract_drive_file_id(raw: str) -> str:
-    """Return the file ID from a bare ID or any pasted Docs/Drive/Sheets URL."""
+    """Return the file/folder ID from a bare ID or any pasted Drive URL.
+
+    Handles /d/<id> (Docs/Sheets/Slides), /folders/<id> (Drive folders),
+    and ?id=<id> (legacy open links).
+    """
     raw = (raw or "").strip()
-    m = re.search(r"/d/([\w-]{20,})", raw) or re.search(r"[?&]id=([\w-]{20,})", raw)
+    m = (
+        re.search(r"/d/([\w-]{20,})", raw)
+        or re.search(r"/folders/([\w-]{20,})", raw)
+        or re.search(r"[?&]id=([\w-]{20,})", raw)
+    )
     return m.group(1) if m else raw
 
 
