@@ -494,6 +494,7 @@ Navigate to **Manage Budgets** (a moon on the **Enterprise** planet). A personal
 - **Allotments**: set one and watch spending against it with progress bars (amber at 80%, red at 100%).
 - **Let Gerry help**: a per-budget toggle grants Gerry permission to add and edit entries when you ask in chat ("log $89.99 for the torque wrench against Lab Tools"). Edits and deletions also require your explicit confirmation in chat. Reading is always allowed, and you can revoke the grant anytime.
 - **Create from chat** too: ask Gerry to set up a budget with an allotment and categories — her write permission still starts OFF until you enable it.
+- **The budget watches itself**: crossing 80% or 100% of an allotment raises a notification (once per crossing), categories warn when they hit their caps, and the first scan of each month delivers a rollup of last month's spending. Budgets at 80%+ also appear in the home-screen briefing panel, and workroom digests report pinned budgets whose totals changed since yesterday. All read-only — nudges never touch your sheet.
 - **Link an existing spreadsheet** read-only. **Unlinking** a budget never deletes the sheet — it stays on your Drive.
 
 ---

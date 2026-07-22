@@ -4,6 +4,16 @@
 
 ## Changelog
 
+### v3.3.7 — 2026-07-21
+**Budget Phase 3 — the budget watches itself (read-only nudges)**
+
+- New `services/budget_daily.py`, wired into the daily assistant scan BEFORE the workroom automations (so digests compare fresh totals) and before the Google gate (cache works unconnected; connected budgets get a cheap modifiedTime-gated refresh). Once per local day; state in one SystemSetting (`budgets.daily.state`).
+- **Allotment thresholds**: crossing 80% (reminder) / 100% (alert) notifies once per crossing; dropping back below re-arms silently. **Category caps**: notify on hit, re-arm when back under. **Monthly rollup**: first scan of a new month → one-line rollup of the previous month per budget with spending.
+- **Workroom digest**: pinned budgets whose totals changed vs yesterday's snapshot get a digest line (baseline via `get_digest_baseline`, robust to scan ordering).
+- **Briefing panel**: Budgets section (Wallet icon, only rendered when budgets exist) listing budgets at ≥80% of allotment with amber/red percentages; cache-only.
+- **`get_budget_snapshot`** micro-tool, both engines + ea/house/ir/operations whitelists: instant spent/allotment/remaining from the mirror — no sheet calls.
+- Offline-verified: threshold crossings (85% → over-100%), once-per-crossing gating, cap warning, June rollup, same-day idempotence, digest baseline + pinned-budget digest line, snapshot tool (smoke data fully cleaned up).
+
 ### v3.3.6 — 2026-07-21
 **Budget Phase 2 — Gerry works the budget (chat-native, permission-gated)**
 
