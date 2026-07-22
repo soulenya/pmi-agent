@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.6 — 2026-07-21
+**Budget Phase 2 — Gerry works the budget (chat-native, permission-gated)**
+
+- Six tools, both engines (full checklist: defs + executors + _PRIMARY_ARG + v1 labels + v2 docs + ea/house/ir/operations whitelists): `list_budgets`, `read_budget` (always allowed, read-only, sheet re-checked), `create_budget` (self-serve; write grant stays OFF), `add_budget_entry` (grant-gated, Source=gerry), `update_budget_entry` / `remove_budget_entry` (grant + confirm=true after explicit user confirmation; description-matched with match_amount/match_date disambiguation — ambiguous matches listed, nothing touched).
+- Every write re-reads the target sheet row first (Phase-1 verify path) — Sheets-side edits are never clobbered; refusals point to the exact toggle on the Manage Budgets page.
+- Workroom tie-in: new pin kind `budget` (backend enum + router validation + room UI picker + add_to_workroom enum both engines); Gerry's budget writes auto-journal to the current room AND any room where the budget is pinned.
+- Live-verified: create → grant-off refusal → grant → add → unconfirmed/ambiguous/confirmed update → confirmed delete → list/read → room journal (smoke sheet trashed after).
+
 ### v3.3.5 — 2026-07-21
 **Budget Phase 1 — personal Drive-backed budgets (two surfaces, one ledger)**
 
