@@ -6,7 +6,8 @@ export type SuggestionKind =
   | "task_recommendation"
   | "meeting_import"
   | "workroom_todo"
-  | "budget_entry";
+  | "budget_entry"
+  | "gmail_invoice";
 
 export type SuggestionStatus = "pending" | "accepted" | "dismissed";
 

@@ -237,7 +237,9 @@ class LangGraphSupervisor:
 
     # ── Persist messages ──────────────────────────────────────────────────────
 
-    async def _persist_messages(self, user_text: str, assistant_text: str) -> None:
+    async def _persist_messages(
+        self, user_text: str, assistant_text: str, artifacts: list[dict] | None = None
+    ) -> None:
         from repositories.conversation_repo import MessageRepository
         from models.db.enums import MessageRole
         repo = MessageRepository(self.db)
@@ -251,6 +253,7 @@ class LangGraphSupervisor:
                 conversation_id=self.conversation_id,
                 role=MessageRole.ASSISTANT,
                 content=assistant_text,
+                tool_results=artifacts or [],
             )
         await self.db.commit()
 
@@ -342,6 +345,7 @@ class LangGraphSupervisor:
 
         # Stream
         full_response_parts: list[str] = []
+        turn_artifacts: list[dict] = []
         async for frame in agent.run(
             messages=messages,
             today=today,
@@ -369,6 +373,13 @@ class LangGraphSupervisor:
                     "label": frame.get("label", ""),
                 })
 
+            elif frame_type == "artifact_link":
+                # "Take me to it" chip — pass through live + persist with the reply.
+                art = frame.get("artifact") or {}
+                if art and art not in turn_artifacts:
+                    turn_artifacts.append(art)
+                yield json.dumps({"type": "artifact_link", "artifact": art})
+
             elif frame_type == "confirm_delete":
                 # A tool staged a confirm/cancel popup — pass it through verbatim
                 # so the client can show it. Deletion happens client-side only
@@ -378,7 +389,7 @@ class LangGraphSupervisor:
             elif frame_type == "done":
                 # Persist both user message and assistant response
                 full_response = "".join(full_response_parts)
-                await self._persist_messages(user_text, full_response)
+                await self._persist_messages(user_text, full_response, turn_artifacts)
                 yield json.dumps({
                     "type": "done",
                     "conversation_id": str(self.conversation_id),

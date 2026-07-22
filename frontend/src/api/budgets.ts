@@ -25,6 +25,60 @@ export interface BudgetSummary {
   entry_count?: number;
 }
 
+export interface BudgetFolder {
+  id: string;
+  kind: "invoice" | "receipt";
+  folder_id: string;
+  folder_name: string;
+  folder_url: string;
+  auto_scan: boolean;
+  last_scan_at: string | null;
+  files_scanned: number;
+  extracted_total: number;
+}
+
+export interface FolderScanSummary {
+  scanned: number;
+  suggested: number;
+  no_amount: number;
+  errors: number;
+  remaining: number;
+  skipped_unsupported: number;
+  total_extracted: number;
+}
+
+export interface BudgetReference {
+  id: string;
+  ref_budget_id: string;
+  ref_title: string;
+  include_as_entry: boolean;
+  total_spent: number;
+  allotment: number | null;
+  remaining: number | null;
+  entry_count: number;
+  external_readonly: boolean;
+}
+
+export interface OdooCompareResult {
+  budget: {
+    title: string;
+    total_spent: number;
+    allotment: number | null;
+    remaining: number | null;
+    entry_count: number;
+    currency: string;
+  };
+  odoo: {
+    label: string;
+    search?: string;
+    total: number | null;
+    count: number;
+    rows: string[];
+    currency?: string;
+  };
+  advisory: string;
+}
+
 export interface Budget {
   id: string;
   title: string;
@@ -33,6 +87,7 @@ export interface Budget {
   allotment: number | null;
   currency: string;
   gerry_write_enabled: boolean;
+  gmail_check_enabled: boolean;
   external_readonly: boolean;
   cached_summary: BudgetSummary;
   cached_at: string | null;
@@ -42,6 +97,8 @@ export interface Budget {
 export interface BudgetDetail extends Budget {
   cached_ledger: BudgetEntry[];
   cached_categories: BudgetCategory[];
+  folders: BudgetFolder[];
+  references: BudgetReference[];
 }
 
 export async function listBudgets(): Promise<Budget[]> {
@@ -81,6 +138,7 @@ export async function updateBudget(
     allotment?: number;
     clear_allotment?: boolean;
     gerry_write_enabled?: boolean;
+    gmail_check_enabled?: boolean;
   },
 ): Promise<BudgetDetail> {
   const { data } = await apiClient.patch<BudgetDetail>(`/budgets/${id}`, body);
@@ -126,5 +184,72 @@ export async function deleteBudgetEntry(
   const { data } = await apiClient.post<BudgetDetail>(`/budgets/${id}/entries/${row}/delete`, {
     expected,
   });
+  return data;
+}
+
+// ── Linked folders (read-only to Gerry) ────────────────────────────
+
+export async function linkBudgetFolder(
+  id: string,
+  body: { kind: "invoice" | "receipt"; ref: string },
+): Promise<BudgetFolder> {
+  const { data } = await apiClient.post<BudgetFolder>(`/budgets/${id}/folders`, body);
+  return data;
+}
+
+export async function updateBudgetFolder(
+  id: string,
+  folderRowId: string,
+  body: { auto_scan?: boolean },
+): Promise<BudgetFolder> {
+  const { data } = await apiClient.patch<BudgetFolder>(
+    `/budgets/${id}/folders/${folderRowId}`,
+    body,
+  );
+  return data;
+}
+
+export async function unlinkBudgetFolder(id: string, folderRowId: string): Promise<void> {
+  await apiClient.delete(`/budgets/${id}/folders/${folderRowId}`);
+}
+
+export async function scanBudgetFolder(
+  id: string,
+  folderRowId: string,
+): Promise<FolderScanSummary> {
+  const { data } = await apiClient.post<FolderScanSummary>(
+    `/budgets/${id}/folders/${folderRowId}/scan`,
+  );
+  return data;
+}
+
+// ── Cross-budget references ─────────────────────────────────────
+
+export async function addBudgetReference(
+  id: string,
+  body: { ref_budget_id: string; include_as_entry: boolean },
+): Promise<void> {
+  await apiClient.post(`/budgets/${id}/references`, body);
+}
+
+export async function removeBudgetReference(
+  id: string,
+  referenceId: string,
+  removeRow: boolean,
+): Promise<{ row_removed: boolean }> {
+  const { data } = await apiClient.delete<{ removed: string; row_removed: boolean }>(
+    `/budgets/${id}/references/${referenceId}`,
+    { params: { remove_row: removeRow } },
+  );
+  return data;
+}
+
+// ── Odoo cross-check (advisory, read-only) ───────────────────────────
+
+export async function compareBudgetToOdoo(
+  id: string,
+  body: { dataset: string; search?: string },
+): Promise<OdooCompareResult> {
+  const { data } = await apiClient.post<OdooCompareResult>(`/budgets/${id}/odoo-compare`, body);
   return data;
 }
