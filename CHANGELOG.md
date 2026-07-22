@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v3.3.10 — 2026-07-22
+**Restricted Drive sources: QMS folder + draft files (Morgan standing rule)**
+
+- **Two layers.** Hard gate: new `services/drive_policy.py` — restricted folder set (QMS `1c5mGaeldOIUXZyGVwUoTOsUTtGJ2LMp_` + optional SystemSetting `drive_policy.restricted_folder_ids`), generous case-insensitive "draft" name match, memoized parent-chain ancestry walks. Wired into all seven Drive read/browse tools: direct targets (read_drive_file, read_drive_annotations, follow_drive_document, list_drive_folder) refuse with the confirm protocol; search/list tools (search_drive, search_drive_content, list_recent_drive_files) silently withhold restricted hits and append an honest "N result(s) withheld" note.
+- **Escape hatch**: `confirm_restricted=true` on those tools — by contract only after Gerry told the user which folder she'll access and which file she'll read and got their confirmation. Declared in both engines' tool schemas/docs.
+- **Soft layer**: `RESTRICTED_SOURCES_NOTE` in guardrails.py, appended alongside the honesty contract in BOTH engines' system prompts — teaches the rule + protocol so Gerry doesn't try and get refused.
+- Policy failures never fabricate a block (fail-open with logging); unknown ancestry treated as unrestricted; draft matching applies everywhere including outside QMS.
+- Note: dev Google token hit `invalid_grant` during verification — offline checks passed (draft variants, QMS-id block, confirm bypass, result filtering); the live QMS-child ancestry walk should be re-verified after reconnecting Google.
+
 ### v3.3.9 — 2026-07-22
 **Budget Phases 5–7 (filters/isolation · folders/extraction/automations · references/ERP cross-checks) + link fix (Morgan requests)**
 

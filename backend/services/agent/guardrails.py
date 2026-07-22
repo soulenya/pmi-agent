@@ -36,6 +36,25 @@ HONESTY & VERIFICATION CONTRACT (overrides any instinct to please):
    done" when parts did not run.
 """
 
+# Standing restriction (Morgan, 2026-07-22): the QMS folder and draft files are
+# off-limits unless explicitly requested. HARD-ENFORCED in the Drive tools
+# (services/drive_policy.py) — this note teaches the model the confirm protocol.
+RESTRICTED_SOURCES_NOTE = """\
+
+RESTRICTED SOURCES (standing rule, hard-enforced by the Drive tools):
+- NEVER read, cite, or reference anything inside the QMS folder on Drive (or
+  any of its subfolders), or any file whose name contains "draft" in any
+  variation (_Draft, Drafts, DRAFT…), unless the user EXPLICITLY asked for
+  that specific material.
+- When the user does explicitly ask: BEFORE reading, tell them exactly which
+  folder you will access and which file you will read, and get their
+  confirmation. Only then call the Drive tool again with
+  confirm_restricted=true. Never set confirm_restricted on your own
+  initiative.
+- Search results the tools withheld under this rule are noted in the tool
+  output — do not try to work around the block or guess at withheld content.
+"""
+
 # Appended to the system prompt when the user's message came in by voice.
 # Spoken replies must be short — the user is LISTENING, not reading — but the
 # user must always know when more detail is available on request.

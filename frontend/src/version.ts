@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 171;
+export const BUILD_NUMBER = 172;
 export const BUILD_DATE = "2026-07-22";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 172,
+    date: "2026-07-22",
+    title: "Restricted sources — QMS and drafts are off-limits unless you ask",
+    changes: [
+      "Standing rule: Gerry will not read, cite, or reference anything in the QMS folder (or its subfolders), or any file with 'draft' in its name — in any variation — unless you explicitly ask",
+      "When you do ask, Gerry confirms first: she names the folder she'll access and the file she'll read, and proceeds only on your go-ahead",
+      "Enforced in the Drive tools themselves, not just instructions — restricted search results are withheld with an honest note, and direct reads are refused with the confirm protocol",
+    ],
+  },
   {
     build: 171,
     date: "2026-07-22",
