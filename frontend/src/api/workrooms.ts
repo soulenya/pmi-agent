@@ -10,7 +10,8 @@ export type WorkroomItemKind =
   | "email_thread"
   | "task"
   | "odoo_record"
-  | "regulatory_doc";
+  | "regulatory_doc"
+  | "budget";
 
 export const ITEM_KIND_LABELS: Record<WorkroomItemKind, string> = {
   drive_doc: "Drive doc",
@@ -21,6 +22,7 @@ export const ITEM_KIND_LABELS: Record<WorkroomItemKind, string> = {
   task: "Task",
   odoo_record: "Odoo record",
   regulatory_doc: "Regulatory doc",
+  budget: "Budget",
 };
 
 export interface WorkroomItem {

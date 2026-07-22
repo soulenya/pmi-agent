@@ -27,6 +27,7 @@ WORKROOM_ITEM_KINDS = (
     "task",
     "odoo_record",
     "regulatory_doc",
+    "budget",
 )
 
 
