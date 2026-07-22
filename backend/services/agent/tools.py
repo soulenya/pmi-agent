@@ -1226,7 +1226,7 @@ TOOL_DEFINITIONS: list[dict] = [
             "name": "create_budget",
             "description": (
                 "Create a new personal budget for the user: a standardized "
-                "Google Sheet on THEIR Drive (Little Gerry Budgets folder) "
+                "Google Sheet in the company's shared budgets folder on Drive "
                 "plus a card on the Manage Budgets page. Self-serve — no "
                 "approval needed. Note: your permission to write ENTRIES "
                 "into it stays OFF until the user enables it on the budget's "

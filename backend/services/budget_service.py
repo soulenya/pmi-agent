@@ -23,7 +23,10 @@ from models.db.budget import Budget
 
 logger = logging.getLogger(__name__)
 
-BUDGET_FOLDER_NAME = "Little Gerry Budgets"
+# Company budgets folder (Morgan, 2026-07-22): EVERY user's budget sheets are
+# created here — baked in so all budgets live in one known place on Drive.
+# The SystemSetting below still wins when set (relocation without a release).
+BUDGET_FOLDER_ID = "1k-tBw0UomODw-nwJjjkNteHaQltuNs2D"
 SETTING_FOLDER_ID = "budgets.folder_id_override"
 LEDGER_COLUMNS = ("date", "description", "category", "amount", "source", "note")
 
@@ -54,12 +57,14 @@ async def _get_budget_folder_id(db: AsyncSession) -> str:
     ).scalar_one_or_none()
     if row is not None and row.value:
         return str(row.value)
-    folder = await _run(lambda: gs.drive_find_or_create_folder(BUDGET_FOLDER_NAME, None))
-    if not folder.get("id"):
-        raise BudgetError("Couldn't find or create the Little Gerry Budgets folder on Drive.")
-    db.add(SystemSetting(key=SETTING_FOLDER_ID, value=folder["id"]))
-    await db.flush()
-    return folder["id"]
+    meta = await _run(lambda: gs.drive_get_metadata(BUDGET_FOLDER_ID))
+    if meta is None or meta.get("trashed"):
+        raise BudgetError(
+            "The company budgets folder on Drive isn't reachable from this "
+            "Google account — ask Morgan to share the 'Little Gerry Budgets' "
+            "folder with you (edit access), then try again."
+        )
+    return BUDGET_FOLDER_ID
 
 
 # ── creation / linking ────────────────────────────────────────────────────
