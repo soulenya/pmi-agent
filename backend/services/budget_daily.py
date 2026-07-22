@@ -228,6 +228,36 @@ async def run_budget_daily(db: AsyncSession) -> dict:
             entry_state["total_date"] = today
 
             state[str(budget.id)] = entry_state
+
+            # 5. Phase 6 automations (per-budget opt-in, suggest-first).
+            if google_ok:
+                try:
+                    from models.db.budget import BudgetFolder
+                    from services import budget_folder_service as bfs
+
+                    folders = list(
+                        (
+                            await db.execute(
+                                select(BudgetFolder).where(
+                                    BudgetFolder.budget_id == budget.id,
+                                    BudgetFolder.auto_scan.is_(True),
+                                )
+                            )
+                        ).scalars()
+                    )
+                    for f in folders:
+                        try:
+                            r = await bfs.scan_folder(db, budget, f)
+                            summary["folder_suggestions"] = (
+                                summary.get("folder_suggestions", 0) + r.get("suggested", 0)
+                            )
+                        except Exception:  # noqa: BLE001
+                            logger.info("Budget daily: folder scan failed for %s", f.id)
+                    if budget.gmail_check_enabled:
+                        n = await bfs.gmail_check_budget(db, budget)
+                        summary["gmail_suggestions"] = summary.get("gmail_suggestions", 0) + n
+                except Exception:  # noqa: BLE001
+                    logger.exception("Budget daily: automations failed for %s", budget.id)
         except Exception:  # noqa: BLE001 — one budget must not block the rest
             logger.exception("Budget daily failed for %s", budget.id)
 

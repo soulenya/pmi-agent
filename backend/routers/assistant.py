@@ -255,6 +255,89 @@ async def accept_suggestion(
         s.result_entity_type = "budget"
         s.result_entity_id = budget.id
 
+    # gmail_invoice: accepting files the email attachment into the budget's
+    # linked invoice folder (when one exists) and adds the ledger entry when
+    # an amount was readable. Suggest-first: nothing happened until this click.
+    if s.kind == "gmail_invoice":
+        import asyncio
+
+        from models.db.budget import Budget, BudgetFolder
+        from services import budget_service as bs
+        from services import google_service as gs
+
+        payload = s.payload or {}
+        entry = payload.get("entry") or {}
+        budget = None
+        if payload.get("budget_id"):
+            budget = (
+                await db.execute(
+                    select(Budget).where(
+                        Budget.id == uuid.UUID(str(payload["budget_id"])),
+                        Budget.user_id == user.id,
+                    )
+                )
+            ).scalar_one_or_none()
+        if budget is None:
+            raise HTTPException(410, "That budget no longer exists — dismiss this suggestion.")
+        filed_to = None
+        message_id = str(payload.get("message_id") or "")
+        want_name = str(payload.get("attachment_filename") or "")
+        folder = None
+        if payload.get("folder_row_id"):
+            folder = (
+                await db.execute(
+                    select(BudgetFolder).where(
+                        BudgetFolder.id == uuid.UUID(str(payload["folder_row_id"])),
+                        BudgetFolder.budget_id == budget.id,
+                    )
+                )
+            ).scalar_one_or_none()
+        if folder is not None and message_id and want_name:
+            try:
+                loop = asyncio.get_event_loop()
+                atts = await loop.run_in_executor(None, lambda: gs.gmail_get_attachments(message_id))
+                att = next((a for a in atts if a["filename"] == want_name), None)
+                if att is not None:
+                    uploaded = await loop.run_in_executor(
+                        None,
+                        lambda: gs.drive_upload_bytes(
+                            att["data"], att["filename"], att.get("mime_type") or None, folder.folder_id
+                        ),
+                    )
+                    filed_to = uploaded.get("url", "")
+                    # Register it so a folder scan doesn't re-suggest the same doc.
+                    reg = dict(folder.scanned_files or {})
+                    reg[uploaded.get("id", "")] = {
+                        "name": att["filename"],
+                        "status": "filed_from_gmail",
+                        "amount": entry.get("amount"),
+                        "scanned_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    folder.scanned_files = reg
+            except Exception:  # noqa: BLE001 — filing is best-effort, entry still counts
+                logger.exception("gmail_invoice accept: filing to folder failed")
+        if entry.get("amount") is not None and str(entry.get("description", "")).strip():
+            try:
+                await bs.add_entry(
+                    db,
+                    budget,
+                    date=str(entry.get("date", "")) or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                    description=str(entry["description"]),
+                    amount=float(entry["amount"]),
+                    category=str(entry.get("category", "") or ""),
+                    note=(str(entry.get("note", "") or "") + (f" Filed: {filed_to}" if filed_to else "")).strip(),
+                    source="gerry",
+                )
+            except bs.BudgetError as exc:
+                raise HTTPException(409, str(exc)) from exc
+        elif filed_to is None and folder is None:
+            raise HTTPException(
+                400,
+                "No amount was readable and this budget has no linked invoice folder — nothing to do.",
+            )
+        s.result_entity_type = "budget"
+        s.result_entity_id = budget.id
+
     s.status = "accepted"
     s.resolved_at = datetime.now(timezone.utc)
     await db.commit()

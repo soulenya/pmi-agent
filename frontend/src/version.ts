@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 166;
-export const BUILD_DATE = "2026-07-21";
+export const BUILD_NUMBER = 171;
+export const BUILD_DATE = "2026-07-22";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,58 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 171,
+    date: "2026-07-22",
+    title: "Take me to it — one-click chips for everything created in chat",
+    changes: [
+      "Whenever something is created during a chat turn — an email draft, an approval request, a task, a workroom pin, a budget entry, a filed invoice, a contact — the reply now carries a chip that jumps you straight to it",
+      "No more hunting: 'Open the email draft', 'Review the approval', 'Open the budget' — chips work in the main chat AND the sidebar, live during the turn and preserved in the conversation history",
+      "Drive uploads and filed invoices get direct 'Open in Drive' links",
+    ],
+  },
+  {
+    build: 170,
+    date: "2026-07-22",
+    title: "Master budgets and ERP cross-checks",
+    changes: [
+      "Budgets can now reference other budgets — a master budget shows any sub-budget's live numbers, and can carry a synced '[Budget]' line item in its own sheet so master totals include them on both surfaces",
+      "Reference rows update automatically whenever the master syncs; removing a reference lets you keep the row as a frozen snapshot or delete it",
+      "Circular references are rejected up front",
+      "New 'Cross-check against Odoo' panel in every budget: bounce your tracking off live invoices, sales, purchases, customers, or bank balances — side by side, advisory only",
+    ],
+  },
+  {
+    build: 169,
+    date: "2026-07-22",
+    title: "Budgets read your folders — linked Drive folders, extraction, automations",
+    changes: [
+      "Link invoice or receipts folders to any budget — point Gerry at a Drive folder (project docs, invoices, receipts) and she offers to scan it",
+      "Scans are read-only: Gerry lists the files, reads PDFs/images/CSVs (OCR when needed), extracts vendor/date/amount, picks a category, and totals what she found — your files are never modified or moved",
+      "Every extracted document becomes a suggestion reviewed INSIDE the budget — accept one, dismiss one, or accept all; entries land in the sheet only on your say-so",
+      "Per-budget automation: scan linked folders daily, and check Gmail daily for invoice attachments — accepting a Gmail find files it into your linked folder AND logs the entry",
+      "Each linked folder shows files read, extracted total, and last scan",
+    ],
+  },
+  {
+    build: 168,
+    date: "2026-07-22",
+    title: "Ledger filters and isolation",
+    changes: [
+      "Category chips above the ledger are now filter buttons — tap one (or several) to see only those categories, with a live subtotal of what's shown",
+      "Check any entries and hit 'Isolate selected' to view just those rows and their subtotal — handy for pulling specific references",
+      "Categories used in the sheet but not defined on the Categories tab (and uncategorized spending) show up as filters too",
+    ],
+  },
+  {
+    build: 167,
+    date: "2026-07-22",
+    title: "Budget linking accepts pasted links",
+    changes: [
+      "Linking an external budget sheet now works with a pasted Google Sheets URL, not just the bare spreadsheet ID — the link form said 'paste its link' but the lookup didn't parse one (reported by Morgan)",
+      "Link failures now explain themselves: not-found and no-access cases say exactly what to check instead of spilling a raw Google API error",
+    ],
+  },
   {
     build: 166,
     date: "2026-07-21",

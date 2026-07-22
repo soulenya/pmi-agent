@@ -2,7 +2,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines, Volume2, RotateCcw } from "lucide-react";
-import { MessageBubble } from "@/components/chat/MessageBubble";
+import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
 import { SentenceSpeaker } from "@/lib/sentenceSpeaker";
 import {
   ApprovalCard,
@@ -152,6 +152,7 @@ export function ChatPage() {
   const [wsConnected, setWsConnected] = useState(false);
   const [wsRetry, setWsRetry] = useState(0);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
+  const [turnArtifacts, setTurnArtifacts] = useState<ArtifactLink[]>([]);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ document_id: string; title: string } | null>(null);
   const [deletingDoc, setDeletingDoc] = useState(false);
@@ -408,7 +409,7 @@ export function ChatPage() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string) as {
-          type: "token" | "done" | "error" | "tool_status" | "confirm_delete";
+          type: "token" | "done" | "error" | "tool_status" | "confirm_delete" | "artifact_link";
           content?: string;
           tool_name?: string;
           status?: string;
@@ -454,6 +455,16 @@ export function ChatPage() {
             }
             return [...prev, { tool_name: frame.tool_name, status: frame.status, label: frame.label }];
           });
+        } else if (msg.type === "artifact_link") {
+          // "Take me to it" chip for something Gerry just created.
+          const art = (msg as unknown as { artifact?: ArtifactLink }).artifact;
+          if (art?.label) {
+            setTurnArtifacts((prev) =>
+              prev.some((p) => p.label === art.label && p.route === art.route && p.url === art.url)
+                ? prev
+                : [...prev, art],
+            );
+          }
         } else if (msg.type === "confirm_delete") {
           // An agent requested KB document deletion — show the final popup.
           // Nothing is deleted until the user confirms here.
@@ -472,6 +483,7 @@ export function ChatPage() {
           queryClient.invalidateQueries({ queryKey: ["approvals"] });
           setStreamingContent(null);
           setToolActivities([]);
+          setTurnArtifacts([]); // the persisted message carries the chips now
           setBusySince(null);
           // Speak the reply aloud — sentence-streamed playback normally started
           // during the token stream; these are fallbacks for empty streams.
@@ -490,6 +502,7 @@ export function ChatPage() {
           const detail = (msg as unknown as { detail?: string }).detail ?? "An error occurred.";
           setStreamingContent(null);
           setToolActivities([]);
+          setTurnArtifacts([]);
           setBusySince(null);
           streamBufferRef.current = "";
           speakerRef.current?.cancel();
@@ -831,7 +844,7 @@ export function ChatPage() {
                 model_name: null,
                 cited_chunk_ids: [],
                 tool_calls: null,
-                tool_results: null,
+                tool_results: turnArtifacts,
                 created_at: new Date().toISOString(),
               }}
             />

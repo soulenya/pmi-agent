@@ -29,7 +29,7 @@ from models.db.enums import MessageRole
 from models.schemas.conversations import WSDone, WSError, WSToken, WSToolStatus
 from repositories.conversation_repo import ConversationRepository, MessageRepository
 from services.agent.guardrails import HONESTY_CONTRACT
-from services.agent.tools import TOOL_DEFINITIONS, ToolContext, dispatch_tool
+from services.agent.tools import TOOL_DEFINITIONS, ToolContext, artifact_links_for, dispatch_tool
 from services.embeddings.service import get_embedding_service_for_db
 from services.llm.ollama import OllamaClient, OllamaError, get_ollama_client
 from services.llm.router import get_llm_client
@@ -246,6 +246,7 @@ class AgentExecutor:
 
         accumulated_content = ""
         cited_chunk_ids: list[str] = []
+        turn_artifacts: list[dict] = []  # "take me to it" chips for created things
 
         for _round in range(MAX_TOOL_ROUNDS):
             tool_calls_this_round: list[dict] = []
@@ -300,6 +301,7 @@ class AgentExecutor:
                     content=clean_content,
                     model_name=final_model,
                     cited_chunk_ids=cited_chunk_ids,
+                    tool_results=turn_artifacts,
                 )
                 await self.db.commit()
 
@@ -361,6 +363,14 @@ class AgentExecutor:
                     conversation_id=str(self.conversation_id),
                 ).model_dump_json()
 
+                # "Take me to it" chips — offer navigation to whatever this
+                # tool just created (draft, approval, task, budget entry…).
+                import json as _json
+                for art in artifact_links_for(tool_name, result):
+                    if art not in turn_artifacts:
+                        turn_artifacts.append(art)
+                        yield _json.dumps({"type": "artifact_link", "artifact": art})
+
                 # If a tool staged a confirm/cancel popup (e.g. KB deletion),
                 # emit it to the client and clear it. The frontend performs the
                 # destructive action only after the user confirms.
@@ -418,6 +428,7 @@ class AgentExecutor:
                 content=clean_content,
                 model_name=final_model,
                 cited_chunk_ids=cited_chunk_ids,
+                tool_results=turn_artifacts,
             )
             await self.db.commit()
             await _auto_title_conversation(self.db, self.conversation_id, self.user_id, user_text)
