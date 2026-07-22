@@ -1380,6 +1380,72 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "file_invoice_from_email",
+            "description": (
+                "File an invoice attachment from a Gmail message into the "
+                "company's '<Company> Invoices' folder on Drive, where the "
+                "invoice sheet's daily 9am pipeline ingests it (OCR, sheet "
+                "row, budget totals). Bytes are preserved exactly. Find the "
+                "message with search_gmail first. The company folder is "
+                "matched from the sender or the company arg — never created: "
+                "new companies must be set up from the invoice sheet's PMI "
+                "Control Panel. Never writes to the invoice workbook itself."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "string",
+                        "description": "Gmail message id (from search_gmail / read_gmail_message).",
+                    },
+                    "company": {
+                        "type": "string",
+                        "description": "Company folder hint, e.g. 'OVYL'. Omit to match from the sender.",
+                    },
+                    "attachment_filename": {
+                        "type": "string",
+                        "description": "Which attachment to file when the email has several.",
+                    },
+                },
+                "required": ["message_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "compare_budget_to_odoo",
+            "description": (
+                "ADVISORY side-by-side of a personal budget's tracked "
+                "spending vs Odoo ERP actuals (vendor bills, customer "
+                "invoices, or sales) matching a search term. Read-only, no "
+                "approval. The two track different things and may "
+                "legitimately differ — present it as a cross-check, never a "
+                "reconciliation."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "budget_title": {
+                        "type": "string",
+                        "description": "Budget title (fuzzy matched). Omit if the user has exactly one budget.",
+                    },
+                    "dataset": {
+                        "type": "string",
+                        "enum": ["invoices", "purchases", "sales"],
+                        "description": "Odoo side to compare: invoices = accounting moves incl. vendor bills (default), purchases = POs (needs the Purchase module), sales = sales orders.",
+                    },
+                    "search": {
+                        "type": "string",
+                        "description": "Odoo name/partner filter, e.g. the vendor. Defaults to the budget title.",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "generate_file",
             "description": (
                 "Generate a downloadable file and save it to the server. "
@@ -3439,6 +3505,195 @@ async def execute_get_budget_snapshot(ctx: ToolContext, args: dict[str, Any]) ->
     return "\n".join(lines)
 
 
+async def _suggest_budget_entry_for_invoice(
+    ctx: ToolContext, result: dict, message_id: str
+) -> str:
+    """Offer a ledger entry for a just-filed invoice as an accept/dismiss
+    suggestion — never a silent write. Returns a sentence for the reply,
+    or '' when no sensible target budget exists."""
+    from sqlalchemy import select as _select
+
+    from models.db.assistant import AssistantSuggestion
+    from models.db.budget import Budget
+    from models.db.enums import NotificationType
+    from repositories.conversation_repo import NotificationRepository
+
+    amount = result.get("amount")
+    if amount is None:
+        return ""
+    budgets = list(
+        (
+            await ctx.db.execute(
+                _select(Budget).where(
+                    Budget.user_id == ctx.user_id,
+                    Budget.external_readonly.is_(False),
+                )
+            )
+        ).scalars()
+    )
+    if not budgets:
+        return ""
+    company = str(result.get("company", "")).strip()
+    cl = company.lower()
+    matches = [
+        b for b in budgets
+        if cl and (cl in b.title.lower() or b.title.lower() in cl)
+    ]
+    target = matches[0] if len(matches) == 1 else (budgets[0] if len(budgets) == 1 else None)
+    if target is None:
+        return ""
+
+    source_id = f"invoice:{message_id}:{result.get('filename', '')}"[:255]
+    prior = (
+        await ctx.db.execute(
+            _select(AssistantSuggestion).where(
+                AssistantSuggestion.user_id == ctx.user_id,
+                AssistantSuggestion.kind == "budget_entry",
+                AssistantSuggestion.source_id == source_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if prior is not None:
+        return ""
+
+    entry = {
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "description": f"{company} invoice — {result.get('filename', '')}"[:300],
+        "amount": float(amount),
+        "category": "",
+        "note": f"Filed from email: {result.get('subject', '')[:120]}",
+    }
+    s = AssistantSuggestion(
+        user_id=ctx.user_id,
+        kind="budget_entry",
+        status="pending",
+        title=f'Log {_fmt_money(amount, target.currency)} to budget "{target.title}"?'[:500],
+        summary=f"From the {company} invoice just filed ({result.get('filename', '')}).",
+        source_type="invoice_filing",
+        source_id=source_id,
+        source_url=result.get("url") or None,
+        payload={"budget_id": str(target.id), "budget_title": target.title, "entry": entry},
+    )
+    ctx.db.add(s)
+    await ctx.db.flush()
+    try:
+        await NotificationRepository(ctx.db).create(
+            user_id=ctx.user_id,
+            type=NotificationType.APPROVAL_REQUIRED.value,
+            title=s.title,
+            message=s.summary,
+            entity_type="assistant_suggestion",
+            entity_id=s.id,
+        )
+    except Exception:  # noqa: BLE001 — the suggestion still shows on the page
+        logger.exception("Failed to notify for budget_entry suggestion")
+    return (
+        f' I also suggested logging {_fmt_money(amount, target.currency)} to the '
+        f'"{target.title}" budget — accept or dismiss it on the Assistant page.'
+    )
+
+
+async def execute_file_invoice_from_email(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import invoice_service as inv
+    from services.workroom_context import log_room_event
+
+    try:
+        result = await inv.file_invoice_from_email(
+            ctx.db,
+            str(args.get("message_id", "")),
+            company=str(args.get("company", "")),
+            attachment_filename=str(args.get("attachment_filename", "")),
+        )
+    except inv.InvoiceError as exc:
+        return str(exc)
+    if result["status"] == "duplicate":
+        return (
+            f'"{result["filename"]}" is already in the {result["folder_name"]} folder '
+            f"({result['existing_url']}) — not re-uploaded. The sheet pipeline "
+            "has it (or will on its next 9am scan)."
+        )
+    await log_room_event(
+        ctx.db, ctx.conversation_id,
+        f'Filed invoice {result["filename"]} to {result["folder_name"]}',
+    )
+    suggestion_note = await _suggest_budget_entry_for_invoice(
+        ctx, result, str(args.get("message_id", ""))
+    )
+    return (
+        f'Filed "{result["filename"]}" to the {result["folder_name"]} folder: '
+        f"{result['url']}. The invoice sheet's daily 9am pipeline will ingest it "
+        "(or the user can run 'Scan folders now' from the sheet's PMI Control "
+        "Panel for immediate ingestion)." + suggestion_note
+    )
+
+
+async def execute_compare_budget_to_odoo(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from sqlalchemy import select as _select
+
+    from models.db.odoo import OdooConnection
+    from services import budget_service as bs
+    from services import odoo_service as odoo
+
+    budget, err = await _resolve_budget(ctx, args)
+    if err:
+        return err
+    dataset = str(args.get("dataset", "")).strip().lower() or "invoices"
+    if dataset not in ("purchases", "invoices", "sales"):
+        return "Error: dataset must be purchases, invoices, or sales."
+    conn = (
+        await ctx.db.execute(
+            _select(OdooConnection).where(OdooConnection.user_id == ctx.user_id)
+        )
+    ).scalar_one_or_none()
+    if conn is None:
+        return "Error: Odoo is not connected. Ask the user to connect it on the Odoo page first."
+
+    try:
+        await bs.refresh_budget(ctx.db, budget)
+    except bs.BudgetError:
+        pass  # cached copy still makes an honest comparison — noted below
+
+    search = str(args.get("search", "")).strip() or budget.title
+    try:
+        api_key = odoo.decrypt_secret(conn.api_key_encrypted)
+        result = await odoo.search_read(
+            conn.url, conn.database, conn.username, api_key, dataset, search, 100
+        )
+    except odoo.OdooError as exc:
+        if "doesn't exist" in str(exc):
+            return (
+                f"Odoo doesn't have the {dataset} module installed on this "
+                "instance. Try dataset='invoices' (accounting moves, which "
+                "include vendor bills) or 'sales'."
+            )
+        return f"Odoo error: {exc}"
+    except Exception as exc:  # noqa: BLE001
+        return f"Odoo read failed: {exc}"
+    rows = result.get("rows", [])
+    odoo_total = 0.0
+    for row in rows:
+        try:
+            odoo_total += float(row.get("amount_total") or 0)
+        except (TypeError, ValueError):
+            continue
+
+    s = budget.cached_summary or {}
+    cur = budget.currency or "USD"
+    tracked = float(s.get("total_spent") or 0)
+    lines = [
+        f'Advisory cross-check — budget "{budget.title}" vs Odoo {result.get("label", dataset)} matching "{search}":',
+        f"- Personal budget tracking: {_fmt_money(tracked, cur)} ({s.get('entry_count', 0)} entries)",
+        f"- Odoo {result.get('label', dataset)}: {_fmt_money(odoo_total, cur)} ({len(rows)} record(s))",
+        f"- Difference: {_fmt_money(abs(tracked - odoo_total), cur)} "
+        + ("(budget tracks more)" if tracked > odoo_total else "(Odoo shows more)" if odoo_total > tracked else "(they agree)"),
+        "Advisory only: a personal ledger and ERP actuals track different things "
+        "and may legitimately differ (timing, scope, untracked items).",
+    ]
+    if not rows:
+        lines.insert(3, f"  (No Odoo records matched \"{search}\" — try a different search term.)")
+    return "\n".join(lines)
+
+
 async def execute_get_calendar_events(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
     from services.google_service import calendar_events, get_credentials
@@ -4009,6 +4264,8 @@ TOOL_EXECUTORS = {
     "update_budget_entry": execute_update_budget_entry,
     "remove_budget_entry": execute_remove_budget_entry,
     "get_budget_snapshot": execute_get_budget_snapshot,
+    "file_invoice_from_email": execute_file_invoice_from_email,
+    "compare_budget_to_odoo": execute_compare_budget_to_odoo,
     "read_odoo": execute_read_odoo,
     "get_calendar_events": execute_get_calendar_events,
     "search_contacts": execute_search_contacts,
@@ -4060,6 +4317,8 @@ _PRIMARY_ARG = {
     "update_budget_entry": "description",
     "remove_budget_entry": "description",
     "get_budget_snapshot": "title",
+    "file_invoice_from_email": "message_id",
+    "compare_budget_to_odoo": "budget_title",
     "list_drive_folder": "folder_id",
     "read_google_sheet": "spreadsheet_id",
     "update_task": "task_id",

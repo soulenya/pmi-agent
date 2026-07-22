@@ -215,6 +215,46 @@ async def accept_suggestion(
     # meeting_import: accepting means "keep it" — the document is already in the KB.
     # followup_task: accepting means "acknowledged".
 
+    # budget_entry: accepting writes the suggested entry into the budget's
+    # sheet. The accept click IS the user's explicit action, so it does not
+    # require the per-budget Gerry grant (external linked sheets stay
+    # read-only — the service refuses those).
+    if s.kind == "budget_entry":
+        from models.db.budget import Budget
+        from services import budget_service as bs
+
+        payload = s.payload or {}
+        entry = payload.get("entry") or {}
+        budget = None
+        if payload.get("budget_id"):
+            budget = (
+                await db.execute(
+                    select(Budget).where(
+                        Budget.id == uuid.UUID(str(payload["budget_id"])),
+                        Budget.user_id == user.id,
+                    )
+                )
+            ).scalar_one_or_none()
+        if budget is None:
+            raise HTTPException(410, "That budget no longer exists — dismiss this suggestion.")
+        if entry.get("amount") is None or not str(entry.get("description", "")).strip():
+            raise HTTPException(400, "The suggestion has no usable entry data.")
+        try:
+            await bs.add_entry(
+                db,
+                budget,
+                date=str(entry.get("date", "")) or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                description=str(entry["description"]),
+                amount=float(entry["amount"]),
+                category=str(entry.get("category", "") or ""),
+                note=str(entry.get("note", "") or ""),
+                source="gerry",
+            )
+        except bs.BudgetError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        s.result_entity_type = "budget"
+        s.result_entity_id = budget.id
+
     s.status = "accepted"
     s.resolved_at = datetime.now(timezone.utc)
     await db.commit()

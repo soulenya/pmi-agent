@@ -13,6 +13,7 @@ import {
   Clock,
   Undo2,
   ShieldCheck,
+  Wallet,
 } from "lucide-react";
 import {
   listSuggestions,
@@ -66,6 +67,13 @@ const KIND_META: Record<
     accept: "Create task",
     dismiss: "Dismiss",
     tint: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300",
+  },
+  budget_entry: {
+    label: "Budget entry",
+    icon: Wallet,
+    accept: "Add to budget",
+    dismiss: "Dismiss",
+    tint: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
   },
 };
 
