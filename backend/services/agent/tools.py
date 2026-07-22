@@ -570,6 +570,10 @@ TOOL_DEFINITIONS: list[dict] = [
                         "description": "Max files to return (1–20). Default 10.",
                         "default": 10,
                     },
+                    "confirm_restricted": {
+                        "type": "boolean",
+                        "description": "Include QMS/draft results — ONLY after the user explicitly asked and you named the folder/file and got their confirmation.",
+                    },
                 },
                 "required": ["query"],
             },
@@ -603,6 +607,10 @@ TOOL_DEFINITIONS: list[dict] = [
                         "type": "integer",
                         "description": "Max items to return (1–50). Default 50.",
                         "default": 50,
+                    },
+                    "confirm_restricted": {
+                        "type": "boolean",
+                        "description": "Access the restricted QMS area / include draft files — ONLY after the user explicitly asked and you named the folder and got their confirmation.",
                     },
                 },
                 "required": [],
@@ -644,6 +652,10 @@ TOOL_DEFINITIONS: list[dict] = [
                         "type": "string",
                         "description": "Drive file id or a pasted document URL.",
                     },
+                    "confirm_restricted": {
+                        "type": "boolean",
+                        "description": "Read a QMS/draft file — ONLY after the user explicitly asked and you named the folder/file and got their confirmation.",
+                    },
                 },
                 "required": ["file_id"],
             },
@@ -672,6 +684,10 @@ TOOL_DEFINITIONS: list[dict] = [
                         "type": "integer",
                         "description": "How many matching files to read (1–5). Default 3.",
                         "default": 3,
+                    },
+                    "confirm_restricted": {
+                        "type": "boolean",
+                        "description": "Include QMS/draft files — ONLY after the user explicitly asked and you named the folder/file and got their confirmation.",
                     },
                 },
                 "required": ["query"],
@@ -713,6 +729,10 @@ TOOL_DEFINITIONS: list[dict] = [
                             "offset suggested in the CONTINUE note to read the next page of "
                             "a long document."
                         ),
+                    },
+                    "confirm_restricted": {
+                        "type": "boolean",
+                        "description": "Read a QMS/draft file — ONLY after the user explicitly asked and you named the folder/file and got their confirmation.",
                     },
                 },
                 "required": ["file_id"],
@@ -760,6 +780,10 @@ TOOL_DEFINITIONS: list[dict] = [
                     "file_id": {
                         "type": "string",
                         "description": "Drive file ID or full pasted Docs/Drive URL.",
+                    },
+                    "confirm_restricted": {
+                        "type": "boolean",
+                        "description": "Follow a QMS/draft file — ONLY after the user explicitly asked and you named the folder/file and got their confirmation.",
                     },
                 },
                 "required": ["file_id"],
@@ -2460,6 +2484,7 @@ async def execute_read_gmail_message(ctx: ToolContext, args: dict[str, Any]) -> 
 
 async def execute_search_drive(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
+    from services.drive_policy import EXCLUDED_NOTE, filter_drive_results
     from services.google_service import drive_search, get_credentials
     if not get_credentials():
         return _google_not_connected()
@@ -2473,24 +2498,31 @@ async def execute_search_drive(ctx: ToolContext, args: dict[str, Any]) -> str:
         )
     except Exception as exc:
         return f"Drive search failed: {exc}"
+    files, excluded = await filter_drive_results(ctx.db, files, bool(args.get("confirm_restricted")))
     if not files:
-        return f"No Drive files found for: {query}"
+        return f"No Drive files found for: {query}" + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
     lines = [f"Drive files for '{query}' ({len(files)} found):\n"]
     for f in files:
         lines.append(
             f"ID: {f['id']}\nName: {f['name']}\nType: {f['type']}\n"
             f"Modified: {f['modified']}\nURL: {f['url']}"
         )
-    return "\n\n".join(lines)
+    return "\n\n".join(lines) + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
 
 
 async def execute_list_drive_folder(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
+    from services.drive_policy import EXCLUDED_NOTE, check_drive_target, filter_drive_results
     from services.google_service import drive_list_folder, get_credentials
     if not get_credentials():
         return _google_not_connected()
     folder_id = str(args.get("folder_id", "root")).strip() or "root"
     drive_id = str(args.get("drive_id", "")).strip() or None
+    confirm = bool(args.get("confirm_restricted"))
+    if folder_id != "root":
+        blocked = await check_drive_target(ctx.db, folder_id, confirm)
+        if blocked:
+            return blocked
     max_results = min(int(args.get("max_results", 50)), 50)
     try:
         items = await asyncio.get_event_loop().run_in_executor(
@@ -2498,13 +2530,14 @@ async def execute_list_drive_folder(ctx: ToolContext, args: dict[str, Any]) -> s
         )
     except Exception as exc:
         return f"Drive folder listing failed: {exc}"
+    items, excluded = await filter_drive_results(ctx.db, items, confirm)
     if not items:
-        return f"Folder '{folder_id}' is empty or does not exist."
+        return f"Folder '{folder_id}' is empty or does not exist." + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
     lines = [f"Contents of Drive folder '{folder_id}' ({len(items)} items):\n"]
     for item in items:
         kind = "[FOLDER]" if item["type"] == "folder" else "[FILE]"
         lines.append(f"{kind} {item['name']}\n  ID: {item['id']}\n  URL: {item['url']}")
-    return "\n\n".join(lines)
+    return "\n\n".join(lines) + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
 
 
 async def execute_list_shared_drives(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -2563,10 +2596,15 @@ async def execute_search_drive_content(ctx: ToolContext, args: dict[str, Any]) -
         if f["type"] != FOLDER_MIME and (
             f["type"] in READABLE or f["type"].startswith("text/")
         )
-    ][:max_files]
+    ]
+    from services.drive_policy import EXCLUDED_NOTE, filter_drive_results
+    readable_files, excluded = await filter_drive_results(
+        ctx.db, readable_files, bool(args.get("confirm_restricted"))
+    )
+    readable_files = readable_files[:max_files]
 
     if not readable_files:
-        return f"No readable Drive files found for: {query}"
+        return f"No readable Drive files found for: {query}" + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
 
     # Step 2: read each file's content
     lines = [f"Drive content search for '{query}' ({len(readable_files)} file(s) read):\n"]
@@ -2590,7 +2628,7 @@ async def execute_search_drive_content(ctx: ToolContext, args: dict[str, Any]) -
         except Exception as exc:
             lines.append(f"--- {f['name']} (read failed: {exc}) ---")
 
-    return "\n\n".join(lines)
+    return "\n\n".join(lines) + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
 
 
 async def execute_read_drive_annotations(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -2609,6 +2647,10 @@ async def execute_read_drive_annotations(ctx: ToolContext, args: dict[str, Any])
     file_id = extract_drive_file_id(str(args.get("file_id", "")))
     if not file_id:
         return "Error: file_id (or a pasted document URL) is required."
+    from services.drive_policy import check_drive_target
+    blocked = await check_drive_target(ctx.db, file_id, bool(args.get("confirm_restricted")))
+    if blocked:
+        return blocked
 
     loop = asyncio.get_event_loop()
     sections: list[str] = []
@@ -2679,6 +2721,10 @@ async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
         file_id = m.group(1)
     if not file_id:
         return "Error: file_id is required."
+    from services.drive_policy import check_drive_target
+    blocked = await check_drive_target(ctx.db, file_id, bool(args.get("confirm_restricted")))
+    if blocked:
+        return blocked
     try:
         offset = max(0, int(args.get("offset") or 0))
     except (TypeError, ValueError):
@@ -2735,8 +2781,10 @@ async def execute_list_recent_drive_files(ctx: ToolContext, args: dict[str, Any]
         )
     except Exception as exc:
         return f"Failed to list recent Drive files: {exc}"
+    from services.drive_policy import EXCLUDED_NOTE, filter_drive_results
+    files, excluded = await filter_drive_results(ctx.db, files, bool(args.get("confirm_restricted")))
     if not files:
-        return "No recent Drive files found."
+        return "No recent Drive files found." + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
     lines = ["Most recently modified Drive files (newest first):"]
     for f in files:
         lines.append(
@@ -2746,6 +2794,8 @@ async def execute_list_recent_drive_files(ctx: ToolContext, args: dict[str, Any]
     lines.append(
         "Ask the user to confirm which one they mean, then call follow_drive_document."
     )
+    if excluded:
+        lines.append(EXCLUDED_NOTE.format(n=excluded).strip())
     return "\n".join(lines)
 
 
@@ -2758,6 +2808,10 @@ async def execute_follow_drive_document(ctx: ToolContext, args: dict[str, Any]) 
     file_id = extract_drive_file_id(str(args.get("file_id", "")))
     if not file_id:
         return "Error: file_id (or a pasted document URL) is required."
+    from services.drive_policy import check_drive_target
+    blocked = await check_drive_target(ctx.db, file_id, bool(args.get("confirm_restricted")))
+    if blocked:
+        return blocked
     try:
         result = await asyncio.get_event_loop().run_in_executor(
             None, lambda: drive_get_content(file_id)
