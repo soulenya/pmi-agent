@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 174;
-export const BUILD_DATE = "2026-07-22";
+export const BUILD_NUMBER = 175;
+export const BUILD_DATE = "2026-07-23";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 175,
+    date: "2026-07-23",
+    title: "Scheduled reports can't fake it anymore",
+    changes: [
+      "Fixed scheduled report runs echoing a PREVIOUS week's output — old links, old facts, new date — instead of actually doing the work (reported by Morgan; the task's growing conversation history made last week's report look like a template)",
+      "Every scheduled run now carries an explicit fresh-execution demand: prior runs in the conversation are history, not results",
+      "Hard verification after every run: any generated-file link the output claims is checked against disk — a run referencing phantom files is recorded as FAILED with an honest explanation, never as a report",
+    ],
+  },
   {
     build: 174,
     date: "2026-07-22",
