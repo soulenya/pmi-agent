@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.3.13 — 2026-07-23
+**Fix: scheduled runs echoing stale reports (Morgan field report)**
+
+- **Failure mode:** scheduled tasks deliberately reuse ONE conversation so run history accumulates — which let the model see last week's successful report in history and ECHO its shape (same links, same names, new date) without a single tool call. `list_generated_files` (a plain directory listing) showed the claimed `/api/files/e21db4a9_…` file never existed. Chat-Gerry's honesty rules caught it after the fact; the run itself recorded "success".
+- **Soft fix (`run_scheduled_task`):** every run's prompt now carries a FRESH-EXECUTION contract — prior runs in this conversation are history, not results; stale links/facts must not be repeated; the work must be redone with real tool calls this run.
+- **Hard fix:** post-run verifier `_phantom_files_in` — every `/api/files/<name>` link in the output is checked against the generated-files directory; any phantom reference marks the run FAILED with "RUN REJECTED — … echoed a previous run's output" prepended, so a fabricated report can never stand as a successful run (visible on the Scheduled Tasks page + notification path).
+
 ### v3.3.12 — 2026-07-22
 **Fixes: external sheets without a Ledger tab + Drive folder links (Morgan field reports)**
 

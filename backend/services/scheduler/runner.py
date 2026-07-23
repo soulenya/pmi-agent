@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import calendar
 import logging
+import re
 import uuid
 from datetime import datetime, timedelta
 
@@ -32,6 +33,29 @@ from repositories.conversation_repo import (
 logger = logging.getLogger(__name__)
 
 VALID_FREQUENCIES = ("daily", "weekly", "monthly")
+
+# Matches the /api/files/<name> links every real generated file carries
+# (same shape MessageBubble's file cards parse).
+_API_FILE_RE = re.compile(r"/api/files/((?:[^\s)\]\"'`]| (?! ))+?\.[a-z0-9]{2,6})", re.IGNORECASE)
+
+
+def _phantom_files_in(output: str) -> list[str]:
+    """Names of /api/files/... links in the output that do NOT exist on disk."""
+    from urllib.parse import unquote
+
+    from services.agent.tools import _GENERATED_FILES_DIR
+
+    missing: list[str] = []
+    for m in _API_FILE_RE.finditer(output or ""):
+        name = unquote(m.group(1))
+        if "/" in name or "\\" in name or name.startswith(".."):
+            continue
+        try:
+            if not (_GENERATED_FILES_DIR / name).is_file() and name not in missing:
+                missing.append(name)
+        except OSError:
+            continue
+    return missing
 
 
 def compute_next_run(
@@ -132,13 +156,28 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
     task.last_run_status = "running"
     await db.commit()
 
+    # Fresh-run contract (field failure 2026-07-23): scheduled tasks reuse ONE
+    # conversation so history accumulates — which let the model see LAST
+    # week's successful output and echo its shape (old links, old names, new
+    # date) without calling a single tool. Every run now carries an explicit
+    # re-execution demand, and the output is verified below.
+    fresh_prompt = (
+        f"{task.prompt}\n\n"
+        "[SCHEDULED RUN — FRESH EXECUTION REQUIRED] Earlier runs of this task "
+        "appear above in this conversation. They are HISTORY, not results: "
+        "their file links, IDs, and facts are STALE and must not be repeated "
+        "or reworded as if current. Do the work AGAIN from scratch with real "
+        "tool calls IN THIS RUN. Never reference a file you did not create in "
+        "this run."
+    )
+
     status = "success"
     output = ""
     try:
         executor = await AgentExecutor.create(db, task.user_id, conv.id)
         # Consume the agent stream to completion; frames are irrelevant here —
         # the executor persists the final assistant message itself.
-        async for _frame in executor._run(task.prompt):
+        async for _frame in executor._run(fresh_prompt):
             pass
 
         # Read back the most recent assistant message as the run output.
@@ -148,6 +187,19 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
         if not output:
             status = "failed"
             output = "The scheduled run produced no response."
+        else:
+            # Hard verification: every /api/files/<name> the output claims must
+            # actually exist on disk. A run that references phantom files is a
+            # FAILED run — recorded honestly instead of standing as a report.
+            missing = _phantom_files_in(output)
+            if missing:
+                status = "failed"
+                output = (
+                    "RUN REJECTED — the model referenced generated file(s) that do "
+                    f"not exist on disk: {', '.join(missing)}. This usually means it "
+                    "echoed a previous run's output instead of doing the work. The "
+                    "text below was NOT accepted as a real report:\n\n" + output
+                )
     except Exception as exc:  # noqa: BLE001 — record failure, never crash the loop
         logger.exception("Scheduled task %s failed", task.id)
         status = "failed"
