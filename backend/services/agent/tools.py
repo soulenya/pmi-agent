@@ -2133,6 +2133,23 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
     await ctx.db.flush()
     await ctx.db.refresh(draft)
 
+    # Every draft rings the bell (field request): a notification with a
+    # take-me-there link so drafts are never silently parked in Communications.
+    try:
+        from models.db.enums import NotificationType
+        from repositories.conversation_repo import NotificationRepository
+
+        await NotificationRepository(ctx.db).create(
+            user_id=ctx.user_id,
+            type=NotificationType.APPROVAL_REQUIRED.value,
+            title="Email draft ready for review",
+            message=f'To {recipient_email or recipient_name or "(no recipient)"}: "{subject}"',
+            entity_type="email_draft",
+            entity_id=draft.id,
+        )
+    except Exception:  # noqa: BLE001 — the draft itself already exists
+        logger.exception("Draft notification failed")
+
     from services.workroom_context import log_room_event
     await log_room_event(
         ctx.db, ctx.conversation_id,
