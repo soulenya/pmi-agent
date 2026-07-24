@@ -88,10 +88,68 @@ export function LiveMeetingAssist() {
   });
   const [busy, setBusy] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
+  // Draggable panel position (top-left corner); null = default bottom-right.
+  const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(() => {
+    try {
+      const raw = window.localStorage.getItem("liveMeeting.panelPos");
+      if (!raw) return null;
+      const p = JSON.parse(raw) as { x: number; y: number };
+      if (
+        typeof p.x === "number" && typeof p.y === "number" &&
+        p.x >= 0 && p.y >= 0 &&
+        p.x < window.innerWidth - 80 && p.y < window.innerHeight - 48
+      ) {
+        return p;
+      }
+    } catch { /* fall through to default */ }
+    return null;
+  });
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
   const lastSeg = useRef(-1);
   const lastCard = useRef(-1);
   const defaultsLoaded = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const clampPos = (x: number, y: number) => {
+    const w = panelRef.current?.offsetWidth ?? 384;
+    return {
+      x: Math.min(Math.max(8, x), window.innerWidth - w - 8),
+      y: Math.min(Math.max(8, y), window.innerHeight - 56),
+    };
+  };
+
+  const onHeaderPointerDown = (e: React.PointerEvent) => {
+    const rect = panelRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: rect.left, origY: rect.top, moved: false };
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+
+  const onHeaderPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.abs(dx) + Math.abs(dy) < 6) return; // click, not drag (yet)
+    d.moved = true;
+    setPanelPos(clampPos(d.origX + dx, d.origY + dy));
+  };
+
+  const onHeaderPointerUp = () => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (d?.moved) {
+      suppressClickRef.current = true; // a drag is not a collapse-click
+      setPanelPos((p) => {
+        try {
+          if (p) window.localStorage.setItem("liveMeeting.panelPos", JSON.stringify(p));
+        } catch { /* ignore */ }
+        return p;
+      });
+    }
+  };
 
   // One poll drives everything; incremental fetch by sequence number.
   useEffect(() => {
@@ -159,8 +217,8 @@ export function LiveMeetingAssist() {
       }
     };
     return (
-      <div className="fixed inset-x-0 top-14 z-50 flex justify-center px-4">
-        <div className="w-full max-w-lg animate-in slide-in-from-top rounded-xl border bg-card p-4 shadow-xl">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-[2px]">
+        <div className="w-full max-w-lg animate-in zoom-in-95 rounded-xl border bg-card p-4 shadow-2xl">
           <div className="mb-2 flex items-center gap-2">
             <Mic className="h-4 w-4 text-primary" />
             <p className="text-sm font-semibold">
@@ -243,14 +301,26 @@ export function LiveMeetingAssist() {
   const ended = state.consent === "ended";
   return (
     <div
+      ref={panelRef}
+      style={panelPos ? { left: panelPos.x, top: panelPos.y, right: "auto", bottom: "auto" } : undefined}
       className={cn(
         "fixed bottom-4 right-4 z-40 flex w-96 flex-col overflow-hidden rounded-xl border bg-card shadow-xl",
         panelOpen ? "h-[70vh]" : "h-12",
       )}
     >
       <div
-        className="flex shrink-0 cursor-pointer items-center gap-2 border-b px-3 py-2.5"
-        onClick={() => setPanelOpen((v) => !v)}
+        className="flex shrink-0 cursor-grab touch-none items-center gap-2 border-b px-3 py-2.5 active:cursor-grabbing"
+        title="Drag to move · click to collapse"
+        onPointerDown={onHeaderPointerDown}
+        onPointerMove={onHeaderPointerMove}
+        onPointerUp={onHeaderPointerUp}
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            return;
+          }
+          setPanelOpen((v) => !v);
+        }}
       >
         {ended ? (
           <CheckCircle2 className="h-4 w-4 text-emerald-500" />
