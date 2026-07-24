@@ -4,6 +4,22 @@
 
 ## Changelog
 
+### v3.3.18 — 2026-07-24
+**Transcript reconciliation against trusted context (Morgan field report: In-Q-Tel transcribed as \"Intelius\"/\"Inky Tell\")**
+
+- **Layer 1 — STT hints:** precheck now builds a trusted vocabulary (event title, attendee name parts, external org names, capitalized description tokens) fed as speech adaptation to BOTH paths: `speechContexts` (v1 live chunks) and inline `phraseSets` (v2 batchRecognize final pass), boost 15.
+- **Layer 2 — LLM reconciliation:** post-transcription, the model lists suspected (wrong → right) pairs; applied deterministically, and a target is accepted ONLY from the trusted vocabulary — the model cannot rewrite content or invent names.
+- **Layer 3 — deterministic fuzzy pass:** capitalized unknown tokens ≥70% phonetically similar to a trusted term are corrected even when the LLM misses them (the smoke's LLM caught \"Inky Tell\" but missed \"Intelius\" — similarity 0.714 → threshold set to 0.70).
+- Runs BEFORE summary + thank-you generation so the note and email reference the right entities; the wrap-up card lists applied corrections. Verified: both field mis-hearings corrected, ordinary words (Verification/August…) untouched, empty-vocab no-op.
+
+### v3.3.17 — 2026-07-24
+**Thank-you draft addressing + format (Morgan field report: wrong company, wrong participants, long-winded)**
+
+- **Root cause:** `precheck` compared attendees against an EMPTY \"me\" — the \"other party\" guess could be Morgan himself or a PMI colleague, and the LLM then wrote a long letter to the wrong company. Also the old prompt asked for 3-6 sentences with 2-3 topics.
+- **Addressing rules (Morgan):** attendees from the nearest calendar event are split by the OWNER'S email domain — externals → To: (comma-joined), same-company colleagues → CC: (owner excluded). Greeting = external first names \"Joe/Phil\"; when the calendar gives nothing, first names SPOKEN in the meeting are extracted from the transcript (never invented — null when unsure).
+- **Format:** deterministic template — \"{names}, thanks for your time today.\" + at most ONE LLM topic sentence + one light closer (looking forward to next steps / hearing back / the next conversation); sentences normalized (capitalized, terminated); LLM failure degrades to the plain two-sentence template instead of no draft.
+- Live-verified with the real LLM: To/CC split exact, body ≤ 3 sentences (\"Joe/Phil, thanks for your time today. Great to walk through the prototype delivery timeline together. Looking forward to next steps.\"), bell notification present; smoke drafts cleaned up.
+
 ### v3.3.16 — 2026-07-24
 **Draft visibility workflow (Morgan field report: post-meeting email seemed missing)**
 

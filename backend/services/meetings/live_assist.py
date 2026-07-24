@@ -92,8 +92,10 @@ class LiveMeetingSession:
         self.consent: str = "pending"        # pending | accepted | declined | ended
         self.options: dict = {"transcript": False, "jargon": False, "answers": "off", "thankyou": False}
         self.started_at = datetime.now(timezone.utc)
-        self.party: str = ""
-        self.party_email: str = ""
+        self.party: str = ""            # "Joe/Phil" — external first names
+        self.party_email: str = ""       # comma-joined external attendee emails (To:)
+        self.cc_emails: str = ""         # comma-joined same-company attendees (CC:)
+        self.vocabulary: list[str] = []  # trusted names/companies for STT hints + reconciliation
         self.nda_hint: str = ""
         self.segments: list[dict] = []       # {seq, at, text}
         self.cards: list[dict] = []          # {seq, kind, title, body, at, route?}
@@ -216,7 +218,9 @@ class LiveMeetingSession:
                     self.last_error = "Live transcription needs the Google Cloud voice key (Settings → Voice)."
                     continue
                 try:
-                    text = await google_speech.transcribe(wav, "audio/wav")
+                    text = await google_speech.transcribe(
+                        wav, "audio/wav", phrases=self.vocabulary or None
+                    )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Live chunk STT failed: %s", exc)
                     continue
@@ -373,38 +377,87 @@ def _extract_cards(text: str) -> list[dict]:
 # ── best-effort meeting pre-checks (party guess + NDA hint) ──────────────
 
 
-async def precheck(get_db) -> tuple[str, str, str]:
-    """(party display name, party email, NDA hint line) — all best-effort."""
-    party, email, hint = "", "", ""
+def _first_name(email: str) -> str:
+    local = email.split("@")[0]
+    return local.replace(".", " ").replace("_", " ").split()[0].title() if local else ""
+
+
+def _domain(email: str) -> str:
+    return email.split("@")[1].lower() if "@" in email else ""
+
+
+async def precheck(get_db, own_email: str = "") -> dict:
+    """Best-effort meeting facts from the calendar, split by company domain.
+
+    Returns {party, to_emails, cc_emails, nda_hint, vocabulary}:
+      * to_emails  — attendees OUTSIDE the user's company (the other party)
+      * cc_emails  — attendees at the user's company, excluding the user
+      * party      — "Joe/Phil" greeting names from the external attendees
+      * vocabulary — trusted proper nouns (event title words, attendee names,
+        org names) fed to STT as hints and used to auto-correct the transcript
+    """
+    party, to_emails, cc_emails, hint = "", "", "", ""
+    own_domain = _domain(own_email)
+    externals: list[str] = []
+    vocabulary: list[str] = []
     try:
         from services import google_service as gs
 
         if gs.get_credentials():
             events = await asyncio.to_thread(lambda: gs.calendar_events(0, 1))
             now = datetime.now(timezone.utc)
-            me = ""
+            best = None
+            best_delta = None
             for e in events:
                 try:
                     start = datetime.fromisoformat(str(e["start"]).replace("Z", "+00:00"))
                 except (ValueError, KeyError):
                     continue
                 delta = abs((start - now).total_seconds())
-                if delta <= 45 * 60 and e.get("attendees"):
-                    others = [a for a in e["attendees"] if isinstance(a, str) and a and a != me]
-                    if others:
-                        email = others[0] if "@" in others[0] else ""
-                        party = others[0].split("@")[0].replace(".", " ").title() if email else others[0]
-                        break
+                if delta <= 45 * 60 and e.get("attendees") and (best_delta is None or delta < best_delta):
+                    best, best_delta = e, delta
+            if best is not None:
+                attendees = [a for a in best["attendees"] if isinstance(a, str) and "@" in a]
+                externals = [
+                    a for a in attendees
+                    if _domain(a) and (not own_domain or _domain(a) != own_domain)
+                    and a.lower() != own_email.lower()
+                ]
+                internals = [
+                    a for a in attendees
+                    if own_domain and _domain(a) == own_domain and a.lower() != own_email.lower()
+                ]
+                to_emails = ", ".join(externals)[:255]
+                cc_emails = ", ".join(internals)[:500]
+                names = [n for n in (_first_name(a) for a in externals) if n]
+                party = "/".join(names[:4])
+                # Trusted vocabulary: event title + description tokens, full
+                # attendee name parts, and org names from external domains.
+                seen: set[str] = set()
+
+                def _add(term: str) -> None:
+                    term = term.strip().strip(",.;:()[]\"'")
+                    if len(term) >= 3 and term.lower() not in seen:
+                        seen.add(term.lower())
+                        vocabulary.append(term)
+
+                _add(str(best.get("title", "")))
+                for word in str(best.get("title", "")).split():
+                    _add(word)
+                for word in str(best.get("description", ""))[:300].split():
+                    if word[:1].isupper():
+                        _add(word)
+                for a in attendees:
+                    for part in a.split("@")[0].replace(".", " ").replace("_", " ").split():
+                        _add(part.title())
+                for a in externals:
+                    _add(_domain(a).split(".")[0].title())
     except Exception:  # noqa: BLE001
         logger.debug("Live precheck: calendar lookup failed", exc_info=True)
 
     # NDA hint: cheap title search over the KB for an NDA naming the party.
     try:
-        token = ""
-        if email and "@" in email:
-            token = email.split("@")[1].split(".")[0]
-        elif party:
-            token = party.split()[0]
+        token = _domain(externals[0]).split(".")[0] if externals else ""
         if token and len(token) >= 3:
             from sqlalchemy import and_, select
 
@@ -429,4 +482,126 @@ async def precheck(get_db) -> tuple[str, str, str]:
         logger.debug("Live precheck: NDA lookup failed", exc_info=True)
     if not hint:
         hint = "No NDA found in the Knowledge Base — confirm before enabling NDA answers."
-    return party, email, hint
+    return {
+        "party": party,
+        "to_emails": to_emails,
+        "cc_emails": cc_emails,
+        "nda_hint": hint,
+        "vocabulary": vocabulary,
+    }
+
+
+# ── transcript reconciliation — trusted context beats phonetic guesses ───
+
+
+async def reconcile_transcript(
+    get_db, transcript: str, vocabulary: list[str]
+) -> tuple[str, list[tuple[str, str]]]:
+    """Auto-correct mis-transcribed entity names using trusted vocabulary.
+
+    Field case: STT heard "In-Q-Tel" as "Intelius"/"Inky Tell" while the
+    calendar and meeting prep both say In-Q-Tel. Two detection layers —
+    an LLM pass (multi-word mis-hearings like "Inky Tell") plus a
+    deterministic fuzzy pass (single-token lookalikes like "Intelius") —
+    but corrections are applied deterministically, and a "right" value is
+    accepted ONLY from the trusted vocabulary: nothing else can be rewritten.
+
+    Returns (corrected_transcript, corrections).
+    """
+    if not transcript.strip() or not vocabulary:
+        return transcript, []
+    trusted = {v.lower(): v for v in vocabulary if v.strip()}
+    pairs: list[dict] = []
+    try:
+        from services.llm.router import get_llm_client
+
+        async for db in get_db():
+            client = await get_llm_client(db, task="daily_assistant")
+            break
+        chunk = await client.chat(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You reconcile speech-to-text errors against a TRUSTED "
+                        "list of names from the meeting's calendar entry. Flag "
+                        "every term that is plausibly a phonetic mis-hearing of "
+                        "a trusted term — the same trusted name is often mangled "
+                        "several DIFFERENT ways in one transcript (e.g. both "
+                        "'Inky Tell' and 'Intelius' for 'In-Q-Tel'). Never flag "
+                        "ordinary words."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        'Respond ONLY with JSON: {"corrections": [{"wrong": "...", '
+                        '"right": "..."}]} where right MUST be copied exactly from '
+                        "the trusted list. Empty list when nothing needs fixing.\n\n"
+                        f"Trusted list: {', '.join(vocabulary[:60])}\n\n"
+                        f"Transcript sample:\n{transcript[:8000]}"
+                    ),
+                },
+            ],
+            temperature=0.0,
+        )
+        raw = chunk.content or ""
+        s, e = raw.find("{"), raw.rfind("}")
+        data = json.loads(raw[s : e + 1]) if s != -1 and e > s else {}
+        pairs = [p for p in (data.get("corrections") or []) if isinstance(p, dict)]
+    except Exception:  # noqa: BLE001 — the fuzzy layer below still runs
+        logger.info("LLM reconciliation unavailable", exc_info=True)
+
+    # Deterministic fuzzy layer: capitalized unknown tokens that closely
+    # resemble a trusted term (catches what the LLM misses).
+    pairs.extend(_fuzzy_pairs(transcript, trusted))
+
+    corrected = transcript
+    applied: list[tuple[str, str]] = []
+    seen_wrong: set[str] = set()
+    for p in pairs:
+        wrong = str(p.get("wrong", "")).strip()
+        right = str(p.get("right", "")).strip()
+        # Hard gates: the target must be trusted, the mistake must actually
+        # appear, and they must differ (case-insensitively).
+        if (
+            len(wrong) < 3
+            or wrong.lower() in seen_wrong
+            or right.lower() not in trusted
+            or wrong.lower() == right.lower()
+        ):
+            continue
+        right = trusted[right.lower()]
+        pattern = re.compile(r"\b" + re.escape(wrong) + r"\b", re.IGNORECASE)
+        corrected, n = pattern.subn(right, corrected)
+        if n:
+            seen_wrong.add(wrong.lower())
+            applied.append((wrong, right))
+    return corrected, applied
+
+
+def _norm_phonetic(term: str) -> str:
+    return re.sub(r"[^a-z]", "", term.lower())
+
+
+def _fuzzy_pairs(transcript: str, trusted: dict[str, str]) -> list[dict]:
+    """Capitalized unknown tokens ≥70% similar to a trusted term."""
+    from difflib import SequenceMatcher
+
+    out: list[dict] = []
+    tokens = set(re.findall(r"\b[A-Z][A-Za-z\-&']{3,}\b", transcript))
+    trusted_norms = {_norm_phonetic(v): v for v in trusted.values() if len(_norm_phonetic(v)) >= 4}
+    for token in tokens:
+        if token.lower() in trusted:
+            continue
+        tn = _norm_phonetic(token)
+        if len(tn) < 4:
+            continue
+        best, best_ratio = None, 0.0
+        for norm, original in trusted_norms.items():
+            r = SequenceMatcher(None, tn, norm).ratio()
+            if r > best_ratio:
+                best, best_ratio = original, r
+        if best is not None and best_ratio >= 0.70:
+            out.append({"wrong": token, "right": best})
+    return out

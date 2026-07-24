@@ -421,7 +421,7 @@ When a call is detected, a **pop-down asks whether you'd like Gerry to follow al
 - **Suggest answers — NOT under NDA** — Gerry is given **no company data at all** (enforced in the code, not just instructions); answers come from public knowledge only and are badged as such
 - **Thank-you email afterward** — drafted from real meeting topics to the other party (guessed from your calendar), landing in Email Drafts for your review. The panel announces the drafting the moment the call ends, and the finished draft rings the notification bell with a link
 
-The pop-down shows a best-effort NDA check ("NDA possibly on file: …") but **you** confirm the posture. Cards are whispered suggestions on your screen — Gerry never speaks or sends anything during a meeting. The full recording still becomes a normal meeting note at the end, and you're responsible for any consent-to-record requirements where you are.
+The pop-down shows a best-effort NDA check ("NDA possibly on file: …") but **you** confirm the posture. Cards are whispered suggestions on your screen — Gerry never speaks or sends anything during a meeting. The full recording still becomes a normal meeting note at the end, and you're responsible for any consent-to-record requirements where you are. Names from your calendar are fed into transcription and reconciled afterward, so companies and people transcribe correctly ("In-Q-Tel", not a phonetic lookalike) — the wrap-up notes anything auto-corrected.
 
 ### Manual transcripts
 
