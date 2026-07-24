@@ -256,11 +256,16 @@ async def transcribe_long(
     filename: str,
     mime_type: str | None = None,
     cancel_event: "asyncio.Event | None" = None,
+    phrases: list[str] | None = None,
 ) -> str:
     """Upload audio to GCS, run v2 batchRecognize, and return the transcript.
 
     If *cancel_event* is provided and becomes set (e.g. the user discarded a
-    stuck recovery), polling aborts promptly with an SttError."""
+    stuck recovery), polling aborts promptly with an SttError.
+
+    ``phrases`` are speech-adaptation hints (attendee/company names from the
+    calendar) applied via an inline phrase set so proper nouns transcribe
+    correctly."""
     if not is_configured():
         raise SttNotConfiguredError(
             "Google STT v2 isn't configured. Set GCP_STT_BUCKET and provide "
@@ -335,6 +340,20 @@ async def transcribe_long(
                 "files": [{"uri": gcs_uri}],
                 "recognitionOutputConfig": {"inlineResponseConfig": {}},
             }
+            if phrases:
+                body["config"]["adaptation"] = {
+                    "phraseSets": [
+                        {
+                            "inlinePhraseSet": {
+                                "phrases": [
+                                    {"value": p, "boost": 15}
+                                    for p in phrases[:500]
+                                    if p.strip()
+                                ]
+                            }
+                        }
+                    ]
+                }
             start = await client.post(batch_url, headers=headers, json=body)
             if start.status_code != 200:
                 raise SttError(

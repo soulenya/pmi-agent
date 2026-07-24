@@ -103,8 +103,14 @@ async def transcribe(
     audio: bytes,
     mime_type: str,
     language_code: str = DEFAULT_LANGUAGE,
+    phrases: list[str] | None = None,
 ) -> str:
-    """Transcribe a short (≤60 s) audio clip to text."""
+    """Transcribe a short (≤60 s) audio clip to text.
+
+    ``phrases`` are speech-adaptation hints (names, companies, jargon from
+    the calendar/meeting prep) so entities like "In-Q-Tel" aren't mangled
+    into phonetic lookalikes at the source.
+    """
     base_mime = mime_type.split(";")[0].strip().lower()
     encoding, sample_rate = _ENCODINGS.get(base_mime, ("WEBM_OPUS", 48000))
 
@@ -116,6 +122,8 @@ async def transcribe(
     }
     if sample_rate:
         config["sampleRateHertz"] = sample_rate
+    if phrases:
+        config["speechContexts"] = [{"phrases": phrases[:500], "boost": 15.0}]
 
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
