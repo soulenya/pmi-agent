@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 177;
+export const BUILD_NUMBER = 178;
 export const BUILD_DATE = "2026-07-24";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 178,
+    date: "2026-07-24",
+    title: "Drafts announce themselves",
+    changes: [
+      "The moment a meeting ends, the live panel says what Gerry is doing — 'drafting a thank-you email' (or 'processing the note') while transcription runs",
+      "Every email draft — post-meeting thank-yous AND drafts Gerry writes in chat — now rings the notification bell with a link straight to Email Drafts (requested by Morgan)",
+      "If the thank-you draft can't be written, the panel says so honestly instead of staying silent",
+    ],
+  },
   {
     build: 177,
     date: "2026-07-24",

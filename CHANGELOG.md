@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.3.16 — 2026-07-24
+**Draft visibility workflow (Morgan field report: post-meeting email seemed missing)**
+
+- Order of operations (unchanged, now visible): meeting ends → transcription (minutes) → note saved → thank-you draft. The gap was silence — the draft only existed in Communications with no announcement, and the thank-you toggle defaults OFF (check it in the consent prompt).
+- **Instant status card** at meeting end: "Gerry is drafting a thank-you email" (or "processing the note") appears in the live panel the moment the call concludes.
+- **Bell notifications for every draft**: both the post-meeting thank-you and any draft created via chat's create_email_draft now create a notification (entity_type email_draft) — clicking it routes to Communications → Email Drafts (drafts reach Approvals only when submitted for sending). Honest failure card when the LLM can't produce the thank-you body.
+
 ### v3.3.15 — 2026-07-24
 **Meeting assist UI polish (Morgan requests)**
 

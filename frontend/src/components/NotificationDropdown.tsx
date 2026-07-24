@@ -48,6 +48,9 @@ function timeAgo(iso: string): string {
 
 /** Where a notification should take you when clicked (besides marking read). */
 export function notificationRoute(notif: Notification): string | null {
+  // Email drafts live in Communications → Email Drafts (they are reviewed
+  // there and only reach Approvals once submitted for sending).
+  if (notif.entity_type === "email_draft") return "/emails";
   switch (notif.type) {
     case "task_due":
     case "task_assigned":
