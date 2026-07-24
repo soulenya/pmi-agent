@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 175;
-export const BUILD_DATE = "2026-07-23";
+export const BUILD_NUMBER = 176;
+export const BUILD_DATE = "2026-07-24";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 176,
+    date: "2026-07-24",
+    title: "Live meeting assist — Gerry follows along, on your terms",
+    changes: [
+      "When a call starts, a pop-down asks if you want Gerry to follow along — live transcript in a docked panel, jargon and acronyms decoded in context, suggested answers, and a thank-you draft afterward",
+      "Disclosure is rule-gated: under NDA, answer suggestions may use company knowledge (with sources); NOT under NDA, Gerry is given no company data at all — public-knowledge answers only, enforced in code",
+      "The pop-down pre-checks your KB for an NDA with the other party, but you confirm the posture — and your toggle choices become next meeting's defaults",
+      "Everything is whispered on-screen; Gerry never speaks or sends anything during a meeting, and the full recording still becomes a normal meeting note",
+      "Thank-you drafts reference real topics from the transcript and land in Email Drafts for your review",
+    ],
+  },
   {
     build: 175,
     date: "2026-07-23",

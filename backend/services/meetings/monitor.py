@@ -31,6 +31,7 @@ from models.db.meeting import MeetingNote
 from models.db.settings import SystemSetting
 from models.db.user import User
 from services.meetings.detector import detect_active_meeting
+from services.meetings.live_assist import LiveMeetingSession, precheck
 from services.meetings.recorder import MeetingRecorder, is_capture_supported
 from services.voice import gcs_stt
 
@@ -77,6 +78,8 @@ class MeetingMonitor:
         self._manual = False
         # Set to abort an in-flight pending-recording recovery (user discard).
         self._recovery_cancel: "asyncio.Event | None" = None
+        # Live-assist session for the current meeting (consent pop-down + panel).
+        self._live: LiveMeetingSession | None = None
 
         self._status: dict = {
             "enabled": self._enabled,
@@ -95,7 +98,64 @@ class MeetingMonitor:
     def snapshot(self) -> dict:
         with self._lock:
             return dict(self._status)
+    # ── Live assist (consent pop-down + live panel) ──────────────────────
 
+    def live_state(self, after_segment: int = -1, after_card: int = -1) -> dict:
+        live = self._live
+        if live is None:
+            return {"active": False}
+        return live.snapshot(after_segment=after_segment, after_card=after_card)
+
+    async def live_accept(self, options: dict) -> dict:
+        live = self._live
+        if live is None or live.consent != "pending":
+            return self.live_state()
+        # If detection flagged the meeting but autorecord was off, accepting
+        # the live assist implies consent to capture — start the recorder now.
+        if not self._recorder.recording and is_capture_supported():
+            started = await asyncio.to_thread(
+                self._recorder.start, settings.meeting_max_record_seconds
+            )
+            if started:
+                self._update(
+                    state="recording",
+                    platform=self._current_platform,
+                    started_at=datetime.now(timezone.utc).isoformat(),
+                )
+        live.accept(options, self._recorder, self._get_db)
+        # Remember the toggles as next meeting's defaults.
+        try:
+            from services.meetings.live_assist import ASSIST_DEFAULTS_KEY
+
+            async for db in self._get_db():
+                row = (
+                    await db.execute(
+                        select(SystemSetting).where(SystemSetting.key == ASSIST_DEFAULTS_KEY)
+                    )
+                ).scalar_one_or_none()
+                if row is None:
+                    db.add(SystemSetting(key=ASSIST_DEFAULTS_KEY, value=live.options))
+                else:
+                    row.value = live.options
+                await db.commit()
+                break
+        except Exception:  # noqa: BLE001
+            logger.debug("Could not persist assist defaults", exc_info=True)
+        return self.live_state()
+
+    def live_decline(self) -> dict:
+        if self._live is not None and self._live.consent == "pending":
+            self._live.decline()
+        return self.live_state()
+
+    def live_dismiss(self) -> dict:
+        """Close an ended (or declined) session's panel and drop its state."""
+        live = self._live
+        if live is not None and live.consent in ("ended", "declined"):
+            live.stop_tasks()
+            live.cleanup_chunks()
+            self._live = None
+        return self.live_state()
     def set_enabled(self, enabled: bool) -> None:
         """Update the in-memory toggle immediately (DB is the source of truth)."""
         self._enabled = enabled
@@ -221,6 +281,13 @@ class MeetingMonitor:
                 self._detected_since = now
                 self._current_platform = platform
                 logger.info("Meeting detected: %s", platform)
+                # Fresh meeting — stand up the consent pop-down state and kick
+                # off the best-effort party/NDA precheck in the background.
+                if self._live is None or self._live.consent in ("ended", "declined"):
+                    if self._live is not None:
+                        self._live.cleanup_chunks()
+                    self._live = LiveMeetingSession(platform)
+                    asyncio.create_task(self._run_precheck(self._live))
 
             debounce = max(0, settings.meeting_detect_debounce_seconds)
             ready = (now - self._detected_since) >= debounce
@@ -260,7 +327,12 @@ class MeetingMonitor:
                 self._reset_detection()
 
     # ── Finalization ──────────────────────────────────────────────────────────
-
+    async def _run_precheck(self, live: LiveMeetingSession) -> None:
+        try:
+            party, email, hint = await precheck(self._get_db)
+            live.party, live.party_email, live.nda_hint = party, email, hint
+        except Exception:  # noqa: BLE001
+            logger.debug("Live precheck failed", exc_info=True)
     def _pending_dir(self) -> Path:
         """Directory holding recordings persisted to disk awaiting transcription."""
         d = Path(settings.storage_root).expanduser().parent / "pending_recordings"
@@ -321,7 +393,14 @@ class MeetingMonitor:
     async def _finalize_recording(self) -> None:
         platform = self._current_platform or "Meeting"
         self._update(state="processing")
+        live = self._live
+        if live is not None and live.consent == "accepted":
+            live.end()
         wav = await asyncio.to_thread(self._recorder.stop)
+        # Live chunking drained audio as it went — reassemble the full meeting
+        # from the saved chunks plus whatever remained in the recorder.
+        if live is not None and live.chunk_paths:
+            wav = await asyncio.to_thread(live.assemble_full_wav, wav)
         if not wav:
             self._update(state="idle", started_at=None)
             return
@@ -337,7 +416,7 @@ class MeetingMonitor:
         except Exception:                       # noqa: BLE001
             logger.exception("Could not persist pending recording to disk")
 
-        await self._transcribe_and_save(wav, platform, recorded_at, pid)
+        await self._transcribe_and_save(wav, platform, recorded_at, pid, live=live)
 
     async def _transcribe_and_save(
         self,
@@ -346,6 +425,7 @@ class MeetingMonitor:
         recorded_at: datetime,
         pid: str | None,
         cancel_event: "asyncio.Event | None" = None,
+        live: "LiveMeetingSession | None" = None,
     ) -> bool:
         """Transcribe *wav* and persist a MeetingNote. On success, drop the
         on-disk pending copy. Returns True when a note was created."""
@@ -414,11 +494,87 @@ class MeetingMonitor:
                 if pid:
                     await asyncio.to_thread(self._discard_pending, pid)
                 self._update(pending=self._pending_count())
+                # Live-assist wrap-up: note chip + optional thank-you draft.
+                if live is not None and live.consent == "ended":
+                    try:
+                        live.add_card(
+                            "wrapup",
+                            "Meeting note saved",
+                            f'"{meeting.title}" — transcript, summary, and action items are on the Meetings page.',
+                            route="/meetings",
+                        )
+                        if live.options.get("thankyou"):
+                            await self._create_thankyou_draft(db, user, meeting, live)
+                        live.cleanup_chunks()
+                    except Exception:  # noqa: BLE001
+                        logger.exception("Live wrap-up failed")
                 return True
         except Exception as exc:                # noqa: BLE001
             logger.exception("Meeting finalization failed")
             self._update(state="idle", started_at=None, last_error=str(exc))
         return False
+
+    async def _create_thankyou_draft(self, db, user, meeting, live: "LiveMeetingSession") -> None:
+        """Draft (never send) a thank-you email to the other party from real
+        meeting content. Lands in Communications → Email Drafts for review."""
+        from models.db.email_draft import EmailDraft
+
+        body = ""
+        try:
+            from services.llm.router import get_llm_client
+
+            client = await get_llm_client(db, task="daily_assistant")
+            source = (meeting.summary or meeting.raw_transcript or "")[:4000]
+            chunk = await client.chat(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Write a short, warm, professional thank-you email "
+                            "following a business meeting. 3-6 sentences, no "
+                            "subject line, no signature block, simple sign-off. "
+                            "Reference 2-3 REAL topics from the notes — never "
+                            "invent specifics."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Recipient: {live.party or 'the other party'}\n"
+                            f"Meeting notes:\n{source}"
+                        ),
+                    },
+                ],
+                temperature=0.4,
+            )
+            body = (chunk.content or "").strip()
+        except Exception:  # noqa: BLE001
+            logger.exception("Thank-you draft generation failed")
+        if not body:
+            return
+        draft = EmailDraft(
+            subject=f"Thank you — {meeting.title}"[:500],
+            recipient_name=live.party or None,
+            recipient_email=live.party_email or None,
+            purpose="Thank the other party for the meeting (auto-drafted after a live-assisted meeting).",
+            tone="professional",
+            draft_body=body,
+            status="draft",
+            tags=["meeting-thankyou"],
+            created_by=user.id,
+        )
+        db.add(draft)
+        await db.commit()
+        live.add_card(
+            "wrapup",
+            "Thank-you email drafted",
+            (
+                f"Addressed to {live.party}" if live.party else "No recipient could be "
+                "determined from the calendar — add one before sending"
+            )
+            + ". Review it in Communications → Email Drafts; nothing sends without you.",
+            route="/emails",
+        )
 
     async def recover_pending(self) -> int:
         """Resume recordings persisted to disk but never transcribed (e.g. the
