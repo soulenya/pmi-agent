@@ -113,6 +113,70 @@ export async function fetchSttCredentials(): Promise<{ ok: boolean; path: string
   return resp.data;
 }
 
+// ── Live meeting assist ───────────────────────────────────────────────────────
+
+export interface LiveSegment {
+  seq: number;
+  at: string;
+  text: string;
+}
+
+export interface LiveCard {
+  seq: number;
+  kind: "jargon" | "answer" | "info" | "wrapup";
+  title: string;
+  body: string;
+  route?: string | null;
+  at: string;
+}
+
+export interface LiveAssistOptions {
+  transcript: boolean;
+  jargon: boolean;
+  answers: "off" | "nda" | "public";
+  thankyou: boolean;
+}
+
+export interface LiveState {
+  active: boolean;
+  consent?: "pending" | "accepted" | "declined" | "ended";
+  options?: LiveAssistOptions;
+  platform?: string;
+  started_at?: string;
+  party?: string;
+  nda_hint?: string;
+  segments?: LiveSegment[];
+  cards?: LiveCard[];
+  last_error?: string | null;
+}
+
+export async function getLiveState(afterSegment = -1, afterCard = -1): Promise<LiveState> {
+  const resp = await apiClient.get<LiveState>("/meetings/live/state", {
+    params: { after_segment: afterSegment, after_card: afterCard },
+  });
+  return resp.data;
+}
+
+export async function getLiveDefaults(): Promise<LiveAssistOptions> {
+  const resp = await apiClient.get<LiveAssistOptions>("/meetings/live/defaults");
+  return resp.data;
+}
+
+export async function acceptLive(options: LiveAssistOptions): Promise<LiveState> {
+  const resp = await apiClient.post<LiveState>("/meetings/live/accept", options);
+  return resp.data;
+}
+
+export async function declineLive(): Promise<LiveState> {
+  const resp = await apiClient.post<LiveState>("/meetings/live/decline");
+  return resp.data;
+}
+
+export async function dismissLive(): Promise<LiveState> {
+  const resp = await apiClient.post<LiveState>("/meetings/live/dismiss");
+  return resp.data;
+}
+
 // ── Email Drafts ──────────────────────────────────────────────────────────────
 
 export async function listEmailDrafts(): Promise<EmailDraft[]> {

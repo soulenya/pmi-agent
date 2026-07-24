@@ -98,3 +98,4 @@ update_token.txt
 # Local-only helper scripts that contain baked-in secrets (e.g. the macOS
 # token installer handed to teammates privately). NEVER commit.
 local/
+MEETING-ASSIST-PLAN.md 
