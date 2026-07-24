@@ -396,6 +396,21 @@ class MeetingMonitor:
         live = self._live
         if live is not None and live.consent == "accepted":
             live.end()
+            # Instant feedback the moment the meeting concludes — the panel
+            # stays up and says what Gerry is doing while STT runs.
+            if live.options.get("thankyou"):
+                live.add_card(
+                    "info",
+                    "Gerry is drafting a thank-you email",
+                    "Transcribing the recording now — the draft will appear in "
+                    "Communications → Email Drafts and in the notification bell when ready.",
+                )
+            else:
+                live.add_card(
+                    "info",
+                    "Meeting wrapped — processing",
+                    "Transcribing and summarizing into a meeting note…",
+                )
         wav = await asyncio.to_thread(self._recorder.stop)
         # Live chunking drained audio as it went — reassemble the full meeting
         # from the saved chunks plus whatever remained in the recorder.
@@ -551,6 +566,11 @@ class MeetingMonitor:
         except Exception:  # noqa: BLE001
             logger.exception("Thank-you draft generation failed")
         if not body:
+            live.add_card(
+                "info",
+                "Thank-you draft couldn't be written",
+                "The language model wasn't reachable — you can ask Gerry in chat to draft it from the meeting note.",
+            )
             return
         draft = EmailDraft(
             subject=f"Thank you — {meeting.title}"[:500],
@@ -565,6 +585,22 @@ class MeetingMonitor:
         )
         db.add(draft)
         await db.commit()
+        # Bell notification with a take-me-there link (entity_type email_draft
+        # routes to Communications → Email Drafts in the dropdown).
+        try:
+            from models.db.enums import NotificationType
+            from repositories.conversation_repo import NotificationRepository
+
+            await NotificationRepository(db).create(
+                user_id=user.id,
+                type=NotificationType.APPROVAL_REQUIRED.value,
+                title="Thank-you email drafted — review before it goes anywhere",
+                message=f'To {live.party or "(no recipient found — add one)"}: "{draft.subject}"',
+                entity_type="email_draft",
+                entity_id=draft.id,
+            )
+        except Exception:  # noqa: BLE001 — the draft itself already exists
+            logger.exception("Thank-you draft notification failed")
         live.add_card(
             "wrapup",
             "Thank-you email drafted",
