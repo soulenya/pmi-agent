@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 178;
+export const BUILD_NUMBER = 180;
 export const BUILD_DATE = "2026-07-24";
 
 export interface ChangelogEntry {
@@ -14,6 +14,27 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 180,
+    date: "2026-07-24",
+    title: "Transcripts reconcile against calendar truth",
+    changes: [
+      "Names your calendar knows are now fed INTO transcription as hints — companies like In-Q-Tel stop coming out as phonetic lookalikes in the first place (reported by Morgan: 'Intelius'/'Inky Tell')",
+      "After transcription, the transcript is reconciled against the calendar's trusted names — mis-hearings are auto-corrected before the summary and thank-you email are generated, and the wrap-up card lists what was fixed",
+      "Corrections can only point TO names from your calendar — the reconciler can't rewrite anything else",
+    ],
+  },
+  {
+    build: 179,
+    date: "2026-07-24",
+    title: "Thank-you emails: right people, short and general",
+    changes: [
+      "Fixed the post-meeting thank-you addressing — a bug let the draft target YOUR OWN side of the meeting, which is where the wrong company/participants came from (reported by Morgan)",
+      "To: is now the external attendees from the calendar; anyone from your company in the meeting goes on CC automatically",
+      "Greeting uses first names (\"Joe/Phil, thanks for your time today\") — pulled from the calendar, or from names spoken in the meeting when the calendar has nothing",
+      "Body slimmed to three sentences max: thanks, at most one real topic reference, and a light closer — no more long-winded essays",
+    ],
+  },
   {
     build: 178,
     date: "2026-07-24",
