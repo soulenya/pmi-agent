@@ -67,6 +67,17 @@ class _DeviceStream:
             self.error = str(exc)
             logger.warning("Audio stream %s failed: %s", self._label, exc)
 
+    def drain(self) -> np.ndarray:
+        """Take everything captured so far WITHOUT stopping (live chunking).
+
+        List swap is atomic under the GIL; the recording thread keeps
+        appending to the fresh list.
+        """
+        frames, self._frames = self._frames, []
+        if not frames:
+            return np.zeros(0, dtype=np.float32)
+        return np.concatenate(frames)
+
     def stop(self) -> np.ndarray:
         self._stop.set()
         self._thread.join(timeout=5)
@@ -147,7 +158,12 @@ class MeetingRecorder:
             return True
 
     def stop(self) -> bytes | None:
-        """Stop capture and return mixed 16 kHz mono WAV bytes (or None if empty)."""
+        """Stop capture and return mixed 16 kHz mono WAV bytes (or None if empty).
+
+        When live chunking drained audio earlier, this returns only the TAIL
+        since the last drain — the caller reassembles the full meeting from
+        its saved chunks plus this tail.
+        """
         with self._lock:
             if not self._recording:
                 return None
@@ -174,4 +190,27 @@ class MeetingRecorder:
         np.clip(mixed, -1.0, 1.0, out=mixed)
         pcm = (mixed * 32767.0).astype(np.int16)
         logger.info("Meeting recording stopped: %.1f s of audio", length / SAMPLE_RATE)
+        return _to_wav(pcm)
+
+    def drain_chunk(self) -> bytes | None:
+        """Mix and return the audio captured since the last drain, WITHOUT
+        stopping the recording (live-transcription chunks). None when nothing
+        meaningful was captured (< 0.5 s)."""
+        with self._lock:
+            if not self._recording:
+                return None
+            arrays = [s.drain() for s in self._streams]
+        arrays = [a for a in arrays if a.size > 0]
+        if not arrays:
+            return None
+        length = max(len(a) for a in arrays)
+        if length < SAMPLE_RATE // 2:
+            return None
+        mixed = np.zeros(length, dtype=np.float32)
+        for a in arrays:
+            if len(a) < length:
+                a = np.pad(a, (0, length - len(a)))
+            mixed += a
+        np.clip(mixed, -1.0, 1.0, out=mixed)
+        pcm = (mixed * 32767.0).astype(np.int16)
         return _to_wav(pcm)

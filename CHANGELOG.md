@@ -4,6 +4,16 @@
 
 ## Changelog
 
+### v3.3.14 — 2026-07-24
+**Live meeting assist (Morgan request) — consent pop-down, real-time transcript, rule-gated help**
+
+- **Recorder** gains lossless live chunking: `_DeviceStream.drain()` + `MeetingRecorder.drain_chunk()` mix-and-return audio since the last drain WITHOUT stopping; the final note is reassembled from saved chunks + the recorder tail (`assemble_full_wav`), so end-of-meeting quality is unchanged. Mid-meeting acceptance keeps the oversized first drain for the final pass and starts live text from that point.
+- **LiveMeetingSession** (services/meetings/live_assist.py): 15 s chunk loop → short-clip Google STT → rolling segments; 30 s assist loop → configured LLM → typed cards (jargon definitions deduped per meeting; suggested answers). DISCLOSURE ENFORCED BY CONSTRUCTION: answers=nda injects company context; answers=public sends NO company data and badges every card; neither mode has tools. Cards are on-screen whispers only.
+- **Consent flow**: on detection the monitor stands up a pending session + best-effort precheck (calendar → other party; KB title search → "NDA possibly on file"). Pop-down (mounted app-wide) with the five toggles; accept persists defaults (`meetings.assist_defaults`), starts the recorder if autorecord was off (acceptance = consent), decline leaves the existing autorecord behavior untouched. Consent-to-record responsibility note included.
+- **Wrap-up**: meeting-note chip + optional thank-you EmailDraft (recipient from calendar attendees; body from real note content; tagged meeting-thankyou; approval-first as always) surfaced as panel cards with take-me-there links.
+- Endpoints: GET /meetings/live/state (incremental by sequence) + /live/defaults, POST /live/accept|decline|dismiss. Docked LiveMeetingAssist panel (BriefingPanel family): red-dot live header, transcript + cards merged chronologically, collapse, End & process now.
+- Verified with the real LLM: jargon cards ("PCT filing", "DHF freeze"), public-mode answer card with badge, dedup on re-mention, 3+2+1 s WAV reassembly exact, precheck degrades honestly without Google.
+
 ### v3.3.13 — 2026-07-23
 **Fix: scheduled runs echoing stale reports (Morgan field report)**
 
