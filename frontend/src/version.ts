@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 176;
+export const BUILD_NUMBER = 177;
 export const BUILD_DATE = "2026-07-24";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 177,
+    date: "2026-07-24",
+    title: "Meeting assist polish — movable panel, unmissable consent",
+    changes: [
+      "The live meeting panel can now be dragged anywhere on screen by its header — it remembers where you parked it (click still collapses it)",
+      "The 'looks like a call is starting' prompt now opens center-screen and dims the background until you choose — no more missing it (requested by Morgan)",
+    ],
+  },
   {
     build: 176,
     date: "2026-07-24",

@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.3.15 — 2026-07-24
+**Meeting assist UI polish (Morgan requests)**
+
+- **Draggable live panel**: pointer-capture drag on the header (6 px threshold distinguishes drag from the collapse click; suppressed click after a drag), viewport-clamped, position persisted in localStorage (validated on restore).
+- **Consent modal**: center-screen with a dimmed blurred backdrop until a selection is made — backdrop is deliberately NOT click-through/dismissable; the X counts as decline.
+
 ### v3.3.14 — 2026-07-24
 **Live meeting assist (Morgan request) — consent pop-down, real-time transcript, rule-gated help**
 
