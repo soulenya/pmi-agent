@@ -9,6 +9,7 @@ import { FeatureGuideModal } from "./FeatureGuideModal";
 import { useNotificationWS } from "@/hooks/useNotificationWS";
 import { CommandPalette } from "@/components/CommandPalette";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
+import { LiveMeetingAssist } from "@/components/meetings/LiveMeetingAssist";
 import { Toaster } from "@/components/Toaster";
 import { AppContextProvider } from "@/contexts/AppContext";
 import { useNavStore } from "@/stores/navStore";
@@ -100,6 +101,7 @@ export function AppShell() {
           <StatusBar />
         </div>
         <VoiceAssistant />
+        <LiveMeetingAssist />
         <WhatsNewModal />
         <FeatureGuideModal />
         <Toaster />

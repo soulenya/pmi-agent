@@ -411,6 +411,18 @@ When enabled, Little Gerry watches for video-call apps (Zoom, Teams, Google Meet
 - Audio capture works on **Windows** (system-audio loopback). On other platforms Little Gerry can detect the meeting but can't capture system audio without a virtual audio device.
 - A recorder indicator shows when a recording is in progress; you can recover or discard pending recordings from there.
 
+### Live meeting assist
+
+When a call is detected, a **pop-down asks whether you'd like Gerry to follow along** — nothing happens without your OK, and your choices are remembered as next meeting's defaults:
+
+- **Live transcript & notes** — a docked panel follows the conversation in near-real-time (15–40 s behind the audio)
+- **Decode jargon & acronyms** — buzzwords and industry terms are defined in context as quiet cards in the panel
+- **Suggest answers — under NDA** — Gerry may draw on company knowledge for suggested answers and says what she used
+- **Suggest answers — NOT under NDA** — Gerry is given **no company data at all** (enforced in the code, not just instructions); answers come from public knowledge only and are badged as such
+- **Thank-you email afterward** — drafted from real meeting topics to the other party (guessed from your calendar), landing in Email Drafts for your review
+
+The pop-down shows a best-effort NDA check ("NDA possibly on file: …") but **you** confirm the posture. Cards are whispered suggestions on your screen — Gerry never speaks or sends anything during a meeting. The full recording still becomes a normal meeting note at the end, and you're responsible for any consent-to-record requirements where you are.
+
 ### Manual transcripts
 
 You can also create a note by hand — click **+ New Meeting**:

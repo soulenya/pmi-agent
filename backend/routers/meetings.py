@@ -278,6 +278,63 @@ async def recorder_discard(
     return RecorderStatusOut.model_validate(meeting_monitor.snapshot())
 
 
+# ── Live meeting assist (consent pop-down + live panel) ──────────────────────
+
+
+class LiveAcceptIn(BaseModel):
+    transcript: bool = True
+    jargon: bool = False
+    answers: str = Field("off", pattern="^(off|nda|public)$")
+    thankyou: bool = False
+
+
+@router.get("/live/state")
+async def live_state(
+    after_segment: int = -1,
+    after_card: int = -1,
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """Poll target for the consent card and the live meeting panel."""
+    return meeting_monitor.live_state(after_segment=after_segment, after_card=after_card)
+
+
+@router.get("/live/defaults")
+async def live_defaults(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    from models.db.settings import SystemSetting
+    from services.meetings.live_assist import ASSIST_DEFAULTS_KEY
+
+    row = (
+        await db.execute(select(SystemSetting).where(SystemSetting.key == ASSIST_DEFAULTS_KEY))
+    ).scalar_one_or_none()
+    if row is not None and isinstance(row.value, dict):
+        return row.value
+    return {"transcript": True, "jargon": True, "answers": "off", "thankyou": False}
+
+
+@router.post("/live/accept")
+async def live_accept(
+    body: LiveAcceptIn,
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """User accepted the consent pop-down — start live transcription/assists."""
+    return await meeting_monitor.live_accept(body.model_dump())
+
+
+@router.post("/live/decline")
+async def live_decline(_user: User = Depends(get_current_user)) -> dict:
+    """User declined — plain auto-record behavior continues unchanged."""
+    return meeting_monitor.live_decline()
+
+
+@router.post("/live/dismiss")
+async def live_dismiss(_user: User = Depends(get_current_user)) -> dict:
+    """Close the ended meeting's panel and drop its live state."""
+    return meeting_monitor.live_dismiss()
+
+
 @router.get("/stt/credentials-status", response_model=SttCredentialsStatusOut)
 async def stt_credentials_status(
     _user: User = Depends(get_current_user),
