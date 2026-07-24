@@ -329,8 +329,17 @@ class MeetingMonitor:
     # ── Finalization ──────────────────────────────────────────────────────────
     async def _run_precheck(self, live: LiveMeetingSession) -> None:
         try:
-            party, email, hint = await precheck(self._get_db)
-            live.party, live.party_email, live.nda_hint = party, email, hint
+            own_email = ""
+            async for db in self._get_db():
+                user = await _owner_user(db)
+                own_email = (user.email or "") if user else ""
+                break
+            info = await precheck(self._get_db, own_email)
+            live.party = info["party"]
+            live.party_email = info["to_emails"]
+            live.cc_emails = info["cc_emails"]
+            live.nda_hint = info["nda_hint"]
+            live.vocabulary = info.get("vocabulary", [])
         except Exception:  # noqa: BLE001
             logger.debug("Live precheck failed", exc_info=True)
     def _pending_dir(self) -> Path:
@@ -455,9 +464,29 @@ class MeetingMonitor:
                 return False  # keep the on-disk copy for a later retry
 
             transcript = await gcs_stt.transcribe_long(
-                wav, "meeting.wav", "audio/wav", cancel_event=cancel_event
+                wav, "meeting.wav", "audio/wav", cancel_event=cancel_event,
+                phrases=(live.vocabulary if live is not None else None),
             )
             transcript = (transcript or "").strip() or "(No speech detected.)"
+
+            # Reconcile phonetic mis-hearings against trusted calendar names
+            # (field case: "Intelius"/"Inky Tell" vs the calendar's In-Q-Tel)
+            # BEFORE the summary and thank-you draft are generated from it.
+            corrections: list[tuple[str, str]] = []
+            if live is not None and live.vocabulary:
+                try:
+                    from services.meetings.live_assist import reconcile_transcript
+
+                    transcript, corrections = await reconcile_transcript(
+                        self._get_db, transcript, live.vocabulary
+                    )
+                    if corrections:
+                        logger.info(
+                            "Transcript reconciliation applied: %s",
+                            "; ".join(f"{w}→{r}" for w, r in corrections),
+                        )
+                except Exception:  # noqa: BLE001 — best-effort
+                    logger.exception("Transcript reconciliation failed")
 
             async for db in self._get_db():
                 user = await _owner_user(db)
@@ -512,6 +541,12 @@ class MeetingMonitor:
                 # Live-assist wrap-up: note chip + optional thank-you draft.
                 if live is not None and live.consent == "ended":
                     try:
+                        if corrections:
+                            live.add_card(
+                                "info",
+                                f"Auto-corrected {len(corrections)} name(s) from the calendar",
+                                "; ".join(f'"{w}" → "{r}"' for w, r in corrections[:5]),
+                            )
                         live.add_card(
                             "wrapup",
                             "Meeting note saved",
@@ -530,52 +565,88 @@ class MeetingMonitor:
         return False
 
     async def _create_thankyou_draft(self, db, user, meeting, live: "LiveMeetingSession") -> None:
-        """Draft (never send) a thank-you email to the other party from real
-        meeting content. Lands in Communications → Email Drafts for review."""
+        """Draft (never send) a SHORT thank-you to the external participants.
+
+        Rules (Morgan, 2026-07-24): To = attendees outside the company (from
+        the calendar), CC = company colleagues in the meeting, greeting =
+        first names ("Joe/Phil"), body general — one thanks line, at most one
+        real topic reference, one light closer. Never invented specifics.
+        """
         from models.db.email_draft import EmailDraft
 
-        body = ""
+        greeting_names = live.party
+        topic_sentence = ""
+        closer = "Looking forward to the next time we talk."
         try:
             from services.llm.router import get_llm_client
 
             client = await get_llm_client(db, task="daily_assistant")
-            source = (meeting.summary or meeting.raw_transcript or "")[:4000]
+            source = (meeting.summary or meeting.raw_transcript or "")[:3000]
             chunk = await client.chat(
                 [
                     {
                         "role": "system",
                         "content": (
-                            "Write a short, warm, professional thank-you email "
-                            "following a business meeting. 3-6 sentences, no "
-                            "subject line, no signature block, simple sign-off. "
-                            "Reference 2-3 REAL topics from the notes — never "
-                            "invent specifics."
+                            "You extract facts for a short post-meeting thank-you "
+                            "email. NEVER invent names, companies, or topics — "
+                            "use null when unsure."
                         ),
                     },
                     {
                         "role": "user",
                         "content": (
-                            f"Recipient: {live.party or 'the other party'}\n"
-                            f"Meeting notes:\n{source}"
+                            'Respond ONLY with JSON: {"first_names": ["..."] | null '
+                            "(FIRST names of the OTHER party's people — anyone in the "
+                            "notes who is not from the user's own company; when the "
+                            "notes name them like 'Acme (Jane Doe)', that's ['Jane']. "
+                            'null only when no external person is named), '
+                            '"topic_sentence": "..." | null (ONE short '
+                            "sentence referencing the main thing discussed, e.g. "
+                            "'Great to walk through the prototype timeline together.'), "
+                            '"closer": "..." | null (pick what fits: looking forward '
+                            "to next steps / to hearing back / to the next "
+                            "conversation)}\n\nMeeting notes:\n" + source
                         ),
                     },
                 ],
-                temperature=0.4,
+                temperature=0.2,
             )
-            body = (chunk.content or "").strip()
-        except Exception:  # noqa: BLE001
-            logger.exception("Thank-you draft generation failed")
-        if not body:
-            live.add_card(
-                "info",
-                "Thank-you draft couldn't be written",
-                "The language model wasn't reachable — you can ask Gerry in chat to draft it from the meeting note.",
-            )
-            return
+            import json as _json
+
+            raw = chunk.content or ""
+            s, e = raw.find("{"), raw.rfind("}")
+            data = _json.loads(raw[s : e + 1]) if s != -1 and e > s else {}
+            if not greeting_names and isinstance(data.get("first_names"), list):
+                names = [str(n).strip() for n in data["first_names"] if str(n).strip()]
+                greeting_names = "/".join(names[:4])
+            if isinstance(data.get("topic_sentence"), str):
+                topic_sentence = data["topic_sentence"].strip()
+            if isinstance(data.get("closer"), str) and data["closer"].strip():
+                closer = data["closer"].strip()
+        except Exception:  # noqa: BLE001 — the deterministic template still works
+            logger.info("Thank-you extraction failed; using the plain template", exc_info=True)
+
+        greeting = f"{greeting_names}," if greeting_names else "Hi all,"
+
+        def _sentence(s: str) -> str:
+            s = s.strip()
+            if not s:
+                return ""
+            s = s[0].upper() + s[1:]
+            return s if s[-1] in ".!?" else s + "."
+
+        body = " ".join(
+            part for part in (
+                f"{greeting} thanks for your time today.",
+                _sentence(topic_sentence),
+                _sentence(closer),
+            ) if part
+        )
         draft = EmailDraft(
-            subject=f"Thank you — {meeting.title}"[:500],
-            recipient_name=live.party or None,
+            subject="Thank you for your time today",
+            recipient_name=greeting_names or None,
             recipient_email=live.party_email or None,
+            cc=live.cc_emails or None,
             purpose="Thank the other party for the meeting (auto-drafted after a live-assisted meeting).",
             tone="professional",
             draft_body=body,
