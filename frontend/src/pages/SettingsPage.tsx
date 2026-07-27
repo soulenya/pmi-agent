@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink } from "lucide-react";
+import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink, ScanText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
@@ -34,6 +34,7 @@ import {
   type TaskModelUpdate,
 } from "@/api/settings";
 import { listVoices } from "@/api/voice";
+import { listExtractionSchemas, saveExtractionSchemas } from "@/api/extractions";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
@@ -1015,6 +1016,86 @@ function CompanyProfileSection() {
 }
 
 // ── Task models section ─────────────────────────────────────────────────
+function ExtractionSchemasSection() {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const { data: schemas = [] } = useQuery({
+    queryKey: ["extraction-schemas"],
+    queryFn: listExtractionSchemas,
+    refetchOnWindowFocus: false,
+  });
+
+  const text = draft ?? JSON.stringify(schemas, null, 2);
+
+  const saveMut = useMutation({
+    mutationFn: (parsed: { name: string; description: string; schema: Record<string, unknown> }[]) =>
+      saveExtractionSchemas(parsed),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["extraction-schemas"] });
+      setDraft(null);
+      setError(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    },
+    onError: (e: unknown) => {
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || "Could not save the schemas.");
+    },
+  });
+
+  function save() {
+    setError(null);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      setError("Not valid JSON — fix the syntax and try again.");
+      return;
+    }
+    if (!Array.isArray(parsed)) {
+      setError("Expected a JSON list of {name, description, schema} entries.");
+      return;
+    }
+    saveMut.mutate(parsed as { name: string; description: string; schema: Record<string, unknown> }[]);
+  }
+
+  return (
+    <Section
+      icon={ScanText}
+      title="Extraction Schemas"
+      description="Named field shapes for vision document extraction — used by 'Extract data' and by Gerry's extract_document tool (schema_name)."
+    >
+      <Field
+        label="Schemas (JSON list)"
+        hint='Each entry: {"name": "invoice", "description": "…", "schema": {…}}. Names are what you (and Gerry) reference.'
+      >
+        <textarea
+          value={text}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={14}
+          spellCheck={false}
+          className="w-full rounded-md border bg-background px-3 py-2 font-mono text-xs outline-none focus:ring-2 focus:ring-ring resize-y"
+        />
+      </Field>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <div className="flex items-center gap-2">
+        <SaveButton onClick={save} loading={saveMut.isPending} saved={saved} disabled={draft === null} />
+        {draft !== null && (
+          <button
+            onClick={() => { setDraft(null); setError(null); }}
+            className="rounded-md border px-4 py-2 text-sm text-muted-foreground hover:bg-accent"
+          >
+            Discard changes
+          </button>
+        )}
+      </div>
+    </Section>
+  );
+}
+
 function TaskModelsSection() {
   const qc = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
@@ -1771,6 +1852,7 @@ export function SettingsPage() {
           />
           <CompanyProfileSection />
           <TaskModelsSection />
+          <ExtractionSchemasSection />
           <AppearanceSection settings={mergedSettings} onChange={handleChange} />
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />
           <VoiceSection settings={mergedSettings} onChange={handleChange} />
