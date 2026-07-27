@@ -64,6 +64,8 @@ export interface CompanyContext {
   content: string;
   synced_at: string | null;
   drive_file_id: string | null;
+  source_kind: "file" | "folder";
+  sections: { name: string; file_id: string; chars: number; skipped?: string }[];
 }
 
 export interface CompanyContextRefreshResult extends CompanyContext {

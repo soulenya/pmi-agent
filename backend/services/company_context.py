@@ -3,11 +3,15 @@ Company context — a short, always-injected markdown block giving every agent
 persistent knowledge of the company (people, products, partners, regulatory
 context), independent of Knowledge Base retrieval.
 
-Source of truth is a single shared Google Drive file (Little Gerry is
-local-first per install, so this file — not the local DB — is what keeps all
-teammates' machines consistent). The local SystemSetting row is a read-through
-cache, refreshed on backend startup and via manual refresh; it never diverges
-per install by design.
+Source of truth is shared Google Drive content (Little Gerry is local-first
+per install, so Drive — not the local DB — is what keeps all teammates'
+machines consistent). The configured Drive ID may be either:
+  • a single FILE (original mode) — its text is the whole context, or
+  • a FOLDER ("company truth folder") — every markdown/text/Google Doc inside
+    becomes one SECTION (ordered by filename; prefix names like 01-legal.md to
+    control order), composed into the same single cached block.
+The local SystemSetting rows are a read-through cache, refreshed on backend
+startup and via manual refresh; they never diverge per install by design.
 
 Unlike the Knowledge Base (opt-in RAG via search_knowledge_base), this content
 is injected into every agent's system prompt on every turn, so it must stay
@@ -27,11 +31,18 @@ from models.db.settings import SystemSetting
 
 logger = logging.getLogger(__name__)
 
-MAX_COMPANY_CONTEXT_CHARS = 6_000
+MAX_COMPANY_CONTEXT_CHARS = 12_000
 
 KEY_MD = "company.profile_md"
 KEY_SYNCED_AT = "company.profile_synced_at"
 KEY_DRIVE_FILE_ID = "company.profile_drive_file_id"
+# Folder mode: JSON manifest of the synced sections —
+# [{"name": str, "file_id": str, "chars": int}] plus skipped-file notes.
+KEY_SECTIONS = "company.profile_sections"
+
+# Folder mode accepts these child types as sections.
+_SECTION_MIMES = {"text/plain", "text/markdown", "application/vnd.google-apps.document"}
+_SECTION_EXTS = (".md", ".markdown", ".txt")
 
 
 async def _read_setting(db: AsyncSession, key: str, default: str = "") -> str:
@@ -41,7 +52,7 @@ async def _read_setting(db: AsyncSession, key: str, default: str = "") -> str:
     return str(row.value) if row and row.value else default
 
 
-async def _write_setting(db: AsyncSession, key: str, value: str) -> None:
+async def _write_setting(db: AsyncSession, key: str, value) -> None:
     row = (
         await db.execute(select(SystemSetting).where(SystemSetting.key == key))
     ).scalar_one_or_none()
@@ -81,17 +92,104 @@ async def get_company_context(db: AsyncSession) -> str:
     )
 
 
-async def sync_company_context_from_drive(db: AsyncSession) -> bool:
-    """Pull the current content of the designated Drive file and refresh the
-    local SystemSetting cache (both the content and the synced-at timestamp).
+def _section_title(file_name: str) -> str:
+    """Filename → section heading: strip extension and ordering prefix,
+    separators → spaces ('02_corporate-structure.md' → 'corporate structure')."""
+    import re
 
-    Never raises — Google not connected, no file configured, network errors,
-    file not found, and over-cap content are all expected conditions: log a
+    name = file_name
+    for ext in _SECTION_EXTS:
+        if name.lower().endswith(ext):
+            name = name[: -len(ext)]
+            break
+    name = re.sub(r"^\d+[\s._-]*", "", name)
+    return re.sub(r"[_-]+", " ", name).strip() or file_name
+
+
+async def get_sections_manifest(db: AsyncSession) -> list[dict]:
+    """Folder mode's synced-sections manifest, or [] (single-file mode)."""
+    row = (
+        await db.execute(select(SystemSetting).where(SystemSetting.key == KEY_SECTIONS))
+    ).scalar_one_or_none()
+    return row.value if row is not None and isinstance(row.value, list) else []
+
+
+async def _sync_from_folder(db: AsyncSession, folder_id: str) -> bool:
+    """Compose the context block from every readable text file in the folder.
+    Sections are ordered by filename. Unreadable children are skipped and
+    recorded honestly in the manifest — never silently dropped."""
+    from services.google_service import drive_get_content, drive_list_folder
+
+    children = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: drive_list_folder(folder_id, max_results=50)
+    )
+    manifest: list[dict] = []
+    parts: list[str] = []
+    for child in children:
+        ctype = child.get("type", "")
+        name = child.get("name", "")
+        if ctype == "folder":
+            continue
+        if ctype not in _SECTION_MIMES and not name.lower().endswith(_SECTION_EXTS):
+            manifest.append({"name": name, "file_id": child["id"], "chars": 0,
+                             "skipped": f"unsupported type ({ctype})"})
+            continue
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, lambda c=child: drive_get_content(c["id"], max_chars=MAX_COMPANY_CONTEXT_CHARS)
+            )
+            content = (result.get("content") or "").strip()
+        except Exception as exc:  # noqa: BLE001 — skip this section, record why
+            logger.warning("Company context: could not read section %s: %s", name, exc)
+            manifest.append({"name": name, "file_id": child["id"], "chars": 0,
+                             "skipped": "could not read"})
+            continue
+        if not content:
+            manifest.append({"name": name, "file_id": child["id"], "chars": 0,
+                             "skipped": "no readable text"})
+            continue
+        parts.append(f"## {_section_title(name)}\n{content}")
+        manifest.append({"name": name, "file_id": child["id"], "chars": len(content)})
+
+    if not parts:
+        logger.warning("Company context sync skipped: folder %s has no readable sections.", folder_id)
+        return False
+    composed = "\n\n".join(parts)
+    if len(composed) > MAX_COMPANY_CONTEXT_CHARS:
+        logger.warning(
+            "Company context sync skipped: folder %s composes to %d chars (cap %d) — "
+            "trim sections; long-form content belongs in the Knowledge Base.",
+            folder_id, len(composed), MAX_COMPANY_CONTEXT_CHARS,
+        )
+        return False
+
+    await _write_setting(db, KEY_MD, composed)
+    await _write_setting(db, KEY_SECTIONS, manifest)
+    await _write_setting(db, KEY_SYNCED_AT, datetime.now(timezone.utc).isoformat())
+    await db.commit()
+    logger.info(
+        "Company context synced from folder %s: %d section(s), %d chars.",
+        folder_id, len(parts), len(composed),
+    )
+    return True
+
+
+async def sync_company_context_from_drive(db: AsyncSession) -> bool:
+    """Pull the current content of the designated Drive file OR folder and
+    refresh the local SystemSetting cache (content, sections manifest, and the
+    synced-at timestamp).
+
+    Never raises — Google not connected, nothing configured, network errors,
+    not found, and over-cap content are all expected conditions: log a
     warning, leave the existing cached value untouched, and return False.
     Returns True on a successful sync (cache updated and committed).
     """
     try:
-        from services.google_service import drive_get_content, get_credentials
+        from services.google_service import (
+            drive_get_content,
+            drive_get_file_meta,
+            get_credentials,
+        )
 
         if not get_credentials():
             logger.warning("Company context sync skipped: Google not connected.")
@@ -101,6 +199,17 @@ async def sync_company_context_from_drive(db: AsyncSession) -> bool:
         if not file_id:
             logger.warning("Company context sync skipped: no Drive file ID configured.")
             return False
+
+        # Folder = "company truth folder": one markdown per section.
+        try:
+            meta = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: drive_get_file_meta(file_id)
+            )
+        except Exception as exc:  # noqa: BLE001 — Drive/network errors are expected
+            logger.warning("Company context sync failed reading metadata for %s: %s", file_id, exc)
+            return False
+        if meta.get("mime_type") == "application/vnd.google-apps.folder":
+            return await _sync_from_folder(db, file_id)
 
         try:
             result = await asyncio.get_event_loop().run_in_executor(
@@ -128,6 +237,7 @@ async def sync_company_context_from_drive(db: AsyncSession) -> bool:
             return False
 
         await _write_setting(db, KEY_MD, content)
+        await _write_setting(db, KEY_SECTIONS, [])  # single-file mode: no sections
         await _write_setting(
             db, KEY_SYNCED_AT, datetime.now(timezone.utc).isoformat()
         )
