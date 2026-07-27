@@ -298,6 +298,25 @@ TOOL_DEFINITIONS: list[dict] = [
                             "modified and later Drive edits don't change the attachment."
                         ),
                     },
+                    "verified_sources": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Sources you ACTUALLY checked the email's factual claims against "
+                            "(e.g. 'Company Context', 'KB: 2026-06-04 meeting notes'). REQUIRED "
+                            "for status/snapshot-style emails — recorded on the draft as its "
+                            "fact-check audit trail."
+                        ),
+                    },
+                    "unverified_claims": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Every claim in the body you could NOT confirm against a source. "
+                            "Shown to the user as warnings on the draft — never silently "
+                            "include an unverified claim without listing it here."
+                        ),
+                    },
                 },
                 "required": ["subject", "body"],
             },
@@ -543,6 +562,48 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                 },
                 "required": ["message_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_gmail_drafts",
+            "description": (
+                "List UNSENT drafts in the user's Gmail Drafts folder (id, to, subject, "
+                "date, snippet). search_gmail does NOT see drafts — use this to find a "
+                "draft the user mentions, or to audit a draft's claims before it is sent."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Max drafts to return (1–20). Default 10.",
+                        "default": 10,
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_gmail_draft",
+            "description": (
+                "Read the full content of one UNSENT Gmail draft by its draft_id (from "
+                "list_gmail_drafts). Use to review or fact-check a draft's claims "
+                "against Company Context and the Knowledge Base BEFORE it is sent."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "draft_id": {
+                        "type": "string",
+                        "description": "The Gmail draft ID (from list_gmail_drafts).",
+                    },
+                },
+                "required": ["draft_id"],
             },
         },
     },
@@ -2176,6 +2237,17 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
         attachments=attachments,
         created_by=ctx.user_id,
     )
+    # Fact-check audit trail (standing rule 2026-07-27): record which sources
+    # the claims were verified against and which claims could NOT be verified.
+    v_sources = [str(s).strip()[:300] for s in (args.get("verified_sources") or []) if str(s).strip()][:20]
+    v_flags = [str(s).strip()[:500] for s in (args.get("unverified_claims") or []) if str(s).strip()][:20]
+    if v_sources or v_flags:
+        from datetime import datetime, timezone
+        draft.verification = {
+            "sources": v_sources,
+            "flags": v_flags,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        }
     ctx.db.add(draft)
     await ctx.db.flush()
     await ctx.db.refresh(draft)
@@ -2218,7 +2290,9 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
     )
     return (
         f"Email draft saved to Communications → Email Drafts: \"{subject}\"{to_str}{resolved_note}{att_str} "
-        f"[id={draft.id}, status=draft]. The user can review, edit, and send it from the "
+        f"[id={draft.id}, status=draft]"
+        + (f" — {len(v_flags)} unverified claim(s) flagged for the user" if v_flags else "")
+        + ". The user can review, edit, and send it from the "
         "Email Drafts page."
     )
 
@@ -2543,6 +2617,54 @@ async def execute_read_gmail_message(ctx: ToolContext, args: dict[str, Any]) -> 
         f"From: {msg['from']}\nTo: {msg['to']}\n"
         f"Subject: {msg['subject']}\nDate: {msg['date']}\n\n"
         f"{msg['body'][:6000]}"
+    )
+
+
+async def execute_list_gmail_drafts(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import gmail_list_drafts, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    max_results = min(int(args.get("max_results", 10) or 10), 20)
+    try:
+        drafts = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: gmail_list_drafts(max_results)
+        )
+    except Exception as exc:  # noqa: BLE001 — surface honestly
+        return f"Could not list Gmail drafts: {exc}"
+    if not drafts:
+        return "The Gmail Drafts folder is empty."
+    lines = [f"Gmail drafts ({len(drafts)} unsent):\n"]
+    for d in drafts:
+        lines.append(
+            f"Draft ID: {d['draft_id']}\n"
+            f"To: {d['to'] or '(no recipient yet)'}\n"
+            f"Subject: {d['subject'] or '(no subject)'}\nDate: {d['date']}\n"
+            f"Snippet: {d['snippet']}"
+        )
+    return "\n\n".join(lines)
+
+
+async def execute_read_gmail_draft(ctx: ToolContext, args: dict[str, Any]) -> str:
+    import asyncio
+    from services.google_service import gmail_get_draft, get_credentials
+    if not get_credentials():
+        return _google_not_connected()
+    draft_id = str(args.get("draft_id", "")).strip()
+    if not draft_id:
+        return "Error: draft_id is required (from list_gmail_drafts)."
+    try:
+        d = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: gmail_get_draft(draft_id)
+        )
+    except Exception as exc:  # noqa: BLE001 — surface honestly
+        return f"Failed to read the Gmail draft: {exc}"
+    cc = f"\nCc: {d['cc']}" if d.get("cc") else ""
+    return (
+        f"UNSENT GMAIL DRAFT (draft_id={d['draft_id']}):\n"
+        f"To: {d['to'] or '(no recipient yet)'}{cc}\n"
+        f"Subject: {d['subject'] or '(no subject)'}\nDate: {d['date']}\n\n"
+        f"{d['body'][:6000]}"
     )
 
 
@@ -4480,6 +4602,8 @@ TOOL_EXECUTORS = {
     # Google Workspace (read-only)
     "search_gmail": execute_search_gmail,
     "read_gmail_message": execute_read_gmail_message,
+    "list_gmail_drafts": execute_list_gmail_drafts,
+    "read_gmail_draft": execute_read_gmail_draft,
     "search_drive": execute_search_drive,
     "search_drive_content": execute_search_drive_content,
     "list_drive_folder": execute_list_drive_folder,
@@ -4539,6 +4663,8 @@ _PRIMARY_ARG = {
     "add_contacts": "contacts",
     "fetch_page": "url",
     "read_gmail_message": "message_id",
+    "read_gmail_draft": "draft_id",
+    "list_gmail_drafts": "max_results",
     "read_drive_file": "file_id",
     "read_drive_annotations": "file_id",
     "extract_document": "drive_file_id",

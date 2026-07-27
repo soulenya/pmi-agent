@@ -46,6 +46,7 @@ export interface EmailDraft {
   is_archived: boolean;
   tags: string[];
   attachments: { filename: string; display_name: string }[];
+  verification: { sources?: string[]; flags?: string[]; recorded_at?: string } | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
