@@ -4,6 +4,16 @@
 
 ## Changelog
 
+### v3.3.20 — 2026-07-27
+**Vision document extraction (Phases 0–2 of the vision plan)**
+
+- New `document_extraction` LLM task (Settings → AI Models; recommended anthropic/claude-sonnet-4-6) + `ensure_vision_capable` router guard — honest RuntimeError when the task resolves to a non-vision provider (Ollama/OpenAI), never a silent fallback.
+- `services/document_extraction.py`: PDFs sent as native Anthropic `document` blocks, images (PNG/JPEG/GIF/WEBP) as `image` blocks; >90-page PDFs auto-split via PyMuPDF; transcription pass (temp 0.0, [illegible] markers, no guessing) + optional schema pass returning JSON with nulls for absent fields; defensive fence-stripping JSON parse.
+- Migration 024: `document_extractions` audit table — source, model, schema, structured JSON, raw text, status/error, page + token counts.
+- New `extract_document` tool in BOTH engines (v1 defs/executors/primary-arg/status label; v2 docs + executive_assistant, regulatory, qms, operations, house_manager). Sources: drive_file_id (drive_policy `check_drive_target` enforced, confirm_restricted), generated_filename, attachment_name.
+- `AnthropicClient._split_messages` documented content-block pass-through; anthropic floor raised to >=0.40 (venv already 0.105.2).
+- Verified live: 1-page PDF document-block call; image-only (no text layer) certificate scan → all schema fields correct; unsupported type → honest recorded error; smoke rows removed.
+
 ### v3.3.19 — 2026-07-27
 **Drag & drop multi-file upload across the app (requested by Morgan)**
 

@@ -47,6 +47,7 @@ _TOOLS = [
     "list_drive_folder",
     "list_shared_drives",
     "read_drive_file",
+    "extract_document",
     "read_drive_annotations",
     "list_recent_drive_files",
     "follow_drive_document",

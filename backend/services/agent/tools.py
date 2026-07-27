@@ -664,6 +664,49 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "extract_document",
+            "description": (
+                "Read a scanned PDF or image (certificate, invoice, form, photo of a "
+                "document) with VISION — the model looks at the pages directly, so it "
+                "works where normal text extraction returns nothing. Returns the "
+                "transcribed text and, when a schema is given, structured JSON with "
+                "null for fields not present (never invented). Source is exactly ONE "
+                "of: drive_file_id, generated_filename, or attachment_name."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "drive_file_id": {
+                        "type": "string",
+                        "description": "Drive file id or a pasted URL of the PDF/image.",
+                    },
+                    "generated_filename": {
+                        "type": "string",
+                        "description": "A file name from Generated Files (e.g. a workroom-pinned upload).",
+                    },
+                    "attachment_name": {
+                        "type": "string",
+                        "description": "Name of a file attached to this conversation.",
+                    },
+                    "schema": {
+                        "type": "object",
+                        "description": "Optional desired JSON shape, e.g. {\"vendor\": \"string\", \"total\": \"number\"}.",
+                    },
+                    "instruction": {
+                        "type": "string",
+                        "description": "Optional extra guidance or a question to answer from the document.",
+                    },
+                    "confirm_restricted": {
+                        "type": "boolean",
+                        "description": "Read a QMS/draft Drive file — ONLY after the user explicitly asked and you named the folder/file and got their confirmation.",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_drive_content",
             "description": (
                 "Search Google Drive by keyword AND READ the full text of the top "
@@ -4289,6 +4332,116 @@ async def execute_upload_to_drive(ctx: ToolContext, args: dict[str, Any]) -> str
 
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
+async def execute_extract_document(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Vision extraction — read a scanned PDF/image via the document_extraction task."""
+    from services.document_extraction import extract_document as run_extraction
+
+    schema = args.get("schema") if isinstance(args.get("schema"), dict) else None
+    instruction = str(args.get("instruction", "")).strip() or None
+
+    gen_name = str(args.get("generated_filename", "")).strip()
+    att_name = str(args.get("attachment_name", "")).strip()
+    drive_arg = str(args.get("drive_file_id", "")).strip()
+
+    raw: bytes | None = None
+    file_name = ""
+    mime_type: str | None = None
+    source_kind = "upload"
+    source_ref = ""
+
+    if gen_name:
+        base = _GENERATED_FILES_DIR.resolve()
+        path = (base / gen_name).resolve()
+        if not (str(path).startswith(str(base)) and path.is_file()):
+            candidates = (
+                [p.name for p in _GENERATED_FILES_DIR.glob(f"*{gen_name}")]
+                if _GENERATED_FILES_DIR.is_dir() else []
+            )
+            if len(candidates) != 1:
+                return f"Error: generated file not found: {gen_name}"
+            path = _GENERATED_FILES_DIR / candidates[0]
+        raw = path.read_bytes()
+        file_name = path.name
+        source_kind, source_ref = "generated_file", path.name
+
+    elif att_name:
+        from sqlalchemy import select as _select
+        from models.db.conversation import ConversationAttachment
+        from services import chat_attachments as ca
+
+        att = (
+            await ctx.db.execute(
+                _select(ConversationAttachment)
+                .where(
+                    ConversationAttachment.conversation_id == ctx.conversation_id,
+                    ConversationAttachment.file_name.ilike(f"%{att_name}%"),
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if att is None or not att.stored_path:
+            return f"Error: no attachment matching '{att_name}' on this conversation."
+        raw = ca.decrypt_attachment(att.stored_path)
+        file_name = att.file_name
+        mime_type = att.mime_type
+        source_kind, source_ref = "chat_attachment", str(att.id)
+
+    elif drive_arg:
+        from services.google_service import drive_download_bytes, get_credentials
+        from services.live_document import extract_drive_file_id
+
+        if not get_credentials():
+            return _google_not_connected()
+        file_id = extract_drive_file_id(drive_arg)
+        if not file_id:
+            return "Error: drive_file_id (or a pasted URL) could not be parsed."
+        from services.drive_policy import check_drive_target
+        blocked = await check_drive_target(ctx.db, file_id, bool(args.get("confirm_restricted")))
+        if blocked:
+            return blocked
+        loop = asyncio.get_event_loop()
+        try:
+            dl = await loop.run_in_executor(None, lambda: drive_download_bytes(file_id))
+        except Exception as exc:  # noqa: BLE001 — surface honestly
+            return f"Could not download that Drive file: {exc}"
+        raw = dl["content"]
+        file_name = dl["name"]
+        mime_type = dl["mime_type"]
+        source_kind, source_ref = "drive", file_id
+
+    else:
+        return (
+            "Error: provide exactly one source — drive_file_id, generated_filename, "
+            "or attachment_name."
+        )
+
+    result = await run_extraction(
+        ctx.db,
+        raw=raw,
+        file_name=file_name,
+        mime_type=mime_type,
+        schema=schema,
+        instruction=instruction,
+        user_id=ctx.user_id,
+        source_kind=source_kind,
+        source_ref=source_ref,
+    )
+    if result.status == "error":
+        return f"Extraction failed: {result.error}"
+
+    parts = [
+        f"Extraction complete — {result.file_name}"
+        f" ({result.pages or 1} page(s), model {result.model})."
+    ]
+    if result.structured is not None:
+        parts.append("STRUCTURED DATA:\n" + json.dumps(result.structured, indent=2)[:6000])
+    if result.error:
+        parts.append(f"Note: {result.error}")
+    truncated = " (truncated)" if len(result.raw_text) > 6000 else ""
+    parts.append(f"TRANSCRIBED TEXT{truncated}:\n{result.raw_text[:6000]}")
+    return "\n\n".join(parts)
+
+
 TOOL_EXECUTORS = {
     "search_knowledge_base": execute_search_knowledge_base,
     "read_knowledge_base_document": execute_read_knowledge_base_document,
@@ -4316,6 +4469,7 @@ TOOL_EXECUTORS = {
     "list_shared_drives": execute_list_shared_drives,
     "read_drive_file": execute_read_drive_file,
     "read_drive_annotations": execute_read_drive_annotations,
+    "extract_document": execute_extract_document,
     "list_recent_drive_files": execute_list_recent_drive_files,
     "follow_drive_document": execute_follow_drive_document,
     "unfollow_drive_document": execute_unfollow_drive_document,
@@ -4370,6 +4524,7 @@ _PRIMARY_ARG = {
     "read_gmail_message": "message_id",
     "read_drive_file": "file_id",
     "read_drive_annotations": "file_id",
+    "extract_document": "drive_file_id",
     "list_recent_drive_files": "max_results",
     "follow_drive_document": "file_id",
     "add_to_knowledge_base": "drive_file_id",
