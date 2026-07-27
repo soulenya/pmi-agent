@@ -692,6 +692,10 @@ TOOL_DEFINITIONS: list[dict] = [
                         "type": "object",
                         "description": "Optional desired JSON shape, e.g. {\"vendor\": \"string\", \"total\": \"number\"}.",
                     },
+                    "schema_name": {
+                        "type": "string",
+                        "description": "Name of a SAVED extraction schema (e.g. 'invoice', 'certificate', 'purchase_order', 'dd214') — preferred over writing a schema by hand when one fits.",
+                    },
                     "instruction": {
                         "type": "string",
                         "description": "Optional extra guidance or a question to answer from the document.",
@@ -4338,6 +4342,19 @@ async def execute_extract_document(ctx: ToolContext, args: dict[str, Any]) -> st
 
     schema = args.get("schema") if isinstance(args.get("schema"), dict) else None
     instruction = str(args.get("instruction", "")).strip() or None
+
+    schema_name = str(args.get("schema_name", "")).strip()
+    if schema is None and schema_name:
+        from services.extraction_schemas import find_schema, list_schemas
+
+        entry = await find_schema(ctx.db, schema_name)
+        if entry is None:
+            available = ", ".join(s["name"] for s in await list_schemas(ctx.db))
+            return (
+                f"Error: no saved extraction schema named '{schema_name}'. "
+                f"Available: {available}."
+            )
+        schema = entry["schema"]
 
     gen_name = str(args.get("generated_filename", "")).strip()
     att_name = str(args.get("attachment_name", "")).strip()

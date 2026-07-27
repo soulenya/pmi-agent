@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v3.3.22 — 2026-07-27
+**Vision plan Phase 5: saved schemas + Extract data UI**
+
+- `services/extraction_schemas.py`: saved schemas under SystemSetting "extraction.schemas" (JSONB list of {name, description, schema}); defaults ship for invoice / certificate / purchase_order / dd214; validation rejects empty names, empty schemas, duplicates (case-insensitive).
+- New `/extractions` router: GET/PUT `/extractions/schemas`, POST `/extractions/run` (source kinds: chat_attachment — ownership-checked via conversation join; regulatory_node — traversal-safe store path; generated_file). Response caps raw_text at 20k chars with truncation flag.
+- `extract_document` tool (both engines): new `schema_name` arg resolves saved schemas; unknown name returns an honest error listing available names.
+- Frontend: shared ExtractDataModal (schema dropdown + optional instruction → structured JSON with Copy + collapsible transcription, honest errors); wired into AttachmentBar chips (PDF/image files) and RegulatoryPage row menu; Settings → Extraction Schemas JSON editor with validation + discard.
+- SMOKE25: routes registered, store round-trip + validation rejections, tool schema_name resolution — pre-existing setting state restored exactly (live DB).
+
 ### v3.3.21 — 2026-07-27
 **Vision plan Phases 3–4: images in chat + scanned-PDF fallbacks everywhere**
 

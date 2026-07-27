@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Paperclip, X, FileText, Loader2 } from "lucide-react";
+import { Paperclip, X, FileText, Loader2, ScanText } from "lucide-react";
 import {
   listAttachments,
   uploadAttachment,
   deleteAttachment,
 } from "@/api/attachments";
+import { ExtractDataModal } from "@/components/ExtractDataModal";
 import type { ChatAttachment } from "@/types/chat";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,7 @@ export function AttachmentBar({ conversationId }: { conversationId: string }) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [extractTarget, setExtractTarget] = useState<ChatAttachment | null>(null);
 
   const queryKey = ["attachments", conversationId];
 
@@ -112,6 +114,16 @@ export function AttachmentBar({ conversationId }: { conversationId: string }) {
           >
             <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />
             <span className="max-w-[180px] truncate">{att.file_name}</span>
+            {/\.(pdf|png|jpe?g|gif|webp)$/i.test(att.file_name) && (
+              <button
+                type="button"
+                onClick={() => setExtractTarget(att)}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                title="Extract data from this file with vision"
+              >
+                <ScanText className="h-3 w-3" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => deleteMutation.mutate(att.id)}
@@ -131,6 +143,14 @@ export function AttachmentBar({ conversationId }: { conversationId: string }) {
         </p>
       )}
       {error && <p className="mt-1 px-1 text-xs text-destructive">{error}</p>}
+      {extractTarget && (
+        <ExtractDataModal
+          sourceKind="chat_attachment"
+          sourceRef={extractTarget.id}
+          fileName={extractTarget.file_name}
+          onClose={() => setExtractTarget(null)}
+        />
+      )}
     </div>
   );
 }
