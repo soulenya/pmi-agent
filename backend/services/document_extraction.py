@@ -31,6 +31,10 @@ MAX_VISION_BYTES = 28 * 1024 * 1024
 IMAGE_MEDIA_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
 SUPPORTED_MEDIA_TYPES = IMAGE_MEDIA_TYPES | {"application/pdf"}
 
+# A PDF whose local text layer yields fewer characters than this is treated as
+# a scan (image-only) by the vision fallbacks.
+SCANNED_PDF_MIN_CHARS = 200
+
 _TRANSCRIBE_PROMPT = (
     "Transcribe ALL legible text from this document, preserving reading order and "
     "structure (headings, tables as rows). If any region is illegible or cut off, "
@@ -98,6 +102,47 @@ def parse_json_response(text: str) -> dict | None:
             except json.JSONDecodeError:
                 return None
     return None
+
+
+async def vision_extract_text(
+    db: AsyncSession,
+    *,
+    raw: bytes,
+    file_name: str,
+    mime_type: str | None = None,
+    user_id: uuid.UUID | None = None,
+    source_kind: str = "fallback",
+    source_ref: str = "",
+) -> str:
+    """
+    Transcription-only vision run for fallback paths (scanned PDFs, images).
+
+    Returns the transcribed text, or "" when vision is unavailable (no
+    vision-capable model configured), the type is unsupported, or the run
+    failed — callers decide their own next fallback. Attempted runs are
+    recorded in document_extractions like any other.
+    """
+    try:
+        resolve_media_type(file_name, mime_type)
+    except ValueError:
+        return ""
+    from services.llm.router import ensure_vision_capable
+
+    try:
+        await ensure_vision_capable(db, "document_extraction")
+    except RuntimeError as exc:
+        logger.info("Vision text fallback unavailable: %s", exc)
+        return ""
+    row = await extract_document(
+        db,
+        raw=raw,
+        file_name=file_name,
+        mime_type=mime_type,
+        user_id=user_id,
+        source_kind=source_kind,
+        source_ref=source_ref,
+    )
+    return row.raw_text if row.status == "ok" else ""
 
 
 async def extract_document(
