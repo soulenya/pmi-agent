@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
+import { DropOverlay } from "@/components/DropOverlay";
+import { useFileDrop } from "@/hooks/useFileDrop";
 import { DriveBrowser } from "@/components/google/DriveBrowser";
 import { SaveFileDialog } from "@/components/SaveFileDialog";
 import type { DriveItem } from "@/api/google";
@@ -1026,6 +1028,15 @@ export function RegulatoryPage() {
     ev.target.value = "";
   }
 
+  // Drag-and-drop anywhere on the page → upload into the current folder.
+  const { isDragOver, dropProps } = useFileDrop(
+    (files) => {
+      setUploadError(null);
+      files.forEach((f) => uploadMut.mutate(f));
+    },
+    { disabled: !canWrite },
+  );
+
   async function handleDriveImport(items: DriveItem[]) {
     const importable = items.filter((i) => i.type !== "folder");
     if (importable.length === 0) { setShowDrive(false); return; }
@@ -1062,7 +1073,11 @@ export function RegulatoryPage() {
   const breadcrumb = listing?.breadcrumb ?? [{ id: null, name: "Regulatory" }];
 
   return (
-    <div className="flex flex-col gap-5 p-6 max-w-6xl mx-auto">
+    <div className="relative flex flex-col gap-5 p-6 max-w-6xl mx-auto" {...dropProps}>
+      <DropOverlay
+        show={isDragOver}
+        label={`Drop files to upload into ${breadcrumb[breadcrumb.length - 1]?.name ?? "Regulatory"}`}
+      />
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

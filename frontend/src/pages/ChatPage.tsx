@@ -10,8 +10,11 @@ import {
   useResolveApproval,
 } from "@/components/approvals/ApprovalCard";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { AttachmentBar } from "@/components/chat/AttachmentBar";
+import { AttachmentBar, CHAT_ATTACHMENT_EXTS } from "@/components/chat/AttachmentBar";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
+import { DropOverlay } from "@/components/DropOverlay";
+import { useFileDrop } from "@/hooks/useFileDrop";
+import { uploadAttachment } from "@/api/attachments";
 import {
   createConversation,
   listConversations,
@@ -156,6 +159,34 @@ export function ChatPage() {
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ document_id: string; title: string } | null>(null);
   const [deletingDoc, setDeletingDoc] = useState(false);
+  // Drag-and-drop files anywhere on the thread → conversation reference files.
+  const [dropNotice, setDropNotice] = useState<string | null>(null);
+  const { isDragOver, dropProps } = useFileDrop(
+    async (files) => {
+      if (!conversationId) return;
+      setDropNotice(null);
+      const failures: string[] = [];
+      for (const f of files) {
+        try {
+          await uploadAttachment(conversationId, f);
+        } catch {
+          failures.push(f.name);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["attachments", conversationId] });
+      if (failures.length > 0) {
+        setDropNotice(`Couldn't attach: ${failures.join(", ")}`);
+      }
+    },
+    {
+      accept: CHAT_ATTACHMENT_EXTS,
+      disabled: !conversationId,
+      onRejected: (rejected) =>
+        setDropNotice(
+          `Skipped (PDF, DOCX, TXT, MD, CSV only): ${rejected.map((f) => f.name).join(", ")}`,
+        ),
+    },
+  );
   // Busy = a turn is in flight (send → done/error). Drives the always-visible
   // working indicator with elapsed time, so a long research run never looks hung.
   const [busySince, setBusySince] = useState<number | null>(null);
@@ -691,7 +722,8 @@ export function ChatPage() {
       </aside>
 
       {/* â”€â”€ Message thread â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="relative flex flex-1 flex-col overflow-hidden" {...dropProps}>
+        <DropOverlay show={isDragOver} label="Drop files to attach to this conversation" />
         {/* Status badge */}
         {conversationId && (
           <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -900,6 +932,9 @@ export function ChatPage() {
         )}
 
         {/* Reference-file attachments (not part of the Knowledge Base) */}
+        {dropNotice && (
+          <p className="mb-1 px-1 text-xs text-destructive">{dropNotice}</p>
+        )}
         {conversationId && <AttachmentBar conversationId={conversationId} />}
 
         {/* Input */}

@@ -6,7 +6,7 @@ import logging
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -209,6 +209,80 @@ async def update_draft(
 
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(draft, field, value)
+    await db.commit()
+    await db.refresh(draft)
+    return EmailDraftOut.model_validate(draft)
+
+
+@router.post(
+    "/{draft_id}/attachments",
+    response_model=EmailDraftOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_draft_attachment(
+    draft_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> EmailDraftOut:
+    """Attach an uploaded file to an editable draft (stored in generated_files)."""
+    from services.file_uploads import MAX_UPLOAD_BYTES, store_upload
+
+    result = await db.execute(select(EmailDraft).where(EmailDraft.id == draft_id))
+    draft = result.scalar_one_or_none()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    if draft.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if draft.status not in ("draft",):
+        raise HTTPException(
+            status_code=409,
+            detail="Attachments can only be added while the draft is editable.",
+        )
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="The file is empty.")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit.",
+        )
+
+    safe_name, display = store_upload(raw, file.filename)
+    draft.attachments = [
+        *(draft.attachments or []),
+        {"filename": safe_name, "display_name": display},
+    ]
+    await db.commit()
+    await db.refresh(draft)
+    return EmailDraftOut.model_validate(draft)
+
+
+@router.delete("/{draft_id}/attachments/{filename}", response_model=EmailDraftOut)
+async def remove_draft_attachment(
+    draft_id: uuid.UUID,
+    filename: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> EmailDraftOut:
+    """Remove an attachment reference from an editable draft (file kept on disk)."""
+    result = await db.execute(select(EmailDraft).where(EmailDraft.id == draft_id))
+    draft = result.scalar_one_or_none()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    if draft.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if draft.status not in ("draft",):
+        raise HTTPException(
+            status_code=409,
+            detail="Attachments can only be removed while the draft is editable.",
+        )
+
+    remaining = [a for a in (draft.attachments or []) if a.get("filename") != filename]
+    if len(remaining) == len(draft.attachments or []):
+        raise HTTPException(status_code=404, detail="Attachment not found on this draft")
+    draft.attachments = remaining
     await db.commit()
     await db.refresh(draft)
     return EmailDraftOut.model_validate(draft)
