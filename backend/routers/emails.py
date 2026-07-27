@@ -54,6 +54,7 @@ class EmailDraftOut(BaseModel):
     is_archived: bool
     tags: list[str]
     attachments: list[dict] = []
+    verification: dict | None = None
     created_by: uuid.UUID | None
     created_at: datetime
     updated_at: datetime

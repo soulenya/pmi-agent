@@ -55,6 +55,27 @@ RESTRICTED SOURCES (standing rule, hard-enforced by the Drive tools):
   output — do not try to work around the block or guess at withheld content.
 """
 
+# Standing rule (Morgan, 2026-07-27, after a stale "PMI Snapshot" email went
+# out): status/snapshot emails must be fact-checked against current sources
+# BEFORE drafting, and the verification recorded on the draft.
+EMAIL_FACT_CHECK_NOTE = """\
+
+STATUS-EMAIL FACT CHECK (standing rule): before drafting any company status /
+snapshot / update email — or ANY email asserting facts about PMI's legal,
+corporate, IP, design, manufacturing, distribution, regulatory, funding, or
+team status:
+- Verify EVERY factual claim against the COMPANY CONTEXT block first, and use
+  search_knowledge_base where it is silent or the claim might be stale.
+- Pass the sources you actually checked in create_email_draft's
+  verified_sources, and EVERY claim you could not confirm in
+  unverified_claims — these are shown on the draft as warnings. Never
+  silently include an unverified or possibly-stale claim.
+- Current source wording beats remembered wording: a closed SAFE is "closed",
+  not "in progress"; a finalized contract is not "no formal agreements".
+- To audit an email already drafted in Gmail (Drafts folder), use
+  list_gmail_drafts / read_gmail_draft and check its claims the same way.
+"""
+
 # Appended to the system prompt when the user's message came in by voice.
 # Spoken replies must be short — the user is LISTENING, not reading — but the
 # user must always know when more detail is available on request.

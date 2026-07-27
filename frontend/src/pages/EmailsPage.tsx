@@ -385,6 +385,22 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
               ))}
             </div>
           )}
+          {(draft.verification?.sources?.length ?? 0) > 0 && (
+            <p className="mt-1.5 flex items-start gap-1 text-[11px] text-muted-foreground">
+              <ShieldCheck className="mt-0.5 h-3 w-3 shrink-0 text-green-600" />
+              Fact-checked against: {draft.verification!.sources!.join("; ")}
+            </p>
+          )}
+          {(draft.verification?.flags?.length ?? 0) > 0 && (
+            <div className="mt-1.5 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+              <p className="font-medium">Unverified claims — confirm before sending:</p>
+              <ul className="ml-4 list-disc">
+                {draft.verification!.flags!.map((f, i) => (
+                  <li key={i}>{f}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {canEditEarly && (

@@ -272,6 +272,48 @@ def gmail_get_message(message_id: str) -> dict:
     }
 
 
+def gmail_list_drafts(max_results: int = 20) -> list[dict]:
+    """List Gmail DRAFTS (unsent) — closes the draft→send blind spot."""
+    svc = _build("gmail", "v1")
+    resp = svc.users().drafts().list(userId="me", maxResults=max_results).execute()
+    out = []
+    for d in resp.get("drafts", []):
+        msg_id = (d.get("message") or {}).get("id", "")
+        item = {"draft_id": d.get("id", ""), "message_id": msg_id,
+                "to": "", "subject": "", "date": "", "snippet": ""}
+        if msg_id:
+            detail = svc.users().messages().get(
+                userId="me", id=msg_id, format="metadata",
+                metadataHeaders=["To", "Subject", "Date"],
+            ).execute()
+            headers = {h["name"]: h["value"] for h in detail.get("payload", {}).get("headers", [])}
+            item.update(
+                to=headers.get("To", ""),
+                subject=headers.get("Subject", ""),
+                date=headers.get("Date", ""),
+                snippet=detail.get("snippet", ""),
+            )
+        out.append(item)
+    return out
+
+
+def gmail_get_draft(draft_id: str) -> dict:
+    """Read one Gmail draft's full content (unsent)."""
+    svc = _build("gmail", "v1")
+    d = svc.users().drafts().get(userId="me", id=draft_id, format="full").execute()
+    m = d.get("message", {}) or {}
+    headers = {h["name"]: h["value"] for h in m.get("payload", {}).get("headers", [])}
+    return {
+        "draft_id": d.get("id", draft_id),
+        "message_id": m.get("id", ""),
+        "to": headers.get("To", ""),
+        "cc": headers.get("Cc", ""),
+        "subject": headers.get("Subject", ""),
+        "date": headers.get("Date", ""),
+        "body": _extract_body(m.get("payload", {})),
+    }
+
+
 def _extract_body(payload: dict) -> str:
     mime = payload.get("mimeType", "")
     if mime == "text/plain":

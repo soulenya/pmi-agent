@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.23 — 2026-07-27
+**Email tracking/audit fixes (from Gerry's own "PMI Snapshot" gap analysis)**
+
+- **Issue #2 (Gmail Drafts blind spot):** new `gmail_list_drafts`/`gmail_get_draft` service functions + `list_gmail_drafts`/`read_gmail_draft` tools in BOTH engines (executive_assistant + house_manager) — Gerry can now find and read UNSENT drafts, so a draft can be audited before it reaches Sent.
+- **Issue #1 (verification audit trail):** `create_email_draft` gains `verified_sources` + `unverified_claims` args, persisted to new `email_drafts.verification` JSONB (migration 025) with recorded_at; tool result reports the flag count; DraftCard renders "Fact-checked against …" and an amber unverified-claims warning.
+- **Standing rule:** `EMAIL_FACT_CHECK_NOTE` guardrail injected into both engines — status/snapshot claims verified against Company Context + KB before drafting, unverifiable claims flagged never silent, current source wording beats remembered wording (closed SAFE ≠ "in progress"), and Gmail drafts audited via the new tools.
+- SMOKE26: registration in both engines + guardrail injection sites verified; verification round-trip stored/serialized (draft + bell notification cleaned up); Gmail-draft guards honest when Google disconnected.
+
 ### v3.3.22 — 2026-07-27
 **Vision plan Phase 5: saved schemas + Extract data UI**
 
