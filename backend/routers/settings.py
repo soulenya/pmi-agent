@@ -628,6 +628,10 @@ class CompanyContextOut(BaseModel):
     content: str
     synced_at: str | None
     drive_file_id: str | None
+    # "folder" when the configured Drive ID is a company-truth folder (one
+    # markdown per section); "file" for the original single-file mode.
+    source_kind: str = "file"
+    sections: list[dict] = []
 
 
 class CompanyContextRefreshOut(CompanyContextOut):
@@ -646,12 +650,20 @@ async def _company_context_out(db: AsyncSession) -> CompanyContextOut:
         MAX_COMPANY_CONTEXT_CHARS,
         _read_setting,
         get_drive_file_id,
+        get_sections_manifest,
     )
 
     content = (await _read_setting(db, KEY_MD, ""))[:MAX_COMPANY_CONTEXT_CHARS]
     synced_at = await _read_setting(db, KEY_SYNCED_AT, "") or None
     file_id = await get_drive_file_id(db) or None
-    return CompanyContextOut(content=content, synced_at=synced_at, drive_file_id=file_id)
+    sections = await get_sections_manifest(db)
+    return CompanyContextOut(
+        content=content,
+        synced_at=synced_at,
+        drive_file_id=file_id,
+        source_kind="folder" if sections else "file",
+        sections=sections,
+    )
 
 
 async def _refresh_company_context(db: AsyncSession) -> CompanyContextRefreshOut:
@@ -673,9 +685,9 @@ async def _refresh_company_context(db: AsyncSession) -> CompanyContextRefreshOut
         ok = await sync_company_context_from_drive(db)
         if not ok:
             error = (
-                "Couldn't read the Drive file — check the file ID, that your Google "
-                "account has access to it, that it has readable text, and that it is "
-                "under 6,000 characters."
+                "Couldn't read the Drive file or folder — check the ID, that your Google "
+                "account has access to it, that it (or its section files) has readable "
+                "text, and that the total is under 12,000 characters."
             )
     base = await _company_context_out(db)
     return CompanyContextRefreshOut(**base.model_dump(), ok=ok, error=error)

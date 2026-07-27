@@ -874,11 +874,14 @@ function relTime(iso: string): string {
   return `${d} day${d === 1 ? "" : "s"} ago`;
 }
 
-/** Extract a Drive file ID from a pasted ID or a full Drive URL. */
+/** Extract a Drive file/folder ID from a pasted ID or a full Drive URL. */
 function parseDriveFileId(raw: string): string {
   const s = raw.trim();
   const m =
-    s.match(/\/d\/([\w-]{20,})/) ?? s.match(/[?&]id=([\w-]{20,})/) ?? null;
+    s.match(/\/d\/([\w-]{20,})/) ??
+    s.match(/\/folders\/([\w-]{20,})/) ??
+    s.match(/[?&]id=([\w-]{20,})/) ??
+    null;
   return m ? m[1] : s;
 }
 
@@ -913,9 +916,12 @@ function CompanyProfileSection() {
   });
 
   const driveUrl = ctx?.drive_file_id
-    ? `https://drive.google.com/file/d/${ctx.drive_file_id}/view`
+    ? ctx.source_kind === "folder"
+      ? `https://drive.google.com/drive/folders/${ctx.drive_file_id}`
+      : `https://drive.google.com/file/d/${ctx.drive_file_id}/view`
     : null;
   const hasContent = !!ctx?.content?.trim();
+  const skippedSections = (ctx?.sections ?? []).filter((s) => s.skipped);
 
   return (
     <Section
@@ -928,18 +934,42 @@ function CompanyProfileSection() {
       ) : (
         <>
           {hasContent ? (
-            <div className="rounded-lg border bg-muted/30 px-4 py-3 max-h-80 overflow-y-auto prose prose-sm dark:prose-invert prose-p:my-1.5 prose-headings:mt-3 prose-headings:mb-1.5 text-sm">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{ctx!.content}</ReactMarkdown>
-            </div>
+            <>
+              {ctx!.source_kind === "folder" && (
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  <span className="rounded-full border px-2 py-0.5 font-medium">
+                    Truth folder — {(ctx!.sections ?? []).filter((s) => !s.skipped).length} section(s)
+                  </span>
+                  {(ctx!.sections ?? [])
+                    .filter((s) => !s.skipped)
+                    .map((s) => (
+                      <span key={s.file_id} className="rounded-full bg-muted px-2 py-0.5">
+                        {s.name}
+                      </span>
+                    ))}
+                </div>
+              )}
+              {skippedSections.length > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Skipped in last sync:{" "}
+                  {skippedSections.map((s) => `${s.name} (${s.skipped})`).join("; ")}
+                </p>
+              )}
+              <div className="rounded-lg border bg-muted/30 px-4 py-3 max-h-80 overflow-y-auto prose prose-sm dark:prose-invert prose-p:my-1.5 prose-headings:mt-3 prose-headings:mb-1.5 text-sm">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{ctx!.content}</ReactMarkdown>
+              </div>
+            </>
           ) : (
             <div className="rounded-lg border border-dashed px-4 py-4 text-sm text-muted-foreground space-y-2">
               <p>
-                No company profile is loaded yet. Create a small markdown file in a shared
-                Drive location every teammate can read (e.g.
-                <span className="font-mono text-xs"> Little Gerry/company-context.md</span>),
-                paste its file ID or link below, and Little Gerry will load it on every
-                launch. Keep it under 6,000 characters — long documents belong in the
-                Knowledge Base.
+                No company profile is loaded yet. Either create a small markdown file in a
+                shared Drive location (e.g.
+                <span className="font-mono text-xs"> Little Gerry/company-context.md</span>)
+                OR a <span className="font-medium">truth folder</span> with one markdown per
+                section (<span className="font-mono text-xs">01-legal.md, 02-ip.md, …</span>) —
+                paste its ID or link below and Little Gerry loads it on every launch. Keep
+                the total under 12,000 characters — long documents belong in the Knowledge
+                Base.
               </p>
               <button
                 onClick={() => setShowTemplate((v) => !v)}
@@ -990,8 +1020,8 @@ function CompanyProfileSection() {
 
           {/* One-time Drive file ID setup / change */}
           <Field
-            label={ctx?.drive_file_id ? "Company Profile Drive file" : "Company Profile Drive file ID"}
-            hint="Paste the Drive file ID or a full Drive link. The file is the single source of truth — it syncs on every launch and via Refresh now."
+            label={ctx?.drive_file_id ? "Company Profile Drive file or folder" : "Company Profile Drive file or folder ID"}
+            hint="Paste a Drive file ID/link (single profile) OR a folder ID/link (a 'truth folder' — one markdown per section, ordered by filename, e.g. 01-legal.md, 02-ip.md). Total cap: 12,000 characters. Syncs on every launch and via Refresh now."
           >
             <div className="flex gap-2">
               <input
