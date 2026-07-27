@@ -83,6 +83,14 @@ LLM_TASKS: tuple[LLMTask, ...] = (
         recommended_model="claude-haiku-4-5",
         recommended_reason="Summarising many web pages quickly — speed and cost matter most.",
     ),
+    LLMTask(
+        key="document_extraction",
+        label="Document Extraction",
+        description="Reading scanned PDFs and images (certificates, invoices, forms) with vision.",
+        recommended_provider="anthropic",
+        recommended_model="claude-sonnet-4-6",
+        recommended_reason="OCR-grade reading task — requires a vision-capable model; mid-tier is sufficient.",
+    ),
 )
 
 TASK_KEYS: frozenset[str] = frozenset(t.key for t in LLM_TASKS)
