@@ -37,6 +37,21 @@ export function AppShell() {
     } catch { /* ignore */ }
   }, [location.pathname]);
 
+  // Guard: a file dropped outside a drop zone must never navigate the WebView
+  // away to the file itself. Zones call stopPropagation, so this only catches
+  // misses.
+  useEffect(() => {
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("dragover", prevent);
+    window.addEventListener("drop", prevent);
+    return () => {
+      window.removeEventListener("dragover", prevent);
+      window.removeEventListener("drop", prevent);
+    };
+  }, []);
+
   // On boot at the bare root, restore the last visited location.
   useEffect(() => {
     try {

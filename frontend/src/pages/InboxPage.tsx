@@ -29,6 +29,8 @@ import { apiClient } from "@/api/client";
 import { hasNativeSaveFile, saveFileNative, openExternal } from "@/lib/externalLinks";
 import { EmailsPage } from "@/pages/EmailsPage";
 import { AskGerryButton } from "@/components/AskGerryButton";
+import { DropOverlay } from "@/components/DropOverlay";
+import { useFileDrop } from "@/hooks/useFileDrop";
 import {
   ApprovalCard,
   usePendingApprovals,
@@ -1204,6 +1206,12 @@ function ComposeModal({
 
   const busy = send.isPending || gerry.isPending;
 
+  // Drag-and-drop files onto the modal → attachments (self-compose mode).
+  const { isDragOver, dropProps } = useFileDrop(
+    (dropped) => setFiles((prev) => [...prev, ...dropped]),
+    { disabled: mode !== "self" },
+  );
+
   function submit() {
     setErr(null);
     if (!to.trim()) {
@@ -1231,9 +1239,11 @@ function ComposeModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 p-5 space-y-4"
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 p-5 space-y-4"
         onClick={(e) => e.stopPropagation()}
+        {...dropProps}
       >
+        <DropOverlay show={isDragOver} label="Drop files to attach" />
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold text-white flex items-center gap-2">
             <PenSquare className="w-4 h-4" /> New email

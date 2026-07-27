@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils";
 
 const ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.csv";
 
+/** Extensions accepted as chat reference files (kept in sync with ACCEPT). */
+export const CHAT_ATTACHMENT_EXTS = ACCEPT.split(",");
+
 function formatSize(bytes: number | null): string {
   if (!bytes && bytes !== 0) return "";
   if (bytes < 1024) return `${bytes} B`;

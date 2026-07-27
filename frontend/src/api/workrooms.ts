@@ -79,6 +79,21 @@ export async function createWorkroom(title: string, goal: string): Promise<Workr
   return data;
 }
 
+/** Upload an OS file into the room — stored in the file workspace and pinned. */
+export async function uploadWorkroomFile(
+  roomId: string,
+  file: File,
+): Promise<WorkroomItem> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await apiClient.post<WorkroomItem>(
+    `/workrooms/${roomId}/upload`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return data;
+}
+
 export async function getWorkroom(id: string): Promise<WorkroomDetail> {
   const { data } = await apiClient.get<WorkroomDetail>(`/workrooms/${id}`);
   return data;
