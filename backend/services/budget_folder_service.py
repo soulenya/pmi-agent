@@ -146,14 +146,7 @@ def _get_text(data: bytes, name: str, mime: str) -> str:
     if mime in ("text/csv", "text/plain"):
         return data.decode("utf-8", errors="replace")
     if mime == "application/pdf":
-        text = ""
-        try:
-            import fitz  # PyMuPDF
-
-            with fitz.open(stream=data, filetype="pdf") as pdf:
-                text = "\n\n".join(t for t in (p.get_text() for p in pdf) if t.strip())
-        except Exception:  # noqa: BLE001
-            text = ""
+        text = _pdf_local_text(data)
         if len(text.strip()) >= _TEXT_MIN_CHARS:
             return text
         # Likely a scanned PDF → Drive OCR via temp Google Doc.
@@ -161,6 +154,46 @@ def _get_text(data: bytes, name: str, mime: str) -> str:
     if mime.startswith("image/"):
         return gs.drive_ocr_extract_text(data, name, mime)
     return ""
+
+
+def _pdf_local_text(data: bytes) -> str:
+    try:
+        import fitz  # PyMuPDF
+
+        with fitz.open(stream=data, filetype="pdf") as pdf:
+            return "\n\n".join(t for t in (p.get_text() for p in pdf) if t.strip())
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+async def _get_text_smart(db: AsyncSession, data: bytes, name: str, mime: str) -> str:
+    """Like _get_text, but scans/images go vision-first (works without Google),
+    with Drive OCR as the fallback."""
+    from services import google_service as gs
+
+    mime = (mime or "").split(";")[0].strip().lower()
+    if mime in ("text/csv", "text/plain"):
+        return data.decode("utf-8", errors="replace")
+    if mime == "application/pdf":
+        text = await _run(lambda: _pdf_local_text(data))
+        if len(text.strip()) >= _TEXT_MIN_CHARS:
+            return text
+    elif not mime.startswith("image/"):
+        return ""
+    # Scanned PDF or image → vision transcription first, Drive OCR fallback.
+    from services.document_extraction import vision_extract_text
+
+    vtext = await vision_extract_text(
+        db, raw=data, file_name=name, mime_type=mime,
+        source_kind="budget_scan", source_ref=name,
+    )
+    if vtext.strip():
+        return vtext
+    try:
+        return await _run(lambda: gs.drive_ocr_extract_text(data, name, mime))
+    except Exception as exc:  # noqa: BLE001 — no OCR path left; scanner skips the file
+        logger.info("Folder scan: OCR fallback failed for %s (%s)", name, exc)
+        return ""
 
 
 async def _llm_extract(db: AsyncSession, text: str, categories: list[str]) -> dict:
@@ -289,8 +322,8 @@ async def scan_folder(db: AsyncSession, budget: Budget, folder: BudgetFolder) ->
         }
         try:
             blob = await _run(lambda fid=f["id"]: gs.drive_download_bytes(fid))
-            text = await _run(
-                lambda b=blob, ff=f: _get_text(b["content"], ff.get("name", ""), b.get("mime_type", ff.get("type", "")))
+            text = await _get_text_smart(
+                db, blob["content"], f.get("name", ""), blob.get("mime_type", f.get("type", ""))
             )
             extracted = await _llm_extract(db, text, categories) if text.strip() else {}
             amount = extracted.get("amount")

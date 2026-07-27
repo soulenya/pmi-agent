@@ -183,7 +183,7 @@ export function ChatPage() {
       disabled: !conversationId,
       onRejected: (rejected) =>
         setDropNotice(
-          `Skipped (PDF, DOCX, TXT, MD, CSV only): ${rejected.map((f) => f.name).join(", ")}`,
+          `Skipped (PDF, DOCX, TXT, MD, CSV, or images only): ${rejected.map((f) => f.name).join(", ")}`,
         ),
     },
   );

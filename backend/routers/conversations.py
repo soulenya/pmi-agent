@@ -175,7 +175,7 @@ async def upload_attachment(
         )
 
     try:
-        text = ca.extract_text(raw, mime_type)
+        text = await ca.extract_text_smart(db, raw, mime_type, file_name)
     except Exception as exc:  # noqa: BLE001 — surface extraction failure to the user
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
