@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 182;
+export const BUILD_NUMBER = 183;
 export const BUILD_DATE = "2026-07-27";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 183,
+    date: "2026-07-27",
+    title: "Images in chat, scans readable everywhere",
+    changes: [
+      "Attach images (PNG, JPEG, GIF, WEBP) to chat — photos of receipts, whiteboards, and paperwork are read with vision and their text is available to Gerry for the whole conversation",
+      "Scanned (image-only) PDFs attached to chat no longer come through empty — vision reads them, with Drive OCR as backup",
+      "Knowledge Base imports of scanned PDFs now ingest their actual content instead of an empty document",
+      "Budget folder scanning reads scanned invoices with vision first — it keeps working even when Google is disconnected",
+      "Chat drag & drop accepts images too",
+    ],
+  },
   {
     build: 182,
     date: "2026-07-27",

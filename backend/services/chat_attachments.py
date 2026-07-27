@@ -42,7 +42,17 @@ _EXT_MIME = {
     ".md": "text/markdown",
     ".markdown": "text/markdown",
     ".csv": "text/csv",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
 }
+
+# Images are read with vision (Document Extraction task), falling back to
+# Drive OCR — the extracted text is stored exactly like any other attachment.
+IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+ATTACHMENT_MIME_TYPES = SUPPORTED_MIME_TYPES | IMAGE_MIME_TYPES
 
 _SUFFIX = ".enc"
 
@@ -93,16 +103,19 @@ def delete_stored_attachment(stored_name: str | None) -> None:
 
 def resolve_mime_type(file_name: str, content_type: str | None) -> str:
     """Resolve a supported mime type from the upload, falling back to extension."""
-    if content_type and content_type in SUPPORTED_MIME_TYPES:
+    if content_type == "image/jpg":
+        content_type = "image/jpeg"
+    if content_type and content_type in ATTACHMENT_MIME_TYPES:
         return content_type
     ext = Path(file_name).suffix.lower()
     if ext in _EXT_MIME:
         return _EXT_MIME[ext]
     guessed, _ = mimetypes.guess_type(file_name)
-    if guessed and guessed in SUPPORTED_MIME_TYPES:
+    if guessed and guessed in ATTACHMENT_MIME_TYPES:
         return guessed
     raise UnsupportedAttachmentError(
-        "Unsupported file type. Attach a PDF, Word (.docx), text, Markdown, or CSV file."
+        "Unsupported file type. Attach a PDF, Word (.docx), text, Markdown, CSV, "
+        "or image (PNG/JPEG/GIF/WEBP) file."
     )
 
 
@@ -111,6 +124,57 @@ def resolve_mime_type(file_name: str, content_type: str | None) -> str:
 def extract_text(raw: bytes, mime_type: str) -> str:
     """Extract plain text from *raw*, capped to MAX_STORED_TEXT_CHARS."""
     text = _extract_text(raw, mime_type) or ""
+    if len(text) > MAX_STORED_TEXT_CHARS:
+        text = text[:MAX_STORED_TEXT_CHARS] + "\n\n[... file truncated ...]"
+    return text
+
+
+async def _vision_or_ocr(db, raw: bytes, mime_type: str, file_name: str) -> str:
+    """Vision transcription first; Drive OCR as fallback. Returns "" if both fail."""
+    from services.document_extraction import vision_extract_text
+
+    text = await vision_extract_text(
+        db, raw=raw, file_name=file_name, mime_type=mime_type,
+        source_kind="chat_attachment", source_ref=file_name,
+    )
+    if text.strip():
+        return text
+    try:
+        import asyncio
+
+        from services import google_service as gs
+
+        if gs.get_credentials():
+            return await asyncio.get_event_loop().run_in_executor(
+                None, lambda: gs.drive_ocr_extract_text(raw, file_name, mime_type)
+            )
+    except Exception as exc:  # noqa: BLE001 — fallback of a fallback; log and move on
+        logger.info("Drive OCR fallback failed for %s: %s", file_name, exc)
+    return ""
+
+
+async def extract_text_smart(db, raw: bytes, mime_type: str, file_name: str) -> str:
+    """
+    Extract text like extract_text, but images and scanned (image-only) PDFs
+    are read with vision → Drive OCR. Raises RuntimeError when an image yields
+    no text at all — an unreadable image attachment helps nobody.
+    """
+    from services.document_extraction import SCANNED_PDF_MIN_CHARS
+
+    if mime_type in IMAGE_MIME_TYPES:
+        text = await _vision_or_ocr(db, raw, mime_type, file_name)
+        if not text.strip():
+            raise RuntimeError(
+                "Could not read any text from this image. Vision extraction needs "
+                "a vision-capable model (Settings → AI Models → Document "
+                "Extraction), and Drive OCR needs Google connected."
+            )
+    else:
+        text = _extract_text(raw, mime_type) or ""
+        if mime_type == "application/pdf" and len(text.strip()) < SCANNED_PDF_MIN_CHARS:
+            fallback = await _vision_or_ocr(db, raw, mime_type, file_name)
+            if fallback.strip():
+                text = fallback
     if len(text) > MAX_STORED_TEXT_CHARS:
         text = text[:MAX_STORED_TEXT_CHARS] + "\n\n[... file truncated ...]"
     return text
