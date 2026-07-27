@@ -9,6 +9,7 @@ from models.db.budget import Budget, BudgetFolder, BudgetReference
 from models.db.conversation import AgentRun, Conversation, ConversationAttachment, Message
 from models.db.device_token import DeviceToken
 from models.db.document import Document, DocumentCategory, DocumentChunk
+from models.db.document_extraction import DocumentExtraction
 from models.db.email_draft import EmailDraft
 from models.db.feedback import Feedback
 from models.db.google import GoogleCredential, GoogleSyncState

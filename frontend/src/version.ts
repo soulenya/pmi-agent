@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 181;
+export const BUILD_NUMBER = 182;
 export const BUILD_DATE = "2026-07-27";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 182,
+    date: "2026-07-27",
+    title: "Gerry can read scanned documents and photos",
+    changes: [
+      "New extract_document capability: Gerry reads scanned PDFs and images (certificates, invoices, forms, photos of paperwork) by looking at the pages directly — no OCR pipeline, works where text extraction returns nothing",
+      "Ask for structured data and Gerry returns exactly the fields you name — missing fields come back empty, never invented",
+      "Sources: Drive files (QMS/draft restrictions fully enforced), files pinned to workrooms, and chat attachments",
+      "New 'Document Extraction' task in Settings → AI Models — requires a vision-capable model (Claude); a clear error tells you if it's pointed at a local model that can't see images",
+      "Every extraction is logged with model and token counts for cost visibility",
+    ],
+  },
   {
     build: 181,
     date: "2026-07-27",

@@ -45,7 +45,8 @@ dependencies = [
     # "google-api-python-client>=2.166.0",
     "ddgs>=9.0.0",
     "openai>=1.30.0",
-    "anthropic>=0.28.0",
+    # >=0.40 for native PDF `document` content blocks (vision extraction)
+    "anthropic>=0.40.0",
     "voyageai>=0.3.0",
     # Launcher UI (splash screen + system tray + app window)
     "pillow>=10.0.0",

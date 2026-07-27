@@ -31,6 +31,33 @@ logger = logging.getLogger(__name__)
 
 PROVIDERS = ("ollama", "openai", "anthropic")
 
+# Providers whose client can accept image / PDF-document content blocks in the
+# format the vision extraction service builds (Anthropic content blocks).
+# Ollama is text-only unless a multimodal local model is explicitly configured;
+# OpenAI uses a different block format — both are unsupported for now so
+# extraction fails honestly instead of silently degrading.
+VISION_PROVIDERS = ("anthropic",)
+
+
+def provider_supports_vision(provider: str, model: str | None = None) -> bool:
+    """True when (provider, model) can read image/PDF content blocks."""
+    return provider in VISION_PROVIDERS
+
+
+async def ensure_vision_capable(db: AsyncSession, task: str) -> tuple[str, str]:
+    """
+    Resolve (provider, model) for `task` and raise a clear RuntimeError if the
+    pick cannot read documents/images. Never falls back silently.
+    """
+    provider, model = await resolve_task_llm(db, task)
+    if not provider_supports_vision(provider, model):
+        raise RuntimeError(
+            f"The '{task}' task is set to {provider}/{model}, which can't read "
+            "scanned documents or images. Set Anthropic (Claude) for "
+            "'Document Extraction' in Settings → AI Models."
+        )
+    return provider, model
+
 
 async def _read_setting(db: AsyncSession, key: str, default: str) -> str:
     row = (
