@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v3.3.21 — 2026-07-27
+**Vision plan Phases 3–4: images in chat + scanned-PDF fallbacks everywhere**
+
+- Chat attachments accept images (PNG/JPEG/GIF/WEBP; image/jpg normalized): `extract_text_smart` reads images and scanned PDFs (<200 text-layer chars) via vision → Drive OCR → honest 422; extracted text stored/injected exactly like other reference files. `vision_extract_text` helper returns "" (logged) when no vision-capable model is configured, so every consumer keeps its old fallback.
+- KB ingestion (`DocumentIngestionService._extract_text_smart`, all 3 paths: ingest / re-embed / update): scanned PDFs no longer ingest as empty documents.
+- Budget folder scanner `_get_text_smart`: vision-first for scans/images with Drive OCR fallback — verified live WITH GOOGLE DISCONNECTED (the exact failure mode from the dead dev token).
+- Frontend: attach/drop accept lists include images (chat surfaces).
+- SMOKE24 live: PNG receipt → fields read; image-only PDF via attachment + KB + budget paths; text-layer PDFs untouched (no vision call); unsupported types still rejected; audit rows cleaned.
+
 ### v3.3.20 — 2026-07-27
 **Vision document extraction (Phases 0–2 of the vision plan)**
 

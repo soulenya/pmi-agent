@@ -200,6 +200,21 @@ class DocumentIngestionService:
         self._doc_repo = DocumentRepository(db)
         self._chunk_repo = DocumentChunkRepository(db)
 
+    async def _extract_text_smart(self, raw_bytes: bytes, mime_type: str, file_name: str) -> str:
+        """Local extraction, with a vision fallback for scanned (image-only) PDFs
+        so they no longer ingest as empty documents."""
+        text = _extract_text(raw_bytes, mime_type)
+        if mime_type == "application/pdf" and len(text.strip()) < 200:
+            from services.document_extraction import vision_extract_text
+
+            vision_text = await vision_extract_text(
+                self._db, raw=raw_bytes, file_name=file_name, mime_type=mime_type,
+                source_kind="kb_ingestion", source_ref=file_name,
+            )
+            if vision_text.strip():
+                return vision_text
+        return text
+
     async def ingest(
         self,
         *,
@@ -263,7 +278,7 @@ class DocumentIngestionService:
             doc.source_uri = str(stored_path.relative_to(_get_storage_root()))
 
             # 5. Extract text
-            text = _extract_text(raw_bytes, mime_type)
+            text = await self._extract_text_smart(raw_bytes, mime_type, filename)
             text = re.sub(r"\s{3,}", "\n\n", text).strip()
 
             # 6. Chunk
@@ -344,7 +359,7 @@ class DocumentIngestionService:
 
         try:
             mime_type = doc.mime_type or "text/plain"
-            text = _extract_text(raw_bytes, mime_type)
+            text = await self._extract_text_smart(raw_bytes, mime_type, doc.file_name or "document.pdf")
             text = re.sub(r"\s{3,}", "\n\n", text).strip()
 
             chunks = _chunk_text(text)
@@ -424,7 +439,7 @@ class DocumentIngestionService:
             stored_path = _encrypt_and_store(doc_id, raw_bytes, extension)
             doc.source_uri = str(stored_path.relative_to(_get_storage_root()))
 
-            text = _extract_text(raw_bytes, mime_type)
+            text = await self._extract_text_smart(raw_bytes, mime_type, filename)
             text = re.sub(r"\s{3,}", "\n\n", text).strip()
 
             chunks = _chunk_text(text)
