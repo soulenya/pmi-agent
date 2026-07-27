@@ -953,6 +953,15 @@ def drive_search_by_name(name_contains: str, max_results: int = 25) -> list[dict
     ]
 
 
+def drive_get_file_meta(file_id: str) -> dict:
+    """Fetch minimal metadata for a Drive item: {id, name, mime_type}."""
+    svc = _build("drive", "v3")
+    meta = svc.files().get(
+        fileId=file_id, fields="id,name,mimeType", supportsAllDrives=True
+    ).execute()
+    return {"id": meta.get("id", file_id), "name": meta.get("name", ""), "mime_type": meta.get("mimeType", "")}
+
+
 def drive_list_folder(
     folder_id: str = "root",
     drive_id: str | None = None,

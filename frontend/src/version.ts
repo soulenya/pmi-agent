@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 185;
+export const BUILD_NUMBER = 186;
 export const BUILD_DATE = "2026-07-27";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 186,
+    date: "2026-07-27",
+    title: "Company truth folder — one markdown per section",
+    changes: [
+      "The Company Profile can now point at a Drive FOLDER instead of a single file — each markdown/text/Google Doc inside becomes one section (Legal, IP, Funding, …), ordered by filename (01-legal.md, 02-ip.md)",
+      "Sections are composed into the same always-loaded context block — update one section's file without touching the rest",
+      "Settings → Company Profile shows the section chips in folder mode, and anything skipped in the last sync (unsupported type, unreadable) is listed honestly",
+      "Single-file mode still works exactly as before; total context cap raised to 12,000 characters",
+    ],
+  },
   {
     build: 185,
     date: "2026-07-27",

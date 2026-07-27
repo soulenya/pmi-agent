@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v3.3.24 — 2026-07-27
+**Company truth folder (Morgan request: one markdown per company-context section)**
+
+- `company.profile_drive_file_id` may now be a Drive FOLDER: every .md/.txt/Google Doc child becomes a section (`## <title from filename>`, ordering prefix stripped: 01-legal.md → "legal"), composed by filename order into the same single cached block — the per-turn injection path is untouched.
+- Unreadable/unsupported children are skipped and recorded in a sections manifest (`company.profile_sections`, JSONB) — shown in Settings, never silently dropped. Over-cap folders refuse to sync, keeping the previous cache intact.
+- `MAX_COMPANY_CONTEXT_CHARS` 6,000 → 12,000 (multi-section room; ~3k tokens/turn max). Single-file mode unchanged (clears the manifest).
+- New `drive_get_file_meta` helper; Settings API exposes `source_kind` + `sections`; Company Profile UI shows section chips + skipped warnings, folder-aware Drive link, and accepts pasted folder URLs.
+- SMOKE27 (mocked Drive): composition order, skip recording, cap refusal (cache intact), section-title derivation; live cache rows snapshot/restored exactly. Note: pytest suite needs an unprovisioned `pmi_test` DB on this machine — pre-existing infra condition, unrelated.
+
 ### v3.3.23 — 2026-07-27
 **Email tracking/audit fixes (from Gerry's own "PMI Snapshot" gap analysis)**
 
