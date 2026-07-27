@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 180;
-export const BUILD_DATE = "2026-07-24";
+export const BUILD_NUMBER = 181;
+export const BUILD_DATE = "2026-07-27";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,20 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 181,
+    date: "2026-07-27",
+    title: "Drag & drop files everywhere",
+    changes: [
+      "Drop files from your computer straight onto a chat — they become reference files for that conversation (multiple at once)",
+      "Drop files onto a workroom — they're stored and pinned as items, and the room journal notes each one",
+      "Drop files onto an email draft card to attach them — plus a new paperclip button and removable attachment chips",
+      "Drop files onto the Inbox compose window to attach them to an outgoing email",
+      "Knowledge Base upload now takes multiple files at once — drop them anywhere on the Documents page or into the upload window",
+      "Regulatory Files: drop files anywhere on the page to upload into the folder you're viewing",
+      "A dropped file that misses a drop zone can no longer navigate the app away",
+    ],
+  },
   {
     build: 180,
     date: "2026-07-24",

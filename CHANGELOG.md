@@ -4,6 +4,18 @@
 
 ## Changelog
 
+### v3.3.19 — 2026-07-27
+**Drag & drop multi-file upload across the app (requested by Morgan)**
+
+- New shared drop-zone infrastructure (`useFileDrop` hook + `DropOverlay`): native HTML5 DnD, multi-file, extension filtering with skip notices, flicker-free highlight, and a window-level guard so a missed drop never navigates the WebView to the file.
+- **Chat:** drop files anywhere on the thread → conversation reference files (PDF, DOCX, TXT, MD, CSV — same rules as the Attach button).
+- **Workrooms / pinned items:** drop files onto the room detail panel → stored in the file workspace and pinned as items (new `POST /workrooms/{id}/upload`); each add is journaled.
+- **Email drafts:** drop files onto a draft card or use the new paperclip button → attached on send; chips get a remove control while the draft is editable (new `POST`/`DELETE /emails/{id}/attachments`). Editable-status guard: attachments frozen once submitted for approval.
+- **Inbox compose:** drop files onto the compose window to attach.
+- **Knowledge Base:** upload modal accepts many files at once (titles derived from file names); dropping files anywhere on the Documents page opens it preloaded.
+- **Regulatory Files:** drop anywhere on the page to upload into the current folder.
+- Uploads store via new `services/file_uploads.store_upload` (8-hex prefix, sanitized names, 50 MB/file). Smoke-verified: routes registered, store round-trip, draft JSONB append/remove, workroom pin + journal — all temp rows removed.
+
 ### v3.3.18 — 2026-07-24
 **Transcript reconciliation against trusted context (Morgan field report: In-Q-Tel transcribed as \"Intelius\"/\"Inky Tell\")**
 

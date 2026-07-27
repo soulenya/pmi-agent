@@ -42,6 +42,7 @@ import {
   removeWorkroomItem,
   shareWorkroom,
   updateWorkroom,
+  uploadWorkroomFile,
   type WorkroomItemKind,
 } from "@/api/workrooms";
 import { listScheduledTasks } from "@/api/scheduledTasks";
@@ -50,6 +51,8 @@ import {
   dismissSuggestion,
   listSuggestions,
 } from "@/api/assistant";
+import { DropOverlay } from "@/components/DropOverlay";
+import { useFileDrop } from "@/hooks/useFileDrop";
 import { useToastStore } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 
@@ -489,6 +492,26 @@ function RoomDetail({
   const qc = useQueryClient();
   const push = useToastStore((s) => s.push);
 
+  // Drag-and-drop OS files anywhere on the detail panel → uploaded + pinned.
+  const [dropBusy, setDropBusy] = useState(false);
+  const { isDragOver, dropProps } = useFileDrop(async (files) => {
+    setDropBusy(true);
+    let added = 0;
+    const failures: string[] = [];
+    for (const f of files) {
+      try {
+        await uploadWorkroomFile(room.id, f);
+        added += 1;
+      } catch {
+        failures.push(f.name);
+      }
+    }
+    setDropBusy(false);
+    if (added > 0) push("success", `Pinned ${added} file(s) to "${room.title}".`);
+    if (failures.length > 0) push("error", `Couldn't add: ${failures.join(", ")}`);
+    onChanged();
+  });
+
   const shareMutation = useMutation({
     mutationFn: () => shareWorkroom(room.id),
     onSuccess: () => {
@@ -545,7 +568,13 @@ function RoomDetail({
   };
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="relative space-y-6 pb-8" {...dropProps}>
+      <DropOverlay show={isDragOver} label={`Drop files to pin them to "${room.title}"`} />
+      {dropBusy && (
+        <div className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Adding dropped files…
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -642,8 +671,9 @@ function RoomDetail({
         </h3>
         {room.items.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Nothing pinned yet. Pin Drive docs, KB documents, tasks, email
-            threads and more — Gerry sees them every turn in this room.
+            Nothing pinned yet. Drag files from your computer anywhere onto this
+            panel, or pin Drive docs, KB documents, tasks, email threads and
+            more — Gerry sees them every turn in this room.
           </p>
         )}
         <ul className="space-y-1">
