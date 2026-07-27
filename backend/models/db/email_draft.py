@@ -41,6 +41,10 @@ class EmailDraft(Base):
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
     # Generated-file attachments: [{"filename": <safe name>, "display_name": str}]
     attachments: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # Fact-check audit trail written by the drafting agent:
+    # {"sources": [str], "flags": [str], "recorded_at": iso} — flags are claims
+    # the agent could NOT verify (surfaced as warnings on the draft card).
+    verification: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )

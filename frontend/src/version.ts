@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 184;
+export const BUILD_NUMBER = 185;
 export const BUILD_DATE = "2026-07-27";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 185,
+    date: "2026-07-27",
+    title: "Email fact-checking with an audit trail — and Gmail Drafts visibility",
+    changes: [
+      "Standing rule: before drafting any status/snapshot email, Gerry verifies every claim against Company Context and the Knowledge Base — sources checked are recorded on the draft, and anything unverifiable is flagged (from Gerry's own gap analysis of the stale PMI Snapshot email)",
+      "Draft cards show the fact-check trail: 'Checked against …' plus an amber warning listing unverified claims to confirm before sending",
+      "New Gmail Drafts visibility: Gerry can now list and read UNSENT Gmail drafts (list_gmail_drafts / read_gmail_draft) — closing the blind spot between draft creation and send",
+      "Ask Gerry to audit any Gmail draft before you send it — she reads it and cross-checks its claims the same way",
+    ],
+  },
   {
     build: 184,
     date: "2026-07-27",

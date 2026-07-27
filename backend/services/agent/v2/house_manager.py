@@ -104,6 +104,8 @@ _TOOLS = [
     "fetch_page",
     # Google Workspace (read only, plus confirmed Drive upload)
     "search_gmail",
+    "list_gmail_drafts",
+    "read_gmail_draft",
     "read_gmail_message",
     "search_drive",
     "list_drive_folder",
