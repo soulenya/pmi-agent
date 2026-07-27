@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 183;
+export const BUILD_NUMBER = 184;
 export const BUILD_DATE = "2026-07-27";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 184,
+    date: "2026-07-27",
+    title: "Extract data anywhere — with saved schemas",
+    changes: [
+      "New 'Extract data' action on chat attachment chips and in the Regulatory Files row menu — pick a schema, click Extract, get structured JSON (with copy button) and the full transcription",
+      "Saved extraction schemas ship for invoices, certificates, purchase orders, and DD214s — edit or add your own in Settings → Extraction Schemas",
+      "Gerry's extract_document tool accepts schema_name — say 'extract this invoice' and she uses the saved invoice schema; unknown names get an honest list of what's available",
+      "Missing fields always come back empty — never invented",
+    ],
+  },
   {
     build: 183,
     date: "2026-07-27",
