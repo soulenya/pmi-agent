@@ -47,6 +47,8 @@ _TOOLS = [
     "propose_odoo_write",
     "get_approvals",
     "search_gmail",
+    "list_gmail_drafts",
+    "read_gmail_draft",
     "read_gmail_message",
     "get_calendar_events",
     "search_contacts",
