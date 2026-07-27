@@ -5,11 +5,12 @@ import {
   FileCode, FileArchive, File as FileIcon, MoreVertical, Pencil, Trash2,
   Download, FolderInput, X, Loader2, ChevronRight, ShieldAlert, Save,
   HardDrive, ArrowLeft, Lock, RefreshCw, AlertTriangle, CheckCircle2,
-  Sparkles, ClipboardCheck, ArrowRight,
+  Sparkles, ClipboardCheck, ArrowRight, ScanText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { DropOverlay } from "@/components/DropOverlay";
+import { ExtractDataModal } from "@/components/ExtractDataModal";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import { DriveBrowser } from "@/components/google/DriveBrowser";
 import { SaveFileDialog } from "@/components/SaveFileDialog";
@@ -279,9 +280,10 @@ function ModalActions({ onCancel, onSubmit, submitLabel, pending, disabled }: { 
 
 // ── row actions menu ────────────────────────────────────────────────────────
 
-function RowMenu({ node, canWrite, onEdit, onRename, onMove, onDelete, onDownload }: {
+function RowMenu({ node, canWrite, onEdit, onRename, onMove, onDelete, onDownload, onExtract }: {
   node: RegNode; canWrite: boolean;
   onEdit: () => void; onRename: () => void; onMove: () => void; onDelete: () => void; onDownload: () => void;
+  onExtract: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -324,6 +326,9 @@ function RowMenu({ node, canWrite, onEdit, onRename, onMove, onDelete, onDownloa
           >
             {node.node_type === "file" && (
               <MenuItem icon={<Download className="h-3.5 w-3.5" />} label="Download" onClick={() => { setOpen(false); onDownload(); }} />
+            )}
+            {node.node_type === "file" && /\.(pdf|png|jpe?g|gif|webp)$/i.test(node.name) && (
+              <MenuItem icon={<ScanText className="h-3.5 w-3.5" />} label="Extract data" onClick={() => { setOpen(false); onExtract(); }} />
             )}
             {canWrite && node.node_type === "file" && node.is_editable && (
               <MenuItem icon={<Pencil className="h-3.5 w-3.5" />} label="Edit" onClick={() => { setOpen(false); onEdit(); }} />
@@ -975,6 +980,7 @@ export function RegulatoryPage() {
   const [moveTarget, setMoveTarget] = useState<RegNode | null>(null);
   const [editTarget, setEditTarget] = useState<RegNode | null>(null);
   const [saveTarget, setSaveTarget] = useState<RegNode | null>(null);
+  const [extractTarget, setExtractTarget] = useState<RegNode | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [driveImporting, setDriveImporting] = useState(false);
   const [driveStatus, setDriveStatus] = useState<string | null>(null);
@@ -1240,6 +1246,7 @@ export function RegulatoryPage() {
                         node={node}
                         canWrite={canWrite}
                         onDownload={() => setSaveTarget(node)}
+                        onExtract={() => setExtractTarget(node)}
                         onEdit={() => setEditTarget(node)}
                         onRename={() => setRenameTarget(node)}
                         onMove={() => setMoveTarget(node)}
@@ -1280,6 +1287,14 @@ export function RegulatoryPage() {
           filename={saveTarget.name}
           getBlob={() => fetchRegFileBlob(saveTarget.id)}
           onClose={() => setSaveTarget(null)}
+        />
+      )}
+      {extractTarget && (
+        <ExtractDataModal
+          sourceKind="regulatory_node"
+          sourceRef={extractTarget.id}
+          fileName={extractTarget.name}
+          onClose={() => setExtractTarget(null)}
         />
       )}
       {showDrive && (
