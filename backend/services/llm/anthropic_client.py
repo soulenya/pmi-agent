@@ -89,6 +89,9 @@ class AnthropicClient:
                 filtered.append({"role": "assistant", "content": content_blocks})
 
             else:
+                # NOTE: content may be a string OR a list of Anthropic content
+                # blocks (image / document / text) — vision document extraction
+                # relies on list-form content passing through untouched.
                 filtered.append({"role": role, "content": m.get("content", "")})
         return system, filtered
 

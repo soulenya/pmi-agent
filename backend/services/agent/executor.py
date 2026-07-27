@@ -133,6 +133,7 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "propose_odoo_write": "Queuing the Odoo action for approval…",
     "read_knowledge_base_document": "Reading the document…",
     "request_kb_deletion": "Preparing the deletion request…",
+    "extract_document": "Reading the document with vision…",
     "update_task": "Updating the task…",
     "list_scheduled_tasks": "Checking scheduled tasks…",
     "manage_scheduled_task": "Managing the scheduled task…",
