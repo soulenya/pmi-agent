@@ -1,5 +1,7 @@
 ﻿import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DropOverlay } from "@/components/DropOverlay";
+import { useFileDrop } from "@/hooks/useFileDrop";
 import {
   listDocuments,
   listCategories,
@@ -138,26 +140,38 @@ function UploadModal({
   onSubmit,
   uploading,
   error,
+  initialFiles,
 }: {
   categories: { id: string; name: string }[];
   onClose: () => void;
   onSubmit: (
-    file: File,
+    files: File[],
     meta: { title: string; category_id?: string | null; is_regulated: boolean },
   ) => void;
   uploading: boolean;
   error?: string;
+  initialFiles?: File[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
+  const [files, setFiles] = useState<File[]>(initialFiles ?? []);
+  const [title, setTitle] = useState(
+    initialFiles?.length === 1 ? initialFiles[0].name.replace(/\.[^.]+$/, "") : "",
+  );
   const [categoryId, setCategoryId] = useState<string>("");
   const [isRegulated, setIsRegulated] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
-  const handleFile = (f: File) => {
-    setFile(f);
-    if (!title) setTitle(f.name.replace(/\.[^.]+$/, ""));
+  const addFiles = (incoming: File[] | FileList) => {
+    const next = Array.from(incoming);
+    if (next.length === 0) return;
+    setFiles((prev) => {
+      const merged = [...prev];
+      for (const f of next) {
+        if (!merged.some((m) => m.name === f.name && m.size === f.size)) merged.push(f);
+      }
+      if (merged.length === 1 && !title) setTitle(merged[0].name.replace(/\.[^.]+$/, ""));
+      return merged;
+    });
   };
 
   return (
@@ -182,35 +196,61 @@ function UploadModal({
           onDrop={(e) => {
             e.preventDefault();
             setDragOver(false);
-            const f = e.dataTransfer.files[0];
-            if (f) handleFile(f);
+            addFiles(e.dataTransfer.files);
           }}
         >
           <Upload className="h-6 w-6" />
-          {file ? (
-            <span className="text-sm font-medium text-foreground">{file.name}</span>
+          {files.length > 0 ? (
+            <div className="flex max-w-full flex-wrap justify-center gap-1.5">
+              {files.map((f, i) => (
+                <span
+                  key={`${f.name}-${i}`}
+                  className="flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-foreground"
+                >
+                  <span className="max-w-[160px] truncate">{f.name}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFiles((prev) => prev.filter((_, j) => j !== i));
+                    }}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
           ) : (
-            <span className="text-sm">Drop a file here or click to browse</span>
+            <span className="text-sm">Drop files here or click to browse</span>
           )}
-          <span className="text-xs">PDF, DOCX, TXT, MD, CSV — max 50 MB</span>
+          <span className="text-xs">PDF, DOCX, TXT, MD, CSV — max 50 MB each</span>
           <input
             ref={inputRef}
             type="file"
             accept=".pdf,.docx,.txt,.md,.csv"
+            multiple
             className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+            onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }}
           />
         </div>
 
-        <label className="mb-3 block">
-          <span className="mb-1 block text-sm font-medium">Title</span>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-            placeholder="Document title"
-          />
-        </label>
+        {files.length > 1 ? (
+          <p className="mb-3 text-xs text-muted-foreground">
+            {files.length} files selected — each document's title comes from its file
+            name.
+          </p>
+        ) : (
+          <label className="mb-3 block">
+            <span className="mb-1 block text-sm font-medium">Title</span>
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              placeholder="Document title"
+            />
+          </label>
+        )}
 
         <label className="mb-3 block">
           <span className="mb-1 block text-sm font-medium">Category</span>
@@ -240,10 +280,10 @@ function UploadModal({
 
         <div className="flex gap-2">
           <button
-            disabled={!file || !title.trim() || uploading}
+            disabled={files.length === 0 || (files.length === 1 && !title.trim()) || uploading}
             onClick={() =>
-              file &&
-              onSubmit(file, {
+              files.length > 0 &&
+              onSubmit(files, {
                 title: title.trim(),
                 category_id: categoryId || null,
                 is_regulated: isRegulated,
@@ -926,6 +966,7 @@ function ShareKbModal({
 export function DocumentsPage() {
   const queryClient = useQueryClient();
   const [showUpload, setShowUpload] = useState(false);
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
   const [showDriveBrowser, setShowDriveBrowser] = useState(false);
   const [driveImportStatus, setDriveImportStatus] = useState<string | null>(null);
   const [driveImporting, setDriveImporting] = useState(false);
@@ -1098,14 +1139,46 @@ export function DocumentsPage() {
   const regulatedCount = allDocs.filter((d) => d.is_regulated).length;
   const totalChunks = allDocs.reduce((n, d) => n + d.chunk_count, 0);
 
+  // Drag-and-drop anywhere on the page → opens the upload modal preloaded.
+  const { isDragOver, dropProps } = useFileDrop(
+    (files) => {
+      setDroppedFiles(files);
+      setUploadError("");
+      setShowUpload(true);
+    },
+    {
+      accept: [".pdf", ".docx", ".txt", ".md", ".csv"],
+      disabled: showUpload,
+      onRejected: (rejected) =>
+        setUploadError(
+          `Skipped (PDF, DOCX, TXT, MD, CSV only): ${rejected.map((f) => f.name).join(", ")}`,
+        ),
+    },
+  );
+
   return (
-    <div className="flex h-full gap-4 p-4">
+    <div className="relative flex h-full gap-4 p-4" {...dropProps}>
+      <DropOverlay show={isDragOver} label="Drop files to add them to the Knowledge Base" />
       {/* Upload modal */}
       {showUpload && (
         <UploadModal
           categories={categories}
-          onClose={() => { setShowUpload(false); setUploadError(""); }}
-          onSubmit={(file, meta) => uploadMutation.mutate({ file, meta })}
+          initialFiles={droppedFiles}
+          onClose={() => { setShowUpload(false); setUploadError(""); setDroppedFiles([]); }}
+          onSubmit={(files, meta) => {
+            for (const file of files) {
+              uploadMutation.mutate({
+                file,
+                meta: {
+                  ...meta,
+                  title:
+                    files.length === 1 && meta.title
+                      ? meta.title
+                      : file.name.replace(/\.[^.]+$/, ""),
+                },
+              });
+            }
+          }}
           uploading={uploadMutation.isPending}
           error={uploadError}
         />

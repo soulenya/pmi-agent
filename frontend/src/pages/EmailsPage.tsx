@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Mail,
@@ -26,12 +26,16 @@ import {
   regenerateEmailDraft,
   submitEmailForApproval,
   deleteEmailDraft,
+  uploadEmailDraftAttachment,
+  removeEmailDraftAttachment,
 } from "@/api/meetings";
 import { resolveApproval } from "@/api/chat";
 import { pushApprovalOutcomeToast } from "@/stores/toastStore";
 import type { EmailDraft, EmailDraftCreate, EmailDraftUpdate } from "@/types/meetings";
 import { EMAIL_TONES } from "@/types/meetings";
 import { AskGerryButton } from "@/components/AskGerryButton";
+import { DropOverlay } from "@/components/DropOverlay";
+import { useFileDrop } from "@/hooks/useFileDrop";
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 
@@ -223,6 +227,37 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
   const [sendOutcome, setSendOutcome] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
   );
+  const attachInputRef = useRef<HTMLInputElement>(null);
+  const [attachBusy, setAttachBusy] = useState(false);
+
+  const canEditEarly = draft.status === "draft";
+
+  async function attachFiles(files: File[] | FileList | null) {
+    if (!files) return;
+    setAttachBusy(true);
+    const failures: string[] = [];
+    for (const f of Array.from(files)) {
+      try {
+        await uploadEmailDraftAttachment(draft.id, f);
+      } catch {
+        failures.push(f.name);
+      }
+    }
+    setAttachBusy(false);
+    qc.invalidateQueries({ queryKey: ["email-drafts"] });
+    if (failures.length > 0) {
+      setSendOutcome({ kind: "error", text: `Couldn't attach: ${failures.join(", ")}` });
+    }
+  }
+
+  const { isDragOver, dropProps } = useFileDrop(attachFiles, {
+    disabled: !canEditEarly,
+  });
+
+  const removeAttachmentMutation = useMutation({
+    mutationFn: (filename: string) => removeEmailDraftAttachment(draft.id, filename),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["email-drafts"] }),
+  });
 
   const regenMutation = useMutation({
     mutationFn: () => regenerateEmailDraft(draft.id),
@@ -288,7 +323,21 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
   const canResolve = draft.status === "pending_approval" && !!draft.approval_intent_id;
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div
+      className="relative rounded-xl border bg-card shadow-sm overflow-hidden"
+      {...dropProps}
+    >
+      <DropOverlay show={isDragOver} label="Drop files to attach to this draft" />
+      <input
+        ref={attachInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          attachFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
       {/* Header */}
       <div className="flex items-start justify-between px-5 pt-4 pb-3">
         <div className="flex-1 min-w-0 pr-4">
@@ -308,21 +357,50 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
           {(draft.attachments?.length ?? 0) > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {draft.attachments.map((a) => (
-                <a
+                <span
                   key={a.filename}
-                  href={`/api/files/${encodeURIComponent(a.filename)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
-                  title="Attached on send — click to preview the file"
+                  className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] text-muted-foreground"
                 >
-                  <Paperclip className="h-3 w-3" /> {a.display_name}
-                </a>
+                  <a
+                    href={`/api/files/${encodeURIComponent(a.filename)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 hover:text-foreground"
+                    title="Attached on send — click to preview the file"
+                  >
+                    <Paperclip className="h-3 w-3" /> {a.display_name}
+                  </a>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => removeAttachmentMutation.mutate(a.filename)}
+                      disabled={removeAttachmentMutation.isPending}
+                      className="text-muted-foreground hover:text-destructive"
+                      title="Remove attachment"
+                    >
+                      <XCircle className="h-3 w-3" />
+                    </button>
+                  )}
+                </span>
               ))}
             </div>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {canEditEarly && (
+            <button
+              onClick={() => attachInputRef.current?.click()}
+              disabled={attachBusy}
+              title="Attach files — or drag & drop them anywhere on this card"
+              className="rounded-md p-1.5 hover:bg-accent text-muted-foreground disabled:opacity-50"
+            >
+              {attachBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )}
+            </button>
+          )}
           <AskGerryButton
             className="p-1.5 hover:bg-accent"
             build={() => ({

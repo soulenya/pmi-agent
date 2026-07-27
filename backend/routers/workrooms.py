@@ -12,7 +12,7 @@ import logging
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -239,6 +239,36 @@ async def add_item(
         workroom_id=room.id, kind=kind, ref_id=body.ref_id.strip(), label=body.label.strip()
     )
     db.add(item)
+    await db.flush()
+    await db.refresh(item)
+    await db.commit()
+    return ItemOut.model_validate(item)
+
+
+@router.post("/{room_id}/upload", response_model=ItemOut, status_code=status.HTTP_201_CREATED)
+async def upload_room_file(
+    room_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ItemOut:
+    """Upload a file into the room: stored in generated_files and pinned as an item."""
+    from services.file_uploads import MAX_UPLOAD_BYTES, store_upload
+
+    room = await _get_owned_room(db, room_id, current_user.id)
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "The file is empty.")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"File exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit.")
+
+    safe_name, display = store_upload(raw, file.filename)
+    item = WorkroomItem(
+        workroom_id=room.id, kind="generated_file", ref_id=safe_name, label=display
+    )
+    db.add(item)
+    db.add(WorkroomJournalEntry(workroom_id=room.id, entry=f"File added: {display}"))
     await db.flush()
     await db.refresh(item)
     await db.commit()

@@ -212,3 +212,25 @@ export async function submitEmailForApproval(id: string): Promise<EmailDraft> {
 export async function deleteEmailDraft(id: string): Promise<void> {
   await apiClient.delete(`/emails/${id}`);
 }
+
+export async function uploadEmailDraftAttachment(
+  id: string,
+  file: File,
+): Promise<EmailDraft> {
+  const form = new FormData();
+  form.append("file", file);
+  const resp = await apiClient.post<EmailDraft>(`/emails/${id}/attachments`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return resp.data;
+}
+
+export async function removeEmailDraftAttachment(
+  id: string,
+  filename: string,
+): Promise<EmailDraft> {
+  const resp = await apiClient.delete<EmailDraft>(
+    `/emails/${id}/attachments/${encodeURIComponent(filename)}`,
+  );
+  return resp.data;
+}
