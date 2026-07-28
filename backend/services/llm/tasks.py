@@ -32,7 +32,7 @@ LLM_TASKS: tuple[LLMTask, ...] = (
         label="Chat & Agent",
         description="Main chat conversations, agentic tool use, and scheduled tasks.",
         recommended_provider="anthropic",
-        recommended_model="claude-sonnet-4-6",
+        recommended_model="claude-sonnet-5",
         recommended_reason="Best balance of reasoning, tool use, and speed for interactive work.",
     ),
     LLMTask(
@@ -48,7 +48,7 @@ LLM_TASKS: tuple[LLMTask, ...] = (
         label="Briefings",
         description="Generated project and status briefings.",
         recommended_provider="anthropic",
-        recommended_model="claude-sonnet-4-6",
+        recommended_model="claude-sonnet-5",
         recommended_reason="Synthesis across many sources benefits from a mid-tier reasoning model.",
     ),
     LLMTask(
@@ -56,7 +56,7 @@ LLM_TASKS: tuple[LLMTask, ...] = (
         label="Email Drafting",
         description="Drafting and summarising emails.",
         recommended_provider="anthropic",
-        recommended_model="claude-sonnet-4-6",
+        recommended_model="claude-sonnet-5",
         recommended_reason="Strong tone control and concision for professional correspondence.",
     ),
     LLMTask(
@@ -64,7 +64,7 @@ LLM_TASKS: tuple[LLMTask, ...] = (
         label="Meetings",
         description="Agendas, minutes, and meeting summaries.",
         recommended_provider="anthropic",
-        recommended_model="claude-sonnet-4-6",
+        recommended_model="claude-sonnet-5",
         recommended_reason="Reliable structured output for agendas and minutes.",
     ),
     LLMTask(
@@ -72,7 +72,7 @@ LLM_TASKS: tuple[LLMTask, ...] = (
         label="Regulatory",
         description="Regulatory document analysis and generation (FDA / ISO).",
         recommended_provider="anthropic",
-        recommended_model="claude-opus-4-8",
+        recommended_model="claude-opus-5",
         recommended_reason="Regulated content warrants the most capable model for accuracy and nuance.",
     ),
     LLMTask(
@@ -88,7 +88,7 @@ LLM_TASKS: tuple[LLMTask, ...] = (
         label="Document Extraction",
         description="Reading scanned PDFs and images (certificates, invoices, forms) with vision.",
         recommended_provider="anthropic",
-        recommended_model="claude-sonnet-4-6",
+        recommended_model="claude-sonnet-5",
         recommended_reason="OCR-grade reading task — requires a vision-capable model; mid-tier is sufficient.",
     ),
 )
