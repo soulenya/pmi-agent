@@ -106,6 +106,7 @@ _TOOLS = [
     "search_gmail",
     "list_gmail_drafts",
     "read_gmail_draft",
+    "compile_company_timeline",
     "read_gmail_message",
     "search_drive",
     "list_drive_folder",
