@@ -14,7 +14,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from services.agent.guardrails import EMAIL_FACT_CHECK_NOTE, HONESTY_CONTRACT, RESTRICTED_SOURCES_NOTE
+from services.agent.guardrails import EMAIL_FACT_CHECK_NOTE, HONESTY_CONTRACT, PERIOD_REPORT_NOTE, RESTRICTED_SOURCES_NOTE
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,7 @@ class BaseAgent:
             + HONESTY_CONTRACT
             + RESTRICTED_SOURCES_NOTE
             + EMAIL_FACT_CHECK_NOTE
+            + PERIOD_REPORT_NOTE
             + (extra_context or "")
         )
 

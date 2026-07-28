@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 188;
+export const BUILD_NUMBER = 190;
 export const BUILD_DATE = "2026-07-28";
 
 export interface ChangelogEntry {
@@ -14,6 +14,30 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 190,
+    date: "2026-07-28",
+    title: "Investor updates: Gerry researches, asks, then writes",
+    changes: [
+      "New company-history researcher: any time-bounded report (monthly, quarterly, period review) starts with a full evidence pass — meetings, tasks started and finished, workroom journals, KB additions, and email records for the exact period, grouped chronologically with honest gaps flagged",
+      "The researcher connects the story — starting events, finishing events, improvements, patterns, personnel changes and their impact — and confirms every fact against a named source",
+      "If anything is unclear, contradictory, or missing, Gerry asks you FIRST — never fills a gap with a plausible guess",
+      "New Monthly and Quarterly Investor Update templates: friendly, plain-English structure with a section menu — Gerry always asks which sections to include (and the month's theme) before drafting",
+      "Word documents can carry the Spaceman Black logo on the cover sheet — investor updates render in black only with the confidential footer",
+      "Templates live in the PMI Templates Drive folder — edit them there and changes apply immediately",
+    ],
+  },
+  {
+    build: 189,
+    date: "2026-07-28",
+    title: "Approvals stay in sync everywhere",
+    changes: [
+      "Approve or reject from ANY surface — Approvals page, Email Drafts card, chat card, or the bell — and every other surface updates: the linked notifications are retired instantly, so nothing keeps offering approve/reject on something already handled (reported by Morgan)",
+      "Bell notifications only show Approve/Reject while genuinely unhandled — already-processed items can't present live buttons anymore",
+      "Clearing expired approvals retires their notifications too",
+      "Open bells refresh over the live connection the moment an approval is resolved elsewhere",
+    ],
+  },
   {
     build: 188,
     date: "2026-07-28",

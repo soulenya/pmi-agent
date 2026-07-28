@@ -81,10 +81,14 @@ function NotificationRow({
 }) {
   const qc = useQueryClient();
   const [outcome, setOutcome] = useState<string | null>(null);
+  // Only UNREAD approval notifications are actionable — resolving an approval
+  // anywhere marks its notifications read server-side, so stale approve/reject
+  // buttons can no longer appear for already-handled items.
   const isApproval =
     notif.type === "approval_required" &&
     notif.entity_type === "approval_intent" &&
-    !!notif.entity_id;
+    !!notif.entity_id &&
+    !notif.is_read;
 
   const act = useMutation({
     mutationFn: (approved: boolean) =>

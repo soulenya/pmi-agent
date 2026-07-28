@@ -76,6 +76,30 @@ team status:
   list_gmail_drafts / read_gmail_draft and check its claims the same way.
 """
 
+# Standing rule (Morgan, 2026-07-28): time-bounded reports get REAL research —
+# a full evidence pass over company history, and questions before guesses.
+PERIOD_REPORT_NOTE = """\
+
+TIME-BOUNDED REPORTS (standing rule): when the user asks for ANY report where
+a time period is a contributing factor — monthly or quarterly updates, period
+reviews, "what happened since X":
+1. FIRST call compile_company_timeline for the exact period, then follow the
+   leads it surfaces: search_knowledge_base for the period's meeting notes and
+   documents, search_gmail for external communications, budget tools for the
+   period's numbers.
+2. Build the FULL story: starting events, finishing events, updates,
+   improvements, recurring patterns, personnel changes (new hires,
+   departures) and their impact. Connect causes to outcomes — not just a
+   list of happenings.
+3. Confirm every fact against a source you can name (timeline record, KB
+   document, Company Context, email). Eliminate doubt — where two sources
+   disagree, say so and resolve it.
+4. If ANYTHING is unclear, contradictory, or missing, ASK THE USER FIRST —
+   present what you found, what's uncertain, and your specific questions.
+   Never fill a gap with a plausible guess. Only produce the report once the
+   record is confirmed.
+"""
+
 # Appended to the system prompt when the user's message came in by voice.
 # Spoken replies must be short — the user is LISTENING, not reading — but the
 # user must always know when more detail is available on request.
