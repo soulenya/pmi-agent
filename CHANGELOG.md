@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.3.29 — 2026-07-28
+**Writing style hardening (Morgan report: editorial dash-clauses and emotion persisted after the template fix)**
+
+- New `WRITING_STYLE_NOTE` guardrail injected into BOTH engines on every turn — the template alone only covered investor updates and wasn't strong enough. Rules: state the fact and stop; never append an editorial clause after a dash (Morgan's exact example quoted as BAD, flat rewrite as GOOD); banned: "not just"/"more than just", narrative arcs ("what started the quarter as X is ending it as Y"), "this isn't X; it's Y", hype adjectives, mission re-explanations, unrequested justifications; acronym translations one clause max.
+- Drive template BANNED list extended in place with the dash-clause rule + the new example (live immediately).
+- SMOKE33: injection verified in both engines; live bait scenario (NAR term sheet → finalized agreement → SOMA) produced three flat factual sentences — no banned phrasings, no editorial dash-clauses.
+
 ### v3.3.28 — 2026-07-28
 **Investor update templates + period-report researcher + docx cover logo (Morgan requests)**
 
