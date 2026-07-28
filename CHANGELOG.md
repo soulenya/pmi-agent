@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.3.26 — 2026-07-28
+**Claude 5 rollout (Morgan report: opus-5 missing from model dropdowns)**
+
+- Root cause: dropdowns read the `llm.model_catalog` SystemSetting refreshed on a WEEKLY cadence — the live-check notice saw opus-5/sonnet-5 before the menus did. Fix: `/settings/notices` now triggers `refresh_model_catalog` whenever the live Anthropic list contains models the cached catalog lacks; catalog force-refreshed immediately (opus-5, sonnet-5, fable-5 in menus now, shared DB so the installed app too).
+- `LLM_TASKS` recommendations updated: regulatory → claude-opus-5; chat/briefings/emails/meetings/document_extraction → claude-sonnet-5 (haiku tasks unchanged — no haiku-5 yet). `_ANTHROPIC_FALLBACK` + config `default_llm_model` + `AnthropicClient.DEFAULT_MODEL` → claude-sonnet-5. User's explicit choices untouched.
+- SMOKE29 live: catalog contains all three 5-gen models; every recommendation resolvable; ai-options dropdown feed includes opus-5/sonnet-5 (new-model badge working); live chat call answered by claude-sonnet-5.
+
 ### v3.3.25 — 2026-07-28
 **Short chat names + system notices pop-down (Morgan requests)**
 

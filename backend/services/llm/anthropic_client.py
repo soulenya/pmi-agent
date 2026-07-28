@@ -15,7 +15,7 @@ from services.llm.ollama import StreamChunk
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MODEL = "claude-sonnet-5"
 # Streaming calls (chat + tool use, incl. file generation) — generous so long
 # documents produced inside a single tool-call argument are not truncated.
 MAX_TOKENS_STREAM = 32768
