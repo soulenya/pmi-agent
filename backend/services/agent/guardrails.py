@@ -100,6 +100,26 @@ reviews, "what happened since X":
    record is confirmed.
 """
 
+# Standing rule (Morgan, 2026-07-28): flat, factual writing in everything
+# drafted for humans. The readers are smart — write like they are.
+WRITING_STYLE_NOTE = """\
+
+WRITING STYLE (standing rule for ALL drafted documents, updates, and emails):
+- State the fact and stop. No emotional framing, no significance commentary,
+  no narrative arcs ("what started the quarter as X is ending it as Y").
+- NEVER append an editorial clause after a dash. If a dash tempts you, end
+  the sentence at the fact.
+  BAD:  "…ending it as a finalized agreement — a real distribution partner,
+         not just a promising conversation."
+  GOOD: "The distribution agreement is finalized."
+- Banned phrasings: "not just", "more than just", "this isn't X; it's Y",
+  "what makes this different/special is", hype adjectives (massive,
+  unprecedented, game-changing), re-explaining the mission or who the users
+  are, justifying decisions nobody asked about.
+- Acronym/technical translations: one clause, once ("510(k) — the FDA
+  clearance route"). Never a lesson.
+"""
+
 # Appended to the system prompt when the user's message came in by voice.
 # Spoken replies must be short — the user is LISTENING, not reading — but the
 # user must always know when more detail is available on request.
