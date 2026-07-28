@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 190;
+export const BUILD_NUMBER = 191;
 export const BUILD_DATE = "2026-07-28";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 191,
+    date: "2026-07-28",
+    title: "Flat, factual writing — everywhere",
+    changes: [
+      "Standing writing-style rule now applies to EVERYTHING Gerry drafts (documents, updates, emails), not just investor updates: state the fact and stop",
+      "Banned outright: editorial dash-clauses ('…finalized agreement — a real distribution partner, not just a promising conversation'), narrative arcs ('what started the quarter as X…'), 'not just X', hype adjectives, significance commentary (reported by Morgan)",
+      "Verified live on a bait scenario — output came back as plain dated facts",
+    ],
+  },
   {
     build: 190,
     date: "2026-07-28",
