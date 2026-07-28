@@ -322,6 +322,8 @@ async def list_ollama_models(
 
 
 _ANTHROPIC_FALLBACK = [
+    "claude-opus-5",
+    "claude-sonnet-5",
     "claude-opus-4-8",
     "claude-sonnet-4-6",
     "claude-haiku-4-5",
@@ -632,6 +634,19 @@ async def system_notices(
     # 3. Newer Claude models available for anything currently in use
     available = await _fetch_anthropic_model_ids()
     if available:
+        # Keep the dropdown catalog in step with reality: if the live list has
+        # models the cached catalog lacks, refresh it now (weekly cadence
+        # otherwise — this is what put opus-5 in the notice but not the menus).
+        try:
+            from services.llm.catalog import get_model_catalog, refresh_model_catalog
+
+            catalog = await get_model_catalog(db)
+            known = {m["id"] for m in catalog.get("llm", {}).get("anthropic", [])}
+            if any(a not in known for a in available):
+                await refresh_model_catalog(db)
+        except Exception:
+            pass
+
         from services.llm.router import resolve_task_llm
 
         in_use: dict[str, set[str]] = {}

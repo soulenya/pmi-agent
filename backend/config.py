@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # Ollama is optional (third-tier local/LAN). Default provider is Anthropic.
     ollama_base_url: str = "http://localhost:11434"
     default_llm_provider: str = "anthropic"
-    default_llm_model: str = "claude-sonnet-4-6"
+    default_llm_model: str = "claude-sonnet-5"
     default_embedding_provider: str = "voyage"
     default_embedding_model: str = "voyage-3"
     default_embedding_dimension: int = 1024
