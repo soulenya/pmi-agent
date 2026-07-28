@@ -4,6 +4,22 @@
 
 ## Changelog
 
+### v3.3.28 — 2026-07-28
+**Investor update templates + period-report researcher + docx cover logo (Morgan requests)**
+
+- **Company-history researcher:** new `compile_company_timeline` tool (both engines; EA/IR/research/house_manager) — chronological digest of MeetingNotes, tasks started/completed, workroom journals, KB additions, and email drafts for an exact period, grouped by month with an EVIDENCE GAPS section; empty periods return an honest "no local records — ask the user" instead of nothing. Verified live: 172 records for July 2026.
+- **Standing rule (`PERIOD_REPORT_NOTE`, both engines):** any time-bounded report → timeline first, follow leads (KB/Gmail/budgets), build the full story (start/finish events, improvements, patterns, personnel changes + impact), confirm every fact against a named source, and ASK THE USER about anything unclear before producing — never plausible guesses.
+- "Investor Update Templates.md" uploaded to the PMI Templates Drive folder (live immediately, editable on Drive): `## Investor Update (Monthly)` + `## Investor Update (Quarterly)` — RESEARCH-FIRST step + ASK-FIRST section menu + plain-English tone rules + black-only format rules, distilled from the Feb/March/May reference updates.
+- `create_docx` gains `cover_logo` (bool): embeds backend/assets/spaceman-black.png centred on page 1; honest NOTE when the asset is missing. SMOKE31 + SMOKE32 passed.
+
+### v3.3.27 — 2026-07-28
+**Cross-surface approval sync (Morgan report: approved a draft from Email Drafts; bell still offered approve/reject)**
+
+- New `_sync_notifications_for_resolved_intents` in the central `resolve_approval` endpoint (the one path ALL surfaces use): marks read every unread notification linked to the resolved intent — the approval_intent notification AND the email_draft draft-ready notification (via payload draft_id) — then pushes a WS frame so open bells refetch instantly.
+- `clear_expired_approvals` retires the notifications of expired intents before deleting them.
+- Frontend root cause of the visible staleness: NotificationRow rendered Approve/Reject regardless of `is_read` — now gated to unread only. All resolve surfaces already invalidate the approvals/email-drafts/notifications query trio.
+- One-time data fix ran against the live DB (0 stale unread found — confirming the frontend gate was the visible bug). SMOKE30v2: draft + intent + 2 bell notifications → resolve → both retired; all smoke rows deleted.
+
 ### v3.3.26 — 2026-07-28
 **Claude 5 rollout (Morgan report: opus-5 missing from model dropdowns)**
 

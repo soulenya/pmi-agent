@@ -28,7 +28,7 @@ from config import settings
 from models.db.enums import MessageRole
 from models.schemas.conversations import WSDone, WSError, WSToken, WSToolStatus
 from repositories.conversation_repo import ConversationRepository, MessageRepository
-from services.agent.guardrails import EMAIL_FACT_CHECK_NOTE, HONESTY_CONTRACT, RESTRICTED_SOURCES_NOTE
+from services.agent.guardrails import EMAIL_FACT_CHECK_NOTE, HONESTY_CONTRACT, PERIOD_REPORT_NOTE, RESTRICTED_SOURCES_NOTE
 from services.agent.tools import TOOL_DEFINITIONS, ToolContext, artifact_links_for, dispatch_tool
 from services.embeddings.service import get_embedding_service_for_db
 from services.llm.ollama import OllamaClient, OllamaError, get_ollama_client
@@ -103,6 +103,7 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "read_gmail_message": "Reading email…",
     "list_gmail_drafts": "Checking Gmail drafts…",
     "read_gmail_draft": "Reading the Gmail draft…",
+    "compile_company_timeline": "Researching company history…",
     "search_drive": "Searching Google Drive…",
     "list_drive_folder": "Browsing Drive folder…",
     "list_shared_drives": "Listing shared drives…",
@@ -508,7 +509,7 @@ class AgentExecutor:
         messages: list[dict[str, Any]] = [
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT.format(today=today) + google_note + HONESTY_CONTRACT + RESTRICTED_SOURCES_NOTE + EMAIL_FACT_CHECK_NOTE,
+                "content": SYSTEM_PROMPT.format(today=today) + google_note + HONESTY_CONTRACT + RESTRICTED_SOURCES_NOTE + EMAIL_FACT_CHECK_NOTE + PERIOD_REPORT_NOTE,
             }
         ]
 

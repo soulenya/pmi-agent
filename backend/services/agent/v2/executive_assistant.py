@@ -49,6 +49,7 @@ _TOOLS = [
     "search_gmail",
     "list_gmail_drafts",
     "read_gmail_draft",
+    "compile_company_timeline",
     "read_gmail_message",
     "get_calendar_events",
     "search_contacts",

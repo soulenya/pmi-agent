@@ -610,6 +610,36 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "compile_company_timeline",
+            "description": (
+                "REQUIRED FIRST STEP for any time-bounded report (monthly/quarterly "
+                "update, period review, 'what happened in June'). Compiles a dated, "
+                "chronological evidence digest for the period from company records: "
+                "meeting notes, tasks started/completed, workroom journal entries, "
+                "documents added to the Knowledge Base, and email drafts. Use it to "
+                "recognize starting events, finishing events, updates, improvements, "
+                "patterns, and personnel changes — then cross-check against Company "
+                "Context/KB, and ASK THE USER about anything unclear BEFORE drafting."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "start_date": {
+                        "type": "string",
+                        "description": "Period start, YYYY-MM-DD (inclusive).",
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Period end, YYYY-MM-DD (inclusive).",
+                    },
+                },
+                "required": ["start_date", "end_date"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_drive",
             "description": (
                 "FIND files in Google Drive by keyword (full-text match) — returns "
@@ -1675,6 +1705,10 @@ TOOL_DEFINITIONS: list[dict] = [
                     "banner_subtitle": {
                         "type": "string",
                         "description": "Banner subtitle line, e.g. 'Standard Operating Procedure'.",
+                    },
+                    "cover_logo": {
+                        "type": "boolean",
+                        "description": "Embed the PMI 'Spaceman Black' company logo centred at the top of page 1 (required by the investor-update templates).",
                     },
                 },
                 "required": ["filename", "content"],
@@ -4193,6 +4227,7 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     banner_label = str(args.get("banner_label", "")).strip()
     banner_title = str(args.get("banner_title", "")).strip()
     banner_subtitle = str(args.get("banner_subtitle", "")).strip()
+    cover_logo = bool(args.get("cover_logo"))
     # Light tint of the accent for banner secondary lines (label/subtitle).
     _a = [int(accent[i : i + 2], 16) for i in (0, 2, 4)]
     tint = "".join(f"{c + int((255 - c) * 0.62):02X}" for c in _a)
@@ -4282,6 +4317,21 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
             el.set(qn("w:color"), "404040")
             borders.append(el)
         tbl_pr.append(borders)
+
+    logo_note = ""
+    if cover_logo:
+        # Company mark ("Spaceman Black") centred at the top of the cover sheet.
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.shared import Inches
+
+        logo_path = Path(__file__).resolve().parent.parent.parent / "assets" / "spaceman-black.png"
+        if logo_path.is_file():
+            lp = document.add_paragraph()
+            lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            lp.add_run().add_picture(str(logo_path), width=Inches(2.2))
+            document.add_paragraph()
+        else:
+            logo_note = " NOTE: cover logo asset missing on this install — logo NOT embedded."
 
     if banner_label or banner_title or banner_subtitle:
         # Title-block banner: one full-width accent-filled cell with centred
@@ -4398,7 +4448,7 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     await log_room_event(ctx.db, ctx.conversation_id, f"Gerry created Word document: {filename}")
     return (
         f"Word document created and verified ({out_path.stat().st_size} bytes): "
-        f"/api/files/{safe_name}"
+        f"/api/files/{safe_name}" + logo_note
     )
 
 
@@ -4581,6 +4631,124 @@ async def execute_extract_document(ctx: ToolContext, args: dict[str, Any]) -> st
     return "\n\n".join(parts)
 
 
+async def execute_compile_company_timeline(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Dated evidence digest for a period — the research backbone of any
+    time-bounded report. Local records only; honest about gaps."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import select as _select
+
+    from models.db.document import Document
+    from models.db.email_draft import EmailDraft
+    from models.db.meeting import MeetingNote
+    from models.db.task import Task
+    from models.db.workroom import Workroom, WorkroomJournalEntry
+
+    def _parse(key: str):
+        raw = str(args.get(key, "")).strip()
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+
+    start = _parse("start_date")
+    end = _parse("end_date")
+    if start is None or end is None:
+        return "Error: start_date and end_date are required as YYYY-MM-DD."
+    if end < start:
+        return "Error: end_date is before start_date."
+    end_excl = end + timedelta(days=1)
+
+    events: list[tuple[datetime, str]] = []
+
+    meetings = (await ctx.db.execute(
+        _select(MeetingNote).where(
+            MeetingNote.created_at >= start, MeetingNote.created_at < end_excl
+        ).order_by(MeetingNote.created_at).limit(200)
+    )).scalars().all()
+    for m in meetings:
+        when = m.meeting_date or m.created_at
+        snippet = (m.summary or "").strip().replace("\n", " ")[:220]
+        events.append((when, f"[meeting] {m.title}" + (f" — {snippet}" if snippet else "")))
+
+    started = (await ctx.db.execute(
+        _select(Task).where(Task.created_at >= start, Task.created_at < end_excl)
+        .order_by(Task.created_at).limit(300)
+    )).scalars().all()
+    for t in started:
+        events.append((t.created_at, f"[task started] {t.title}"))
+    finished = (await ctx.db.execute(
+        _select(Task).where(Task.completed_at >= start, Task.completed_at < end_excl)
+        .order_by(Task.completed_at).limit(300)
+    )).scalars().all()
+    for t in finished:
+        events.append((t.completed_at, f"[task completed] {t.title}"))
+
+    journals = (await ctx.db.execute(
+        _select(WorkroomJournalEntry, Workroom.title)
+        .join(Workroom, Workroom.id == WorkroomJournalEntry.workroom_id)
+        .where(WorkroomJournalEntry.created_at >= start, WorkroomJournalEntry.created_at < end_excl)
+        .order_by(WorkroomJournalEntry.created_at).limit(400)
+    )).all()
+    for j, room_title in journals:
+        events.append((j.created_at, f"[{room_title}] {j.entry.strip()[:220]}"))
+
+    docs = (await ctx.db.execute(
+        _select(Document).where(
+            Document.created_at >= start, Document.created_at < end_excl
+        ).order_by(Document.created_at).limit(200)
+    )).scalars().all()
+    for d in docs:
+        events.append((d.created_at, f"[KB document added] {d.title}"))
+
+    drafts = (await ctx.db.execute(
+        _select(EmailDraft).where(
+            EmailDraft.created_at >= start, EmailDraft.created_at < end_excl
+        ).order_by(EmailDraft.created_at).limit(200)
+    )).scalars().all()
+    for dr in drafts:
+        events.append((dr.created_at, f"[email draft — {dr.status}] {dr.subject}"))
+
+    if not events:
+        return (
+            f"No local records found between {start.date()} and {end.date()}. "
+            "The period may predate app usage — search the Knowledge Base and Gmail "
+            "(search_knowledge_base / search_gmail) for this period, and ASK THE USER "
+            "what sources cover it before drafting anything."
+        )
+
+    events.sort(key=lambda e: e[0])
+    by_month: dict[str, list[str]] = {}
+    for when, line in events:
+        by_month.setdefault(when.strftime("%B %Y"), []).append(f"  {when.date()}: {line}")
+
+    # Month coverage gaps — honest signal that evidence is thin.
+    thin = [month for month, lines in by_month.items() if len(lines) < 3]
+    cursor = start.replace(day=1)
+    while cursor < end_excl:
+        label = cursor.strftime("%B %Y")
+        if label not in by_month:
+            thin.append(label + " (no records at all)")
+        cursor = (cursor + timedelta(days=32)).replace(day=1)
+
+    out = [f"COMPANY TIMELINE {start.date()} → {end.date()} ({len(events)} dated records):"]
+    for month, lines in by_month.items():
+        out.append(f"\n{month}:")
+        out.extend(lines)
+    if thin:
+        out.append("\nEVIDENCE GAPS (thin or missing months): " + "; ".join(thin))
+    out.append(
+        "\nRESEARCH PROTOCOL: this digest is LOCAL records only. Cross-check against "
+        "Company Context and search_knowledge_base (meeting notes often carry the "
+        "real story); use search_gmail for external communications in the period. "
+        "Identify starting events, finishing events, improvements, patterns, and "
+        "personnel changes and their impact. If anything is unclear, contradictory, "
+        "or missing, ASK THE USER before producing the report — never fill gaps "
+        "with plausible guesses."
+    )
+    return "\n".join(out)[:24000]
+
+
 TOOL_EXECUTORS = {
     "search_knowledge_base": execute_search_knowledge_base,
     "read_knowledge_base_document": execute_read_knowledge_base_document,
@@ -4604,6 +4772,7 @@ TOOL_EXECUTORS = {
     "read_gmail_message": execute_read_gmail_message,
     "list_gmail_drafts": execute_list_gmail_drafts,
     "read_gmail_draft": execute_read_gmail_draft,
+    "compile_company_timeline": execute_compile_company_timeline,
     "search_drive": execute_search_drive,
     "search_drive_content": execute_search_drive_content,
     "list_drive_folder": execute_list_drive_folder,
@@ -4665,6 +4834,7 @@ _PRIMARY_ARG = {
     "read_gmail_message": "message_id",
     "read_gmail_draft": "draft_id",
     "list_gmail_drafts": "max_results",
+    "compile_company_timeline": "start_date",
     "read_drive_file": "file_id",
     "read_drive_annotations": "file_id",
     "extract_document": "drive_file_id",
