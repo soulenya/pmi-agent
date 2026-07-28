@@ -10,6 +10,7 @@ import { useNotificationWS } from "@/hooks/useNotificationWS";
 import { CommandPalette } from "@/components/CommandPalette";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
 import { LiveMeetingAssist } from "@/components/meetings/LiveMeetingAssist";
+import { SystemNoticesBanner } from "@/components/SystemNotices";
 import { Toaster } from "@/components/Toaster";
 import { AppContextProvider } from "@/contexts/AppContext";
 import { useNavStore } from "@/stores/navStore";
@@ -117,6 +118,7 @@ export function AppShell() {
         </div>
         <VoiceAssistant />
         <LiveMeetingAssist />
+        <SystemNoticesBanner />
         <WhatsNewModal />
         <FeatureGuideModal />
         <Toaster />
