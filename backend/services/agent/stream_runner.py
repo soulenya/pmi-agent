@@ -60,6 +60,16 @@ async def _run_agent_to_queue(
 
                 async for frame in gen:
                     await queue.put(frame)
+
+                # v2 supervisor doesn't title conversations itself — give it the
+                # same short-topic auto-title the v1 executor applies (idempotent).
+                if use_langgraph:
+                    try:
+                        from services.agent.executor import _auto_title_conversation
+
+                        await _auto_title_conversation(db, conversation_id, user_id, content)
+                    except Exception:  # noqa: BLE001 — titling never fails the turn
+                        logger.exception("Auto-title after v2 run failed")
             except Exception:
                 logger.exception("Detached agent run failed")
                 try:

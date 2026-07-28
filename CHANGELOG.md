@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.25 — 2026-07-28
+**Short chat names + system notices pop-down (Morgan requests)**
+
+- `_auto_title_conversation` now asks a fast LLM (daily_assistant task) for a 1-3 word Title Case topic label (≤40 chars, ≤4 words sanity gate); falls back to the old word-boundary truncation on any failure; idempotent (never renames a titled conversation). Wired for BOTH engines — stream_runner titles after v2 supervisor runs (v2 previously never titled at all).
+- New `GET /settings/notices`: Google-disconnected warning; AI-engine error (key missing, or live `_ping_llm` failure); newer-Claude-model detection — `_parse_claude_version` (family/major/minor, tolerates date suffixes) compares every in-use Anthropic model (global + per-task effective) against the live model list; one-time per-task-models tip when no overrides exist.
+- `SystemNoticesBanner` in AppShell: top-center pop-down stack, severity-styled, Fix button routes to Settings; error/warning dismiss per-session (reappear each launch until fixed), info dismisses permanently (localStorage); polls every 10 min.
+- SMOKE28: version parsing incl. date-suffix + newer-comparison; live title call ("Budget Reconciliation") + idempotence + cleanup; live notices run — caught REAL claude-opus-5/claude-sonnet-5 availability on Morgan's key.
+
 ### v3.3.24 — 2026-07-27
 **Company truth folder (Morgan request: one markdown per company-context section)**
 

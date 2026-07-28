@@ -186,18 +186,43 @@ async def _auto_title_conversation(
     user_id: uuid.UUID,
     user_text: str,
 ) -> None:
-    """Set the conversation title from the first user message if still untitled."""
+    """Title an untitled conversation with a short 1-3 word topic label.
+
+    A fast LLM call names the topic ("Budget Review", "NAR Contract"); if the
+    model is unavailable or rambles, fall back to word-boundary truncation of
+    the first message. Never blocks or fails the chat turn.
+    """
     conv_repo = ConversationRepository(db)
     conv = await conv_repo.get(conversation_id, user_id)
     if conv is None or conv.title:
         return  # already titled or not found
 
-    # Truncate at word boundary ≤ 60 chars
     raw = user_text.strip().replace("\n", " ")
-    if len(raw) <= 60:
-        title = raw
-    else:
-        title = raw[:60].rsplit(" ", 1)[0] + "…"
+    title = ""
+    try:
+        from services.llm.router import get_llm_client
+
+        client = await get_llm_client(db, task="daily_assistant")
+        chunk = await client.chat(
+            messages=[{
+                "role": "user",
+                "content": (
+                    "Give a 1-3 word topic label for this chat request, like a folder "
+                    "name. Reply with ONLY the label — no quotes, no trailing "
+                    "punctuation, Title Case.\n\nRequest: " + raw[:500]
+                ),
+            }],
+            temperature=0.0,
+        )
+        candidate = chunk.content.strip().strip('"\u2019\u2018\u201c\u201d\'').rstrip(".").strip()
+        if candidate and len(candidate) <= 40 and len(candidate.split()) <= 4 and "\n" not in candidate:
+            title = candidate
+    except Exception:  # noqa: BLE001 — titling is best-effort, never blocks chat
+        title = ""
+
+    if not title:
+        # Fallback: truncate at word boundary ≤ 60 chars
+        title = raw if len(raw) <= 60 else raw[:60].rsplit(" ", 1)[0] + "…"
 
     await conv_repo.update(conv, title=title)
     await db.commit()

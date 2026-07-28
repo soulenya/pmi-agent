@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 186;
-export const BUILD_DATE = "2026-07-27";
+export const BUILD_NUMBER = 187;
+export const BUILD_DATE = "2026-07-28";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 187,
+    date: "2026-07-28",
+    title: "Named chats, offline warnings, and model-update alerts",
+    changes: [
+      "Conversations get a short 1-3 word topic name (\"Budget Reconciliation\", \"NAR Contract\") instead of your truncated first message — both chat engines, with truncation as fallback if the naming model is unavailable",
+      "Launch pop-down warns when systems are offline: Google Workspace disconnected, AI engine unreachable, or API key missing — with a Fix button straight to Settings",
+      "Gerry now notices when newer Claude models are available for the models you're using (e.g. Opus 5) and tells you — checked live against your API",
+      "One-time tip reminds you each task type can run its own model (Settings → Models per Task)",
+      "Errors and warnings reappear each launch until fixed; tips dismiss permanently",
+    ],
+  },
   {
     build: 186,
     date: "2026-07-27",
