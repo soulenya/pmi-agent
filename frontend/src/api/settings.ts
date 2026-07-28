@@ -68,6 +68,19 @@ export interface CompanyContext {
   sections: { name: string; file_id: string; chars: number; skipped?: string }[];
 }
 
+export interface SystemNotice {
+  id: string;
+  severity: "error" | "warning" | "info";
+  title: string;
+  message: string;
+  route: string;
+}
+
+export async function getSystemNotices(): Promise<SystemNotice[]> {
+  const resp = await apiClient.get<{ notices: SystemNotice[] }>("/settings/notices");
+  return resp.data.notices;
+}
+
 export interface CompanyContextRefreshResult extends CompanyContext {
   ok: boolean;
   error: string | null;
