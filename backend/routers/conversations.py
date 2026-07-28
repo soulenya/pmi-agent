@@ -562,6 +562,57 @@ async def edit_approval(
     return ApprovalOut.model_validate(intent)
 
 
+async def _sync_notifications_for_resolved_intents(db, user_id, intents) -> None:
+    """An approval was resolved (or expired) SOMEWHERE — mark every bell
+    notification linked to it as read, so no surface keeps offering
+    approve/reject on something already handled. Covers the approval-intent
+    notification itself AND the draft-ready notification of a linked email
+    draft. Pushes a WS frame so open bells refresh instantly."""
+    from datetime import datetime, timezone
+    import uuid as _uuid
+
+    from sqlalchemy import and_, or_, update as sa_update
+
+    from models.db.notification import Notification
+
+    conds = []
+    for intent in intents:
+        conds.append(and_(
+            Notification.entity_type == "approval_intent",
+            Notification.entity_id == intent.id,
+        ))
+        draft_id_raw = (intent.intent_payload or {}).get("draft_id")
+        if draft_id_raw:
+            try:
+                conds.append(and_(
+                    Notification.entity_type == "email_draft",
+                    Notification.entity_id == _uuid.UUID(str(draft_id_raw)),
+                ))
+            except ValueError:
+                pass
+    if not conds:
+        return
+    await db.execute(
+        sa_update(Notification)
+        .where(
+            Notification.user_id == user_id,
+            Notification.is_read.is_(False),
+            or_(*conds),
+        )
+        .values(is_read=True, read_at=datetime.now(timezone.utc))
+    )
+    await db.commit()
+    # Nudge any open bell to refetch right away (best-effort).
+    try:
+        from main import notification_manager
+
+        await notification_manager.push(
+            str(user_id), {"type": "notification", "title": "approvals-synced"}
+        )
+    except Exception:
+        pass
+
+
 @approvals_router.post("/{intent_id}/resolve", response_model=ApprovalOut)
 async def resolve_approval(
     intent_id: uuid.UUID,
@@ -613,7 +664,9 @@ async def resolve_approval(
         await _set_linked_email_draft_status(
             db, (intent.intent_payload or {}).get("draft_id"), "draft"
         )
-
+    # Whatever surface resolved this (Approvals page, Email Drafts card, chat
+    # card, or the bell itself), retire its notifications everywhere.
+    await _sync_notifications_for_resolved_intents(db, current_user.id, [intent])
     out = ApprovalOut.model_validate(intent)
     out.execution_result = execution_result
     return out
@@ -625,6 +678,22 @@ async def clear_expired_approvals(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Delete all expired (and still 'pending') approval requests for the current user."""
+    from datetime import datetime, timezone
+
+    from models.db.approval import ApprovalIntent
+    from models.db.enums import ApprovalStatus
+
+    # Retire the bell notifications of the intents about to be deleted.
+    expired = list((await db.execute(
+        select(ApprovalIntent).where(
+            ApprovalIntent.user_id == current_user.id,
+            ApprovalIntent.status == ApprovalStatus.PENDING,
+            ApprovalIntent.expires_at <= datetime.now(timezone.utc),
+        )
+    )).scalars())
+    if expired:
+        await _sync_notifications_for_resolved_intents(db, current_user.id, expired)
+
     repo = ApprovalRepository(db)
     count = await repo.delete_expired(current_user.id)
     await db.commit()
