@@ -534,6 +534,159 @@ async def settings_health(
     }
 
 
+# ── System notices — launch pop-down (offline systems, model updates, tips) ──
+
+_MODEL_VERSION_RE = r"^claude-(opus|sonnet|haiku)-(\d+)(?:-(\d+))?"
+
+
+def _parse_claude_version(model_id: str) -> tuple[str, int, int] | None:
+    """('sonnet', 4, 6) from 'claude-sonnet-4-6'; None for unparseable ids."""
+    import re as _re
+
+    m = _re.match(_MODEL_VERSION_RE, model_id.strip().lower())
+    if not m:
+        return None
+    return m.group(1), int(m.group(2)), int(m.group(3) or 0)
+
+
+async def _fetch_anthropic_model_ids() -> list[str]:
+    """Live Anthropic model list (empty on any failure — notices are best-effort)."""
+    import httpx
+
+    api_key = app_settings.get_api_key("anthropic")
+    if not api_key:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(
+                "https://api.anthropic.com/v1/models",
+                headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+            )
+            resp.raise_for_status()
+            return [m["id"] for m in resp.json().get("data", []) if str(m.get("id", "")).startswith("claude-")]
+    except Exception:
+        return []
+
+
+@router.get("/notices")
+async def system_notices(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Launch-time system notices for the pop-down banner:
+      - offline systems (Google Workspace, AI engine unreachable / key missing)
+      - newer Claude models available for models currently in use
+      - one-time tip that models are configurable per task
+    Each notice: {id, severity: error|warning|info, title, message, route}.
+    """
+    from services.llm.tasks import LLM_TASKS
+
+    notices: list[dict] = []
+
+    # 1. Google Workspace connectivity
+    try:
+        from services.google_service import get_credentials
+
+        if not get_credentials():
+            notices.append({
+                "id": "google_disconnected",
+                "severity": "warning",
+                "title": "Google Workspace is not connected",
+                "message": (
+                    "Email, calendar, Drive, budgets and document sync are offline "
+                    "until Google is reconnected."
+                ),
+                "route": "/settings",
+            })
+    except Exception:
+        pass
+
+    # 2. AI engine: key missing, or live ping failing
+    provider = str(await _get_setting(db, "llm.provider") or app_settings.default_llm_provider)
+    model = str(await _get_setting(db, "llm.model") or app_settings.default_llm_model)
+    if provider in ("openai", "anthropic") and not app_settings.get_api_key(provider):
+        notices.append({
+            "id": "llm_key_missing",
+            "severity": "error",
+            "title": "AI engine has no API key",
+            "message": f"{provider.capitalize()} is selected but no API key is configured — Gerry can't answer.",
+            "route": "/settings",
+        })
+    else:
+        try:
+            from routers.health import _ping_llm
+
+            res = await _ping_llm(provider, model, db)
+            if res.get("status") != "ok":
+                notices.append({
+                    "id": "llm_offline",
+                    "severity": "error",
+                    "title": "AI engine is unreachable",
+                    "message": str(res.get("detail") or f"{provider}/{model} did not respond."),
+                    "route": "/settings",
+                })
+        except Exception:
+            pass
+
+    # 3. Newer Claude models available for anything currently in use
+    available = await _fetch_anthropic_model_ids()
+    if available:
+        from services.llm.router import resolve_task_llm
+
+        in_use: dict[str, set[str]] = {}
+        if provider == "anthropic":
+            in_use.setdefault(model, set()).add("global default")
+        for t in LLM_TASKS:
+            p, m = await resolve_task_llm(db, t.key)
+            if p == "anthropic":
+                in_use.setdefault(m, set()).add(t.label)
+        upgrades: list[str] = []
+        seen_pairs: set[tuple[str, str]] = set()
+        for used_model, used_by in in_use.items():
+            used_v = _parse_claude_version(used_model)
+            if not used_v:
+                continue
+            best = None
+            for cand in available:
+                cand_v = _parse_claude_version(cand)
+                if cand_v and cand_v[0] == used_v[0] and (cand_v[1], cand_v[2]) > (used_v[1], used_v[2]):
+                    if best is None or (cand_v[1], cand_v[2]) > (best[1][1], best[1][2]):
+                        best = (cand, cand_v)
+            if best and (used_model, best[0]) not in seen_pairs:
+                seen_pairs.add((used_model, best[0]))
+                upgrades.append(f"{best[0]} (you use {used_model} for {', '.join(sorted(used_by))})")
+        if upgrades:
+            notices.append({
+                "id": "model_updates:" + ";".join(sorted(u.split(" ")[0] for u in upgrades)),
+                "severity": "info",
+                "title": "Newer Claude model(s) available",
+                "message": "Available now: " + " · ".join(upgrades) + ". Update in Settings → Models per Task.",
+                "route": "/settings",
+            })
+
+    # 4. One-time tip: per-task models never customized
+    any_override = False
+    for t in LLM_TASKS:
+        if await _get_setting(db, f"llm.task.{t.key}.provider"):
+            any_override = True
+            break
+    if not any_override:
+        notices.append({
+            "id": "task_models_tip",
+            "severity": "info",
+            "title": "Tip: pick a model per task",
+            "message": (
+                "Every task type (chat, email drafting, regulatory, research…) can use "
+                "its own model — e.g. a fast model for research, the most capable for "
+                "regulatory work. Settings → Models per Task."
+            ),
+            "route": "/settings",
+        })
+
+    return {"notices": notices}
+
+
 @router.put("/me", response_model=UserOut)
 async def update_my_profile(
     body: ProfileUpdate,
