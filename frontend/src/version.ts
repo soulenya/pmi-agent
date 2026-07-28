@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 187;
+export const BUILD_NUMBER = 188;
 export const BUILD_DATE = "2026-07-28";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 188,
+    date: "2026-07-28",
+    title: "Claude 5 generation — recommendations updated, dropdowns fixed",
+    changes: [
+      "Model dropdowns (AI/LLM Configuration and Models per Task) now show the new Claude 5 models — the cached weekly catalog was the lag; it refreshes automatically whenever the new-model notice detects models the menus don't have yet",
+      "Recommended models updated: Opus 5 for Regulatory; Sonnet 5 for Chat & Agent, Briefings, Email Drafting, Meetings, and Document Extraction",
+      "Fresh-install default model is now claude-sonnet-5",
+      "Your explicit model choices are never changed automatically — recommendations and menus updated only",
+    ],
+  },
   {
     build: 187,
     date: "2026-07-28",
