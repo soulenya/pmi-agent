@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { listWorkrooms } from "@/api/workrooms";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, Loader2, Play, Plus, Power, Trash2, CalendarClock } from "lucide-react";
+import { FileActionCard, extractFileLinks } from "@/components/chat/MessageBubble";
 import {
   listScheduledTasks,
   createScheduledTask,
@@ -17,6 +18,15 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 
 function pad(n: number): string {
   return n.toString().padStart(2, "0");
+}
+
+/** Files produced by the last run: the verified list, falling back to links in
+ *  the (truncated) output for runs recorded before that list existed. Failed
+ *  runs show none — a rejected run's file names are exactly the phantom ones. */
+function runFiles(t: ScheduledTask): string[] {
+  if (t.last_run_status !== "success") return [];
+  if (t.last_run_files?.length) return t.last_run_files;
+  return extractFileLinks(t.last_run_output ?? "");
 }
 
 function scheduleSummary(t: ScheduledTask): string {
@@ -332,6 +342,15 @@ export function ScheduledTasksPage() {
                     </pre>
                   </details>
                 )}
+
+                {runFiles(t).map((name) => (
+                  <FileActionCard
+                    key={name}
+                    filename={name}
+                    conversationId={t.conversation_id ?? undefined}
+                    variant="surface"
+                  />
+                ))}
 
                 <div className="flex items-center gap-2 pt-1">
                   <button

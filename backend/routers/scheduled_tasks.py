@@ -42,6 +42,7 @@ class ScheduledTaskOut(BaseModel):
     last_run_at: datetime | None = None
     last_run_status: str | None = None
     last_run_output: str | None = None
+    last_run_files: list[str] | None = None
     conversation_id: uuid.UUID | None = None
     workroom_id: uuid.UUID | None = None
     run_count: int
