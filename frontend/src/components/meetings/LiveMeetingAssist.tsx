@@ -271,6 +271,33 @@ export function LiveMeetingAssist() {
               hint="Lands in Email Drafts for your review — never auto-sent."
               icon={<Mail className="mt-0.5 h-3.5 w-3.5 text-primary" />}
             />
+            {options.thankyou && (
+              <div className="ml-8 mr-2 rounded-md border border-dashed bg-muted/40 px-2.5 py-1.5 text-xs">
+                {state.recipients && state.recipients.length > 0 ? (
+                  <>
+                    <p className="font-medium text-foreground">
+                      Will be addressed to (outside the company):
+                    </p>
+                    <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                      {state.recipients.map((r) => (
+                        <li key={r.email}>
+                          {r.name ? `${r.name} — ` : ""}
+                          {r.email}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Colleagues on the invite are CC'd, never addressed.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">
+                    No outside attendees found on the calendar invite — the draft will
+                    be created with an empty To: for you to fill in.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div className="mt-3 flex items-center gap-2">
             <button

@@ -337,14 +337,15 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
     def _is_blocked(prior: AssistantSuggestion | None) -> bool:
         """Whether an existing row should suppress a fresh recommendation.
 
-        Blocks when the user already acted on it — it is still pending, or was
-        accepted (a task/note/follow-up was already created) — or has dismissed
-        it at least ``DISMISS_SUPPRESS_THRESHOLD`` times. A single dismissal does
+        Blocks when the user already acted on it — it is still pending, was
+        accepted (a task/note/follow-up was already created), or was marked
+        completed (already done) — or has dismissed it at least
+        ``DISMISS_SUPPRESS_THRESHOLD`` times. A single dismissal does
         not block, so an accidentally dismissed item resurfaces once.
         """
         if prior is None:
             return False
-        if prior.status in ("pending", "accepted"):
+        if prior.status in ("pending", "accepted", "completed"):
             return True
         if (
             prior.status == "dismissed"
