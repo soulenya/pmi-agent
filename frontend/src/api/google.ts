@@ -81,6 +81,24 @@ export interface GoogleTask {
   status: string;
 }
 
+export interface GmailThreadSummary {
+  thread_id: string;
+  subject: string;
+  from: string;
+  date: string;
+  snippet: string;
+  message_count: number;
+  unread: boolean;
+  tags?: string[];
+}
+
+export async function listGmailThreads(query = "", max = 50): Promise<GmailThreadSummary[]> {
+  const r = await apiClient.get<{ threads: GmailThreadSummary[] }>(`${G}/gmail/inbox`, {
+    params: { q: query, max },
+  });
+  return r.data.threads ?? [];
+}
+
 export async function listGoogleTasks(max_results = 50, show_completed = false): Promise<GoogleTask[]> {
   const r = await apiClient.get<{ tasks: GoogleTask[] }>(`${G}/tasks`, {
     params: { max_results, show_completed },

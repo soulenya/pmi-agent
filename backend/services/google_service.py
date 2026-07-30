@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import base64
 import email.mime.text
+import logging
 import threading
+import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
@@ -33,6 +35,8 @@ SCOPES = [
 _BACKEND = Path(__file__).parent.parent
 CREDS_FILE = _BACKEND / "google_credentials.json"
 TOKEN_FILE  = _BACKEND / "google_token.json"
+
+logger = logging.getLogger(__name__)
 
 _auth_status: str = "disconnected"
 _auth_lock = threading.Lock()
@@ -544,13 +548,19 @@ def gmail_get_thread(thread_id: str) -> dict:
             "body_html": html,
             "attachments": _list_attachments(payload),
         })
-    # The connected account's own address, so the UI can exclude it from Reply-all.
-    me = ""
-    try:
-        me = svc.users().getProfile(userId="me").execute().get("emailAddress", "")
-    except Exception:
-        me = ""
-    return {"thread_id": thread_id, "subject": subject, "me": me, "messages": messages}
+    # Every address this account owns, so the UI can exclude them from
+    # Reply-all. The profile address alone is not enough: mail addressed to a
+    # send-as alias (morganjkeane@precisianmedical.com vs the primary
+    # morganjkeane@pmi-llc.com) was being Cc'd back to the user.
+    own = gmail_own_addresses()
+    me = own[0] if own else ""
+    return {
+        "thread_id": thread_id,
+        "subject": subject,
+        "me": me,
+        "me_addresses": own,
+        "messages": messages,
+    }
 
 
 def gmail_trash_thread(thread_id: str) -> dict:
@@ -570,6 +580,39 @@ def gmail_profile_email() -> str:
         return svc.users().getProfile(userId="me").execute().get("emailAddress", "")
     except Exception:
         return ""
+
+
+_own_addresses_cache: tuple[float, list[str]] | None = None
+
+
+def gmail_own_addresses() -> list[str]:
+    """Every address the connected account sends as — profile email first.
+
+    ``settings.sendAs.list`` is covered by the existing gmail.readonly scope,
+    so no re-consent is needed. Cached for an hour; aliases rarely change.
+    """
+    global _own_addresses_cache
+    now = time.time()
+    if _own_addresses_cache and now - _own_addresses_cache[0] < 3600:
+        return list(_own_addresses_cache[1])
+
+    addresses: list[str] = []
+    primary = gmail_profile_email()
+    if primary:
+        addresses.append(primary.lower())
+    try:
+        svc = _build("gmail", "v1")
+        resp = svc.users().settings().sendAs().list(userId="me").execute()
+        for sa in resp.get("sendAs", []):
+            addr = (sa.get("sendAsEmail") or "").strip().lower()
+            if addr and addr not in addresses:
+                addresses.append(addr)
+    except Exception:
+        logger.exception("Could not list send-as aliases")
+
+    if addresses:
+        _own_addresses_cache = (now, addresses)
+    return list(addresses)
 
 
 def gmail_get_signature() -> str:
