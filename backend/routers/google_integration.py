@@ -384,6 +384,21 @@ def _reply_subject(subject: str) -> str:
     return s if s.lower().startswith("re:") else f"Re: {s}" if s else "Re:"
 
 
+def _strip_own_addresses(cc: str | None) -> str | None:
+    """Drop the user's own addresses (incl. send-as aliases) from a Cc list."""
+    if not cc:
+        return cc
+    from services.google_service import gmail_own_addresses
+
+    mine = set(gmail_own_addresses())
+    kept = [
+        part.strip()
+        for part in cc.split(",")
+        if part.strip() and _extract_email(part).lower() not in mine
+    ]
+    return ", ".join(kept) or None
+
+
 class GmailSendRequest(BaseModel):
     to: str
     cc: str | None = None
@@ -591,6 +606,7 @@ async def _build_gerry_reply(
     if not messages:
         raise ValueError("Thread has no messages.")
     last = messages[-1]
+    cc = _strip_own_addresses(cc)
     recipient_email = _extract_email(last.get("from", ""))
     recipient_name = (last.get("from", "").split("<")[0]).strip().strip('"') or recipient_email
     subject = _reply_subject(thread.get("subject", ""))

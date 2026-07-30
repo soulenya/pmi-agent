@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v3.3.32 — 2026-07-30
+**Workroom pin picker + Reply All stops including the user (Morgan reports)**
+
+- **Pin picker:** new `PinItemPicker` — choose a category in a Workroom, click *Browse …*, and get a searchable list of the real items with label and `ref_id` filled in automatically. `drive_doc` reuses the existing multi-select `DriveBrowser`; `note` is a text box (no backing store); `odoo_record` is two-step (model dropdown → record search, `ref_id = "<key>:<id>"`); everything else lists from its module API (`listDocuments`, `listGeneratedFiles`, `listGmailThreads`, `listTasks`, `listRegDocs`, `listBudgets`). The old free-text label + reference form survives under a collapsed *Or pin by reference*. New `listGmailThreads()` client for `GET /api/google/gmail/inbox`.
+- **Reply All root cause:** the account has a send-as alias (`morganjkeane@precisianmedical.com`); the UI excluded only `detail.me`, the primary profile address, so mail addressed to the alias put the user back on their own Cc line. Confirmed live against the real inbox before changing code.
+- **Fix:** `gmail_own_addresses()` returns the profile address plus every `settings.sendAs` alias — covered by the existing `gmail.readonly` scope, so no re-consent — cached for an hour. `gmail_get_thread` now returns `me_addresses`, and `openReplyAll` filters that whole set out of To and Cc. If the last message was sent *by* the user, the reply is addressed to the original recipients instead of themselves. `_build_gerry_reply` strips the same set from any Cc as a server-side backstop.
+- Defined the module `logger` in `google_service.py`, which two existing exception handlers referenced without it ever being bound (latent `NameError`).
+- SMOKE36: both aliases returned, Cc filter, `me_addresses` in the thread payload, reply-all over real thread headers, and every picker data source; no rows created.
+
 ### v3.3.31 — 2026-07-30
 **Scheduled runs execute with a clean context + file actions on the Scheduled Tasks page (Morgan report: manual run returned "RUN REJECTED — referenced generated file(s) that do not exist")**
 

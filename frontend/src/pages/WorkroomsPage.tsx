@@ -24,6 +24,7 @@ import {
   Pin,
   PlusCircle,
   RefreshCw,
+  Search,
   Share2,
   Trash2,
   X,
@@ -52,6 +53,7 @@ import {
   listSuggestions,
 } from "@/api/assistant";
 import { DropOverlay } from "@/components/DropOverlay";
+import { PinItemPicker, type PickedItem } from "@/components/workrooms/PinItemPicker";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import { useToastStore } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
@@ -458,6 +460,7 @@ function RoomDetail({
   const [itemKind, setItemKind] = useState<WorkroomItemKind>("drive_doc");
   const [itemLabel, setItemLabel] = useState("");
   const [itemRef, setItemRef] = useState("");
+  const [picking, setPicking] = useState(false);
   const [journalDraft, setJournalDraft] = useState("");
 
   const goalMutation = useMutation({
@@ -478,6 +481,25 @@ function RoomDetail({
   const removeItemMutation = useMutation({
     mutationFn: (itemId: string) => removeWorkroomItem(room.id, itemId),
     onSuccess: onChanged,
+  });
+
+  const pinPickedMutation = useMutation({
+    mutationFn: async (items: PickedItem[]) => {
+      for (const it of items) {
+        await addWorkroomItem(room.id, {
+          kind: itemKind,
+          label: it.label,
+          ref_id: it.ref_id,
+        });
+      }
+      return items.length;
+    },
+    onSuccess: (count) => {
+      setPicking(false);
+      push("success", `Pinned ${count} item(s) to "${room.title}".`);
+      onChanged();
+    },
+    onError: () => push("error", "Couldn't pin that item."),
   });
 
   const journalMutation = useMutation({
@@ -713,26 +735,52 @@ function RoomDetail({
               </option>
             ))}
           </select>
-          <input
-            value={itemLabel}
-            onChange={(e) => setItemLabel(e.target.value)}
-            placeholder="Label (e.g. QMS Manual draft)"
-            className="min-w-[180px] flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
-          />
-          <input
-            value={itemRef}
-            onChange={(e) => setItemRef(e.target.value)}
-            placeholder="Reference / ID (optional)"
-            className="min-w-[140px] flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
-          />
           <button
-            onClick={() => addItemMutation.mutate()}
-            disabled={!itemLabel.trim() || addItemMutation.isPending}
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+            onClick={() => setPicking(true)}
+            disabled={pinPickedMutation.isPending}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
           >
-            {addItemMutation.isPending ? "Pinning…" : "Pin"}
+            {pinPickedMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Search className="h-3.5 w-3.5" />
+            )}
+            Browse {ITEM_KIND_LABELS[itemKind].toLowerCase()}s…
           </button>
         </div>
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer hover:text-foreground">
+            Or pin by reference
+          </summary>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input
+              value={itemLabel}
+              onChange={(e) => setItemLabel(e.target.value)}
+              placeholder="Label (e.g. QMS Manual draft)"
+              className="min-w-[180px] flex-1 rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
+            />
+            <input
+              value={itemRef}
+              onChange={(e) => setItemRef(e.target.value)}
+              placeholder="Reference / ID (optional)"
+              className="min-w-[140px] flex-1 rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
+            />
+            <button
+              onClick={() => addItemMutation.mutate()}
+              disabled={!itemLabel.trim() || addItemMutation.isPending}
+              className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-60"
+            >
+              {addItemMutation.isPending ? "Pinning…" : "Pin"}
+            </button>
+          </div>
+        </details>
+        {picking && (
+          <PinItemPicker
+            kind={itemKind}
+            onPick={(items) => pinPickedMutation.mutate(items)}
+            onClose={() => setPicking(false)}
+          />
+        )}
       </section>
 
       {/* Suggested next steps — proactive to-dos from the daily room scan */}

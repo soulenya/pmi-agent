@@ -84,6 +84,7 @@ interface ThreadDetail {
   thread_id: string;
   subject: string;
   me?: string;
+  me_addresses?: string[];
   messages: ThreadMessage[];
 }
 
@@ -1710,7 +1711,13 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
 
   /** Reply to the sender and everyone else on the last message (minus yourself). */
   function openReplyAll() {
-    const me = (detail.me || "").trim().toLowerCase();
+    // Every address the account owns, not just the primary one — mail sent to
+    // a send-as alias was Cc'ing the user back into their own reply.
+    const mine = new Set(
+      [...(detail.me_addresses ?? []), detail.me ?? ""]
+        .map((a) => a.trim().toLowerCase())
+        .filter(Boolean),
+    );
     const sender = emailOf(last?.from || "");
     const others = [
       ...splitAddresses(last?.to || ""),
@@ -1719,10 +1726,13 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
       .map(emailOf)
       .filter((a) => {
         const lower = a.toLowerCase();
-        return a && lower !== me && lower !== sender.toLowerCase();
+        return a && !mine.has(lower) && lower !== sender.toLowerCase();
       });
-    const uniqueCc = Array.from(new Set(others));
-    setReplyTo(sender);
+    const unique = Array.from(new Set(others));
+    // Replying to a message you sent yourself: address the recipients instead.
+    const recipients = mine.has(sender.toLowerCase()) ? unique : [sender, ...unique];
+    const uniqueCc = recipients.slice(1);
+    setReplyTo(recipients[0] ?? "");
     setReplyCc(uniqueCc.join(", "));
     setShowCc(uniqueCc.length > 0);
     setReplyBody(signature ? `\n\n${signature}` : "");

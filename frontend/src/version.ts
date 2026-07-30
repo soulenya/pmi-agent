@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 193;
+export const BUILD_NUMBER = 194;
 export const BUILD_DATE = "2026-07-30";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 194,
+    date: "2026-07-30",
+    title: "Pick what you pin, and stop Cc'ing yourself",
+    changes: [
+      "Pinning to a Workroom now opens a picker for whichever category you choose — Drive docs, KB documents, generated files, email threads, tasks, Odoo records, regulatory documents and budgets are all searchable and one click to pin (reported by Morgan)",
+      "Typing a raw reference ID by hand still works, tucked under 'Or pin by reference'",
+      "Reply All no longer includes your own address — it now excludes every send-as alias on your account, not just your primary one",
+      "Replying to a message you sent yourself addresses the original recipients instead of you",
+    ],
+  },
   {
     build: 193,
     date: "2026-07-30",
