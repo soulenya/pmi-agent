@@ -358,7 +358,7 @@ async def _upsert_todo(
         )
     ).scalar_one_or_none()
     if prior is not None:
-        if prior.status in ("pending", "accepted"):
+        if prior.status in ("pending", "accepted", "completed"):
             return None
         if (prior.dismissal_count or 0) >= _DISMISS_SUPPRESS_THRESHOLD:
             return None

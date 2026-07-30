@@ -37,7 +37,7 @@ class AssistantSuggestion(Base):
 
     # followup_email | followup_task | task_recommendation | meeting_import
     kind: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
-    # pending | accepted | dismissed
+    # pending | accepted | dismissed | completed (already done — never resurfaces)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending", index=True
     )

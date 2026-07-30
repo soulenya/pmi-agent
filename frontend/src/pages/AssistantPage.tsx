@@ -7,6 +7,7 @@ import {
   FileText,
   CheckSquare,
   Check,
+  CheckCheck,
   X,
   ExternalLink,
   Play,
@@ -19,6 +20,8 @@ import {
   listSuggestions,
   acceptSuggestion,
   dismissSuggestion,
+  completeSuggestion,
+  bulkResolveSuggestions,
   undoDismissSuggestion,
   getAssistantSettings,
   updateAssistantSettings,
@@ -87,13 +90,19 @@ const KIND_META: Record<
 function SuggestionCard({
   suggestion,
   onAccept,
+  onComplete,
   onDismiss,
   busy,
+  selected,
+  onToggleSelect,
 }: {
   suggestion: AssistantSuggestion;
   onAccept: () => void;
+  onComplete: () => void;
   onDismiss: () => void;
   busy: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
 }) {
   const meta = KIND_META[suggestion.kind];
   const Icon = meta.icon;
@@ -123,9 +132,21 @@ function SuggestionCard({
   };
 
   return (
-    <div className="rounded-xl border bg-card p-5 shadow-sm">
+    <div
+      className={cn(
+        "rounded-xl border bg-card p-5 shadow-sm",
+        selected && "border-primary/60 ring-1 ring-primary/40",
+      )}
+    >
       <div className="mb-3 flex items-start justify-between gap-4">
         <div className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            title="Select for bulk action"
+            className="mt-2.5 h-4 w-4 shrink-0 rounded border-input"
+          />
           <span className={cn("mt-0.5 shrink-0 rounded-lg p-2", meta.tint)}>
             <Icon className="h-4 w-4" />
           </span>
@@ -156,7 +177,7 @@ function SuggestionCard({
         </div>
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           disabled={busy}
           onClick={onAccept}
@@ -164,6 +185,15 @@ function SuggestionCard({
         >
           <Check className="h-4 w-4" />
           {meta.accept}
+        </button>
+        <button
+          disabled={busy}
+          onClick={onComplete}
+          title="I already did this — don't recommend it again"
+          className="flex items-center gap-1.5 rounded-md border border-emerald-500/50 px-4 py-1.5 text-sm font-medium text-emerald-600 hover:bg-emerald-500/10 disabled:opacity-50 dark:text-emerald-300"
+        >
+          <CheckCheck className="h-4 w-4" />
+          Already done
         </button>
         {odooAction && (
           <button
@@ -232,6 +262,8 @@ export function AssistantPage() {
   // Short-lived undo affordance shown after a dismissal.
   const [undo, setUndo] = useState<{ id: string; title: string } | null>(null);
   const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Multi-select for bulk complete/dismiss.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => () => {
     if (undoTimer.current) clearTimeout(undoTimer.current);
@@ -267,6 +299,20 @@ export function AssistantPage() {
     },
   });
 
+  const completeMutation = useMutation({
+    mutationFn: (id: string) => completeSuggestion(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assistant"] }),
+  });
+
+  const bulkMutation = useMutation({
+    mutationFn: (action: "complete" | "dismiss") =>
+      bulkResolveSuggestions([...selected], action),
+    onSuccess: () => {
+      setSelected(new Set());
+      queryClient.invalidateQueries({ queryKey: ["assistant"] });
+    },
+  });
+
   const undoMutation = useMutation({
     mutationFn: (id: string) => undoDismissSuggestion(id),
     onSuccess: () => {
@@ -298,8 +344,25 @@ export function AssistantPage() {
     onError: () => setScanMessage("Scan failed. Check that the backend and Google account are available."),
   });
 
-  const busy = acceptMutation.isPending || dismissMutation.isPending;
+  const busy =
+    acceptMutation.isPending ||
+    dismissMutation.isPending ||
+    completeMutation.isPending ||
+    bulkMutation.isPending;
   const lastRun = settings?.last_run ? new Date(settings.last_run) : null;
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const selectedCount = suggestions.filter((s) => selected.has(s.id)).length;
+  const allSelected = suggestions.length > 0 && selectedCount === suggestions.length;
+  const toggleSelectAll = () =>
+    setSelected(allSelected ? new Set() : new Set(suggestions.map((s) => s.id)));
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -378,12 +441,59 @@ export function AssistantPage() {
         </div>
       )}
 
+      {suggestions.length > 0 && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-2.5 shadow-sm">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleSelectAll}
+              className="h-4 w-4 rounded border-input"
+            />
+            Select all
+          </label>
+          {selectedCount > 0 ? (
+            <>
+              <span className="text-sm text-muted-foreground">
+                {selectedCount} selected
+              </span>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  disabled={busy}
+                  onClick={() => bulkMutation.mutate("complete")}
+                  title="Mark the selected suggestions as already done — they won't come back"
+                  className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  Mark done ({selectedCount})
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => bulkMutation.mutate("dismiss")}
+                  className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                  Dismiss ({selectedCount})
+                </button>
+              </div>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              Select suggestions to complete or dismiss them together
+            </span>
+          )}
+        </div>
+      )}
+
       {suggestions.map((s) => (
         <SuggestionCard
           key={s.id}
           suggestion={s}
           busy={busy}
+          selected={selected.has(s.id)}
+          onToggleSelect={() => toggleSelect(s.id)}
           onAccept={() => acceptMutation.mutate(s.id)}
+          onComplete={() => completeMutation.mutate(s.id)}
           onDismiss={() => dismissMutation.mutate(s)}
         />
       ))}

@@ -95,6 +95,7 @@ class LiveMeetingSession:
         self.party: str = ""            # "Joe/Phil" — external first names
         self.party_email: str = ""       # comma-joined external attendee emails (To:)
         self.cc_emails: str = ""         # comma-joined same-company attendees (CC:)
+        self.recipients: list[dict] = []  # [{name, email}] external attendees, shown in consent UI
         self.vocabulary: list[str] = []  # trusted names/companies for STT hints + reconciliation
         self.nda_hint: str = ""
         self.segments: list[dict] = []       # {seq, at, text}
@@ -117,6 +118,7 @@ class LiveMeetingSession:
             "platform": self.platform,
             "started_at": self.started_at.isoformat(),
             "party": self.party,
+            "recipients": list(self.recipients),
             "nda_hint": self.nda_hint,
             "segments": [s for s in self.segments if s["seq"] > after_segment],
             "cards": [c for c in self.cards if c["seq"] > after_card],
@@ -386,18 +388,37 @@ def _domain(email: str) -> str:
     return email.split("@")[1].lower() if "@" in email else ""
 
 
+def _company_domains(own_email: str = "") -> set[str]:
+    """Every domain that counts as "us" (config list + the signed-in user's).
+
+    The company spans more than one domain (pmi-llc.com and
+    precisianmedical.com), so splitting on the signed-in user's domain alone
+    wrongly treats a business partner as the other party — which is how a
+    thank-you draft ended up addressed to a colleague.
+    """
+    domains = {str(d).strip().lower().lstrip("@") for d in settings.company_domains}
+    own = _domain(own_email)
+    if own:
+        domains.add(own)
+    return {d for d in domains if d}
+
+
 async def precheck(get_db, own_email: str = "") -> dict:
     """Best-effort meeting facts from the calendar, split by company domain.
 
-    Returns {party, to_emails, cc_emails, nda_hint, vocabulary}:
-      * to_emails  — attendees OUTSIDE the user's company (the other party)
-      * cc_emails  — attendees at the user's company, excluding the user
+    Returns {party, to_emails, cc_emails, recipients, nda_hint, vocabulary}:
+      * to_emails  — attendees OUTSIDE the company (the other party)
+      * cc_emails  — attendees at any company domain, excluding the user
+      * recipients — [{name, email}] for the external attendees, shown in the
+        consent pop-down under the "Draft a thank-you email" option so the user
+        can see exactly who it would be addressed to before opting in
       * party      — "Joe/Phil" greeting names from the external attendees
       * vocabulary — trusted proper nouns (event title words, attendee names,
         org names) fed to STT as hints and used to auto-correct the transcript
     """
     party, to_emails, cc_emails, hint = "", "", "", ""
-    own_domain = _domain(own_email)
+    ours = _company_domains(own_email)
+    recipients: list[dict] = []
     externals: list[str] = []
     vocabulary: list[str] = []
     try:
@@ -420,17 +441,20 @@ async def precheck(get_db, own_email: str = "") -> dict:
                 attendees = [a for a in best["attendees"] if isinstance(a, str) and "@" in a]
                 externals = [
                     a for a in attendees
-                    if _domain(a) and (not own_domain or _domain(a) != own_domain)
+                    if _domain(a) and _domain(a) not in ours
                     and a.lower() != own_email.lower()
                 ]
                 internals = [
                     a for a in attendees
-                    if own_domain and _domain(a) == own_domain and a.lower() != own_email.lower()
+                    if _domain(a) in ours and a.lower() != own_email.lower()
                 ]
                 to_emails = ", ".join(externals)[:255]
                 cc_emails = ", ".join(internals)[:500]
                 names = [n for n in (_first_name(a) for a in externals) if n]
                 party = "/".join(names[:4])
+                recipients = [
+                    {"name": _first_name(a), "email": a} for a in externals
+                ]
                 # Trusted vocabulary: event title + description tokens, full
                 # attendee name parts, and org names from external domains.
                 seen: set[str] = set()
@@ -486,6 +510,7 @@ async def precheck(get_db, own_email: str = "") -> dict:
         "party": party,
         "to_emails": to_emails,
         "cc_emails": cc_emails,
+        "recipients": recipients,
         "nda_hint": hint,
         "vocabulary": vocabulary,
     }
