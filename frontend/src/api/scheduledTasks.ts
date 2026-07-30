@@ -16,6 +16,8 @@ export interface ScheduledTask {
   last_run_at: string | null;
   last_run_status: string | null;
   last_run_output: string | null;
+  // Generated files the last successful run produced (verified on disk).
+  last_run_files: string[] | null;
   conversation_id: string | null;
   workroom_id: string | null;
   run_count: number;

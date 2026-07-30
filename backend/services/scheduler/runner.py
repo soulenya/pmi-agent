@@ -39,23 +39,25 @@ VALID_FREQUENCIES = ("daily", "weekly", "monthly")
 _API_FILE_RE = re.compile(r"/api/files/((?:[^\s)\]\"'`]| (?! ))+?\.[a-z0-9]{2,6})", re.IGNORECASE)
 
 
-def _phantom_files_in(output: str) -> list[str]:
-    """Names of /api/files/... links in the output that do NOT exist on disk."""
+def _split_file_links(output: str) -> tuple[list[str], list[str]]:
+    """Return (existing, missing) /api/files/... names referenced in ``output``."""
     from urllib.parse import unquote
 
     from services.agent.tools import _GENERATED_FILES_DIR
 
+    existing: list[str] = []
     missing: list[str] = []
     for m in _API_FILE_RE.finditer(output or ""):
         name = unquote(m.group(1))
         if "/" in name or "\\" in name or name.startswith(".."):
             continue
+        if name in existing or name in missing:
+            continue
         try:
-            if not (_GENERATED_FILES_DIR / name).is_file() and name not in missing:
-                missing.append(name)
+            (existing if (_GENERATED_FILES_DIR / name).is_file() else missing).append(name)
         except OSError:
             continue
-    return missing
+    return existing, missing
 
 
 def compute_next_run(
@@ -156,25 +158,28 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
     task.last_run_status = "running"
     await db.commit()
 
-    # Fresh-run contract (field failure 2026-07-23): scheduled tasks reuse ONE
-    # conversation so history accumulates — which let the model see LAST
-    # week's successful output and echo its shape (old links, old names, new
-    # date) without calling a single tool. Every run now carries an explicit
-    # re-execution demand, and the output is verified below.
+    # Fresh-run contract (field failures 2026-07-23 and 2026-07-30): scheduled
+    # tasks reuse ONE conversation so history accumulates — which let the model
+    # see LAST week's successful output and echo its shape (old links, old
+    # names, new date) without calling a single tool. Telling it not to wasn't
+    # enough, so the run now executes with NO prior messages in context
+    # (fresh_context below): the answer it copied from is simply not there.
+    # The run is still WRITTEN to the shared conversation, so the user's run
+    # history is unchanged. Room context (goal, pins, journal) comes from the
+    # system prompt, not message history, so standing room tasks keep it.
     fresh_prompt = (
         f"{task.prompt}\n\n"
-        "[SCHEDULED RUN — FRESH EXECUTION REQUIRED] Earlier runs of this task "
-        "appear above in this conversation. They are HISTORY, not results: "
-        "their file links, IDs, and facts are STALE and must not be repeated "
-        "or reworded as if current. Do the work AGAIN from scratch with real "
-        "tool calls IN THIS RUN. Never reference a file you did not create in "
-        "this run."
+        "[SCHEDULED RUN — FRESH EXECUTION REQUIRED] You are starting from "
+        "nothing: do the work from scratch with real tool calls IN THIS RUN. "
+        "Never reference a file, link, or ID you did not create in this run."
     )
 
     status = "success"
     output = ""
+    files: list[str] = []
     try:
         executor = await AgentExecutor.create(db, task.user_id, conv.id)
+        executor.fresh_context = True
         # Consume the agent stream to completion; frames are irrelevant here —
         # the executor persists the final assistant message itself.
         async for _frame in executor._run(fresh_prompt):
@@ -191,9 +196,10 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
             # Hard verification: every /api/files/<name> the output claims must
             # actually exist on disk. A run that references phantom files is a
             # FAILED run — recorded honestly instead of standing as a report.
-            missing = _phantom_files_in(output)
+            files, missing = _split_file_links(output)
             if missing:
                 status = "failed"
+                files = []
                 output = (
                     "RUN REJECTED — the model referenced generated file(s) that do "
                     f"not exist on disk: {', '.join(missing)}. This usually means it "
@@ -204,6 +210,7 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
         logger.exception("Scheduled task %s failed", task.id)
         status = "failed"
         output = f"Run failed: {exc}"
+        files = []
 
     # Standing room task — journal the run so the room timeline stays complete.
     if room is not None and status == "success":
@@ -221,6 +228,9 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
     task.last_run_at = now
     task.last_run_status = status
     task.last_run_output = output[:4000]
+    # Recorded from the FULL output before truncation, so the file cards on the
+    # Scheduled Tasks page survive a long report.
+    task.last_run_files = files or None
     task.run_count = (task.run_count or 0) + 1
     task.next_run_at = compute_next_run(
         frequency=task.frequency,

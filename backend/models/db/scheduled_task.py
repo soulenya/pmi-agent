@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.db.base import Base
@@ -59,6 +59,10 @@ class ScheduledTask(Base):
     # success | failed | running
     last_run_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     last_run_output: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Generated file names the last run actually produced, verified present on
+    # disk when the run ended. Kept separately because last_run_output is
+    # truncated for display and can cut the /api/files/... links off the end.
+    last_run_files: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     # Conversation that holds the run history, so the user can open it in chat.
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
