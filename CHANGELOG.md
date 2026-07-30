@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v3.3.31 — 2026-07-30
+**Scheduled runs execute with a clean context + file actions on the Scheduled Tasks page (Morgan report: manual run returned "RUN REJECTED — referenced generated file(s) that do not exist")**
+
+- **Root cause:** scheduled tasks reuse ONE conversation, so the previous run's full answer (file links included) was in the model's context; it reworded that instead of calling tools, and the phantom-file verifier correctly failed the run. The v3.3.2x fix only *instructed* the model to ignore the history — not enough.
+- **Fix:** `AgentExecutor.fresh_context` — when set, `_build_history` sends the system prompt plus this run's instruction only, no earlier messages. `run_scheduled_task` sets it. The run is still written to the shared conversation (history unchanged), and room context/company context/attachments still come from the system prompt, so standing room tasks are unaffected.
+- **File actions:** new `scheduled_tasks.last_run_files` (jsonb, migration 026) records the files a run actually produced, verified on disk from the FULL output before it is truncated for display. The Scheduled Tasks page renders the same card as chat — Download / Open in Workspace / Add to KB / Pin to Workroom — for successful runs only (a rejected run's file names are the phantom ones). Older runs fall back to parsing the stored output.
+- `_phantom_files_in` → `_split_file_links` returning (existing, missing); `FileActionCard` + `extractFileLinks` exported from MessageBubble with a `surface` variant for plain page backgrounds (light mode).
+- SMOKE35: link split (real file vs the reported phantom name), fresh context (3 messages → 1, prior report absent), `last_run_files` round-trip; all smoke rows and files deleted.
+
 ### v3.3.30 — 2026-07-30
 **Clear handled suggestions + thank-you emails stop going to colleagues (Morgan requests)**
 

@@ -243,6 +243,11 @@ class AgentExecutor:
     user_id: uuid.UUID
     conversation_id: uuid.UUID
     ollama: OllamaClient = field(default_factory=get_ollama_client)
+    # When True, the model sees ONLY this turn's message — earlier messages in
+    # the conversation are not sent. Used by scheduled runs, which share one
+    # conversation across runs: with last week's report in context the model
+    # would reword it instead of doing the work.
+    fresh_context: bool = False
 
     @classmethod
     async def create(cls, db: AsyncSession, user_id, conversation_id) -> "AgentExecutor":
@@ -580,6 +585,10 @@ class AgentExecutor:
         relevant = [m for m in history if m.role in (MessageRole.USER, MessageRole.ASSISTANT)]
         while relevant and relevant[0].role != MessageRole.USER:
             relevant.pop(0)
+        if self.fresh_context:
+            # Scheduled run: send ONLY this run's instruction, so there is no
+            # earlier answer in context for the model to reword.
+            return messages + [{"role": "user", "content": user_text}]
         for msg in relevant:
             messages.append({"role": msg.role, "content": msg.content})
 
