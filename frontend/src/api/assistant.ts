@@ -9,7 +9,7 @@ export type SuggestionKind =
   | "budget_entry"
   | "gmail_invoice";
 
-export type SuggestionStatus = "pending" | "accepted" | "dismissed";
+export type SuggestionStatus = "pending" | "accepted" | "dismissed" | "completed";
 
 export interface AssistantSuggestion {
   id: string;
@@ -44,6 +44,11 @@ export interface ScanResult {
   created: number;
   imported: number;
   skipped?: string | null;
+}
+
+export interface BulkResult {
+  processed: number;
+  skipped: number;
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────
@@ -84,6 +89,24 @@ export async function acceptSuggestion(id: string): Promise<AcceptResult> {
 
 export async function dismissSuggestion(id: string): Promise<AcceptResult> {
   const resp = await apiClient.post<AcceptResult>(`/assistant/suggestions/${id}/dismiss`);
+  return resp.data;
+}
+
+/** Mark a suggestion as already done — it will never be recommended again. */
+export async function completeSuggestion(id: string): Promise<AcceptResult> {
+  const resp = await apiClient.post<AcceptResult>(`/assistant/suggestions/${id}/complete`);
+  return resp.data;
+}
+
+/** Complete or dismiss many suggestions in one call. */
+export async function bulkResolveSuggestions(
+  ids: string[],
+  action: "complete" | "dismiss",
+): Promise<BulkResult> {
+  const resp = await apiClient.post<BulkResult>("/assistant/suggestions/bulk", {
+    ids,
+    action,
+  });
   return resp.data;
 }
 

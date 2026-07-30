@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v3.3.30 — 2026-07-30
+**Clear handled suggestions + thank-you emails stop going to colleagues (Morgan requests)**
+
+- **Daily Assistant — "Already done":** a new `completed` status on suggestions, set from the green button on each card or `POST /assistant/suggestions/{id}/complete`. Completed items are permanently suppressed — both the daily scan and the workroom scan treat `completed` like `pending`/`accepted` and never resurface them. (Dismiss keeps its old behaviour: one dismissal resurfaces once, two suppress.)
+- **Multi-select:** checkboxes on every suggestion card plus a Select all bar; `POST /assistant/suggestions/bulk {ids, action}` completes or dismisses up to 200 at a time (bulk dismiss still removes the auto-imported document for a meeting import).
+- **Thank-you addressing (Morgan field report: the draft was addressed to him and his business partner):** the internal/external split used only the signed-in user's own email domain, so a partner on the company's other domain counted as "the other party". New `company_domains` setting (`pmi-llc.com`, `precisianmedical.com`; env-overridable) — anyone on those domains is CC'd, everyone else is the addressee. No outside attendee on the invite → the draft is created with an empty To: rather than guessing.
+- **Recipients shown before you opt in:** ticking "Draft a thank-you email afterward" in the consent pop-down now lists each outside attendee (name + address) it would be addressed to, with a note that colleagues are CC'd.
+- SMOKE34: routes registered, suppression updated in both scans, domain split verified (partner CC'd, outsiders addressed), complete round-trip against the live DB; all smoke rows deleted.
+
 ### v3.3.29 — 2026-07-28
 **Writing style hardening (Morgan report: editorial dash-clauses and emotion persisted after the template fix)**
 
