@@ -65,6 +65,16 @@ class AcceptResult(BaseModel):
     task_id: uuid.UUID | None = None
 
 
+class BulkSuggestionRequest(BaseModel):
+    ids: list[uuid.UUID]
+    action: str  # "complete" | "dismiss"
+
+
+class BulkResult(BaseModel):
+    processed: int
+    skipped: int
+
+
 class AssistantSettings(BaseModel):
     enabled: bool
     hour_local: int
@@ -344,17 +354,10 @@ async def accept_suggestion(
     return AcceptResult(status="accepted", suggestion_id=s.id, task_id=task_id)
 
 
-@router.post("/suggestions/{suggestion_id}/dismiss", response_model=AcceptResult)
-async def dismiss_suggestion(
-    suggestion_id: uuid.UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
-):
-    s = await _get_owned(db, user, suggestion_id)
-    if s.status != "pending":
-        raise HTTPException(409, f"Suggestion already {s.status}")
-
+async def _dismiss_row(
+    db: AsyncSession, s: AssistantSuggestion, embedding_svc: EmbeddingService
+) -> None:
+    """Mark a pending suggestion dismissed (shared by single + bulk routes)."""
     # Dismissing an import removes the document that was auto-added to the KB.
     if s.kind == "meeting_import" and s.result_entity_type == "document" and s.result_entity_id:
         try:
@@ -368,8 +371,80 @@ async def dismiss_suggestion(
     s.status = "dismissed"
     s.dismissal_count = (s.dismissal_count or 0) + 1
     s.resolved_at = datetime.now(timezone.utc)
+
+
+@router.post("/suggestions/{suggestion_id}/dismiss", response_model=AcceptResult)
+async def dismiss_suggestion(
+    suggestion_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
+):
+    s = await _get_owned(db, user, suggestion_id)
+    if s.status != "pending":
+        raise HTTPException(409, f"Suggestion already {s.status}")
+
+    await _dismiss_row(db, s, embedding_svc)
     await db.commit()
     return AcceptResult(status="dismissed", suggestion_id=s.id)
+
+
+@router.post("/suggestions/{suggestion_id}/complete", response_model=AcceptResult)
+async def complete_suggestion(
+    suggestion_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark a suggestion as already done.
+
+    Unlike dismissal (which resurfaces once to guard against accidents), a
+    completed suggestion is permanently suppressed — future scans will never
+    recommend the same item again.
+    """
+    s = await _get_owned(db, user, suggestion_id)
+    if s.status != "pending":
+        raise HTTPException(409, f"Suggestion already {s.status}")
+
+    s.status = "completed"
+    s.resolved_at = datetime.now(timezone.utc)
+    await db.commit()
+    return AcceptResult(status="completed", suggestion_id=s.id)
+
+
+@router.post("/suggestions/bulk", response_model=BulkResult)
+async def bulk_resolve_suggestions(
+    body: BulkSuggestionRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
+):
+    """Complete or dismiss many pending suggestions in one call."""
+    if body.action not in ("complete", "dismiss"):
+        raise HTTPException(400, "action must be 'complete' or 'dismiss'")
+
+    processed = 0
+    skipped = 0
+    now = datetime.now(timezone.utc)
+    for sid in body.ids[:200]:
+        s = (
+            await db.execute(
+                select(AssistantSuggestion).where(
+                    AssistantSuggestion.id == sid,
+                    AssistantSuggestion.user_id == user.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if s is None or s.status != "pending":
+            skipped += 1
+            continue
+        if body.action == "complete":
+            s.status = "completed"
+            s.resolved_at = now
+        else:
+            await _dismiss_row(db, s, embedding_svc)
+        processed += 1
+    await db.commit()
+    return BulkResult(processed=processed, skipped=skipped)
 
 
 @router.post("/suggestions/{suggestion_id}/undo-dismiss", response_model=AcceptResult)

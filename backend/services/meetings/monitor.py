@@ -338,6 +338,7 @@ class MeetingMonitor:
             live.party = info["party"]
             live.party_email = info["to_emails"]
             live.cc_emails = info["cc_emails"]
+            live.recipients = info.get("recipients", [])
             live.nda_hint = info["nda_hint"]
             live.vocabulary = info.get("vocabulary", [])
         except Exception:  # noqa: BLE001
@@ -571,6 +572,11 @@ class MeetingMonitor:
         the calendar), CC = company colleagues in the meeting, greeting =
         first names ("Joe/Phil"), body general — one thanks line, at most one
         real topic reference, one light closer. Never invented specifics.
+
+        "Outside the company" spans every configured company domain, so a
+        colleague on a sister domain is CC'd, never addressed. When the
+        calendar produced no external attendee the draft is left with an empty
+        To: rather than guessing — the notification says so.
         """
         from models.db.email_draft import EmailDraft
 

@@ -149,6 +149,10 @@ class Settings(BaseSettings):
     # provisioned as "admin"; every other allowed-domain account is provisioned
     # as a full-access "member". Each user runs their own local copy.
     admin_email: str = "morganjkeane@pmi-llc.com"
+    # Every domain that counts as "our own company". Anyone at one of these is
+    # a colleague (CC'd, never the target of an outbound thank-you); everyone
+    # else in a meeting is the other party.
+    company_domains: list[str] = ["pmi-llc.com", "precisianmedical.com"]
     # Link emailed to invitees so they can download and install Little Gerry.
     installer_download_url: str = "https://github.com/soulenya/pmi-agent/releases/latest"
 

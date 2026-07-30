@@ -233,6 +233,8 @@ The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Go
 - A **briefing panel** is docked on the right side of the home screen (next to the solar system). At a glance it shows **today's schedule**, **unread email**, **tasks due**, **pending approvals**, **suggestions**, and an **Odoo snapshot** (bank balances) — each section links straight to the right page. Collapse or reopen it with the panel button; Little Gerry remembers your choice.
 - Open **Daily Assistant** itself from its satellite next to the sun (or the briefing panel header). The badge shows the number of pending suggestions.
 - Each suggestion is something to **review** — the assistant never acts on its own. You decide what to do with it.
+- **Already done** marks a suggestion as handled. Unlike Dismiss (which lets an item come back once, in case you clicked it by accident), a completed suggestion is never recommended again.
+- **Select several at once** — tick the checkbox on each card (or **Select all** in the bar above the list) and use **Mark done** or **Dismiss** to clear them in one go.
 - Suggestions are generated about **once per day**; the scan runs automatically in the background while the app is open.
 - Requires **Google Workspace** to be connected (see [Google Workspace](#google-workspace)) for the email/schedule sections. Without it, the assistant still shows your tasks, approvals, and Odoo data.
 
@@ -419,7 +421,7 @@ When a call is detected, a **pop-down asks whether you'd like Gerry to follow al
 - **Decode jargon & acronyms** — buzzwords and industry terms are defined in context as quiet cards in the panel
 - **Suggest answers — under NDA** — Gerry may draw on company knowledge for suggested answers and says what she used
 - **Suggest answers — NOT under NDA** — Gerry is given **no company data at all** (enforced in the code, not just instructions); answers come from public knowledge only and are badged as such
-- **Thank-you email afterward** — drafted from real meeting topics to the other party (guessed from your calendar), landing in Email Drafts for your review. The panel announces the drafting the moment the call ends, and the finished draft rings the notification bell with a link
+- **Thank-you email afterward** — drafted from real meeting topics to the other party, landing in Email Drafts for your review. Ticking this option lists the exact **outside attendees** it would be addressed to (from the calendar invite); colleagues on any company domain are CC'd, never addressed. If the invite has no outside attendees, the draft is created with an empty To: for you to fill in. The panel announces the drafting the moment the call ends, and the finished draft rings the notification bell with a link
 
 The pop-down shows a best-effort NDA check ("NDA possibly on file: …") but **you** confirm the posture. Cards are whispered suggestions on your screen — Gerry never speaks or sends anything during a meeting. The full recording still becomes a normal meeting note at the end, and you're responsible for any consent-to-record requirements where you are. Names from your calendar are fed into transcription and reconciled afterward, so companies and people transcribe correctly ("In-Q-Tel", not a phonetic lookalike) — the wrap-up notes anything auto-corrected.
 

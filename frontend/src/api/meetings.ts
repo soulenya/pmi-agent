@@ -137,6 +137,11 @@ export interface LiveAssistOptions {
   thankyou: boolean;
 }
 
+export interface LiveRecipient {
+  name: string;
+  email: string;
+}
+
 export interface LiveState {
   active: boolean;
   consent?: "pending" | "accepted" | "declined" | "ended";
@@ -144,6 +149,8 @@ export interface LiveState {
   platform?: string;
   started_at?: string;
   party?: string;
+  /** Attendees outside the company — who a thank-you email would go to. */
+  recipients?: LiveRecipient[];
   nda_hint?: string;
   segments?: LiveSegment[];
   cards?: LiveCard[];

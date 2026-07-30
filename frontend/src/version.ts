@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 191;
-export const BUILD_DATE = "2026-07-28";
+export const BUILD_NUMBER = 192;
+export const BUILD_DATE = "2026-07-30";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 192,
+    date: "2026-07-30",
+    title: "Clear suggestions you've already handled",
+    changes: [
+      "Daily Assistant suggestions gain an 'Already done' button — the item is never recommended again (Dismiss still lets an accidental click come back once)",
+      "Select several suggestions with checkboxes (or Select all) and mark them done or dismiss them in one action",
+      "Post-meeting thank-you emails no longer address a colleague: everyone on a company domain (pmi-llc.com and precisianmedical.com) is CC'd, and only outside attendees are addressed",
+      "Ticking 'Draft a thank-you email' now lists the exact outside attendees it would go to before the meeting starts",
+    ],
+  },
   {
     build: 191,
     date: "2026-07-28",
