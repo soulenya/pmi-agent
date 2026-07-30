@@ -245,7 +245,7 @@ The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Go
 A **Workroom** is a persistent co-work space you share with Little Gerry — built for work that spans days or weeks, like a regulatory submission, an audit prep, or a fundraise.
 
 - **Create a room** from the Workrooms satellite next to the sun (or the Workrooms section in the chat sidebar). Give it a title and a **goal** — what you're working toward.
-- **Pin artifacts** to the room: Drive docs, Knowledge Base documents, generated files, notes, email threads, tasks, Odoo records, regulatory documents, and budgets. Each pin has a label and an optional reference/ID. When a budget is pinned, Gerry's budget writes are journaled in the room automatically.
+- **Pin artifacts** to the room: Drive docs, Knowledge Base documents, generated files, notes, email threads, tasks, Odoo records, regulatory documents, and budgets. Pick the category, click **Browse …** and a picker opens listing everything of that kind — search it, click the item, and it's pinned with the right label and reference filled in for you (Drive opens the full Drive browser, so you can pin several files at once; **Note** just asks for the text). If you already know a raw ID, **Or pin by reference** still lets you type it in by hand. When a budget is pinned, Gerry's budget writes are journaled in the room automatically.
 - **Gerry works the room too**: ask her to pin something ("pin that SOP to this room") or log progress ("note that we finished section 4") — and files she creates, docs she imports to the KB, and Drive docs she follows inside the room are **pinned and journaled automatically**. File cards in chat also get a **Pin to Room** button.
 - **Enter the room** to chat — every room has its own conversation, and every message you send there automatically carries the room's goal, pinned items, and recent progress. No re-explaining context each session.
 - **Log progress** in the room's journal ("Sent draft to Lindsey for review"). The latest entries travel with the room chat, so Gerry always knows where things stand.
@@ -378,7 +378,7 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 
 ### Replies
 
-- **Reply** or **Reply all** (Reply all pre-fills the other recipients as Cc) directly from a thread.
+- **Reply** or **Reply all** (Reply all pre-fills the other recipients as Cc) directly from a thread. Your own addresses are never included — including any **send-as alias** on your account, so mail sent to an alias doesn't Cc you back into your own reply.
 - You can also ask Little Gerry to draft a reply — the draft appears **right in the thread** for you to approve, edit, or reject before anything is sent.
 
 ### Other actions
