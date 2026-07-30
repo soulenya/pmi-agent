@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 192;
+export const BUILD_NUMBER = 193;
 export const BUILD_DATE = "2026-07-30";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 193,
+    date: "2026-07-30",
+    title: "Scheduled runs start from scratch",
+    changes: [
+      "A scheduled run can no longer see the previous run's answer — it was rewording last week's report instead of doing the work, which the file check then rejected (reported by Morgan)",
+      "Files produced by a scheduled run now appear on the Scheduled Tasks page with Download, Open in Workspace, Add to KB and Pin buttons",
+      "Run history still lands in the same conversation, and standing room tasks keep their room context",
+    ],
+  },
   {
     build: 192,
     date: "2026-07-30",

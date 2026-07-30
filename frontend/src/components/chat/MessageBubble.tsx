@@ -41,7 +41,7 @@ interface Props {
 // spaces (non-greedy up to the nearest extension) or use %20 encoding.
 const FILE_LINK_RE = /\/api\/files\/((?:[^\s)\]"'`]| (?! ))+?\.[a-z0-9]{2,6})/gi;
 
-function extractFileLinks(content: string): string[] {
+export function extractFileLinks(content: string): string[] {
   const matches: string[] = [];
   let m: RegExpExecArray | null;
   FILE_LINK_RE.lastIndex = 0;
@@ -57,7 +57,17 @@ function extractFileLinks(content: string): string[] {
   return matches;
 }
 
-function FileActionCard({ filename, conversationId }: { filename: string; conversationId?: string }) {
+export function FileActionCard({
+  filename,
+  conversationId,
+  variant = "bubble",
+}: {
+  filename: string;
+  conversationId?: string;
+  // "bubble" sits on the coloured assistant bubble; "surface" sits on a plain
+  // page card, where white/10 borders would be invisible in light mode.
+  variant?: "bubble" | "surface";
+}) {
   const displayName = filename
     .replace(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[-_]/, "")
     .replace(/^[0-9a-f]{8}_/, "");
@@ -147,10 +157,18 @@ function FileActionCard({ filename, conversationId }: { filename: string; conver
   };
 
   const btn =
-    "flex items-center gap-1.5 rounded-md border border-white/20 px-2 py-1 text-[11px] hover:bg-white/20 transition-colors disabled:opacity-50";
+    variant === "surface"
+      ? "flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] hover:bg-accent transition-colors disabled:opacity-50"
+      : "flex items-center gap-1.5 rounded-md border border-white/20 px-2 py-1 text-[11px] hover:bg-white/20 transition-colors disabled:opacity-50";
 
   return (
-    <div className="mt-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs">
+    <div
+      className={
+        variant === "surface"
+          ? "mt-2 rounded-lg border bg-muted/40 px-3 py-2 text-xs"
+          : "mt-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs"
+      }
+    >
       <div className="flex items-center gap-2">
         <FileText className="h-3.5 w-3.5 shrink-0" />
         <span className="flex-1 truncate font-medium">{displayName}</span>
