@@ -73,6 +73,34 @@ export async function driveImportToKnowledgeBase(
   return r.data;
 }
 
+/** One Drive file Gerry is allowed to edit. Permission is always per file. */
+export interface DriveEditGrant {
+  file_id: string;
+  file_name: string;
+  mime_type: string;
+  file_url: string;
+  status: string;
+  granted_at: string | null;
+  last_used_at: string | null;
+  edit_count: number;
+}
+
+export async function listDriveEditGrants(): Promise<DriveEditGrant[]> {
+  const r = await apiClient.get<{ grants: DriveEditGrant[] }>(`${G}/drive/edit-permissions`);
+  return r.data.grants ?? [];
+}
+
+export async function grantDriveEdit(fileId: string): Promise<DriveEditGrant> {
+  const r = await apiClient.post<DriveEditGrant>(`${G}/drive/edit-permissions`, {
+    file_id: fileId,
+  });
+  return r.data;
+}
+
+export async function revokeDriveEdit(fileId: string): Promise<void> {
+  await apiClient.delete(`${G}/drive/edit-permissions/${encodeURIComponent(fileId)}`);
+}
+
 export interface GoogleTask {
   id: string;
   title: string;
