@@ -1057,7 +1057,13 @@ function CompanyProfileSection() {
 /** Surface the backend's own explanation rather than a generic failure. */
 function apiErrorMessage(err: unknown, fallback: string): string {
   const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
-  return typeof detail === "string" && detail.trim() ? detail : fallback;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  // FastAPI validation errors arrive as a list of {msg, loc} objects.
+  if (Array.isArray(detail) && detail.length) {
+    const msg = (detail[0] as { msg?: string })?.msg;
+    if (msg) return `${fallback} (${msg})`;
+  }
+  return fallback;
 }
 
 function WritingVoiceSection() {

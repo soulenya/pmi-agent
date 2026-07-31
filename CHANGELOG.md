@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.34 — 2026-07-31
+**Writing voice profile upload was broken on arrival (Morgan report: "Couldn't read that file")**
+
+- **Root cause:** `apiClient` sets a default `Content-Type: application/json`, so `uploadWritingVoice` posted its `FormData` without a multipart boundary. FastAPI never saw a file and returned 422; the 422 detail is a list rather than a string, so the UI fell through to its generic fallback message. The endpoint itself was fine — verified with real multipart requests against the app.
+- **Fix:** the upload sends `{ headers: { "Content-Type": "multipart/form-data" } }`, matching `uploadDocument`. Any new upload helper must do the same.
+- Decoding now tries `utf-8-sig` then `cp1252`, so a profile saved out of Word or Notepad uploads cleanly and a BOM never lands at the top of the profile text.
+- `apiErrorMessage` unpacks a validation-error list instead of hiding it, so a mis-shaped request says what was wrong.
+
 ### v3.3.33 — 2026-07-31
 **Tasks link back to what they're about + per-user writing voice profile (Morgan requests)**
 
