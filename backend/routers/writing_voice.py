@@ -84,9 +84,15 @@ async def upload_writing_voice(
     raw = await file.read()
     if len(raw) > 512 * 1024:
         raise HTTPException(400, "That file is too large — profiles are a few pages at most.")
-    try:
-        text = raw.decode("utf-8")
-    except UnicodeDecodeError:
+    text = ""
+    # utf-8-sig strips a BOM; cp1252 covers files saved out of Word or Notepad.
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            text = raw.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if not text:
         raise HTTPException(400, "That file isn't plain text I can read.")
     if not text.strip():
         raise HTTPException(400, "That file is empty.")
