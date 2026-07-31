@@ -29,6 +29,7 @@ from models.db.enums import MessageRole
 from models.schemas.conversations import WSDone, WSError, WSToken, WSToolStatus
 from repositories.conversation_repo import ConversationRepository, MessageRepository
 from services.agent.guardrails import (
+    EDIT_GRANT_NOTE,
     EMAIL_FACT_CHECK_NOTE,
     HONESTY_CONTRACT,
     PERIOD_REPORT_NOTE,
@@ -547,7 +548,7 @@ class AgentExecutor:
         messages: list[dict[str, Any]] = [
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT.format(today=today) + google_note + HONESTY_CONTRACT + RESTRICTED_SOURCES_NOTE + EMAIL_FACT_CHECK_NOTE + PERIOD_REPORT_NOTE + WRITING_STYLE_NOTE,
+                "content": SYSTEM_PROMPT.format(today=today) + google_note + HONESTY_CONTRACT + RESTRICTED_SOURCES_NOTE + EDIT_GRANT_NOTE + EMAIL_FACT_CHECK_NOTE + PERIOD_REPORT_NOTE + WRITING_STYLE_NOTE,
             }
         ]
 

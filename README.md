@@ -439,7 +439,7 @@ Connected services: Gmail (read + send), Google Drive (read, plus per-file editi
 
 **Write actions** (send email, create calendar event) go through the human-in-the-loop approval queue on the same page — click **Approve** or **Cancel** before they execute.
 
-**Editing a Drive file** is granted per file: when Gerry wants to change a document she asks in chat, naming that one file. Allowing it gives her write access to that file only — every other file stays read-only and the next one needs its own permission. Granted files are listed under **Settings → Drive Edit Permissions** and can be revoked at any time; Drive's own **File → Version history** is the undo.
+**Editing a Drive file** is granted per file: when Gerry wants to change a document she asks in chat, naming that one file. Allowing it gives her write access to that file only — every other file stays read-only and the next one needs its own permission. Granted files are listed under **Settings → Drive Edit Permissions** and can be revoked at any time; Drive's own **File → Version history** is the undo. A permission also lifts the QMS/draft read restriction for that single file, since naming it and clicking Allow is the explicit request that rule asks for.
 
 To disconnect: click **Disconnect Google**. Your local token is deleted immediately.
 

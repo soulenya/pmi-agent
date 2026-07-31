@@ -196,7 +196,7 @@ Navigate to **AI Assistant** in the sidebar.
 - Little Gerry streams her response in real time
 - When she uses a tool (searching Drive, reading an email, querying the KB), a status indicator appears
 - When Gerry **creates** something during a chat — an email draft, an approval request, a task, a budget entry, a filed invoice — a **"take me to it" chip** appears under her reply: one click jumps straight to the draft/approval/budget instead of you hunting it down. Chips work in the sidebar chat too and stay on the message in history
-- **Restricted sources**: Gerry never reads or references the QMS folder (or its subfolders) or any file with "draft" in its name unless you explicitly ask — and she'll confirm first, naming the folder and file she's about to open
+- **Restricted sources**: Gerry never reads or references the QMS folder (or its subfolders) or any file with "draft" in its name unless you explicitly ask — and she'll confirm first, naming the folder and file she's about to open. Allowing her to **edit** a specific file counts as asking: she can then read and change that one file without checking again, while its folder and every other draft stay restricted
 - Hover over a conversation in the left panel to rename or archive it
 - Click **+** to start a new conversation
 
@@ -528,6 +528,8 @@ What she can edit this way: **Google Docs** (append, find-and-replace, or rewrit
 **Undo is Google's.** Edits are live the moment she makes them; open the file in Drive and use **File → Version history** to see exactly what changed and roll back.
 
 **Reviewing and revoking.** Every file you've allowed is listed in **Settings → Drive Edit Permissions**, with how many times Gerry has edited it and when it was granted. Click **Revoke** to take the permission away — she loses write access to that file immediately.
+
+**Drafts and the QMS folder.** Gerry normally refuses to open anything with "draft" in its name or anything inside the QMS folder. Allowing her to edit such a file lifts that block for that file alone — she can read it and work on it without asking again, because you already named it and clicked Allow. The folder around it, its neighbours and every other draft stay restricted, she still won't cite it as a source in unrelated work, and revoking the permission restores the block straight away.
 
 **A note on which files qualify.** Google gives Little Gerry write access to files it created itself. If you allow editing on a file that came from elsewhere and Google refuses, reconnect Google Workspace in Settings and tick every permission box — that widens access to your whole Drive. Google can only widen permissions during a fresh connection, never on a refresh.
 
