@@ -4,6 +4,18 @@
 
 ## Changelog
 
+### v3.3.33 — 2026-07-31
+**Tasks link back to what they're about + per-user writing voice profile (Morgan requests)**
+
+- **No more dead-end tasks:** new `tasks.source_ref` jsonb (migration 027) — `{kind, id, label, url}` recording the thing a task is about. Populated at every creation site: accepted assistant suggestions (`_task_source_ref` maps `source_type`/`source_id`/`payload` → `gmail_thread` / `kb_doc` / `conversation` / `workroom` / `google_task`, stripping the daily-scan `thread:`/`conv:` anchors), the agent's `create_task` tool (the chat it came from), meeting action items, the Google Tasks import, and the regulatory generator's review task.
+- **`TaskSourceActions`:** an **Open …** button on the task row, Kanban card and detail drawer that routes to the real thing, plus a **Gerry draft** button for `gmail_thread` tasks that calls the existing `POST /api/google/gmail/draft-reply` (draft → Approvals, never auto-sent). `AskGerryButton` on a task now includes a one-line source summary in its prompt.
+- **Deep links so those buttons land:** `/inbox?thread=` (reading pane fetches by id, so it works for threads outside the current list), `/documents?doc=` (fetched by id via `getDocument`), `/regulatory?doc=` (new `GET /api/regulatory-files/{node_id}` → sets `parentId` and highlights the row), `/workrooms?room=`, `/meetings?meeting=` (auto-expands and scrolls the card), `/tasks?task=` (opens the drawer). Dashboard task rows link to `/tasks?task=<id>`. Each effect consumes its param with `setSearchParams(..., {replace: true})`.
+- **Google Tasks import was broken end-to-end:** `TaskStatus.todo`/`TaskPriority.medium` don't exist (the enums are `TODO`/`MEDIUM`), `created_by_id` isn't a column, and a `date` was being written into a `timestamptz`. Every import raised. Fixed.
+- **Writing voice profile:** new per-user `users.writing_voice_profile` / `writing_voice_for_documents` / `writing_voice_updated_at` (migration 028). Deliberately **not** a `SystemSetting` — settings are shared by everyone on an install, and a voice profile describes one person.
+- `services/writing_voice.py` — `analyze_sent_mail` reads `in:sent newer_than:180d` (up to 120 messages), strips quoted history and one-liners, takes observational notes in batches of 20, then synthesises a speaking-coach-depth markdown profile (voice, cadence, vocabulary, punctuation, openers/sign-offs, register by audience, behavioural patterns, anti-patterns, drafting checklist). `style_block` / `get_email_style_block` / `get_agent_style_block` format it for injection, capped at 16k chars.
+- `routers/writing_voice.py` — `GET` / `PUT` / `DELETE` / `POST /upload` (.md/.txt) / `POST /analyze`. Injected into `_llm_draft_reply`, `_llm_draft_compose`, `emails._llm_draft_email` (always), and the v1 executor + v2 supervisor system prompts, where the scope line says emails-only unless the user opted in for other writing.
+- **Settings → Writing Voice:** analyse, upload, edit with markdown preview, "use for other writing too" toggle, remove, and an explicit note that the profile is stored per user and never shared.
+
 ### v3.3.32 — 2026-07-30
 **Workroom pin picker + Reply All stops including the user (Morgan reports)**
 

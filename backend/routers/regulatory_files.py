@@ -234,6 +234,19 @@ async def list_nodes(
     )
 
 
+@router.get("/{node_id}", response_model=NodeOut)
+async def get_node(
+    node_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> NodeOut:
+    """One node by id — lets a task link straight to the file it is about."""
+    node = await db.get(RegulatoryNode, node_id)
+    if node is None:
+        raise HTTPException(status_code=404, detail="Not found.")
+    return _to_out(node)
+
+
 @router.get("/{node_id}/download")
 async def download_node(
     node_id: uuid.UUID,

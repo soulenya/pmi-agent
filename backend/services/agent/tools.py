@@ -2077,6 +2077,16 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
         priority=TaskPriority(priority),
         due_date=due_date,
         source_conversation_id=ctx.conversation_id,
+        source_ref=(
+            {
+                "kind": "conversation",
+                "id": str(ctx.conversation_id),
+                "label": "The chat this came from",
+                "url": None,
+            }
+            if ctx.conversation_id
+            else None
+        ),
         created_by=ctx.user_id,
         assignee_id=ctx.user_id,
     )

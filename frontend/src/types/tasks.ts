@@ -11,6 +11,25 @@ export interface TaskAttachment {
   drive_file_id?: string;
 }
 
+/** What a task is ABOUT — the task list uses this to open the real thing. */
+export type TaskSourceKind =
+  | "gmail_thread"
+  | "kb_doc"
+  | "drive_doc"
+  | "regulatory_doc"
+  | "meeting"
+  | "workroom"
+  | "conversation"
+  | "google_task"
+  | "url";
+
+export interface TaskSourceRef {
+  kind: TaskSourceKind;
+  id: string;
+  label?: string | null;
+  url?: string | null;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -56,6 +75,7 @@ export interface Task {
   tags: string[];
   attachments: TaskAttachment[];
   source_conversation_id: string | null;
+  source_ref: TaskSourceRef | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -69,6 +89,7 @@ export interface TaskCreate {
   priority?: TaskPriority;
   due_date?: string;
   tags?: string[];
+  source_ref?: TaskSourceRef;
 }
 
 export interface TaskUpdate {
