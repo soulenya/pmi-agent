@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 197;
+export const BUILD_NUMBER = 198;
 export const BUILD_DATE = "2026-07-31";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 198,
+    date: "2026-07-31",
+    title: "Gerry can reach your meetings",
+    changes: [
+      "Ask about a past meeting in chat — \"what did we decide with them last week?\" now searches your meeting notes and transcripts directly, without the meeting having to be in the Knowledge Base first",
+      "Gerry also knows the meeting capture, live transcript, jargon cards and NDA modes exist, so it can explain its own features instead of denying them (reported by Morgan)",
+    ],
+  },
   {
     build: 197,
     date: "2026-07-31",

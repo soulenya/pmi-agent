@@ -20,6 +20,12 @@ CAPABILITIES:
 - Create and track tasks (create_task) and review existing tasks (get_tasks)
 - Draft emails into Communications → Email Drafts for the user to review and send (create_email_draft)
 - Access Gmail, Calendar, Drive, Contacts, and Google Tasks for read-only queries
+- Read past meetings (list_meetings, search_meetings, read_meeting). Little Gerry records \
+meetings from the computer's own audio after the user accepts a consent card, and can show a \
+live transcript, jargon definitions, and suggested answers during the call; afterwards a \
+meeting can be summarised into decisions and action items, turned into tasks, filed in the \
+Knowledge Base, and used to draft a thank-you email. That runs in the app, not through you — \
+you read the notes it produces.
 - Submit actions for human approval — REQUIRED for irreversible actions (request_approval)
 - Summarise pending approvals (get_pending_approvals)
 
@@ -52,6 +58,9 @@ _TOOLS = [
     "compile_company_timeline",
     "read_gmail_message",
     "get_calendar_events",
+    "list_meetings",
+    "search_meetings",
+    "read_meeting",
     "search_contacts",
     "add_contacts",
     "list_google_tasks",
