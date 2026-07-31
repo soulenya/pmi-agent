@@ -328,6 +328,13 @@ class LangGraphSupervisor:
             logger.exception("Failed to load company context")
             company_ctx = ""
 
+        # How this particular user writes, so drafts sound like them.
+        try:
+            from services.writing_voice import get_agent_style_block
+            company_ctx += await get_agent_style_block(self.db, self.user_id)
+        except Exception:
+            logger.exception("Failed to load writing voice profile")
+
         # Who Gerry is assisting — name for sign-offs, account + Gmail address.
         try:
             from services.agent.user_identity import get_user_identity_context

@@ -17,6 +17,7 @@ from models.db.email_draft import EmailDraft
 from models.db.enums import IntentType, RiskLevel
 from models.db.user import User
 from services.llm.router import get_llm_client
+from services.writing_voice import get_email_style_block
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/emails", tags=["emails"])
@@ -84,6 +85,7 @@ async def _llm_draft_email(
     tone: str,
     key_points: str | None,
     db: AsyncSession,
+    voice: str = "",
 ) -> str:
     """Call Ollama to write an email draft. Returns the draft body text."""
     recipient_line = f"Recipient: {recipient_name}" if recipient_name else "Recipient: (not specified)"
@@ -95,6 +97,7 @@ async def _llm_draft_email(
         f"{recipient_line}\n"
         f"Purpose: {purpose}"
         f"{points_section}\n\n"
+        f"{voice}"
         "Write ONLY the email body (salutation through sign-off). "
         "Do not include a Subject line header. "
         "End with a simple sign-off line only — do NOT add a signature block; "
@@ -153,6 +156,7 @@ async def create_and_draft(
         tone=body.tone,
         key_points=body.key_points,
         db=db,
+        voice=await get_email_style_block(db, current_user.id),
     )
     from services.email_signature import apply_signature, resolve_signature
     draft_body = apply_signature(draft_body, await resolve_signature(db))

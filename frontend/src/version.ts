@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 194;
-export const BUILD_DATE = "2026-07-30";
+export const BUILD_NUMBER = 195;
+export const BUILD_DATE = "2026-07-31";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,20 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 195,
+    date: "2026-07-31",
+    title: "Tasks lead somewhere, and drafts sound like you",
+    changes: [
+      "Tasks now remember what they're about — an Open button takes you straight to the email thread, document, regulatory file, meeting, workroom or chat behind the task (requested by Morgan)",
+      "Email follow-up tasks have a Gerry draft button, the same as in the inbox — the reply lands in Approvals for you to read and send",
+      "Ask Gerry from a task now knows what the task is about",
+      "Dashboard tasks open that task instead of dumping you on the board",
+      "New Settings → Writing Voice: Gerry reads six months of your sent mail and writes a detailed profile of how you write, then drafts email in your voice — edit it, upload your own, or switch it on for other writing too",
+      "Your writing voice profile is yours alone — stored on your account, never shared with teammates on the same install",
+      "Fixed: importing Google Tasks crashed every time and silently imported nothing",
+    ],
+  },
   {
     build: 194,
     date: "2026-07-30",

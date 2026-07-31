@@ -36,6 +36,48 @@ _PRIORITY_MAP = {
     "critical": TaskPriority.CRITICAL.value,
 }
 
+# Suggestion source_type → the task source kinds the UI knows how to open.
+_SOURCE_KIND_MAP = {
+    "gmail_thread": "gmail_thread",
+    "gmail_message": "gmail_thread",
+    "gmail_attachment": "kb_doc",
+    "gmail_invoice": "gmail_thread",
+    "drive_doc": "kb_doc",
+    "chat_conversation": "conversation",
+    "google_task": "google_task",
+    "workroom": "workroom",
+}
+
+
+def _task_source_ref(s: AssistantSuggestion) -> dict | None:
+    """What an accepted suggestion's task is ABOUT, so the task can open it."""
+    payload = s.payload or {}
+    if s.source_type == "workroom" and payload.get("workroom_id"):
+        return {
+            "kind": "workroom",
+            "id": str(payload["workroom_id"]),
+            "label": str(payload.get("workroom_title") or "Workroom")[:200],
+            "url": None,
+        }
+    kind = _SOURCE_KIND_MAP.get(s.source_type)
+    ident = ""
+    if kind == "gmail_thread":
+        ident = str(payload.get("thread_id") or "")
+    elif kind == "kb_doc":
+        ident = str(payload.get("document_id") or "")
+    elif kind == "conversation":
+        ident = str(payload.get("conversation_id") or "")
+    if not ident and kind:
+        # daily-scan dedup anchors are prefixed ("thread:<id>", "conv:<id>")
+        raw = str(s.source_id or "")
+        ident = raw.split(":", 1)[1] if raw.startswith(("thread:", "conv:")) else raw
+    if kind and ident:
+        return {"kind": kind, "id": ident[:255], "label": s.title[:200], "url": s.source_url}
+    # Anything else with a link (Odoo alerts, external records) still opens.
+    if s.source_url:
+        return {"kind": "url", "id": "", "label": s.title[:200], "url": s.source_url}
+    return None
+
 
 # ── schemas ───────────────────────────────────────────────────────────────
 
@@ -190,6 +232,7 @@ async def accept_suggestion(
             "description": task.get("description") or s.summary or "",
             "priority": priority,
             "status": TaskStatus.TODO.value,
+            "source_ref": _task_source_ref(s),
         }
         due_in = task.get("due_in_days")
         if isinstance(due_in, (int, float)) and due_in >= 0:

@@ -54,6 +54,7 @@ class TaskCreate(BaseModel):
     assignee_id: uuid.UUID | None = None
     due_date: datetime | None = None
     tags: list[str] = []
+    source_ref: dict | None = None
 
 
 class TaskUpdate(BaseModel):
@@ -81,6 +82,7 @@ class TaskOut(BaseModel):
     tags: list[str]
     attachments: list[dict] = []
     source_conversation_id: uuid.UUID | None
+    source_ref: dict | None = None
     created_by: uuid.UUID | None
     created_at: datetime
     updated_at: datetime

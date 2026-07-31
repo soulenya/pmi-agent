@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -80,6 +80,17 @@ export function WorkroomsPage() {
       /* storage unavailable — skip */
     }
   }, []);
+
+  // ?room=<id> — arriving from a task opens that room.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const id = searchParams.get("room");
+    if (!id) return;
+    setSelectedId(id);
+    const next = new URLSearchParams(searchParams);
+    next.delete("room");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const closeGuide = () => {
     setShowGuide(false);
