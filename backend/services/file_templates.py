@@ -138,6 +138,12 @@ async def _fetch_templates_md(db: AsyncSession) -> str:
     return (await _read_setting(db, KEY_MD, "")).strip()
 
 
+async def get_templates_markdown(db: AsyncSession) -> str:
+    """The merged templates markdown, for callers that consume a reserved
+    section (e.g. the deck theme) rather than a document type."""
+    return await _fetch_templates_md(db)
+
+
 def _parse_sections(md: str) -> dict[str, str]:
     """Split the markdown into {heading: body} by `## ` headings (case kept)."""
     sections: dict[str, str] = {}
@@ -172,10 +178,15 @@ _STYLE_ALIASES = {"style", "style guide", "styling guide", "house style", "defau
 
 def _split_style(sections: dict[str, str]) -> tuple[dict[str, str], str]:
     """Separate the style-guide section(s) from the real template types."""
+    from services.decks.drive_theme import DECK_THEME_ALIASES
+
     templates: dict[str, str] = {}
     style_parts: list[str] = []
     for heading, body in sections.items():
-        if _normalize(heading) in _STYLE_ALIASES:
+        name = _normalize(heading)
+        if name in DECK_THEME_ALIASES:
+            continue  # consumed by the deck builder; not a document type
+        if name in _STYLE_ALIASES:
             if body:
                 style_parts.append(body)
         else:

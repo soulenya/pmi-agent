@@ -55,6 +55,7 @@ Key design principles:
 | **Gmail**                  | Full inbox: browse standard Gmail folders (Inbox, Sent, Drafts, Starred, Important, Archived, Spam, Trash, All Mail), sort your mail (newest/oldest/sender/unread first), read/search/tag emails, reply & reply-all, move to Trash, open attachments in Google Workspace, add attachments straight to the Knowledge Base, and compose & send your own email directly (no approval needed for mail you write yourself) |
 | **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications; submit for approval to send from your Gmail account     |
 | **Regulatory**             | File explorer for regulatory documents (DHF, IFU, 510(k), ISO 13485): browse/create folders, upload, import from Drive, edit, rename, move, and delete — write access gated per user |
+| **Slide Decks**            | Ask for a presentation and Gerry builds a real deck in the company house style — fourteen layouts, brand colours and type measured from the company's own deck, uploaded to Drive as native Google Slides. Every deck carries a security classification you choose; the theme itself lives in the shared templates folder, so the look changes without a release |
 | **Investor Relations**     | IR hub: company snapshot, regulatory proof-points, AI-drafted pitch context, research feed, and IR specialist chat                          |
 | **Approvals**              | Approve/reject anywhere — inline in the email thread, inline in chat, from any notification, or from the global top-bar approvals drawer — with automatic execution and full audit trail |
 | **Notifications**          | Actionable notifications — approve/reject approvals directly from the bell, with deep links to the right page for everything else          |
@@ -364,7 +365,27 @@ Summarize the VACTOR DHF status and flag any gaps
 What are my open tasks this week?
 Draft an email to the FDA about our PMA submission timeline
 Generate a risk assessment section for the VACTOR IFU
+Build a 10-slide product briefing on VACTOR for a distributor meeting
 ```
+
+---
+
+### Slide Decks
+
+Ask for a presentation — "build me a pitch deck", "a product briefing", "a board update" — and Gerry builds a real `.pptx` in the company house style, then uploads it to Drive as native Google Slides when Google is connected. It is downloadable either way; a deck can be built with Google disconnected.
+
+**Gerry will ask you one question first: the security classification.** It is required, never guessed, and it is stamped on every slide:
+
+| Classification | Printed on each slide |
+| -------------- | --------------------- |
+| Open | *nothing* — a deck for an outside audience is deliberately unmarked |
+| Confidential — Internal | CONFIDENTIAL — INTERNAL |
+| Confidential — Proprietary | CONFIDENTIAL — PROPRIETARY INFORMATION |
+| Confidential — Trade Secret | CONFIDENTIAL — TRADE SECRET, in the accent colour |
+
+**Fourteen layouts** are available (`cover`, `section_break`, `statement_media`, `bullets`, `points_with_metrics`, `numbered_cards`, `profile_cards`, `tier_cards`, `metric_cards`, `media_feature`, `split_detail`, `comparison_grid`, `milestone_track`, `hero_number`). They are named for their **structure**, not a business purpose, so the same set serves a fundraise, a demo or a technical briefing. Text is measured and flowed rather than dropped into fixed boxes — long headings shrink to fit instead of overlapping.
+
+**The theme lives on Drive.** A doc named **Deck Theme** in the shared templates folder overrides colours, fonts, type sizes, the grid and the classification wording — see [Slide deck theme](#slide-deck-theme) below. Layouts remain in code.
 
 ---
 
@@ -439,7 +460,9 @@ Connected services: Gmail (read + send), Google Drive (read, plus per-file editi
 
 **Write actions** (send email, create calendar event) go through the human-in-the-loop approval queue on the same page — click **Approve** or **Cancel** before they execute.
 
-**Editing a Drive file** is granted per file: when Gerry wants to change a document she asks in chat, naming that one file. Allowing it gives her write access to that file only — every other file stays read-only and the next one needs its own permission. Granted files are listed under **Settings → Drive Edit Permissions** and can be revoked at any time; Drive's own **File → Version history** is the undo. A permission also lifts the QMS/draft read restriction for that single file, since naming it and clicking Allow is the explicit request that rule asks for.
+**Editing a Drive file** is granted per file: when Gerry wants to change a document she asks in chat, naming that one file. Allowing it gives her write access to that file only — every other file stays read-only and the next one needs its own permission. Docs, Sheets, **Google Slides** and plain-text files are editable in place; PDFs and images are not. Granted files are listed under **Settings → Drive Edit Permissions** and can be revoked at any time; Drive's own **File → Version history** is the undo. A permission also lifts the QMS/draft read restriction for that single file, since naming it and clicking Allow is the explicit request that rule asks for.
+
+> Slides access is new — reading or editing an existing deck requires reconnecting Google once so the new permission is granted. Creating a deck does not.
 
 To disconnect: click **Disconnect Google**. Your local token is deleted immediately.
 
@@ -520,6 +543,44 @@ VITE_WS_BASE=ws://127.0.0.1:8000
 ### Google Workspace
 
 OAuth credentials are stored in `backend/google_credentials.json` (Desktop app type) and are **gitignored** — never committed to source control and **not bundled in the installers**. Add the file once after installing (see `docs/INSTALL.md` → "Google OAuth credentials"); it survives app updates. The per-user token is written to `backend/google_token.json` after first sign-in and is also gitignored. If you ever rotate the OAuth client secret in Google Cloud, distribute the new file privately.
+
+### Slide deck theme
+
+The deck look is sourced from the same shared **PMI Templates** Drive folder as document templates: create a doc named **Deck Theme** (or "Deck Style" / "Slide Theme"). It is read only when a deck is being built, cached locally so decks still build offline, and takes effect immediately — no release.
+
+Write `key: value` lines, grouped either by a `###` heading or by a dotted prefix. Only keys you list are overridden; everything else keeps its built-in value.
+
+```
+### Palette
+background: 000000     card: 0A0A0A     card_alt: 111111     panel: 161616
+primary: FFFFFF        body: C9C9C9     caption: 6F6F6F      dim: 4D4D4D
+accent: FF0000
+
+### Fonts
+display: Archivo             # headlines and body
+mono: JetBrains Mono         # eyebrows, indices, page numbers
+
+### Sizes
+hero: 95.29    headline_xl: 44.76   headline_lg: 40.42   headline: 37.54
+headline_sm: 33.21   figure_lg: 31.76   figure: 24.54     subtitle: 18.77
+name: 15.88    body: 13.72    body_sm: 12.27   detail: 11.55   item: 10.83
+detail_sm: 10.11   caption: 9.38   index: 9.38   page_no: 8.66   eyebrow: 7.94
+
+### Grid
+margin_l: 0.56   margin_r: 0.56   content_w: 12.88   rule_w: 11.71
+cols_3: 0.56, 4.48, 8.40         col_3_w: 3.88
+cols_4: 0.56, 3.50, 6.44, 9.37   col_4_w: 2.90
+right_l: 6.18    right_w: 6.09
+
+### Chrome
+confidential_l: 0.56   confidential_t: 0.34   confidential_w: 4.00
+page_no_l: 12.09       page_no_t: 6.72
+
+classification.confidential_internal: CONFIDENTIAL — INTERNAL
+name: VACTOR
+```
+
+Colours are 6-digit hex, sizes are points, everything positional is inches. Values are range-checked: a bad line falls back to the built-in value and is **reported in Gerry's reply** rather than silently producing a broken deck. Classification levels can be **relabelled but not added or removed** (the four choices are fixed), and `open` cannot be given a label. Layouts are code, not configuration.
 
 ---
 
