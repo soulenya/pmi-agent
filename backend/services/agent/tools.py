@@ -939,6 +939,107 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "request_drive_edit_permission",
+            "description": (
+                "Ask the user for permission to edit ONE specific Google Drive file "
+                "directly. Call this BEFORE edit_drive_file whenever you don't already "
+                "have permission for that exact file — permission is per file, so a "
+                "document you were allowed to edit yesterday says nothing about the one "
+                "in front of you now. This shows the user an Allow/Don't allow prompt "
+                "naming the file; nothing is granted unless they click Allow. After "
+                "calling this, STOP and wait for their decision — do not call it twice "
+                "for the same file, and do not assume it was granted."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_id": {
+                        "type": "string",
+                        "description": "Drive file ID or full pasted Docs/Sheets/Drive URL.",
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "One short line telling the user what you intend to change and why.",
+                    },
+                },
+                "required": ["file_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "edit_drive_file",
+            "description": (
+                "Edit a Google Drive file IN PLACE — the change appears in the user's "
+                "real document immediately. Only works on files the user has already "
+                "granted you permission for (request_drive_edit_permission); without a "
+                "grant this refuses and nothing is changed. Google Docs support "
+                "'append', 'replace' and 'overwrite'; Google Sheets support 'set_cells' "
+                "and 'append'; plain-text/markdown files support all three text modes. "
+                "Prefer 'replace' over 'overwrite' — targeted changes are far safer, and "
+                "'overwrite' throws the entire existing document away. Read the file "
+                "first with read_drive_file so you know exactly what you are changing, "
+                "and tell the user what you changed afterwards."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_id": {
+                        "type": "string",
+                        "description": "Drive file ID or full pasted URL.",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["append", "replace", "overwrite", "set_cells"],
+                        "description": (
+                            "append = add text at the end (or a row to a sheet); "
+                            "replace = swap every occurrence of 'find' with 'replace'; "
+                            "overwrite = discard the body and write 'text' instead; "
+                            "set_cells = write 'values' into a spreadsheet 'cell_range'."
+                        ),
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "The text to append, or the full new body for overwrite.",
+                    },
+                    "find": {
+                        "type": "string",
+                        "description": "Exact text to look for (replace mode). Case-sensitive.",
+                    },
+                    "replace": {
+                        "type": "string",
+                        "description": "Text to put in its place (replace mode). Empty string deletes it.",
+                    },
+                    "cell_range": {
+                        "type": "string",
+                        "description": "A1 range for Sheets, e.g. 'Ledger!A2:D5' (set_cells/append).",
+                    },
+                    "values": {
+                        "type": "array",
+                        "description": "Rows of cell values for Sheets, e.g. [[\"2026-07-31\", 42]].",
+                        "items": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+                "required": ["file_id", "mode"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_drive_edit_permissions",
+            "description": (
+                "List the Drive files the user has given you permission to edit. Use it "
+                "to check whether you already have access before asking again, or when "
+                "the user asks what you can change."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "add_to_knowledge_base",
             "description": (
                 "Add a file to the Knowledge Base so it becomes searchable and citable. "
@@ -3155,6 +3256,115 @@ async def execute_unfollow_drive_document(ctx: ToolContext, _args: dict[str, Any
     )
 
 
+async def execute_request_drive_edit_permission(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Stage the Allow/Don't-allow prompt for editing one Drive file.
+
+    This NEVER grants anything. It resolves the file and sets
+    ``ctx.pending_confirmation``; the grant row is only written when the user
+    clicks Allow, which the frontend does against the permissions endpoint.
+    """
+    from services import drive_edit
+    from services.google_service import get_credentials
+    from services.live_document import extract_drive_file_id
+
+    if not get_credentials():
+        return _google_not_connected()
+    file_id = extract_drive_file_id(str(args.get("file_id", "")))
+    if not file_id:
+        return "Error: file_id (or a pasted document URL) is required."
+
+    missing = drive_edit.write_access_missing()
+    if missing:
+        return f"Don't ask for permission yet — {missing}"
+
+    existing = await drive_edit.get_active_grant(ctx.db, ctx.user_id, file_id)
+    if existing is not None:
+        return (
+            f'You already have permission to edit "{existing.file_name or file_id}". '
+            "Go ahead and call edit_drive_file — don't ask again."
+        )
+
+    try:
+        meta = await drive_edit.describe_file(file_id)
+    except drive_edit.DriveEditError as exc:
+        return str(exc)
+    except Exception as exc:  # noqa: BLE001 — report, don't crash the turn
+        return f"Could not look up that Drive file: {exc}"
+
+    name = meta.get("name") or file_id
+    from services.drive_policy import check_drive_target
+
+    warning = await check_drive_target(ctx.db, file_id, False, name_hint=name)
+    reason = str(args.get("reason", "")).strip()[:300]
+
+    ctx.pending_confirmation = {
+        "type": "confirm_drive_edit",
+        "file_id": file_id,
+        "file_name": name,
+        "mime_type": meta.get("mimeType", ""),
+        "file_url": meta.get("url", ""),
+        "reason": reason,
+        "restricted": bool(warning),
+    }
+    return (
+        f'The user is now being asked whether to let you edit "{name}". Nothing is '
+        "granted unless they click Allow, and it covers only this one file. Stop here "
+        "and wait for their answer — do not call this again for this file."
+    )
+
+
+async def execute_edit_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import drive_edit
+    from services.google_service import get_credentials
+    from services.live_document import extract_drive_file_id
+
+    if not get_credentials():
+        return _google_not_connected()
+    file_id = extract_drive_file_id(str(args.get("file_id", "")))
+    if not file_id:
+        return "Error: file_id (or a pasted document URL) is required."
+    mode = str(args.get("mode", "")).strip().lower()
+    if not mode:
+        return "Error: mode is required (append, replace, overwrite or set_cells)."
+
+    raw_values = args.get("values")
+    values: list[list] | None = None
+    if isinstance(raw_values, list) and raw_values:
+        values = [row if isinstance(row, list) else [row] for row in raw_values]
+
+    try:
+        result = await drive_edit.apply_edit(
+            ctx.db,
+            ctx.user_id,
+            file_id,
+            mode,
+            text=str(args.get("text", "") or ""),
+            find=str(args.get("find", "") or ""),
+            replace=str(args.get("replace", "") or ""),
+            cell_range=str(args.get("cell_range", "") or ""),
+            values=values,
+        )
+    except drive_edit.DriveEditError as exc:
+        return str(exc)
+    return result
+
+
+async def execute_list_drive_edit_permissions(ctx: ToolContext, _args: dict[str, Any]) -> str:
+    from services import drive_edit
+
+    grants = await drive_edit.list_grants(ctx.db, ctx.user_id)
+    if not grants:
+        return (
+            "You have no Drive edit permissions. Ask for one with "
+            "request_drive_edit_permission, naming the specific file."
+        )
+    lines = [f"Drive files you may edit ({len(grants)}):"]
+    for g in grants:
+        used = f", edited {g.edit_count}x" if g.edit_count else ", not edited yet"
+        lines.append(f"- {g.file_name or g.file_id} (id={g.file_id}{used})")
+    return "\n".join(lines)
+
+
 async def execute_add_to_knowledge_base(ctx: ToolContext, args: dict[str, Any]) -> str:
     """Import a Drive file or a generated file into the Knowledge Base."""
     from repositories.document_repo import DocumentCategoryRepository
@@ -4987,6 +5197,9 @@ TOOL_EXECUTORS = {
     "list_recent_drive_files": execute_list_recent_drive_files,
     "follow_drive_document": execute_follow_drive_document,
     "unfollow_drive_document": execute_unfollow_drive_document,
+    "request_drive_edit_permission": execute_request_drive_edit_permission,
+    "edit_drive_file": execute_edit_drive_file,
+    "list_drive_edit_permissions": execute_list_drive_edit_permissions,
     "add_to_knowledge_base": execute_add_to_knowledge_base,
     "check_drive_backup_status": execute_check_drive_backup_status,
     "get_file_template": execute_get_file_template,
@@ -5050,6 +5263,8 @@ _PRIMARY_ARG = {
     "extract_document": "drive_file_id",
     "list_recent_drive_files": "max_results",
     "follow_drive_document": "file_id",
+    "request_drive_edit_permission": "file_id",
+    "edit_drive_file": "file_id",
     "add_to_knowledge_base": "drive_file_id",
     "get_file_template": "file_type",
     "create_workroom": "title",

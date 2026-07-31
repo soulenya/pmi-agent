@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 198;
+export const BUILD_NUMBER = 199;
 export const BUILD_DATE = "2026-07-31";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 199,
+    date: "2026-07-31",
+    title: "Gerry can edit a Drive file you allow",
+    changes: [
+      "Ask Gerry to change a Google Doc, Sheet or text file on your Drive and it asks first — a prompt names the one file it wants to edit and why. Allow it and it can edit that file only; every other file stays read-only and the next one needs its own permission",
+      "Docs support append, find-and-replace and full rewrite; Sheets support setting a cell range or appending a row. PDFs, images and slides are refused with an offer to upload a replacement instead",
+      "Edits are live immediately — Drive's own File \u2192 Version history is the undo",
+      "Settings \u2192 Drive Edit Permissions lists every file you've allowed, how many times it has been edited, and a Revoke button",
+    ],
+  },
   {
     build: 198,
     date: "2026-07-31",

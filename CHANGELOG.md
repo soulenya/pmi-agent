@@ -4,6 +4,17 @@
 
 ## Changelog
 
+### v3.3.37 — 2026-07-31
+**Gerry can edit a Drive file — one file at a time, only with your permission (Morgan request)**
+
+- Ask Gerry to change a Google Doc, Sheet or plain-text file on your Drive and it asks first: a prompt in chat names the single file it wants to edit and why. Allowing it grants write access to **that file only** — every other file stays read-only, and the next file requires its own separate permission.
+- Docs support append, find-and-replace and full rewrite; Sheets support setting a cell range or appending a row. PDFs, images and slides are refused with an offer to upload a replacement instead.
+- Edits are live the moment they happen — Drive's own **File → Version history** is the undo. Gerry says so in every confirmation.
+- **Settings → Drive Edit Permissions** lists every file you've allowed, with its edit count and grant date, and a Revoke button that removes write access immediately.
+- Permissions are stored per user in a new `drive_edit_grants` table (migration 029) and checked on every write. There is no path to a Drive write that doesn't go through an active grant.
+- **Scope finding, verified live:** Google's `drive.file` scope grants *write* access to files this app created — not just read. So files Gerry produced are editable with no reconnection at all. Only files that came from elsewhere need the broader Drive scope, and if Google refuses one, the error says exactly that instead of failing silently.
+- Specialist agents (research, engineering, regulatory, QMS, operations, investor relations) remain read-only on Drive by design.
+
 ### v3.3.36 — 2026-07-31
 **The agent couldn't see the meeting feature (Morgan report: Gerry denied having any meeting-transcription capability)**
 

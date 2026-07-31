@@ -1239,6 +1239,88 @@ class DriveImportRequest(BaseModel):
     force: bool = False
 
 
+# ── Drive edit permissions ────────────────────────────────────────────────
+# Gerry may write to a Drive file only while an active grant exists for that
+# exact file. Grants are created here — by the signed-in user — never by the
+# agent, which can only ask for one.
+
+class DriveEditGrantRequest(BaseModel):
+    file_id: str
+
+
+def _grant_json(g) -> dict:
+    return {
+        "file_id": g.file_id,
+        "file_name": g.file_name,
+        "mime_type": g.mime_type,
+        "file_url": g.file_url,
+        "status": g.status,
+        "granted_at": g.granted_at.isoformat() if g.granted_at else None,
+        "last_used_at": g.last_used_at.isoformat() if g.last_used_at else None,
+        "edit_count": g.edit_count,
+    }
+
+
+@router.get("/drive/edit-permissions")
+async def list_drive_edit_permissions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Every Drive file Gerry is currently allowed to edit."""
+    from services import drive_edit
+
+    grants = await drive_edit.list_grants(db, current_user.id)
+    return {"grants": [_grant_json(g) for g in grants]}
+
+
+@router.post("/drive/edit-permissions")
+async def create_drive_edit_permission(
+    req: DriveEditGrantRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Grant Gerry write access to ONE Drive file."""
+    from services import drive_edit
+    from services.live_document import extract_drive_file_id
+
+    file_id = extract_drive_file_id(req.file_id)
+    if not file_id:
+        raise HTTPException(400, "A Drive file id or URL is required.")
+    missing = drive_edit.write_access_missing()
+    if missing:
+        raise HTTPException(409, missing)
+    try:
+        meta = await drive_edit.describe_file(file_id)
+    except drive_edit.DriveEditError as exc:
+        raise HTTPException(404, str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(401, str(exc))
+
+    g = await drive_edit.grant(
+        db,
+        current_user.id,
+        file_id,
+        file_name=meta.get("name", ""),
+        mime_type=meta.get("mimeType", ""),
+        file_url=meta.get("url", ""),
+    )
+    await db.commit()
+    return _grant_json(g)
+
+
+@router.delete("/drive/edit-permissions/{file_id}")
+async def revoke_drive_edit_permission(
+    file_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from services import drive_edit
+
+    revoked = await drive_edit.revoke(db, current_user.id, file_id)
+    await db.commit()
+    return {"revoked": revoked}
+
+
 @router.post("/drive/import")
 async def drive_import(
     req: DriveImportRequest,

@@ -12,6 +12,7 @@ import {
 import { ChatInput } from "@/components/chat/ChatInput";
 import { AttachmentBar, CHAT_ATTACHMENT_EXTS } from "@/components/chat/AttachmentBar";
 import ConfirmDeleteModal from "@/components/ConfirmDeleteModal";
+import ConfirmDriveEditModal, { type DriveEditRequest } from "@/components/ConfirmDriveEditModal";
 import { DropOverlay } from "@/components/DropOverlay";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import { uploadAttachment } from "@/api/attachments";
@@ -24,6 +25,7 @@ import {
 import { listWorkrooms } from "@/api/workrooms";
 import { getSettings } from "@/api/settings";
 import { deleteDocument } from "@/api/documents";
+import { grantDriveEdit } from "@/api/google";
 import { speakText } from "@/api/voice";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
 import { useAuthStore } from "@/stores/authStore";
@@ -159,6 +161,9 @@ export function ChatPage() {
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ document_id: string; title: string } | null>(null);
   const [deletingDoc, setDeletingDoc] = useState(false);
+  const [pendingDriveEdit, setPendingDriveEdit] = useState<DriveEditRequest | null>(null);
+  const [grantingDriveEdit, setGrantingDriveEdit] = useState(false);
+  const [driveEditError, setDriveEditError] = useState<string | null>(null);
   // Drag-and-drop files anywhere on the thread → conversation reference files.
   const [dropNotice, setDropNotice] = useState<string | null>(null);
   const { isDragOver, dropProps } = useFileDrop(
@@ -440,7 +445,7 @@ export function ChatPage() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string) as {
-          type: "token" | "done" | "error" | "tool_status" | "confirm_delete" | "artifact_link";
+          type: "token" | "done" | "error" | "tool_status" | "confirm_delete" | "confirm_drive_edit" | "artifact_link";
           content?: string;
           tool_name?: string;
           status?: string;
@@ -505,6 +510,10 @@ export function ChatPage() {
               title: msg.title ?? "this document",
             });
           }
+        } else if (msg.type === "confirm_drive_edit") {
+          // Gerry asked to edit one Drive file — no grant exists until Allow.
+          const req = msg as unknown as DriveEditRequest;
+          if (req.file_id) setPendingDriveEdit(req);
         } else if (msg.type === "done") {
           // Flush streamed message into real message list
           queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
@@ -965,6 +974,32 @@ export function ChatPage() {
             }
           }}
           onCancel={() => setPendingDelete(null)}
+        />
+      )}
+
+      {pendingDriveEdit && (
+        <ConfirmDriveEditModal
+          request={pendingDriveEdit}
+          busy={grantingDriveEdit}
+          error={driveEditError}
+          onAllow={async () => {
+            setGrantingDriveEdit(true);
+            setDriveEditError(null);
+            try {
+              await grantDriveEdit(pendingDriveEdit.file_id);
+              queryClient.invalidateQueries({ queryKey: ["drive-edit-grants"] });
+              setPendingDriveEdit(null);
+            } catch (err) {
+              const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+              setDriveEditError(typeof detail === "string" ? detail : "Couldn't grant permission.");
+            } finally {
+              setGrantingDriveEdit(false);
+            }
+          }}
+          onDeny={() => {
+            setDriveEditError(null);
+            setPendingDriveEdit(null);
+          }}
         />
       )}
     </div>

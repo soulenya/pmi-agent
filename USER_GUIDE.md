@@ -507,13 +507,29 @@ Navigate to **Settings → Google Integration**.
 | Service | What Little Gerry can do |
 |---------|--------------------------|
 | **Gmail** | Read, search, and tag emails; compose & send your own; reply/reply-all; move to Trash; open attachments — see [Gmail](#gmail-inbox-compose--replies) |
-| **Google Drive** | Browse folders, read files, import to KB |
+| **Google Drive** | Browse folders, read files, import to KB; edit a specific file in place once you allow it — see [Letting Gerry edit a Drive file](#letting-gerry-edit-a-drive-file) |
 | **Google Calendar** | Read events, show on Calendar page |
 | **Contacts** | Look up contact information |
 
 ### Write actions (require your approval)
 
 Sending email or creating calendar events goes through the **Approvals** queue — Little Gerry cannot do these without your explicit sign-off.
+
+### Letting Gerry edit a Drive file
+
+By default Gerry reads your Drive but never changes anything. If you ask her to edit a document — "fix the third bullet in the VACTOR deck", "add a row to the parts sheet" — she asks first:
+
+1. A prompt appears in chat naming **the one file** she wants to edit and why.
+2. Click **Allow** and she can edit **that file only**. Every other file in your Drive stays read-only, and the next file needs its own separate permission.
+3. Click **Deny** and nothing happens.
+
+What she can edit this way: **Google Docs** (append, find-and-replace, or rewrite), **Google Sheets** (set a cell range or append a row), and **plain-text files**. PDFs, images, and slides are not editable in place — she'll offer to upload a replacement instead.
+
+**Undo is Google's.** Edits are live the moment she makes them; open the file in Drive and use **File → Version history** to see exactly what changed and roll back.
+
+**Reviewing and revoking.** Every file you've allowed is listed in **Settings → Drive Edit Permissions**, with how many times Gerry has edited it and when it was granted. Click **Revoke** to take the permission away — she loses write access to that file immediately.
+
+**A note on which files qualify.** Google gives Little Gerry write access to files it created itself. If you allow editing on a file that came from elsewhere and Google refuses, reconnect Google Workspace in Settings and tick every permission box — that widens access to your whole Drive. Google can only widen permissions during a fresh connection, never on a refresh.
 
 ### Disconnecting
 
