@@ -49,6 +49,7 @@ INVOICE-AUTOMATION-PLAN.md
 BUDGET-PLAN.md
 VISION-EXTRACTION-PLAN.md
 PMI Invoices and Budget Automation
+little-gerry-update-distribution-migration.md
 
 # Split / working document sets (large source PDFs — keep out of git)
 mil-std-810h-split/
@@ -100,3 +101,5 @@ update_token.txt
 # token installer handed to teammates privately). NEVER commit.
 local/
 MEETING-ASSIST-PLAN.md 
+
+

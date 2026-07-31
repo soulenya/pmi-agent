@@ -62,7 +62,7 @@ Key design principles:
 | **Setup Wizard**           | One-time guided first-use onboarding: explains the stack, connects Claude + Voyage (pre-set defaults) and Google, and covers roles & usage |
 | **Audit Trail**            | Immutable log of all system and AI actions with filtering and export                                                                       |
 | **User Management**        | Google sign-in only (no passwords); invite teammates by email; accounts auto-created on first sign-in (owner = admin, everyone else = full-access member); per-user Regulatory write permission and deactivation |
-| **Google Workspace**       | Connect your Google account for Gmail, Drive, Calendar, and Contacts integration with human-in-the-loop write approvals                    |
+| **Google Workspace**       | Connect your Google account for Gmail, Drive, Calendar, and Contacts integration with human-in-the-loop write approvals; Drive files can be edited in place one file at a time, each requiring its own explicit permission                    |
 | **Odoo ERP**               | Connect an Odoo account via encrypted API key; Little Gerry reads ERP data and proposes write actions through the Approvals queue           |
 | **Settings**               | Collapsible sections that flag what you haven't set up yet and re-flag themselves when a new release or a new model arrives: LLM model selection, embedding provider, re-index KB, live health monitoring, appearance, notification preferences, and one-click in-app updates |
 
@@ -435,9 +435,11 @@ Navigate to **Google Workspace** in the sidebar.
 2. Sign in with your Google account and grant the requested permissions
 3. Once connected, the status turns green and your Google account email is shown
 
-Connected services: Gmail (read + send), Google Drive (read), Google Calendar (read + create events), and Contacts (read).
+Connected services: Gmail (read + send), Google Drive (read, plus per-file editing you grant), Google Calendar (read + create events), and Contacts (read).
 
 **Write actions** (send email, create calendar event) go through the human-in-the-loop approval queue on the same page — click **Approve** or **Cancel** before they execute.
+
+**Editing a Drive file** is granted per file: when Gerry wants to change a document she asks in chat, naming that one file. Allowing it gives her write access to that file only — every other file stays read-only and the next one needs its own permission. Granted files are listed under **Settings → Drive Edit Permissions** and can be revoked at any time; Drive's own **File → Version history** is the undo.
 
 To disconnect: click **Disconnect Google**. Your local token is deleted immediately.
 
