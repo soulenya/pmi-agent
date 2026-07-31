@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 195;
+export const BUILD_NUMBER = 196;
 export const BUILD_DATE = "2026-07-31";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 196,
+    date: "2026-07-31",
+    title: "Uploading a writing voice profile works",
+    changes: [
+      "Fixed: uploading your writing voice profile always failed with \"Couldn't read that file\" — the file never actually reached the server (reported by Morgan)",
+      "Profiles saved from Word or Notepad now upload fine, and a leading byte-order mark no longer sneaks into the text",
+      "Errors on the Writing Voice section now explain what went wrong instead of showing the same generic message",
+    ],
+  },
   {
     build: 195,
     date: "2026-07-31",

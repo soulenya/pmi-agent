@@ -29,7 +29,9 @@ export async function saveWritingVoice(payload: {
 export async function uploadWritingVoice(file: File): Promise<WritingVoice> {
   const form = new FormData();
   form.append("file", file);
-  const r = await apiClient.post<WritingVoice>(`${BASE}/upload`, form);
+  const r = await apiClient.post<WritingVoice>(`${BASE}/upload`, form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return r.data;
 }
 
