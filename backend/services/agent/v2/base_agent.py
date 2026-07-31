@@ -15,6 +15,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from services.agent.guardrails import (
+    EDIT_GRANT_NOTE,
     EMAIL_FACT_CHECK_NOTE,
     HONESTY_CONTRACT,
     PERIOD_REPORT_NOTE,
@@ -78,6 +79,7 @@ class BaseAgent:
             + (company_context or "")
             + HONESTY_CONTRACT
             + RESTRICTED_SOURCES_NOTE
+            + EDIT_GRANT_NOTE
             + EMAIL_FACT_CHECK_NOTE
             + PERIOD_REPORT_NOTE
             + WRITING_STYLE_NOTE

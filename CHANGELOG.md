@@ -4,6 +4,17 @@
 
 ## Changelog
 
+### v3.3.38 — 2026-07-31
+**Two standing rules were fighting: an edit permission now settles it (Morgan field report, mid-edit)**
+
+- Morgan granted Gerry permission to edit a Google Doc with "Draft" in its title, then watched her keep asking again. The permission covered *writing*; the standing restricted-sources rule still blocked every attempt to *read* the file, so she had authority to change a document she wasn't allowed to look at.
+- The block came purely from the filename — the file was in a separate Drive, nowhere near the QMS folder. `drive_policy` matches "draft" anywhere in a name, case-insensitive, which is deliberate and stays exactly as it was.
+- **An active per-file edit grant now satisfies the restricted-sources rule for that file.** The rule always carved out "unless the user explicitly asked, and then confirm first, naming the file" — clicking Allow on a prompt that names the file *is* that request, and a stronger form of it: a recorded, timestamped, revocable database row rather than a sentence in chat.
+- **The exemption is one file wide.** It keys on the exact file id, so the folder around it, its neighbours and every other draft stay blocked. Revoking restores the block immediately, and a granted file still isn't cited as a source in unrelated work.
+- Applies at every Drive read site: `read_drive_file`, `read_drive_annotations`, `search_drive`, `search_drive_content`, `list_drive_folder`, `list_recent_drive_files`, `follow_drive_document` and `extract_document`. A granted file also stops being silently withheld from search results.
+- New `EDIT_GRANT_NOTE` in both engines tells Gerry to check `list_drive_edit_permissions` rather than refuse when she's unsure she holds a grant — that's what ends the loop of re-asking.
+- **No existing rule was reworded.** The QMS folder rule, the draft-name rule and the confirm protocol are unchanged; this only implements the exception they already described.
+
 ### v3.3.37 — 2026-07-31
 **Gerry can edit a Drive file — one file at a time, only with your permission (Morgan request)**
 

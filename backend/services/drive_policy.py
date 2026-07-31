@@ -11,6 +11,11 @@ read/browse tools call these checks and refuse restricted targets unless the
 call carries confirm_restricted=true, which the model may only send after
 telling the user exactly what it will open and getting their go-ahead.
 
+An active per-file Drive edit grant also satisfies the rule for that one file:
+the user created it by clicking Allow on a prompt naming the file, which is the
+explicit request the rule carves out, recorded and revocable. It exempts only
+that file id — never its folder or its neighbours.
+
 Ancestry walks are memoized per process; the restricted-folder set can be
 extended via the SystemSetting "drive_policy.restricted_folder_ids".
 """
@@ -66,6 +71,19 @@ async def _restricted_ids(db) -> set[str]:
     return ids
 
 
+async def _granted_ids(db, user_id) -> set[str]:
+    """File ids the user has explicitly authorised Gerry to edit."""
+    if db is None or user_id is None:
+        return set()
+    try:
+        from services.drive_edit import list_grants
+
+        return {g.file_id for g in await list_grants(db, user_id)}
+    except Exception:  # noqa: BLE001 — a lookup failure must not widen access
+        logger.exception("Failed to read Drive edit grants")
+        return set()
+
+
 def _lookup(file_id: str) -> tuple[str | None, str]:
     """(parent_id, name) for a Drive item, cached. ("", "") on failure."""
     if file_id in _ancestry_cache:
@@ -99,17 +117,19 @@ def _walk_ancestry(file_id: str, restricted: set[str], max_depth: int = 15) -> s
 
 
 async def check_drive_target(
-    db, file_id: str, confirm: bool, *, name_hint: str = ""
+    db, file_id: str, confirm: bool, *, name_hint: str = "", user_id=None
 ) -> str | None:
     """Refusal message for a restricted Drive file/folder, or None when allowed.
 
     ``confirm=True`` (the explicit-request escape hatch) always allows access —
     the model is contractually required to have named the folder/file to the
-    user first.
+    user first. An active edit grant for this exact file allows it too.
     """
     if confirm:
         return None
     try:
+        if file_id in await _granted_ids(db, user_id):
+            return None
         restricted = await _restricted_ids(db)
         hit = _walk_ancestry(file_id, restricted)
         name = name_hint or _lookup(file_id)[1]
@@ -129,7 +149,9 @@ async def check_drive_target(
     return None
 
 
-async def filter_drive_results(db, items: list[dict], confirm: bool) -> tuple[list[dict], int]:
+async def filter_drive_results(
+    db, items: list[dict], confirm: bool, *, user_id=None
+) -> tuple[list[dict], int]:
     """Drop restricted items from search/list results. Returns (kept, excluded).
 
     Items need ``id`` and ``name``. With ``confirm=True`` nothing is dropped.
@@ -140,10 +162,14 @@ async def filter_drive_results(db, items: list[dict], confirm: bool) -> tuple[li
         restricted = await _restricted_ids(db)
     except Exception:  # noqa: BLE001
         return items, 0
+    granted = await _granted_ids(db, user_id)
     kept: list[dict] = []
     excluded = 0
     for it in items:
         try:
+            if it.get("id", "") in granted:
+                kept.append(it)
+                continue
             if is_draft_name(it.get("name", "")) or _walk_ancestry(it.get("id", ""), restricted):
                 excluded += 1
                 continue
