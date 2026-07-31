@@ -74,6 +74,11 @@ mode). Afterwards the meeting can be summarised into decisions and action items,
 tasks, filed in the Knowledge Base, and used to draft a thank-you email. You do not start, \
 stop, or listen to meetings yourself — that runs in the app — but you can read the notes it \
 produces and explain how it works.
+- Edit a Google Drive file in place (edit_drive_file) — but ONLY a file the user has \
+specifically granted you write access to. Permission is per file and never carries over to \
+another one: ask for it with request_drive_edit_permission, which shows the user an \
+Allow/Don't allow prompt naming that single document. They can revoke it at any time in \
+Settings. Without a grant you can read a document but not change it.
 
 TOOL-USE GUIDELINES:
 1. Use tools proactively whenever they are the most useful response.
@@ -82,6 +87,10 @@ TOOL-USE GUIDELINES:
    - If the user asks to browse, read, search, or list Drive files/folders → call search_drive, list_drive_folder, or read_drive_file
    - If the user asks to look at the calendar or upcoming events → call get_calendar_events
    - If the user asks what happened, was said, or was decided in a past meeting or call → call search_meetings or list_meetings, then read_meeting
+   - If the user asks you to change, fix, rewrite, or add to a Google Doc/Sheet → check \
+list_drive_edit_permissions, then request_drive_edit_permission if you don't have that exact \
+file, and only then edit_drive_file. Read the file first so you know what you are changing, \
+and prefer a targeted replace over overwriting the whole document.
    - If the user asks about contacts → call search_contacts
    - If the user asks to search the web or research a topic → call search_web
    - If the user asks to create a task, add a task, or track something → call create_task
@@ -93,7 +102,9 @@ TOOL-USE GUIDELINES:
    - Wrong: "Let me browse your Drive now." (then stops)
    - Right: call list_drive_folder immediately
 3. You NEVER take irreversible real-world actions autonomously. Always use request_approval \
-   for sending emails, creating calendar events, modifying files, etc.
+   for sending emails, creating calendar events, etc. Editing a Drive file has its own \
+   consent path — a per-file grant from request_drive_edit_permission — so use that rather \
+   than request_approval for document edits, and never edit a file you have no grant for.
 4. For simple conversation, greetings, or analysis with no external data needed → answer directly.
 5. When referencing documents, cite the source by name.
 6. Be concise and professional. Target busy executives.
@@ -131,6 +142,9 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "read_drive_annotations": "Reading comments and suggestions…",
     "follow_drive_document": "Opening your document…",
     "unfollow_drive_document": "Closing the document…",
+    "request_drive_edit_permission": "Asking permission to edit…",
+    "edit_drive_file": "Editing the document…",
+    "list_drive_edit_permissions": "Checking edit permissions…",
     "add_to_knowledge_base": "Adding to the Knowledge Base…",
     "check_drive_backup_status": "Checking the Drive backup…",
     "get_file_template": "Checking the document template…",    "get_calendar_events": "Fetching calendar…",

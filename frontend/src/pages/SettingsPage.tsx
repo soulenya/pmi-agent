@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink, ScanText, PenLine, Pencil, Trash2, Upload, Sparkles, ChevronDown } from "lucide-react";
+import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink, ScanText, PenLine, Pencil, Trash2, Upload, Sparkles, ChevronDown, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
@@ -42,6 +42,7 @@ import {
   analyzeWritingVoice,
 } from "@/api/writingVoice";
 import { listExtractionSchemas, saveExtractionSchemas } from "@/api/extractions";
+import { listDriveEditGrants, revokeDriveEdit } from "@/api/google";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
@@ -1444,6 +1445,75 @@ function ExtractionSchemasSection() {
   );
 }
 
+function DriveEditPermissionsSection() {
+  const qc = useQueryClient();
+
+  const { data: grants = [], isLoading } = useQuery({
+    queryKey: ["drive-edit-grants"],
+    queryFn: listDriveEditGrants,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const revokeMut = useMutation({
+    mutationFn: (fileId: string) => revokeDriveEdit(fileId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["drive-edit-grants"] }),
+  });
+
+  return (
+    <Section
+      id="drive-edit-permissions"
+      icon={ShieldCheck}
+      title="Drive Edit Permissions"
+      description="The Google Drive files Gerry may change directly. Permission is granted one file at a time, from the prompt she shows in chat."
+      revision={grants.map((g) => g.file_id).sort().join("|") || "none"}
+    >
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : grants.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Gerry can&rsquo;t edit any Drive file. When she needs to change one she&rsquo;ll ask, and
+          allowing it covers that file only.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {grants.map((g) => (
+            <li key={g.file_id} className="flex items-center gap-3 rounded-md border p-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{g.file_name || g.file_id}</p>
+                <p className="text-xs text-muted-foreground">
+                  {g.edit_count > 0
+                    ? `Edited ${g.edit_count} time${g.edit_count === 1 ? "" : "s"}`
+                    : "Not edited yet"}
+                  {g.granted_at ? ` · granted ${new Date(g.granted_at).toLocaleDateString()}` : ""}
+                </p>
+              </div>
+              {g.file_url && (
+                <a
+                  href={g.file_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                  title="Open in Google Drive"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              )}
+              <button
+                onClick={() => revokeMut.mutate(g.file_id)}
+                disabled={revokeMut.isPending}
+                className="shrink-0 rounded-md border px-3 py-1.5 text-xs hover:bg-accent disabled:opacity-50"
+              >
+                Revoke
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
 function TaskModelsSection() {
   const qc = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
@@ -2209,6 +2279,7 @@ export function SettingsPage() {
           <WritingVoiceSection />
           <TaskModelsSection />
           <ExtractionSchemasSection />
+          <DriveEditPermissionsSection />
           <AppearanceSection settings={mergedSettings} onChange={handleChange} />
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />
           <VoiceSection settings={mergedSettings} onChange={handleChange} />

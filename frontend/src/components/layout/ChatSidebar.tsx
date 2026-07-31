@@ -10,8 +10,10 @@ import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bot, ChevronRight, Loader2, RotateCcw, Send, Wrench } from "lucide-react";
 import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
+import ConfirmDriveEditModal, { type DriveEditRequest } from "@/components/ConfirmDriveEditModal";
 import { useChatSidebarStore } from "@/stores/chatSidebarStore";
 import { createConversation, listConversations, listMessages } from "@/api/chat";
+import { grantDriveEdit } from "@/api/google";
 import { useAuthStore } from "@/stores/authStore";
 import { useResizableTextarea } from "@/hooks/useResizableTextarea";
 import { useChatInputSizeStore } from "@/stores/chatInputSizeStore";
@@ -95,6 +97,9 @@ export function ChatSidebar() {
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const [turnArtifacts, setTurnArtifacts] = useState<ArtifactLink[]>([]);
+  const [pendingDriveEdit, setPendingDriveEdit] = useState<DriveEditRequest | null>(null);
+  const [grantingDriveEdit, setGrantingDriveEdit] = useState(false);
+  const [driveEditError, setDriveEditError] = useState<string | null>(null);
   // True once a sent message has gone 45s with no streaming/tool activity —
   // gates the "No reply? Resend" chip so it never flashes during normal turns.
   const [turnStuck, setTurnStuck] = useState(false);
@@ -244,6 +249,12 @@ export function ChatSidebar() {
                   : [...prev, art],
               );
             }
+            return;
+          }
+          if (frame.type === "confirm_drive_edit") {
+            // Gerry asked to edit one Drive file — no grant exists until Allow.
+            const req = frame as DriveEditRequest;
+            if (req.file_id) setPendingDriveEdit(req);
             return;
           }
           if (frame.type === "done") {
@@ -509,6 +520,32 @@ export function ChatSidebar() {
           </button>
         </div>
       </div>
+
+      {pendingDriveEdit && (
+        <ConfirmDriveEditModal
+          request={pendingDriveEdit}
+          busy={grantingDriveEdit}
+          error={driveEditError}
+          onAllow={async () => {
+            setGrantingDriveEdit(true);
+            setDriveEditError(null);
+            try {
+              await grantDriveEdit(pendingDriveEdit.file_id);
+              qc.invalidateQueries({ queryKey: ["drive-edit-grants"] });
+              setPendingDriveEdit(null);
+            } catch (err) {
+              const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+              setDriveEditError(typeof detail === "string" ? detail : "Couldn't grant permission.");
+            } finally {
+              setGrantingDriveEdit(false);
+            }
+          }}
+          onDeny={() => {
+            setDriveEditError(null);
+            setPendingDriveEdit(null);
+          }}
+        />
+      )}
     </div>
   );
 }

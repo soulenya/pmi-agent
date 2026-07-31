@@ -22,11 +22,17 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/drive.file",
+    # Editing a file the user already owns needs the broad Drive scope:
+    # drive.file only ever covers files this app itself created. Which files
+    # Gerry may actually write to is gated per file in drive_edit_grants.
+    "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/contacts.readonly",
     "https://www.googleapis.com/auth/spreadsheets.readonly",
+    "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/documents.readonly",
+    "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/tasks.readonly",
     "https://www.googleapis.com/auth/userinfo.email",
     "openid",
@@ -85,6 +91,23 @@ def get_credentials():
             _log_refresh_failure(exc)
             return None
     return creds if (creds and creds.valid) else None
+
+
+def granted_scopes() -> set[str]:
+    """Scopes the stored token actually carries (empty when disconnected).
+
+    A token issued before a scope was added keeps its narrower grant forever —
+    refreshing never widens it — so callers that need write access must check
+    this rather than assume SCOPES was granted.
+    """
+    import json
+
+    if not TOKEN_FILE.exists():
+        return set()
+    try:
+        return set(json.loads(TOKEN_FILE.read_text()).get("scopes") or [])
+    except Exception:  # noqa: BLE001 — a malformed token is simply no scopes
+        return set()
 
 
 def get_status() -> dict:
@@ -1369,7 +1392,71 @@ def docs_get_suggestions(file_id: str) -> dict:
     return {"title": doc.get("title", ""), "paragraphs": paragraphs}
 
 
+def _docs_body_end(svc, file_id: str) -> tuple[str, int]:
+    """(title, endIndex of the body) for a native Google Doc."""
+    doc = svc.documents().get(
+        documentId=file_id, fields="title,body(content(endIndex))"
+    ).execute()
+    content = (doc.get("body") or {}).get("content") or []
+    end = content[-1].get("endIndex", 1) if content else 1
+    return doc.get("title", ""), int(end)
+
+
+def docs_append_text(file_id: str, text: str) -> dict:
+    """Append text to the end of a native Google Doc. Returns ``{title, chars}``."""
+    svc = _build("docs", "v1")
+    title, end = _docs_body_end(svc, file_id)
+    # The segment's trailing newline is not a legal insertion index.
+    svc.documents().batchUpdate(
+        documentId=file_id,
+        body={"requests": [{"insertText": {"location": {"index": max(1, end - 1)}, "text": text}}]},
+    ).execute()
+    return {"title": title, "chars": len(text)}
+
+
+def docs_replace_text(file_id: str, find: str, replace: str, match_case: bool = True) -> dict:
+    """Replace every occurrence of ``find`` in a native Google Doc.
+
+    Returns ``{title, occurrences}``; 0 occurrences is not an error.
+    """
+    svc = _build("docs", "v1")
+    resp = svc.documents().batchUpdate(
+        documentId=file_id,
+        body={
+            "requests": [
+                {
+                    "replaceAllText": {
+                        "containsText": {"text": find, "matchCase": match_case},
+                        "replaceText": replace,
+                    }
+                }
+            ]
+        },
+    ).execute()
+    replies = resp.get("replies") or [{}]
+    changed = int((replies[0].get("replaceAllText") or {}).get("occurrencesChanged", 0) or 0)
+    meta = svc.documents().get(documentId=file_id, fields="title").execute()
+    return {"title": meta.get("title", ""), "occurrences": changed}
+
+
+def docs_overwrite_text(file_id: str, text: str) -> dict:
+    """Replace a native Google Doc's entire body with ``text``.
+
+    Destructive by design — callers must have a per-file grant, and Drive's own
+    version history is the undo path.
+    """
+    svc = _build("docs", "v1")
+    title, end = _docs_body_end(svc, file_id)
+    requests: list[dict] = []
+    if end > 2:
+        requests.append({"deleteContentRange": {"range": {"startIndex": 1, "endIndex": end - 1}}})
+    requests.append({"insertText": {"location": {"index": 1}, "text": text}})
+    svc.documents().batchUpdate(documentId=file_id, body={"requests": requests}).execute()
+    return {"title": title, "chars": len(text)}
+
+
 def drive_get_metadata(file_id: str) -> dict | None:
+
     """Fetch lightweight Drive file metadata for update detection.
 
     Returns ``{id, name, mimeType, modifiedTime, trashed, url}`` or ``None`` if
