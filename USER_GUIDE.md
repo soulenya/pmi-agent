@@ -41,15 +41,16 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 16. [Email Drafts](#email-drafts)
 17. [Meeting Notes](#meeting-notes)
 18. [Regulatory Documents](#regulatory-documents)
-19. [Investor Relations](#investor-relations)
-20. [Google Workspace](#google-workspace)
-21. [Odoo ERP](#odoo-erp)
-22. [Manage Budgets](#manage-budgets)
-23. [Approvals Queue](#approvals-queue)
-24. [Notifications](#notifications)
-25. [Settings](#settings)
-26. [Updating Little Gerry](#updating-little-gerry)
-27. [Tips & Example Prompts](#tips--example-prompts)
+19. [Slide Decks](#slide-decks)
+20. [Investor Relations](#investor-relations)
+21. [Google Workspace](#google-workspace)
+22. [Odoo ERP](#odoo-erp)
+23. [Manage Budgets](#manage-budgets)
+24. [Approvals Queue](#approvals-queue)
+25. [Notifications](#notifications)
+26. [Settings](#settings)
+27. [Updating Little Gerry](#updating-little-gerry)
+28. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -177,6 +178,7 @@ Your profile is **yours alone**. It is stored against your account, never shared
 | **Email Drafts** | Ask Little Gerry to draft an email, then approve it to send — or write your own from the Gmail composer |
 | **Meeting Notes** | Auto-records and transcribes your video calls, then AI-summarizes them — or paste a transcript manually |
 | **Regulatory** | Track DHF, IFU, 510(k), and ISO documents with AI drafting |
+| **Slide Decks** | Ask for a presentation and Gerry builds one in the company house style, marked with the security classification you choose |
 | **Investor Relations** | Company snapshot, regulatory proof-points, IR doc registry with AI drafting, and research feed |
 | **Approvals** | Human-in-the-loop queue — approve/reject with automatic action execution |
 | **Notifications** | Real-time alerts for tasks, approvals, and AI activity |
@@ -212,6 +214,7 @@ When Google is connected, Little Gerry calls the appropriate tool immediately �
 - "Add that Drive file to the knowledge base" → Gerry imports it on the spot (works for her generated files too), with duplicate detection — regulated imports stay manual
 - "Is the company Drive backed up?" → Gerry reads the nightly backup bucket (read-only), reports the last backup time with a CURRENT/STALE verdict, and lists which files changed since
 - "Write me a memo about…" → Gerry first checks the shared templates folder on Drive for that document type's required structure and follows it exactly — drop a new template doc in the folder and every teammate's formats update instantly. Add a doc named "Style Guide" and its rules are applied to **every** generated document — even types with no template — so everything looks uniform. The Regulatory page's document wizard follows the same templates folder too
+- "Build me a deck on…" → Gerry asks which security classification applies, then builds a real presentation in the company house style and puts it on your Drive as Google Slides — see [Slide Decks](#slide-decks)
 - "What do our VACTOR specs say about suction pressure?" → searches the Knowledge Base
 
 ### What requires your approval
@@ -478,6 +481,41 @@ Hover over any document row → click **AI Draft**. Little Gerry pulls relevant 
 
 ---
 
+## Slide Decks
+
+Ask Little Gerry for a presentation in chat — there is no separate page:
+
+```
+Build a 10-slide product briefing on VACTOR for a distributor meeting
+Make me a board update deck covering Q3 progress and the regulatory path
+Put together a demo deck for the suction pressure work
+```
+
+She builds a real PowerPoint file in the company house style — the same black background, red accent and type as the company's own deck — and uploads it to your Drive as native **Google Slides**, so you can edit it like any other deck. It's also downloadable straight from the chat. A deck can be built even with Google disconnected; you just get the file instead of the Drive copy.
+
+### She will ask you one question first
+
+**How should the deck be marked?** This is required and never guessed, because getting it wrong either stamps "confidential" on a deck you're about to show outsiders, or leaves a sensitive one unmarked.
+
+| You choose | Every slide shows |
+|-----------|-------------------|
+| **Open** | *nothing at all* — deliberately unmarked, for an outside audience |
+| **Confidential — Internal** | CONFIDENTIAL — INTERNAL |
+| **Confidential — Proprietary Information** | CONFIDENTIAL — PROPRIETARY INFORMATION |
+| **Confidential — Trade Secret** | CONFIDENTIAL — TRADE SECRET, in red |
+
+### The layouts
+
+Fourteen slide layouts are available — a cover, section breaks, bullet slides, metric cards, profile cards, comparison grids, milestone tracks, big-number slides and more. They're named for their **shape** rather than a business purpose, so the same set works for a fundraise, a product briefing, a demo or a technical review. Gerry picks the layout that suits each slide's content.
+
+Text is measured and flowed rather than poured into fixed boxes, so a long heading shrinks to fit instead of overlapping what's beneath it.
+
+### Changing the look
+
+The deck's colours, fonts, type sizes and the classification wording come from a doc named **Deck Theme** in the shared **PMI Templates** Drive folder — the same folder that holds your document templates. Edit that doc and the next deck picks it up; no update required. If a line in it is wrong (a colour that isn't a hex code, a type size of 9000), Gerry keeps the built-in value and **tells you which lines she ignored**. The layouts themselves are built in and can't be changed from the doc.
+
+---
+
 ## Investor Relations
 
 Navigate to **Investor Relations** in the sidebar.
@@ -523,7 +561,9 @@ By default Gerry reads your Drive but never changes anything. If you ask her to 
 2. Click **Allow** and she can edit **that file only**. Every other file in your Drive stays read-only, and the next file needs its own separate permission.
 3. Click **Deny** and nothing happens.
 
-What she can edit this way: **Google Docs** (append, find-and-replace, or rewrite), **Google Sheets** (set a cell range or append a row), and **plain-text files**. PDFs, images, and slides are not editable in place — she'll offer to upload a replacement instead.
+What she can edit this way: **Google Docs** (append, find-and-replace, or rewrite), **Google Sheets** (set a cell range or append a row), **Google Slides** (replace text across a deck, rewrite one text box, or delete a slide), and **plain-text files**. PDFs and images are not editable in place — she'll offer to upload a replacement instead.
+
+> **Editing slides needs a reconnect.** Slides access is new in this release, so it isn't in the permissions you granted earlier. Go to **Settings → Google Integration → Connect Google** once and tick every box. *Creating* a deck needs no reconnect.
 
 **Undo is Google's.** Edits are live the moment she makes them; open the file in Drive and use **File → Version history** to see exactly what changed and roll back.
 

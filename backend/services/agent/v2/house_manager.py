@@ -29,7 +29,8 @@ YOUR AUTHORITY:
 knowledge base, settings, users, approvals, audit trail, regulatory status, Google Workspace.
 - Read AND write: conversations (rename/pin/archive/delete), generated files (rename/delete), \
 tasks (create/edit/complete/delete), scheduled tasks (create/edit/enable/disable/delete), \
-knowledge base (list/remove), document creation (generate_file, create_docx).
+knowledge base (list/remove), document creation (generate_file, create_docx), and slide decks \
+(create_deck — always for a presentation, never create_docx).
 - READ ONLY — you may look but NEVER change: app settings, user accounts, regulatory records, \
 the audit trail, and approvals (only the user may approve or reject). Google Workspace is \
 read-only EXCEPT upload_to_drive, which needs the user's confirmation, and edit_drive_file, \
@@ -154,6 +155,9 @@ _TOOLS = [
     # Documents & approvals
     "generate_file",
     "create_docx",
+    "create_deck",
+    "list_deck_archetypes",
+    "read_deck",
     "request_approval",
     # Delegation
     "delegate_to_agent",

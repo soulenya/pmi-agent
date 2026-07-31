@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 DOC_MIME = "application/vnd.google-apps.document"
 SHEET_MIME = "application/vnd.google-apps.spreadsheet"
+SLIDES_MIME = "application/vnd.google-apps.presentation"
 
 # Anything else is edited by overwriting bytes, which only makes sense for text.
 _TEXT_MIME_PREFIXES = ("text/",)
@@ -263,6 +264,39 @@ async def apply_edit(
                     f'Google Sheets support set_cells and append — not "{mode}".'
                 )
 
+        elif mime == SLIDES_MIME:
+            if mode == "replace":
+                if not find:
+                    raise DriveEditError("replace needs find.")
+                result = await _run(lambda: gs.slides_replace_text(file_id, find, replace))
+                n = result["occurrences"]
+                if n == 0:
+                    return (
+                        f'No change: "{find}" does not appear in "{name}". '
+                        "The deck was not modified."
+                    )
+                summary = f"replaced {n} occurrence{'s' if n != 1 else ''} of \"{find}\""
+            elif mode == "set_shape":
+                if not cell_range:
+                    raise DriveEditError(
+                        "set_shape needs the shape's object id — read the deck first "
+                        "with read_deck, which returns one per text box."
+                    )
+                await _run(lambda: gs.slides_set_shape_text(file_id, cell_range, text))
+                summary = f"rewrote shape {cell_range} ({len(text):,} characters)"
+            elif mode == "delete_slide":
+                if not cell_range:
+                    raise DriveEditError(
+                        "delete_slide needs the slide's object id — read_deck returns one "
+                        "per slide."
+                    )
+                await _run(lambda: gs.slides_delete_slide(file_id, cell_range))
+                summary = f"deleted slide {cell_range}"
+            else:
+                raise DriveEditError(
+                    f'Google Slides support replace, set_shape and delete_slide — not "{mode}".'
+                )
+
         elif _is_text_file(mime):
             if mode == "overwrite":
                 if not text:
@@ -294,8 +328,9 @@ async def apply_edit(
         else:
             raise DriveEditError(
                 f'"{name}" is a {mime or "binary"} file — Gerry can edit Google Docs, '
-                "Google Sheets and plain-text files in place, but not this type. "
-                "Uploading a replacement with upload_to_drive is the alternative."
+                "Google Sheets, Google Slides and plain-text files in place, but not "
+                "this type. Uploading a replacement with upload_to_drive is the "
+                "alternative."
             )
     except HttpError as exc:
         status = getattr(getattr(exc, "resp", None), "status", None)

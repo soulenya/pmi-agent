@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 200;
+export const BUILD_NUMBER = 201;
 export const BUILD_DATE = "2026-07-31";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 201,
+    date: "2026-07-31",
+    title: "Gerry can build slide decks",
+    changes: [
+      "Ask for a presentation — a pitch deck, product briefing, board update or demo — and Gerry builds a real deck in the company house style, then puts it on your Drive as Google Slides. It works with Google disconnected too; you just get the file",
+      "Fourteen layouts, with the colours, fonts and grid measured off the company's own deck rather than approximated",
+      "She asks how the deck should be marked before building it: open, confidential internal, confidential proprietary information, or confidential trade secret. It is never guessed — open decks carry no marking at all, and trade secret is marked in red",
+      "The look lives in a \"Deck Theme\" doc in the shared PMI Templates Drive folder — change the colours or type there and the next deck follows, no update needed. A bad line in it is reported rather than silently used",
+      "Gerry can now also read and edit existing Google Slides decks, once you allow that file. This needs Google reconnected once; building a new deck does not",
+    ],
+  },
   {
     build: 200,
     date: "2026-07-31",

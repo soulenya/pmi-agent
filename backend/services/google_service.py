@@ -33,6 +33,9 @@ SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/documents.readonly",
     "https://www.googleapis.com/auth/documents",
+    # Reading and editing decks. Like Docs, which deck Gerry may write to is
+    # gated per file in drive_edit_grants rather than by the scope.
+    "https://www.googleapis.com/auth/presentations",
     "https://www.googleapis.com/auth/tasks.readonly",
     "https://www.googleapis.com/auth/userinfo.email",
     "openid",
@@ -1453,6 +1456,90 @@ def docs_overwrite_text(file_id: str, text: str) -> dict:
     requests.append({"insertText": {"location": {"index": 1}, "text": text}})
     svc.documents().batchUpdate(documentId=file_id, body={"requests": requests}).execute()
     return {"title": title, "chars": len(text)}
+
+
+def _slides_shape_text(shape_el: dict) -> str:
+    """Concatenate the text runs of one page element."""
+    parts: list[str] = []
+    for el in ((shape_el.get("shape") or {}).get("text") or {}).get("textElements") or []:
+        run = el.get("textRun") or {}
+        if run.get("content"):
+            parts.append(run["content"])
+    return "".join(parts).strip()
+
+
+def slides_read(file_id: str) -> dict:
+    """Read a Google Slides deck as plain structure.
+
+    Returns ``{title, slide_count, slides: [{index, object_id, text: [...]}]}``.
+    Text is per shape and in reading order, which is what the model needs to
+    reason about a deck without seeing it.
+    """
+    svc = _build("slides", "v1")
+    deck = svc.presentations().get(presentationId=file_id).execute()
+    slides = []
+    for i, page in enumerate(deck.get("slides") or []):
+        texts = []
+        for el in page.get("pageElements") or []:
+            body = _slides_shape_text(el)
+            if body:
+                texts.append({"object_id": el.get("objectId", ""), "text": body})
+        slides.append({
+            "index": i + 1,
+            "object_id": page.get("objectId", ""),
+            "text": texts,
+        })
+    return {
+        "title": deck.get("title", ""),
+        "slide_count": len(slides),
+        "slides": slides,
+    }
+
+
+def slides_replace_text(file_id: str, find: str, replace: str, match_case: bool = True) -> dict:
+    """Replace every occurrence of ``find`` across a deck. Returns occurrences changed."""
+    svc = _build("slides", "v1")
+    result = svc.presentations().batchUpdate(
+        presentationId=file_id,
+        body={"requests": [{
+            "replaceAllText": {
+                "containsText": {"text": find, "matchCase": match_case},
+                "replaceText": replace,
+            }
+        }]},
+    ).execute()
+    replies = result.get("replies") or [{}]
+    changed = int((replies[0].get("replaceAllText") or {}).get("occurrencesChanged", 0) or 0)
+    meta = svc.presentations().get(presentationId=file_id, fields="title").execute()
+    return {"title": meta.get("title", ""), "occurrences": changed}
+
+
+def slides_set_shape_text(file_id: str, object_id: str, text: str) -> dict:
+    """Replace the text of one shape, identified by the object id slides_read returns."""
+    svc = _build("slides", "v1")
+    requests: list[dict] = [
+        {"deleteText": {"objectId": object_id, "textRange": {"type": "ALL"}}},
+        {"insertText": {"objectId": object_id, "insertionIndex": 0, "text": text}},
+    ]
+    try:
+        svc.presentations().batchUpdate(
+            presentationId=file_id, body={"requests": requests}
+        ).execute()
+    except Exception:
+        # deleteText fails on an already-empty shape; inserting alone is correct then.
+        svc.presentations().batchUpdate(
+            presentationId=file_id, body={"requests": requests[1:]}
+        ).execute()
+    return {"object_id": object_id, "chars": len(text)}
+
+
+def slides_delete_slide(file_id: str, object_id: str) -> None:
+    """Delete one slide by its page object id."""
+    svc = _build("slides", "v1")
+    svc.presentations().batchUpdate(
+        presentationId=file_id,
+        body={"requests": [{"deleteObject": {"objectId": object_id}}]},
+    ).execute()
 
 
 def drive_get_metadata(file_id: str) -> dict | None:
