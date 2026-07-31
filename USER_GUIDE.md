@@ -573,6 +573,8 @@ Click any notification to navigate to the relevant page.
 
 ## Settings
 
+Every section on this page starts collapsed — click a heading to open it. A section you have never changed is outlined in amber with a **Review** badge, which clears as soon as you edit something in it. The badge comes back as **New** only when that section has something genuinely new: a new release for **Software Updates** and **What's New**, or a new model in the catalog for **AI Engine** and **Models per Task**. Opening a section to look around does not clear the badge.
+
 ### Profile
 Update your display name and password.
 
