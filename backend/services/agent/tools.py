@@ -1121,6 +1121,89 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "list_meetings",
+            "description": (
+                "List the user's recent meeting notes — the transcripts Little Gerry "
+                "captured live from meeting audio, plus any recordings or notes the "
+                "user imported. Call this when the user asks about a past meeting or "
+                "call ('what did we cover last week', 'my last meeting with them'). "
+                "Returns titles, dates and whether each has been summarised; use "
+                "read_meeting for the contents."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "How many recent meetings to list (1–25). Default 10.",
+                        "default": 10,
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_meetings",
+            "description": (
+                "Search the user's meeting notes and transcripts by keyword. Use when "
+                "the user asks what was said or decided about a topic, or who said "
+                "something, in a meeting. Searches titles, summaries and the full "
+                "transcript text."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Words to look for — a topic, company, person, or phrase.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max meetings to return (1–15). Default 5.",
+                        "default": 5,
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_meeting",
+            "description": (
+                "Read one meeting note in full — summary, decisions, action items, next "
+                "steps, attendees, and the transcript. Use after list_meetings or "
+                "search_meetings, or whenever the user asks what happened in a specific "
+                "meeting. Identify it by meeting_id (preferred) or by a title/query."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "meeting_id": {
+                        "type": "string",
+                        "description": "The UUID of the meeting note (preferred).",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "A title or keyword identifying the meeting, if the id is unknown.",
+                    },
+                    "include_transcript": {
+                        "type": "boolean",
+                        "description": "Include the raw transcript as well as the summary. Default true.",
+                        "default": True,
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_file_template",
             "description": (
                 "Fetch the company's required structure/format for a document type "
@@ -4068,6 +4151,117 @@ async def execute_add_contacts(ctx: ToolContext, args: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+async def _find_meetings(ctx: ToolContext, query: str, limit: int) -> list:
+    from sqlalchemy import or_, select
+
+    from models.db.meeting import MeetingNote
+
+    stmt = select(MeetingNote).where(MeetingNote.created_by == ctx.user_id)
+    if query:
+        like = f"%{query}%"
+        stmt = stmt.where(
+            or_(
+                MeetingNote.title.ilike(like),
+                MeetingNote.summary.ilike(like),
+                MeetingNote.raw_transcript.ilike(like),
+            )
+        )
+    stmt = stmt.order_by(MeetingNote.created_at.desc()).limit(limit)
+    return list((await ctx.db.execute(stmt)).scalars())
+
+
+def _meeting_line(m) -> str:
+    when = (m.meeting_date or m.created_at).date()
+    state = "summarised" if m.summary else "transcript only"
+    who = f", with {', '.join(m.attendees[:4])}" if m.attendees else ""
+    return f"- {when} · \"{m.title}\" [{state}]{who} (id={m.id})"
+
+
+async def execute_list_meetings(ctx: ToolContext, args: dict[str, Any]) -> str:
+    limit = max(1, min(int(args.get("limit", 10) or 10), 25))
+    meetings = await _find_meetings(ctx, "", limit)
+    if not meetings:
+        return (
+            "No meeting notes yet. Little Gerry records meetings from the computer's "
+            "audio when the user accepts the consent card, and the user can also import "
+            "a recording or paste notes on the Meetings page."
+        )
+    return "\n".join([f"Recent meetings ({len(meetings)}):", *(_meeting_line(m) for m in meetings)])
+
+
+async def execute_search_meetings(ctx: ToolContext, args: dict[str, Any]) -> str:
+    query = str(args.get("query", "")).strip()
+    if not query:
+        return "Error: query must not be empty."
+    limit = max(1, min(int(args.get("limit", 5) or 5), 15))
+    meetings = await _find_meetings(ctx, query, limit)
+    if not meetings:
+        return f"No meeting notes mention \"{query}\"."
+
+    out = [f"Meetings mentioning \"{query}\" ({len(meetings)}):"]
+    for m in meetings:
+        out.append(_meeting_line(m))
+        # A line of transcript around the hit is usually enough to decide whether
+        # the meeting is worth reading in full.
+        pos = m.raw_transcript.lower().find(query.lower())
+        if pos >= 0:
+            snippet = " ".join(m.raw_transcript[max(0, pos - 120) : pos + 240].split())
+            out.append(f"    …{snippet}…")
+    out.append("Use read_meeting with an id above for the full note.")
+    return "\n".join(out)
+
+
+async def execute_read_meeting(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from sqlalchemy import select
+
+    from models.db.meeting import MeetingNote
+
+    meeting = None
+    raw_id = str(args.get("meeting_id", "")).strip()
+    if raw_id:
+        try:
+            meeting = (
+                await ctx.db.execute(
+                    select(MeetingNote).where(
+                        MeetingNote.id == uuid.UUID(raw_id),
+                        MeetingNote.created_by == ctx.user_id,
+                    )
+                )
+            ).scalar_one_or_none()
+        except ValueError:
+            return f"\"{raw_id}\" is not a valid meeting id."
+    if meeting is None:
+        matches = await _find_meetings(ctx, str(args.get("query", "")).strip(), 5)
+        if not matches:
+            return "No matching meeting note found. Call list_meetings to see what exists."
+        if len(matches) > 1 and args.get("query"):
+            return "\n".join(
+                ["Several meetings match — call read_meeting again with one of these ids:",
+                 *(_meeting_line(m) for m in matches)]
+            )
+        meeting = matches[0]
+
+    when = (meeting.meeting_date or meeting.created_at).date()
+    out = [f"Meeting: {meeting.title}", f"Date: {when}"]
+    if meeting.attendees:
+        out.append(f"Attendees: {', '.join(meeting.attendees)}")
+    for label, value in (
+        ("Summary", meeting.summary),
+        ("Decisions", meeting.decisions),
+        ("Action items", meeting.action_items),
+        ("Next steps", meeting.next_steps),
+    ):
+        if value:
+            out.append(f"\n{label}:\n{value}")
+    if not meeting.summary:
+        out.append("\n(Not summarised yet — only the raw transcript is available.)")
+    if args.get("include_transcript", True):
+        out.append(f"\nTranscript:\n{meeting.raw_transcript[:20000]}")
+        if len(meeting.raw_transcript) > 20000:
+            out.append("… (transcript truncated)")
+    return "\n".join(out)
+
+
 async def execute_search_contacts(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
     from services.email_contacts import get_contacts, search_contacts_store
@@ -4813,6 +5007,9 @@ TOOL_EXECUTORS = {
     "compare_budget_to_odoo": execute_compare_budget_to_odoo,
     "read_odoo": execute_read_odoo,
     "get_calendar_events": execute_get_calendar_events,
+    "list_meetings": execute_list_meetings,
+    "search_meetings": execute_search_meetings,
+    "read_meeting": execute_read_meeting,
     "search_contacts": execute_search_contacts,
     "add_contacts": execute_add_contacts,
     "read_google_sheet": execute_read_google_sheet,
@@ -4838,6 +5035,9 @@ _PRIMARY_ARG = {
     "search_gmail": "query",
     "search_drive": "query",
     "search_drive_content": "query",
+    "search_meetings": "query",
+    "read_meeting": "query",
+    "list_meetings": "limit",
     "search_contacts": "query",
     "add_contacts": "contacts",
     "fetch_page": "url",

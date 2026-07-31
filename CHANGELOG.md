@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.36 — 2026-07-31
+**The agent couldn't see the meeting feature (Morgan report: Gerry denied having any meeting-transcription capability)**
+
+- **Root cause:** meetings shipped as a UI-driven feature with its own router. No meeting tool was ever registered in `TOOL_DEFINITIONS`/`TOOL_EXECUTORS`, and the system prompt's `CAPABILITIES:` block never mentioned meetings — so the model had no way to know the feature existed, and only met a meeting sideways when a note had been added to the Knowledge Base. Generalisable: a feature the agent can't name is a feature the agent will deny.
+- Added three read-only tools — `list_meetings`, `search_meetings` (title + summary + full transcript, with a snippet around the hit), `read_meeting` (summary, decisions, action items, next steps, attendees, transcript). All scoped to `MeetingNote.created_by == user_id`.
+- Registered in all four places a tool has to be registered: `TOOL_DEFINITIONS`, `TOOL_EXECUTORS`, `_PRIMARY_ARG` (plain-string argument fallback), the v2 `_TOOL_DOCS`, and the Executive Assistant's `TOOLS` whitelist.
+- Both system prompts now describe the capture pipeline — app detection, the consent card, live transcript, jargon cards, NDA vs public answer modes, summarise → tasks → KB → thank-you draft — and state that the agent reads the notes rather than driving the recorder.
+
 ### v3.3.35 — 2026-07-31
 **Settings collapses, and flags what you haven't looked at (Morgan request)**
 
