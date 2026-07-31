@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.35 — 2026-07-31
+**Settings collapses, and flags what you haven't looked at (Morgan request)**
+
+- Every section is a collapsed header row on load; clicking one expands it. Content stays mounted while hidden, so collapsing a section never discards in-progress edits.
+- A section carries an amber outline and a **Review** badge until you edit a field or press a button inside it. The acknowledgement is stored in `localStorage` under `lg.settings.reviewed` as section id → revision.
+- The badge returns as **New** only when the section's revision changes: `BUILD_NUMBER` for Software Updates and What's New, a signature of the model catalog for AI Configuration and Models per Task. Everything else is fixed, so a configured section stays quiet.
+- Expanding a section does not clear the badge — only interacting with a control does.
+
 ### v3.3.34 — 2026-07-31
 **Writing voice profile upload was broken on arrival (Morgan report: "Couldn't read that file")**
 
