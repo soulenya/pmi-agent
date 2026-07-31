@@ -29,6 +29,7 @@ import {
 } from "@/api/tasks";
 import { getGoogleStatus } from "@/api/google";
 import { DriveBrowser } from "@/components/google/DriveBrowser";
+import { TaskSourceActions } from "@/components/tasks/TaskSourceActions";
 import type { DriveItem } from "@/api/google";
 import type { Task, TaskCreate, TaskStatus, TaskPriority, TaskUpdate, TaskAttachment } from "@/types/tasks";
 
@@ -630,6 +631,16 @@ export function TaskDrawer({ task, onClose, onDeleted }: TaskDrawerProps) {
               }}
             />
           </div>
+
+          {/* What this task is about */}
+          {task.source_ref && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                {task.source_ref.label || "Source"}
+              </label>
+              <TaskSourceActions task={task} />
+            </div>
+          )}
 
           {/* Divider */}
           <div className="border-t" />

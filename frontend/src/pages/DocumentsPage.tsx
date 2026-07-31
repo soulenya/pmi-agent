@@ -1,10 +1,12 @@
-﻿import { useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { DropOverlay } from "@/components/DropOverlay";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import {
   listDocuments,
   listCategories,
+  getDocument,
   uploadDocument,
   updateDocument,
   deleteDocument,
@@ -999,6 +1001,18 @@ export function DocumentsPage() {
     refetchInterval: (q) =>
       q.state.data?.some((d) => d.status === "processing") ? 5_000 : false,
   });
+
+  // ?doc=<id> — arriving from a task opens that document's viewer. Fetched by id
+  // so it works even when the document sits in a category that isn't selected.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const id = searchParams.get("doc");
+    if (!id) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("doc");
+    setSearchParams(next, { replace: true });
+    getDocument(id).then(setViewDoc).catch(() => undefined);
+  }, [searchParams, setSearchParams]);
 
   const uploadMutation = useMutation({
     mutationFn: ({

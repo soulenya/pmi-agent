@@ -99,6 +99,15 @@ export async function listGmailThreads(query = "", max = 50): Promise<GmailThrea
   return r.data.threads ?? [];
 }
 
+/** Ask Gerry to draft a reply to a thread. The draft lands in Approvals. */
+export async function draftGmailReply(threadId: string, instruction?: string): Promise<void> {
+  await apiClient.post(
+    `${G}/gmail/draft-reply`,
+    { thread_id: threadId, instruction: instruction || null },
+    { timeout: 2 * 60 * 1000 },
+  );
+}
+
 export async function listGoogleTasks(max_results = 50, show_completed = false): Promise<GoogleTask[]> {
   const r = await apiClient.get<{ tasks: GoogleTask[] }>(`${G}/tasks`, {
     params: { max_results, show_completed },

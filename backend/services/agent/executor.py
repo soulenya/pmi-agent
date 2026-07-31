@@ -550,6 +550,15 @@ class AgentExecutor:
         except Exception:  # noqa: BLE001 — company context is best-effort
             logger.exception("Failed to load company context")
 
+        # How this particular user writes, so drafts sound like them.
+        try:
+            from services.writing_voice import get_agent_style_block
+            voice_ctx = await get_agent_style_block(self.db, self.user_id)
+            if voice_ctx:
+                messages[0]["content"] += voice_ctx
+        except Exception:  # noqa: BLE001 — writing voice is best-effort
+            logger.exception("Failed to load writing voice profile")
+
         # Inject any conversation reference-file attachments into the system prompt.
         try:
             from services.chat_attachments import build_attachments_context

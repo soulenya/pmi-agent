@@ -331,6 +331,7 @@ from services.email_signature import (  # noqa: E402
     html_to_text as _html_to_text,
     resolve_signature as _resolve_signature,
 )
+from services import writing_voice as _writing_voice  # noqa: E402
 
 
 class SignatureUpdate(BaseModel):
@@ -482,7 +483,8 @@ class GmailDraftSelectedRequest(BaseModel):
 
 
 async def _llm_draft_reply(
-    *, thread: dict, instruction: str | None, db: AsyncSession, signature: str = ""
+    *, thread: dict, instruction: str | None, db: AsyncSession, signature: str = "",
+    voice: str = "",
 ) -> str:
     """Ask the LLM to draft a reply to a Gmail thread. Returns the body text."""
     from services.llm.router import get_llm_client
@@ -506,7 +508,7 @@ async def _llm_draft_reply(
         "You are an executive assistant at Precisian Medical Instruments (PMI), a "
         "medical device startup. Draft a reply to the most recent message in the "
         "email thread below. Write a professional, concise reply.\n\n"
-        f"EMAIL THREAD (oldest to newest):\n{transcript}{guidance}\n\n"
+        f"EMAIL THREAD (oldest to newest):\n{transcript}{guidance}{voice}\n\n"
         f"Write ONLY the reply body (salutation through closing). Do not include a "
         f"Subject line. {closing}"
     )
@@ -530,6 +532,7 @@ async def _llm_draft_compose(
     subject: str | None,
     db: AsyncSession,
     signature: str = "",
+    voice: str = "",
 ) -> dict:
     """Ask the LLM to write a NEW email. Returns ``{subject, body}``."""
     import json
@@ -553,7 +556,7 @@ async def _llm_draft_compose(
     prompt = (
         "You are an executive assistant at Precisian Medical Instruments (PMI), a "
         f"medical device startup. Write a new {tone} email.\n\n"
-        f"Recipient: {recipient}\nWhat the email needs to say: {instruction}{kp}\n\n"
+        f"Recipient: {recipient}\nWhat the email needs to say: {instruction}{kp}{voice}\n\n"
         f"{subj_line}\n"
         'Return ONLY a JSON object: {"subject": "...", "body": "..."} where "body" '
         "is the complete email (salutation through closing) and contains no Subject "
@@ -615,7 +618,8 @@ async def _build_gerry_reply(
 
     signature = await _resolve_signature(db)
     draft_body = await _llm_draft_reply(
-        thread=thread, instruction=instruction, db=db, signature=signature
+        thread=thread, instruction=instruction, db=db, signature=signature,
+        voice=await _writing_voice.get_email_style_block(db, user.id),
     )
     if signature:
         draft_body = f"{draft_body}\n\n{signature}"
@@ -699,6 +703,7 @@ async def _build_gerry_compose(
         subject=subject,
         db=db,
         signature=signature,
+        voice=await _writing_voice.get_email_style_block(db, user.id),
     )
     subject_final = composed["subject"]
     draft_body = composed["body"]
@@ -1343,20 +1348,28 @@ async def google_tasks_import(
         due = None
         if gt.get("due"):
             try:
-                from datetime import date
-                due = date.fromisoformat(gt["due"][:10])
+                from datetime import datetime as _dt, timezone as _tz
+
+                due = _dt.fromisoformat(gt["due"][:10]).replace(tzinfo=_tz.utc)
             except Exception:
                 pass
         task = DBTask(
             id=_uuid.uuid4(),
             title=gt.get("title", "(No title)"),
             description=gt.get("notes") or None,
-            status=TaskStatus.todo,
-            priority=TaskPriority.medium,
+            status=TaskStatus.TODO,
+            priority=TaskPriority.MEDIUM,
             due_date=due,
-            created_by_id=current_user.id,
+            created_by=current_user.id,
+            assignee_id=current_user.id,
             tags=["google-tasks"],
             attachments=[],
+            source_ref={
+                "kind": "google_task",
+                "id": tid,
+                "label": gt.get("list") or "Google Tasks",
+                "url": None,
+            },
         )
         db.add(task)
         imported_ids.append(str(task.id))

@@ -46,6 +46,7 @@ from routers.assistant import router as assistant_router
 from routers.extractions import router as extractions_router
 from routers.scheduled_tasks import router as scheduled_tasks_router
 from routers.voice import router as voice_router
+from routers.writing_voice import router as writing_voice_router
 from routers.push import router as push_router
 from sqlalchemy import text
 
@@ -488,6 +489,7 @@ def create_app() -> FastAPI:
     app.include_router(research_router)
     app.include_router(settings_router)
     app.include_router(voice_router)
+    app.include_router(writing_voice_router)
     app.include_router(meetings_router)
     app.include_router(emails_router)
     app.include_router(update_router)

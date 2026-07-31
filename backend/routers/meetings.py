@@ -498,6 +498,12 @@ async def summarize_meeting(
                 priority="medium",
                 created_by=current_user.id,
                 assignee_id=current_user.id,
+                source_ref={
+                    "kind": "meeting",
+                    "id": str(meeting.id),
+                    "label": meeting.title[:200],
+                    "url": None,
+                },
             )
             db.add(task)
             task_ids.append(str(task.id))

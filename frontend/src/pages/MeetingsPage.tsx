@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   Mic,
   Plus,
@@ -378,10 +379,18 @@ function NewMeetingForm({ onClose }: { onClose: () => void }) {
 
 // ── Meeting Card ──────────────────────────────────────────────────────────────
 
-function MeetingCard({ note }: { note: MeetingNote }) {
+function MeetingCard({ note, focus = false }: { note: MeetingNote; focus?: boolean }) {
   const qc = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(focus);
   const [extractedActions, setExtractedActions] = useState<ExtractedAction[] | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Arriving from a task: open this meeting and bring it into view.
+  useEffect(() => {
+    if (!focus) return;
+    setExpanded(true);
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focus]);
 
   const summarizeMutation = useMutation({
     mutationFn: () => summarizeMeeting(note.id, { create_tasks: true }),
@@ -414,7 +423,13 @@ function MeetingCard({ note }: { note: MeetingNote }) {
   const inKb = Boolean(note.kb_document_id) || addToKbMutation.isSuccess;
 
   return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+    <div
+      ref={cardRef}
+      className={cn(
+        "rounded-xl border bg-card shadow-sm overflow-hidden",
+        focus && "ring-2 ring-primary/40",
+      )}
+    >
       {/* Header */}
       <div className="flex items-start justify-between px-5 pt-4 pb-3">
         <div className="flex-1 min-w-0 pr-4">
@@ -598,6 +613,18 @@ export function MeetingsPage() {
     queryFn: listMeetings,
   });
 
+  // ?meeting=<id> — arriving from a task opens that meeting's detail.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = searchParams.get("meeting");
+    if (!id) return;
+    setFocusId(id);
+    const next = new URLSearchParams(searchParams);
+    next.delete("meeting");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const summarized = meetings.filter((m) => !!m.summary).length;
 
   return (
@@ -665,7 +692,7 @@ export function MeetingsPage() {
       {/* List */}
       <div className="space-y-4">
         {meetings.map((m) => (
-          <MeetingCard key={m.id} note={m} />
+          <MeetingCard key={m.id} note={m} focus={m.id === focusId} />
         ))}
       </div>
     </div>

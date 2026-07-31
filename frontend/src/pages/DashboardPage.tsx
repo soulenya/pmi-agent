@@ -96,7 +96,7 @@ function StatCard({
 function TaskAgendaItem({ task }: { task: Task }) {
   const overdue = task.due_date && new Date(task.due_date) < new Date();
   return (
-    <NavLink to="/tasks" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/40 transition-colors">
+    <NavLink to={`/tasks?task=${task.id}`} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/40 transition-colors">
       <span className="shrink-0">{DASH_STATUS_ICON[task.status]}</span>
       <span className="flex-1 min-w-0 text-sm truncate">{task.title}</span>
       {task.due_date && (
@@ -144,7 +144,7 @@ function CalendarEventItem({ event, timezone, showDate = false }: { event: Googl
 function WeekTaskRow({ task }: { task: Task }) {
   const days = task.due_date ? daysFromNow(task.due_date) : null;
   return (
-    <NavLink to="/tasks" className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/40 transition-colors">
+    <NavLink to={`/tasks?task=${task.id}`} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/40 transition-colors">
       <span className="shrink-0">{DASH_STATUS_ICON[task.status]}</span>
       <span className="flex-1 min-w-0 text-sm truncate">{task.title}</span>
       {task.due_date && (
