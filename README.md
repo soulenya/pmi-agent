@@ -64,7 +64,7 @@ Key design principles:
 | **User Management**        | Google sign-in only (no passwords); invite teammates by email; accounts auto-created on first sign-in (owner = admin, everyone else = full-access member); per-user Regulatory write permission and deactivation |
 | **Google Workspace**       | Connect your Google account for Gmail, Drive, Calendar, and Contacts integration with human-in-the-loop write approvals                    |
 | **Odoo ERP**               | Connect an Odoo account via encrypted API key; Little Gerry reads ERP data and proposes write actions through the Approvals queue           |
-| **Settings**               | LLM model selection, embedding provider, re-index KB, live health monitoring, appearance, notification preferences, and one-click in-app updates |
+| **Settings**               | Collapsible sections that flag what you haven't set up yet and re-flag themselves when a new release or a new model arrives: LLM model selection, embedding provider, re-index KB, live health monitoring, appearance, notification preferences, and one-click in-app updates |
 
 ---
 

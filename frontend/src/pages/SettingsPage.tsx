@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink, ScanText, PenLine, Pencil, Trash2, Upload, Sparkles } from "lucide-react";
+import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink, ScanText, PenLine, Pencil, Trash2, Upload, Sparkles, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
@@ -45,27 +45,112 @@ import { listExtractionSchemas, saveExtractionSchemas } from "@/api/extractions"
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
+const REVIEW_STORE_KEY = "lg.settings.reviewed";
+
+function readReviewed(): Record<string, string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REVIEW_STORE_KEY) ?? "null");
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeReviewed(id: string, revision: string) {
+  try {
+    localStorage.setItem(REVIEW_STORE_KEY, JSON.stringify({ ...readReviewed(), [id]: revision }));
+  } catch {
+    // Storage unavailable — the highlight simply comes back next launch.
+  }
+}
+
+/** Signature of a model catalog, so added or removed models flag the section again. */
+function catalogRevision(catalog?: Record<string, string[]>): string | undefined {
+  if (!catalog) return undefined;
+  return Object.entries(catalog)
+    .map(([provider, models]) => `${provider}:${[...models].sort().join(",")}`)
+    .sort()
+    .join("|");
+}
+
 function Section({
+  id,
   icon: Icon,
   title,
   description,
+  revision,
   children,
 }: {
+  id: string;
   icon: React.ElementType;
   title: string;
   description?: string;
+  /** Bump to flag the section again when it has something new — a new build, new models. */
+  revision?: string;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+  const [seen, setSeen] = useState<string | undefined>(() => readReviewed()[id]);
+
+  // Falling back to the reviewed value keeps a settled section from flashing a
+  // highlight while its revision is still loading.
+  const current = revision ?? seen ?? "1";
+  const review = seen === undefined ? "unreviewed" : seen !== current ? "updated" : null;
+
+  const markReviewed = () => {
+    if (seen === current) return;
+    writeReviewed(id, current);
+    setSeen(current);
+  };
+
+  // Touching a control counts as reviewing the section; opening it to look does not.
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button, a")) markReviewed();
+  };
+
   return (
-    <div className="rounded-xl border bg-card shadow-sm">
-      <div className="flex items-center gap-3 border-b px-5 py-4">
-        <Icon className="h-5 w-5 text-primary" />
-        <div>
-          <h2 className="font-semibold text-sm">{title}</h2>
-          {description && <p className="text-xs text-muted-foreground">{description}</p>}
+    <div
+      className={cn(
+        "rounded-xl border bg-card shadow-sm transition-colors",
+        review && "border-amber-400/70 ring-1 ring-amber-400/30"
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={cn(
+          "flex w-full items-center gap-3 rounded-t-xl px-5 py-4 text-left transition-colors hover:bg-accent/40",
+          !open && "rounded-b-xl"
+        )}
+      >
+        <Icon className="h-5 w-5 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-sm">{title}</h2>
+            {review && (
+              <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                {review === "updated" ? "New" : "Review"}
+              </span>
+            )}
+          </div>
+          {description && <p className="truncate text-xs text-muted-foreground">{description}</p>}
         </div>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+      <div
+        hidden={!open}
+        className="border-t p-5 space-y-4"
+        onChangeCapture={markReviewed}
+        onClickCapture={handleClick}
+      >
+        {children}
       </div>
-      <div className="p-5 space-y-4">{children}</div>
     </div>
   );
 }
@@ -172,7 +257,7 @@ function ProfileSection() {
   };
 
   return (
-    <Section icon={User} title="Profile" description="Your account information">
+    <Section id="profile" icon={User} title="Profile" description="Your account information">
       <Field label="Email">
         <input
           value={profile?.email ?? ""}
@@ -506,9 +591,11 @@ function LLMSection({
         onComplete={handleReindexComplete}
       />
       <Section
+        id="llm"
         icon={Cpu}
         title="AI / LLM Configuration"
         description="Choose your AI provider and configure models"
+        revision={catalogRevision(aiOpts?.llm)}
       >
         {/* ── Compact live status row ────────────────────────────────────────────────── */}
         {aiHealth && (
@@ -932,6 +1019,7 @@ function CompanyProfileSection() {
 
   return (
     <Section
+      id="company"
       icon={Building2}
       title="Company Profile"
       description="Always-loaded company facts for every agent — edited only in the shared Google Drive file"
@@ -1127,6 +1215,7 @@ function WritingVoiceSection() {
 
   return (
     <Section
+      id="writing-voice"
       icon={PenLine}
       title="Writing Voice"
       description="A description of how you write, so Gerry's drafts sound like you and not like a robot"
@@ -1322,6 +1411,7 @@ function ExtractionSchemasSection() {
 
   return (
     <Section
+      id="extraction-schemas"
       icon={ScanText}
       title="Extraction Schemas"
       description="Named field shapes for vision document extraction — used by 'Extract data' and by Gerry's extract_document tool (schema_name)."
@@ -1419,9 +1509,11 @@ function TaskModelsSection() {
 
   return (
     <Section
+      id="task-models"
       icon={SlidersHorizontal}
       title="Models per Task"
       description="Pick a different model for each kind of work — default is your global model"
+      revision={catalogRevision(aiOpts?.llm)}
     >
       <p className="text-xs text-muted-foreground">
         Each category uses your global model unless you override it here. Only models from
@@ -1545,7 +1637,7 @@ function AppearanceSection({
   onChange: (s: SettingsUpdate) => void;
 }) {
   return (
-    <Section icon={Palette} title="Appearance">
+    <Section id="appearance" icon={Palette} title="Appearance">
       <Field label="Theme" hint="Changes take effect immediately and persist across restarts.">
         <select
           value={settings.theme}
@@ -1593,7 +1685,7 @@ function NotificationsSection({
   onChange: (s: SettingsUpdate) => void;
 }) {
   return (
-    <Section icon={Bell} title="Notifications">
+    <Section id="notifications" icon={Bell} title="Notifications">
       <label className="flex items-center gap-3 cursor-pointer">
         <input
           type="checkbox"
@@ -1633,6 +1725,7 @@ function VoiceSection({
 
   return (
     <Section
+      id="voice"
       icon={Mic}
       title="Voice"
       description="Speak to Little Gerry and hear replies — powered by Google Cloud Speech"
@@ -1740,6 +1833,7 @@ function SystemHealthSection() {
 
   return (
     <Section
+      id="system-health"
       icon={Activity}
       title="System Health"
       description="Live status of backend services"
@@ -1879,9 +1973,11 @@ function UpdateSection() {
 
   return (
     <Section
+      id="updates"
       icon={Download}
       title="Software Updates"
       description="Pull the latest features from GitHub"
+      revision={String(BUILD_NUMBER)}
     >
       {/* Action row */}
       <div className="flex items-center gap-3">
@@ -1989,7 +2085,7 @@ function UpdateSection() {
 }function ChangelogSection() {
   const [expanded, setExpanded] = useState<number | null>(CHANGELOG[0]?.build ?? null);
   return (
-    <Section icon={BookOpen} title="What's New" description={`Build ${BUILD_NUMBER} · ${BUILD_DATE}`}>
+    <Section id="changelog" icon={BookOpen} title="What's New" description={`Build ${BUILD_NUMBER} · ${BUILD_DATE}`} revision={String(BUILD_NUMBER)}>
       <div className="space-y-2">
         {CHANGELOG.map((entry) => (
           <div key={entry.build} className="rounded-lg border overflow-hidden">
@@ -2080,7 +2176,8 @@ export function SettingsPage() {
         <div>
           <h1 className="text-2xl font-bold">Settings</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Account, AI configuration, and preferences
+            Account, AI configuration, and preferences — open a section to change it. Highlighted
+            sections have something you haven't looked at yet.
           </p>
         </div>
         {hasChanges && (

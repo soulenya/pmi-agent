@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 196;
+export const BUILD_NUMBER = 197;
 export const BUILD_DATE = "2026-07-31";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 197,
+    date: "2026-07-31",
+    title: "Settings fits on one screen",
+    changes: [
+      "Every Settings section now collapses — the page opens as a short list of headings instead of one long scroll (requested by Morgan)",
+      "Sections you haven't set up are outlined and badged Review, which clears the moment you change something in them",
+      "The badge only comes back when there's genuinely something new: a new release for Software Updates and What's New, or a new model for AI Configuration and Models per Task",
+    ],
+  },
   {
     build: 196,
     date: "2026-07-31",
