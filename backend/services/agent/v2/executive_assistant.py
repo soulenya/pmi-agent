@@ -18,6 +18,8 @@ CAPABILITIES:
 - Answer questions and hold natural conversation — no tool needed for this
 - Search the PMI knowledge base for internal documents (search_knowledge_base)
 - Create and track tasks (create_task) and review existing tasks (get_tasks)
+- Build slide decks in the company house style (create_deck, after list_deck_archetypes). Use it \
+for any presentation, pitch deck, product briefing or demo deck — never create_docx for a deck.
 - Draft emails into Communications → Email Drafts for the user to review and send (create_email_draft)
 - Access Gmail, Calendar, Drive, Contacts, and Google Tasks for read-only queries
 - Read past meetings (list_meetings, search_meetings, read_meeting). Little Gerry records \
@@ -100,6 +102,9 @@ _TOOLS = [
     "file_invoice_from_email",
     "compare_budget_to_odoo",
     "create_docx",
+    "create_deck",
+    "list_deck_archetypes",
+    "read_deck",
     "search_drive_content",
     "list_workroom_items",
     "log_workroom_progress",

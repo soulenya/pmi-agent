@@ -976,11 +976,13 @@ TOOL_DEFINITIONS: list[dict] = [
                 "granted you permission for (request_drive_edit_permission); without a "
                 "grant this refuses and nothing is changed. Google Docs support "
                 "'append', 'replace' and 'overwrite'; Google Sheets support 'set_cells' "
-                "and 'append'; plain-text/markdown files support all three text modes. "
+                "and 'append'; Google Slides support 'replace', 'set_shape' and "
+                "'delete_slide'; plain-text/markdown files support all three text modes. "
                 "Prefer 'replace' over 'overwrite' — targeted changes are far safer, and "
                 "'overwrite' throws the entire existing document away. Read the file "
-                "first with read_drive_file so you know exactly what you are changing, "
-                "and tell the user what you changed afterwards."
+                "first with read_drive_file (or read_deck for a presentation) so you know "
+                "exactly what you are changing, and tell the user what you changed "
+                "afterwards."
             ),
             "parameters": {
                 "type": "object",
@@ -991,12 +993,18 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "mode": {
                         "type": "string",
-                        "enum": ["append", "replace", "overwrite", "set_cells"],
+                        "enum": [
+                            "append", "replace", "overwrite", "set_cells",
+                            "set_shape", "delete_slide",
+                        ],
                         "description": (
                             "append = add text at the end (or a row to a sheet); "
                             "replace = swap every occurrence of 'find' with 'replace'; "
                             "overwrite = discard the body and write 'text' instead; "
-                            "set_cells = write 'values' into a spreadsheet 'cell_range'."
+                            "set_cells = write 'values' into a spreadsheet 'cell_range'; "
+                            "set_shape = replace one deck text box, its object id in "
+                            "'cell_range' and the new text in 'text'; "
+                            "delete_slide = remove one slide, its object id in 'cell_range'."
                         ),
                     },
                     "text": {
@@ -1013,7 +1021,10 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "cell_range": {
                         "type": "string",
-                        "description": "A1 range for Sheets, e.g. 'Ledger!A2:D5' (set_cells/append).",
+                        "description": (
+                            "A1 range for Sheets, e.g. 'Ledger!A2:D5' (set_cells/append). "
+                            "For Slides this carries the object id instead (set_shape/delete_slide)."
+                        ),
                     },
                     "values": {
                         "type": "array",
@@ -1035,6 +1046,118 @@ TOOL_DEFINITIONS: list[dict] = [
                 "the user asks what you can change."
             ),
             "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_deck",
+            "description": (
+                "Build a slide deck in the company's house style and save it, optionally "
+                "uploading it to Google Drive where it opens as native Google Slides. Use "
+                "this for any presentation, pitch deck, product briefing, demo deck, "
+                "board update or investor material. "
+                "Each slide picks an 'archetype' — a layout named for its structure, not "
+                "its business purpose, so the same layouts serve a fundraise, a product "
+                "briefing or a demo. Call list_deck_archetypes FIRST to see the available "
+                "layouts and exactly which fields each one takes; passing fields an "
+                "archetype does not use silently drops them. "
+                "ALWAYS ASK THE USER which security classification the deck carries — "
+                "open, confidential internal, confidential proprietary information, or "
+                "confidential trade secret — and never guess it. The choice is stamped on "
+                "every slide, so getting it wrong either leaks a marking onto an external "
+                "deck or leaves a sensitive one unmarked. 'open' prints no mark at all. "
+                "Write real content, never placeholder text. Headlines read best split in "
+                "two: 'headline' renders white and 'headline_accent' renders in the "
+                "accent colour immediately after it. Keep body text tight — long strings "
+                "are shrunk to fit and will look cramped."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "Deck filename, e.g. 'Series A Deck.pptx'. The extension is added if missing.",
+                    },
+                    "classification": {
+                        "type": "string",
+                        "enum": [
+                            "open",
+                            "confidential_internal",
+                            "confidential_proprietary",
+                            "confidential_trade_secret",
+                        ],
+                        "description": (
+                            "Security marking stamped on every slide. ASK THE USER, do not "
+                            "assume. open = no mark (safe for an outside audience); "
+                            "confidential_internal = 'CONFIDENTIAL — INTERNAL'; "
+                            "confidential_proprietary = 'CONFIDENTIAL — PROPRIETARY "
+                            "INFORMATION'; confidential_trade_secret = 'CONFIDENTIAL — "
+                            "TRADE SECRET', printed in red."
+                        ),
+                    },
+                    "slides": {
+                        "type": "array",
+                        "description": (
+                            "The slides in order. Every entry needs an 'archetype' plus that "
+                            "archetype's own fields, as listed by list_deck_archetypes."
+                        ),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "archetype": {
+                                    "type": "string",
+                                    "description": "Layout name from list_deck_archetypes, e.g. 'cover'.",
+                                },
+                            },
+                            "required": ["archetype"],
+                        },
+                    },
+                    "upload": {
+                        "type": "boolean",
+                        "description": (
+                            "Upload to Google Drive as a native Google Slides deck the user "
+                            "can open and edit. Defaults to true when Google is connected."
+                        ),
+                    },
+                },
+                "required": ["filename", "classification", "slides"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_deck_archetypes",
+            "description": (
+                "List the slide layouts create_deck understands, with the fields each one "
+                "accepts. Call this before building a deck so every slide uses fields that "
+                "actually render."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_deck",
+            "description": (
+                "Read a Google Slides deck: its title, slide count, and the text of every "
+                "shape with the object id needed to change it. Use this before editing a "
+                "deck so you know what is there, and to answer questions about a "
+                "presentation's contents. Edit it afterwards with edit_drive_file using "
+                "mode 'set_shape' or 'delete_slide'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_id": {
+                        "type": "string",
+                        "description": "Drive file ID or full pasted URL of the presentation.",
+                    },
+                },
+                "required": ["file_id"],
+            },
         },
     },
     {
@@ -4929,6 +5052,183 @@ async def execute_upload_to_drive(ctx: ToolContext, args: dict[str, Any]) -> str
     )
 
 
+_PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+
+async def execute_list_deck_archetypes(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """List the slide layouts create_deck understands and the fields each takes."""
+    from services.decks.archetypes import catalog
+
+    return catalog()
+
+
+async def execute_create_deck(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Build a themed deck, then upload it as native Google Slides when connected."""
+    import asyncio
+
+    from services.decks.pptx_builder import DeckBuildError, build_pptx
+
+    slides = args.get("slides")
+    if not isinstance(slides, list) or not slides:
+        return (
+            "Error: slides must be a non-empty list of objects, each with an "
+            "'archetype'. Call list_deck_archetypes to see the layouts and fields."
+        )
+
+    classification = str(args.get("classification", "")).strip()
+    if not classification:
+        return (
+            "Error: classification is required and must come from the user, not from "
+            "you. Ask which applies — open, confidential internal, confidential "
+            "proprietary information, or confidential trade secret — then call this "
+            "again with their answer."
+        )
+
+    filename = str(args.get("filename", "deck.pptx")).strip()
+    filename = re.sub(r"[^\w.\- ]", "_", filename).strip() or "deck.pptx"
+    if Path(filename).suffix.lower() != ".pptx":
+        filename = Path(filename).stem + ".pptx"
+
+    _GENERATED_FILES_DIR.mkdir(exist_ok=True)
+    safe_name = f"{uuid.uuid4().hex[:8]}_{filename}"
+    out_path = _GENERATED_FILES_DIR / safe_name
+
+    from services.decks.drive_theme import get_deck_theme
+
+    theme, theme_problems = await get_deck_theme(ctx.db)
+
+    try:
+        await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: build_pptx(
+                {"slides": slides, "classification": classification}, out_path, theme
+            ),
+        )
+    except DeckBuildError as exc:
+        return f"Deck not created — {exc}"
+    except Exception as exc:  # noqa: BLE001 — surface a readable message to the model
+        return f"Deck build failed: {exc}"
+
+    if not out_path.is_file() or out_path.stat().st_size == 0:
+        return "Error: the deck file was not written to disk. Treat as failed."
+
+    from services.workroom_context import auto_pin_if_room, log_room_event
+
+    await auto_pin_if_room(ctx.db, ctx.conversation_id, "generated_file", filename, safe_name)
+    await log_room_event(ctx.db, ctx.conversation_id, f"Gerry generated deck: {filename}")
+
+    n = len(slides)
+    line = (
+        f"Deck created and verified ({n} slide{'s' if n != 1 else ''}, "
+        f"{out_path.stat().st_size:,} bytes): /api/files/{safe_name}"
+    )
+    if theme_problems:
+        # Worth telling the user: their theme doc has lines that did nothing.
+        line += (
+            "\nNote — the Deck Theme doc in the templates folder has "
+            f"{len(theme_problems)} line(s) that were ignored: "
+            + "; ".join(theme_problems[:3])
+        )
+
+    from services.google_service import get_credentials
+
+    connected = bool(get_credentials())
+    want_upload = args.get("upload")
+    if want_upload is None:
+        want_upload = connected
+    if not want_upload:
+        return line
+    if not connected:
+        return line + "\nNot uploaded to Drive: Google Workspace is not connected."
+
+    from services.google_service import drive_get_metadata, drive_import_attachment
+
+    drive_name = Path(filename).stem
+    data = out_path.read_bytes()
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_import_attachment(data, drive_name, _PPTX_MIME)
+        )
+    except Exception as exc:  # noqa: BLE001 — the local file still succeeded
+        return line + f"\nDrive upload failed: {exc}. The file is still downloadable above."
+
+    file_id = str(result.get("id", "")).strip()
+    if not file_id:
+        return line + "\nDrive upload failed: no file id returned. Treat as not uploaded."
+    try:
+        meta = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_get_metadata(file_id)
+        )
+    except Exception as exc:  # noqa: BLE001 — report verification failure honestly
+        return line + f"\nDrive upload could not be verified ({exc}). Treat as unconfirmed."
+    if meta is None or meta.get("trashed"):
+        return line + (
+            "\nDrive upload could not be verified — the deck is not retrievable after "
+            "upload. Treat as failed; do not report it as uploaded."
+        )
+
+    return line + (
+        f"\nOpened as Google Slides: {meta.get('url') or result.get('url') or '(no link)'} "
+        f"(id={file_id})"
+    )
+
+
+async def execute_read_deck(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Read a Google Slides deck, including the object ids needed to edit it."""
+    import asyncio
+
+    from services.google_service import get_credentials, slides_read
+
+    if not get_credentials():
+        return _google_not_connected()
+
+    file_id = str(args.get("file_id", "")).strip()
+    m = re.search(r"/d/([\w-]{20,})", file_id) or re.search(r"[?&]id=([\w-]{20,})", file_id)
+    if m:
+        file_id = m.group(1)
+    if not file_id:
+        return "Error: file_id is required."
+
+    from services.drive_policy import check_drive_target
+
+    blocked = await check_drive_target(
+        ctx.db, file_id, bool(args.get("confirm_restricted")), user_id=ctx.user_id
+    )
+    if blocked:
+        return blocked
+
+    try:
+        deck = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: slides_read(file_id)
+        )
+    except Exception as exc:  # noqa: BLE001 — surface a readable message to the model
+        msg = str(exc)
+        if "403" in msg or "insufficient" in msg.lower():
+            return (
+                "Cannot read that deck — the Google connection is missing the Slides "
+                "permission. Ask the user to reconnect Google Workspace in Settings and "
+                "tick every permission box."
+            )
+        if "404" in msg:
+            return "That presentation does not exist, or the account cannot see it."
+        return f"Could not read the deck: {exc}"
+
+    lines = [
+        f"Deck: {deck['title']} — {deck['slide_count']} slide(s), id {file_id}",
+        "Object ids below are what edit_drive_file needs for set_shape/delete_slide.",
+        "",
+    ]
+    for slide in deck["slides"]:
+        lines.append(f"Slide {slide['index']} (slide id {slide['object_id']}):")
+        if not slide["text"]:
+            lines.append("  (no text — image or blank)")
+        for shape in slide["text"]:
+            body = shape["text"].replace("\n", " / ")
+            lines.append(f"  [{shape['object_id']}] {body}")
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
 
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
@@ -5192,6 +5492,9 @@ TOOL_EXECUTORS = {
     "fetch_page": execute_fetch_page,
     "generate_file": execute_generate_file,
     "create_docx": execute_create_docx,
+    "create_deck": execute_create_deck,
+    "list_deck_archetypes": execute_list_deck_archetypes,
+    "read_deck": execute_read_deck,
     "upload_to_drive": execute_upload_to_drive,
     # Google Workspace (read-only)
     "search_gmail": execute_search_gmail,
@@ -5277,6 +5580,7 @@ _PRIMARY_ARG = {
     "follow_drive_document": "file_id",
     "request_drive_edit_permission": "file_id",
     "edit_drive_file": "file_id",
+    "read_deck": "file_id",
     "add_to_knowledge_base": "drive_file_id",
     "get_file_template": "file_type",
     "create_workroom": "title",
