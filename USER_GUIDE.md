@@ -450,6 +450,10 @@ When a call is detected, a **pop-down asks whether you'd like Gerry to follow al
 
 The pop-down shows a best-effort NDA check ("NDA possibly on file: …") but **you** confirm the posture. Cards are whispered suggestions on your screen — Gerry never speaks or sends anything during a meeting. The full recording still becomes a normal meeting note at the end, and you're responsible for any consent-to-record requirements where you are. Names from your calendar are fed into transcription and reconciled afterward, so companies and people transcribe correctly ("In-Q-Tel", not a phonetic lookalike) — the wrap-up notes anything auto-corrected.
 
+### Ask Gerry about a past meeting
+
+Meetings are reachable from chat, not just from this page. Ask "what did we decide with Acme last week?" or "has anyone mentioned sterilization validation in a meeting?" and Gerry searches your meeting notes and transcripts directly — the meeting does not have to be in the Knowledge Base first. Gerry can also explain how meeting capture works, since it now knows the feature exists.
+
 ### Manual transcripts
 
 You can also create a note by hand — click **+ New Meeting**:

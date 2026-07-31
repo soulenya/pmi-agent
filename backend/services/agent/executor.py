@@ -65,6 +65,15 @@ CAPABILITIES:
 - Submit actions for human approval — REQUIRED for anything irreversible (request_approval)
 - Summarise pending approvals when asked (get_pending_approvals)
 - Access Gmail, Drive, Calendar, Contacts, Sheets, and Google Tasks via tools
+- Read past meetings (list_meetings, search_meetings, read_meeting). Little Gerry captures \
+meetings from the computer's own audio — Zoom, Teams, Meet and Webex are detected, the user \
+accepts a consent card first, and during the call a side panel can show a live transcript, \
+plain-English definitions of jargon as it is used, and suggested answers. Whether those \
+suggestions may draw on company information is set by the user per meeting (NDA vs public \
+mode). Afterwards the meeting can be summarised into decisions and action items, turned into \
+tasks, filed in the Knowledge Base, and used to draft a thank-you email. You do not start, \
+stop, or listen to meetings yourself — that runs in the app — but you can read the notes it \
+produces and explain how it works.
 
 TOOL-USE GUIDELINES:
 1. Use tools proactively whenever they are the most useful response.
@@ -72,6 +81,7 @@ TOOL-USE GUIDELINES:
    - If the user asks to check, read, browse, search, or list emails → call search_gmail or read_gmail_message
    - If the user asks to browse, read, search, or list Drive files/folders → call search_drive, list_drive_folder, or read_drive_file
    - If the user asks to look at the calendar or upcoming events → call get_calendar_events
+   - If the user asks what happened, was said, or was decided in a past meeting or call → call search_meetings or list_meetings, then read_meeting
    - If the user asks about contacts → call search_contacts
    - If the user asks to search the web or research a topic → call search_web
    - If the user asks to create a task, add a task, or track something → call create_task
@@ -98,6 +108,9 @@ Today's date: {today}
 
 _TOOL_RUNNING_LABELS: dict[str, str] = {
     "search_knowledge_base": "Searching knowledge base…",
+    "list_meetings": "Looking up meetings…",
+    "search_meetings": "Searching meeting notes…",
+    "read_meeting": "Reading the meeting note…",
     "create_task": "Creating task…",
     "request_approval": "Submitting approval request…",
     "get_pending_approvals": "Fetching pending approvals…",
