@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink, ScanText } from "lucide-react";
+import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink, ScanText, PenLine, Pencil, Trash2, Upload, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
@@ -34,6 +34,13 @@ import {
   type TaskModelUpdate,
 } from "@/api/settings";
 import { listVoices } from "@/api/voice";
+import {
+  getWritingVoice,
+  saveWritingVoice,
+  uploadWritingVoice,
+  deleteWritingVoice,
+  analyzeWritingVoice,
+} from "@/api/writingVoice";
 import { listExtractionSchemas, saveExtractionSchemas } from "@/api/extractions";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
@@ -1045,6 +1052,221 @@ function CompanyProfileSection() {
   );
 }
 
+// ── Writing voice section ───────────────────────────────────────────────
+
+/** Surface the backend's own explanation rather than a generic failure. */
+function apiErrorMessage(err: unknown, fallback: string): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  return typeof detail === "string" && detail.trim() ? detail : fallback;
+}
+
+function WritingVoiceSection() {
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+
+  const { data: voice, isLoading } = useQuery({
+    queryKey: ["writing-voice"],
+    queryFn: getWritingVoice,
+  });
+
+  const done = (message: string | null) => {
+    setError(null);
+    setNote(message);
+    setDraft(null);
+    qc.invalidateQueries({ queryKey: ["writing-voice"] });
+  };
+
+  const analyze = useMutation({
+    mutationFn: () => analyzeWritingVoice(),
+    onSuccess: (res) =>
+      done(
+        `Built from ${res.messages_analyzed} of your sent emails. Read it through — ` +
+          "edit anything that doesn't sound like you.",
+      ),
+    onError: (e: unknown) => {
+      setNote(null);
+      setError(apiErrorMessage(e, "Couldn't analyse your sent mail."));
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: (profile: string) => saveWritingVoice({ profile }),
+    onSuccess: () => done("Saved. Gerry will write in this voice from your next draft."),
+    onError: (e: unknown) => setError(apiErrorMessage(e, "Couldn't save your profile.")),
+  });
+
+  const toggleDocs = useMutation({
+    mutationFn: (use_for_documents: boolean) => saveWritingVoice({ use_for_documents }),
+    onSuccess: () => done(null),
+    onError: (e: unknown) => setError(apiErrorMessage(e, "Couldn't change that setting.")),
+  });
+
+  const upload = useMutation({
+    mutationFn: (file: File) => uploadWritingVoice(file),
+    onSuccess: () => done("Profile uploaded."),
+    onError: (e: unknown) => setError(apiErrorMessage(e, "Couldn't read that file.")),
+  });
+
+  const remove = useMutation({
+    mutationFn: deleteWritingVoice,
+    onSuccess: () => done("Profile removed. Drafts go back to the standard house voice."),
+    onError: (e: unknown) => setError(apiErrorMessage(e, "Couldn't remove your profile.")),
+  });
+
+  const profile = voice?.profile ?? "";
+  const editing = draft !== null;
+
+  return (
+    <Section
+      icon={PenLine}
+      title="Writing Voice"
+      description="A description of how you write, so Gerry's drafts sound like you and not like a robot"
+    >
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground">
+            Gerry can read the last six months of your sent mail and write a detailed profile
+            of your voice — cadence, phrasing, sign-offs, how direct you are with different
+            people. It is saved to your account only; nobody else on this install sees or uses
+            it. Nothing is sent anywhere: the analysis runs against your own mailbox using the
+            model you already have configured.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => analyze.mutate()}
+              disabled={analyze.isPending}
+              className="flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {analyze.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {analyze.isPending
+                ? "Reading your sent mail…"
+                : profile
+                  ? "Rebuild from my sent mail"
+                  : "Analyse my sent mail"}
+            </button>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={upload.isPending}
+              className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {upload.isPending ? "Uploading…" : "Upload a .md profile"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".md,.markdown,.txt"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) upload.mutate(f);
+                e.target.value = "";
+              }}
+            />
+
+            {profile && !editing && (
+              <button
+                onClick={() => setDraft(profile)}
+                className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+              >
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </button>
+            )}
+            {profile && (
+              <button
+                onClick={() => remove.mutate()}
+                disabled={remove.isPending}
+                className="flex items-center gap-2 rounded-md border border-destructive/40 px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Remove
+              </button>
+            )}
+            {voice?.updated_at && (
+              <span className="text-xs text-muted-foreground">
+                Updated {relTime(voice.updated_at)}
+              </span>
+            )}
+          </div>
+
+          {analyze.isPending && (
+            <p className="text-xs text-muted-foreground">
+              This reads up to 120 emails and takes a few minutes. You can leave this page —
+              it keeps running.
+            </p>
+          )}
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          {note && <p className="text-xs text-emerald-600 dark:text-emerald-400">{note}</p>}
+
+          {editing ? (
+            <div className="space-y-2">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                rows={20}
+                className="w-full rounded-md border bg-background px-3 py-2 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => save.mutate(draft)}
+                  disabled={save.isPending}
+                  className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  {save.isPending ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => setDraft(null)}
+                  className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : profile ? (
+            <>
+              <div className="max-h-96 overflow-y-auto rounded-lg border bg-muted/30 px-4 py-3 prose prose-sm dark:prose-invert prose-p:my-1.5 prose-headings:mt-3 prose-headings:mb-1.5 text-sm">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{profile}</ReactMarkdown>
+              </div>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={voice?.use_for_documents ?? false}
+                  onChange={(e) => toggleDocs.mutate(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border"
+                />
+                <span>
+                  Use this voice for other writing too
+                  <span className="block text-xs text-muted-foreground">
+                    Emails always use it. Turn this on and Gerry will also apply it to
+                    summaries, chat replies and documents it writes for you.
+                  </span>
+                </span>
+              </label>
+            </>
+          ) : (
+            <div className="rounded-lg border border-dashed px-4 py-4 text-sm text-muted-foreground">
+              No profile yet. Click <span className="font-medium">Analyse my sent mail</span>{" "}
+              to have Gerry write one for you, or upload a markdown file you have already
+              written using the button above — it lands here and starts shaping your drafts
+              immediately.
+            </div>
+          )}
+        </>
+      )}
+    </Section>
+  );
+}
+
 // ── Task models section ─────────────────────────────────────────────────
 function ExtractionSchemasSection() {
   const qc = useQueryClient();
@@ -1881,6 +2103,7 @@ export function SettingsPage() {
             }}
           />
           <CompanyProfileSection />
+          <WritingVoiceSection />
           <TaskModelsSection />
           <ExtractionSchemasSection />
           <AppearanceSection settings={mergedSettings} onChange={handleChange} />

@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   Folder, FolderPlus, Upload, FileText, FileSpreadsheet, FileImage,
   FileCode, FileArchive, File as FileIcon, MoreVertical, Pencil, Trash2,
@@ -17,7 +18,7 @@ import { SaveFileDialog } from "@/components/SaveFileDialog";
 import type { DriveItem } from "@/api/google";
 import {
   listRegNodes, createRegFolder, uploadRegFile, importRegFromDrive,
-  renameRegNode, moveRegNode, deleteRegNode, getRegText, saveRegText,
+  renameRegNode, moveRegNode, deleteRegNode, getRegText, saveRegText, getRegNode,
   fetchRegFileBlob, checkRegUpdates, applyRegUpdate, dismissRegUpdate,
   type RegNode, type RegSyncChange, type RegCheckUpdatesSummary,
 } from "@/api/regulatoryFiles";
@@ -643,6 +644,11 @@ function GenerateDocModal({ parentId, folderName, onClose }: {
         priority: rt.priority as TaskPriority,
         due_date: rt.due_date,
         tags: rt.tags,
+        source_ref: {
+          kind: "regulatory_doc",
+          id: result.node.id,
+          label: result.node.name,
+        },
       });
     },
     onSuccess: () => {
@@ -988,6 +994,21 @@ export function RegulatoryPage() {
   const [syncChanges, setSyncChanges] = useState<RegSyncChange[] | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
+  // ?doc=<node id> — arriving from a review task highlights that file in its folder.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = searchParams.get("doc");
+    if (!id) return;
+    setFocusNodeId(id);
+    const next = new URLSearchParams(searchParams);
+    next.delete("doc");
+    setSearchParams(next, { replace: true });
+    getRegNode(id)
+      .then((node) => setParentId(node.parent_id ?? null))
+      .catch(() => undefined);
+  }, [searchParams, setSearchParams]);
+
   const checkUpdatesMut = useMutation({
     mutationFn: () => checkRegUpdates(),
     onSuccess: (summary: RegCheckUpdatesSummary) => {
@@ -1213,7 +1234,10 @@ export function RegulatoryPage() {
                   <tr
                     key={node.id}
                     onDoubleClick={() => openNode(node)}
-                    className="group cursor-pointer border-b last:border-0 hover:bg-accent/30"
+                    className={cn(
+                      "group cursor-pointer border-b last:border-0 hover:bg-accent/30",
+                      focusNodeId === node.id && "bg-primary/10 ring-1 ring-inset ring-primary/40",
+                    )}
                   >
                     <td className="px-4 py-2.5">
                       <button onClick={() => openNode(node)} className="flex items-center gap-2.5 text-left">

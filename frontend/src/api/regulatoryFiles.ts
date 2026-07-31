@@ -42,6 +42,11 @@ export async function listRegNodes(parentId?: string | null): Promise<RegListing
   return r.data;
 }
 
+export async function getRegNode(id: string): Promise<RegNode> {
+  const r = await apiClient.get<RegNode>(`${BASE}/${id}`);
+  return r.data;
+}
+
 export async function createRegFolder(name: string, parentId: string | null): Promise<RegNode> {
   const r = await apiClient.post<RegNode>(`${BASE}/folder`, { name, parent_id: parentId });
   return r.data;

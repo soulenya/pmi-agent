@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen, LayoutList, Columns2, ListChecks, Trash2, MoveRight, Loader2 } from "lucide-react";
@@ -8,6 +8,7 @@ import { getGoogleStatus, listGoogleTasks, importGoogleTasks } from "@/api/googl
 import type { Task, TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
 import type { GoogleTask } from "@/api/google";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
+import { TaskSourceActions, sourceSummary } from "@/components/tasks/TaskSourceActions";
 import { AskGerryButton } from "@/components/AskGerryButton";
 const STATUS_ICONS: Record<TaskStatus, React.ReactNode> = {
   backlog: <Circle className="h-4 w-4 text-muted-foreground" />,
@@ -212,6 +213,7 @@ function TaskRow({
             )}
           </div>
         )}
+        <TaskSourceActions task={task} className="mt-2" />
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
@@ -239,6 +241,7 @@ function TaskRow({
               `Priority: ${task.priority}` +
               (task.due_date ? `\nDue: ${new Date(task.due_date).toLocaleDateString()}` : "") +
               (task.tags.length ? `\nTags: ${task.tags.join(", ")}` : "") +
+              (task.source_ref ? `\n${sourceSummary(task.source_ref)}` : "") +
               (task.description ? `\n\nDescription:\n${task.description}` : "") +
               `\n\nWhat can you tell me about it, and how should I approach it?`,
           })}
@@ -343,6 +346,7 @@ function KanbanCard({
           )}
         </div>
       )}
+      <TaskSourceActions task={task} />
     </div>
   );
 }
@@ -572,6 +576,18 @@ export function TasksPage() {
     queryFn: getGoogleStatus,
     staleTime: 60_000,
   });
+
+  // ?task=<id> — arriving from the dashboard or a notification opens that task.
+  useEffect(() => {
+    const id = searchParams.get("task");
+    if (!id) return;
+    const match = tasks.find((t) => t.id === id);
+    if (!match) return;
+    setSelectedTask(match);
+    const next = new URLSearchParams(searchParams);
+    next.delete("task");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, tasks]);
 
   function handleProjectFilterChange(value: string) {
     setProjectFilter(value);

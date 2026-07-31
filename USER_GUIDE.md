@@ -142,6 +142,20 @@ Little Gerry can load a small **company profile** — key people, products, part
 2. In **Settings → Company Profile**, paste the file's Drive link or ID and click **Save & sync**.
 3. Little Gerry re-loads the file on every launch; use **Refresh now** after editing it in Drive. Editing happens **only in Drive** — the app view is read-only so all machines stay consistent.
 
+### Optional — Writing Voice (make drafts sound like you)
+
+Gerry can learn how *you* write, so the emails she drafts read like something you'd actually send instead of generic assistant prose.
+
+Go to **Settings → Writing Voice** and click **Analyse my sent mail**. Gerry reads up to 120 of your own sent emails from the last six months and writes a detailed profile of your voice: your cadence, the phrases you reach for, your openers and sign-offs, how direct you are with a colleague versus a customer, and the things you never do. It takes a few minutes.
+
+When it finishes, read the profile through and click **Edit** to change anything that doesn't sound like you. From that point on, every email Gerry drafts for you follows it.
+
+- **Already have a profile written?** Click **Upload a .md profile** and pick your markdown file.
+- **Use this voice for other writing too** — tick this box and Gerry also applies your voice to summaries, chat replies and documents she writes for you. Leave it off and formal deliverables like regulatory documents keep their standard house style.
+- **Remove** deletes it and drafts go back to the standard voice.
+
+Your profile is **yours alone**. It is stored against your account, never shared with teammates on the same install, and never used for anyone else's drafts. The analysis runs against your own mailbox using the AI model you already have configured.
+
 ---
 
 ## Features at a Glance
@@ -334,6 +348,16 @@ Navigate to **Tasks** for the Kanban board.
 - **+ New Task** to create a task
 - Drag cards between columns: **To Do → In Progress → In Review → Done**
 - Click a task card to view details, set due dates, assign priority, and add attachments
+
+### Every task leads back to what it's about
+
+Tasks Gerry creates for you remember where they came from, so you never hit a dead end wondering "which document?" or "which email?".
+
+- **Open …** jumps straight to the thing the task is about — the email thread in your Inbox, the document in the Knowledge Base, the regulatory file, the meeting, the workroom, or the chat where it came up.
+- **Ask Gerry** opens a conversation about that specific task, with the context already loaded.
+- **Gerry draft** appears on email follow-ups. One click and Gerry writes the reply for that thread; it lands in **Approvals** for you to read and send — nothing goes out on its own.
+
+These buttons show on the task list, on Kanban cards, and in the task detail panel. Tasks on the Dashboard open the matching task directly.
 
 ### Projects
 
@@ -562,6 +586,9 @@ Update your display name and password.
 
 ### Appearance
 Switch between Light, Dark, or System theme. Set your local timezone.
+
+### Writing Voice
+Build, edit, upload or remove your personal writing voice profile so Gerry's drafts sound like you — see [Writing Voice](#optional--writing-voice-make-drafts-sound-like-you).
 
 ### System Health
 Live status of PostgreSQL, the active LLM (with API ping), active embedding provider (with API ping), disk space, and whether a Knowledge Base re-index is needed.

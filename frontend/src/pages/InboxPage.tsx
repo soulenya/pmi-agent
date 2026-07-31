@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Inbox,
   Mail,
@@ -474,6 +474,17 @@ export default function InboxPage() {
   // How many threads to fetch — grows by PAGE_SIZE with "Load more".
   const PAGE_SIZE = 30;
   const [fetchMax, setFetchMax] = useState(PAGE_SIZE);
+
+  // ?thread=<id> — arriving from a task or notification opens that conversation.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const id = searchParams.get("thread");
+    if (!id) return;
+    setSelected(id);
+    const next = new URLSearchParams(searchParams);
+    next.delete("thread");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {

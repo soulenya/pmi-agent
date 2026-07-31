@@ -81,6 +81,11 @@ class Task(Base):
     source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=True
     )
+    # What this task is ABOUT, so the UI can take the user straight there:
+    # {"kind": "gmail_thread"|"kb_doc"|"drive_doc"|"regulatory_doc"|"meeting"
+    #  |"workroom"|"conversation"|"google_task", "id": str, "label": str,
+    #  "url": str | None}
+    source_ref: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
