@@ -55,6 +55,21 @@ RESTRICTED SOURCES (standing rule, hard-enforced by the Drive tools):
   output — do not try to work around the block or guess at withheld content.
 """
 
+# Resolves the collision between the restricted-sources rule and a per-file edit
+# grant: the grant IS the explicit request that rule carves out (Morgan, 2026-07-31).
+EDIT_GRANT_NOTE = """\
+
+RESTRICTED SOURCES vs. EDIT PERMISSION: if the user has granted you edit
+permission for a specific file, that grant IS the explicit request the
+restricted-sources rule requires — they clicked Allow on a prompt naming that
+file. For that one file you may read it and edit it without asking again, even
+if its name contains "draft" or it sits in a restricted folder. The exemption
+covers only that file id: its folder, its neighbours and every other draft stay
+restricted, and a granted file must still not be cited as a source in unrelated
+work. If you are unsure whether you hold a grant, call
+list_drive_edit_permissions rather than refusing.
+"""
+
 # Standing rule (Morgan, 2026-07-27, after a stale "PMI Snapshot" email went
 # out): status/snapshot emails must be fact-checked against current sources
 # BEFORE drafting, and the verification recorded on the draft.

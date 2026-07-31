@@ -2912,7 +2912,9 @@ async def execute_search_drive(ctx: ToolContext, args: dict[str, Any]) -> str:
         )
     except Exception as exc:
         return f"Drive search failed: {exc}"
-    files, excluded = await filter_drive_results(ctx.db, files, bool(args.get("confirm_restricted")))
+    files, excluded = await filter_drive_results(
+        ctx.db, files, bool(args.get("confirm_restricted")), user_id=ctx.user_id
+    )
     if not files:
         return f"No Drive files found for: {query}" + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
     lines = [f"Drive files for '{query}' ({len(files)} found):\n"]
@@ -2934,7 +2936,7 @@ async def execute_list_drive_folder(ctx: ToolContext, args: dict[str, Any]) -> s
     drive_id = str(args.get("drive_id", "")).strip() or None
     confirm = bool(args.get("confirm_restricted"))
     if folder_id != "root":
-        blocked = await check_drive_target(ctx.db, folder_id, confirm)
+        blocked = await check_drive_target(ctx.db, folder_id, confirm, user_id=ctx.user_id)
         if blocked:
             return blocked
     max_results = min(int(args.get("max_results", 50)), 50)
@@ -2944,7 +2946,7 @@ async def execute_list_drive_folder(ctx: ToolContext, args: dict[str, Any]) -> s
         )
     except Exception as exc:
         return f"Drive folder listing failed: {exc}"
-    items, excluded = await filter_drive_results(ctx.db, items, confirm)
+    items, excluded = await filter_drive_results(ctx.db, items, confirm, user_id=ctx.user_id)
     if not items:
         return f"Folder '{folder_id}' is empty or does not exist." + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
     lines = [f"Contents of Drive folder '{folder_id}' ({len(items)} items):\n"]
@@ -3013,7 +3015,7 @@ async def execute_search_drive_content(ctx: ToolContext, args: dict[str, Any]) -
     ]
     from services.drive_policy import EXCLUDED_NOTE, filter_drive_results
     readable_files, excluded = await filter_drive_results(
-        ctx.db, readable_files, bool(args.get("confirm_restricted"))
+        ctx.db, readable_files, bool(args.get("confirm_restricted")), user_id=ctx.user_id
     )
     readable_files = readable_files[:max_files]
 
@@ -3062,7 +3064,9 @@ async def execute_read_drive_annotations(ctx: ToolContext, args: dict[str, Any])
     if not file_id:
         return "Error: file_id (or a pasted document URL) is required."
     from services.drive_policy import check_drive_target
-    blocked = await check_drive_target(ctx.db, file_id, bool(args.get("confirm_restricted")))
+    blocked = await check_drive_target(
+        ctx.db, file_id, bool(args.get("confirm_restricted")), user_id=ctx.user_id
+    )
     if blocked:
         return blocked
 
@@ -3136,7 +3140,9 @@ async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
     if not file_id:
         return "Error: file_id is required."
     from services.drive_policy import check_drive_target
-    blocked = await check_drive_target(ctx.db, file_id, bool(args.get("confirm_restricted")))
+    blocked = await check_drive_target(
+        ctx.db, file_id, bool(args.get("confirm_restricted")), user_id=ctx.user_id
+    )
     if blocked:
         return blocked
     try:
@@ -3196,7 +3202,9 @@ async def execute_list_recent_drive_files(ctx: ToolContext, args: dict[str, Any]
     except Exception as exc:
         return f"Failed to list recent Drive files: {exc}"
     from services.drive_policy import EXCLUDED_NOTE, filter_drive_results
-    files, excluded = await filter_drive_results(ctx.db, files, bool(args.get("confirm_restricted")))
+    files, excluded = await filter_drive_results(
+        ctx.db, files, bool(args.get("confirm_restricted")), user_id=ctx.user_id
+    )
     if not files:
         return "No recent Drive files found." + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
     lines = ["Most recently modified Drive files (newest first):"]
@@ -3223,7 +3231,9 @@ async def execute_follow_drive_document(ctx: ToolContext, args: dict[str, Any]) 
     if not file_id:
         return "Error: file_id (or a pasted document URL) is required."
     from services.drive_policy import check_drive_target
-    blocked = await check_drive_target(ctx.db, file_id, bool(args.get("confirm_restricted")))
+    blocked = await check_drive_target(
+        ctx.db, file_id, bool(args.get("confirm_restricted")), user_id=ctx.user_id
+    )
     if blocked:
         return blocked
     try:
@@ -4999,7 +5009,9 @@ async def execute_extract_document(ctx: ToolContext, args: dict[str, Any]) -> st
         if not file_id:
             return "Error: drive_file_id (or a pasted URL) could not be parsed."
         from services.drive_policy import check_drive_target
-        blocked = await check_drive_target(ctx.db, file_id, bool(args.get("confirm_restricted")))
+        blocked = await check_drive_target(
+            ctx.db, file_id, bool(args.get("confirm_restricted")), user_id=ctx.user_id
+        )
         if blocked:
             return blocked
         loop = asyncio.get_event_loop()

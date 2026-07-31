@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 199;
+export const BUILD_NUMBER = 200;
 export const BUILD_DATE = "2026-07-31";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 200,
+    date: "2026-07-31",
+    title: "Allowing an edit now also lets Gerry read the file",
+    changes: [
+      "Gerry refuses to open files with \"draft\" in the name or anything in the QMS folder. If you then allowed her to edit one of those files, she could write to it but still couldn't read it \u2014 so she kept asking for permission she already had",
+      "Allowing an edit now counts as the explicit request that rule asks for: she can read and change that one file without checking again",
+      "The exemption covers that file alone \u2014 its folder, its neighbours and every other draft stay restricted, and revoking the permission restores the block straight away",
+      "A file you've allowed also stops being hidden from Drive search results",
+    ],
+  },
   {
     build: 199,
     date: "2026-07-31",
