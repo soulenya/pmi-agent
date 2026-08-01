@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.3.40 — 2026-08-01
+**Fix: editing a slide no longer wipes its formatting (Morgan field report)**
+
+- Asking Gerry to change text on an existing deck came back in Arial black on white — every font, size and colour reset to Google's defaults. In the Slides API styling lives on the text runs, not on the shape, so deleting a box's text to replace it threw the styling away with it; the company deck has no placeholders to inherit from, leaving nothing behind.
+- Gerry now reads the box before she rewrites it and puts the font, size, weight, colour and paragraph spacing back on the new text. The deck teaches her its own formatting on each edit, which holds even for decks that weren't built from the company theme. If a single box mixed styles, the replacement takes the first run's style throughout.
+- Find-and-replace edits were never affected — Google preserves styling on those.
+
 ### v3.3.39 — 2026-07-31
 **Gerry can build slide decks — in the house style, marked with a classification you choose (Morgan request)**
 
