@@ -1514,23 +1514,98 @@ def slides_replace_text(file_id: str, find: str, replace: str, match_case: bool 
     return {"title": meta.get("title", ""), "occurrences": changed}
 
 
+_TEXT_STYLE_FIELDS = (
+    "backgroundColor", "baselineOffset", "bold", "fontFamily", "fontSize",
+    "foregroundColor", "italic", "smallCaps", "strikethrough", "underline",
+    "weightedFontFamily",
+)
+_PARA_STYLE_FIELDS = (
+    "alignment", "direction", "indentEnd", "indentFirstLine", "indentStart",
+    "lineSpacing", "spaceAbove", "spaceBelow", "spacingMode",
+)
+
+
+def _slides_find_element(deck: dict, object_id: str) -> dict | None:
+    """Locate a page element by id, descending into groups."""
+    def walk(elements: list[dict]) -> dict | None:
+        for el in elements:
+            if el.get("objectId") == object_id:
+                return el
+            children = (el.get("elementGroup") or {}).get("children") or []
+            found = walk(children)
+            if found:
+                return found
+        return None
+
+    return walk([el for page in deck.get("slides") or [] for el in page.get("pageElements") or []])
+
+
+def _slides_shape_style(shape_el: dict) -> tuple[dict, dict]:
+    """The shape's first run style and first paragraph style, filtered to writable fields.
+
+    Fields the shape inherits come back unset, which is what we want — reapplying
+    only what was explicitly set leaves inheritance intact.
+    """
+    text = (shape_el.get("shape") or {}).get("text") or {}
+    run_style: dict = {}
+    para_style: dict = {}
+    for item in text.get("textElements") or []:
+        if not run_style:
+            run_style = (item.get("textRun") or {}).get("style") or {}
+        if not para_style:
+            para_style = (item.get("paragraphMarker") or {}).get("style") or {}
+        if run_style and para_style:
+            break
+    return (
+        {k: v for k, v in run_style.items() if k in _TEXT_STYLE_FIELDS},
+        {k: v for k, v in para_style.items() if k in _PARA_STYLE_FIELDS},
+    )
+
+
 def slides_set_shape_text(file_id: str, object_id: str, text: str) -> dict:
-    """Replace the text of one shape, identified by the object id slides_read returns."""
+    """Replace the text of one shape, identified by the object id slides_read returns.
+
+    Deleting a shape's text throws away its run styling, so the existing font,
+    size, colour and paragraph spacing are captured first and reapplied to the
+    new text. Without that, every edit silently resets the slide to Slides'
+    defaults.
+    """
     svc = _build("slides", "v1")
-    requests: list[dict] = [
-        {"deleteText": {"objectId": object_id, "textRange": {"type": "ALL"}}},
-        {"insertText": {"objectId": object_id, "insertionIndex": 0, "text": text}},
-    ]
-    try:
-        svc.presentations().batchUpdate(
-            presentationId=file_id, body={"requests": requests}
-        ).execute()
-    except Exception:
-        # deleteText fails on an already-empty shape; inserting alone is correct then.
-        svc.presentations().batchUpdate(
-            presentationId=file_id, body={"requests": requests[1:]}
-        ).execute()
-    return {"object_id": object_id, "chars": len(text)}
+    deck = svc.presentations().get(
+        presentationId=file_id, fields="slides(pageElements)"
+    ).execute()
+    element = _slides_find_element(deck, object_id)
+    if element is None:
+        raise ValueError(
+            f'No shape "{object_id}" in this deck. Read it first — object ids are '
+            "per-deck and change when a slide is recreated."
+        )
+    run_style, para_style = _slides_shape_style(element)
+
+    whole = {"type": "ALL"}
+    requests: list[dict] = []
+    if _slides_shape_text(element):
+        requests.append({"deleteText": {"objectId": object_id, "textRange": whole}})
+    requests.append({"insertText": {"objectId": object_id, "insertionIndex": 0, "text": text}})
+    if run_style:
+        requests.append({"updateTextStyle": {
+            "objectId": object_id,
+            "textRange": whole,
+            "style": run_style,
+            "fields": ",".join(sorted(run_style)),
+        }})
+    if para_style:
+        requests.append({"updateParagraphStyle": {
+            "objectId": object_id,
+            "textRange": whole,
+            "style": para_style,
+            "fields": ",".join(sorted(para_style)),
+        }})
+
+    svc.presentations().batchUpdate(
+        presentationId=file_id, body={"requests": requests}
+    ).execute()
+    return {"object_id": object_id, "chars": len(text), "style_kept": bool(run_style)}
 
 
 def slides_delete_slide(file_id: str, object_id: str) -> None:

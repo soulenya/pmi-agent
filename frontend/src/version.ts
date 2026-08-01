@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 201;
-export const BUILD_DATE = "2026-07-31";
+export const BUILD_NUMBER = 202;
+export const BUILD_DATE = "2026-08-01";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 202,
+    date: "2026-08-01",
+    title: "Slide edits keep the slide's formatting",
+    changes: [
+      "Fixed: asking Gerry to change text on an existing deck reset that box to Arial black on white. She now carries the box's font, size, colour and spacing onto the new text, so an edited slide still matches the deck",
+    ],
+  },
   {
     build: 201,
     date: "2026-07-31",
