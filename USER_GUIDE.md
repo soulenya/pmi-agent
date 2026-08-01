@@ -563,6 +563,8 @@ By default Gerry reads your Drive but never changes anything. If you ask her to 
 
 What she can edit this way: **Google Docs** (append, find-and-replace, or rewrite), **Google Sheets** (set a cell range or append a row), **Google Slides** (replace text across a deck, rewrite one text box, or delete a slide), and **plain-text files**. PDFs and images are not editable in place — she'll offer to upload a replacement instead.
 
+**Slide edits keep the slide's look.** When Gerry rewrites a text box, the font, size, colour and spacing that box already had are carried over to the new text, so an edited slide still matches the rest of the deck. If a box mixed styles — one word in a different colour, say — the replacement takes the style of the first run throughout.
+
 > **Editing slides needs a reconnect.** Slides access is new in this release, so it isn't in the permissions you granted earlier. Go to **Settings → Google Integration → Connect Google** once and tick every box. *Creating* a deck needs no reconnect.
 
 **Undo is Google's.** Edits are live the moment she makes them; open the file in Drive and use **File → Version history** to see exactly what changed and roll back.
