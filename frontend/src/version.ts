@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 203;
+export const BUILD_NUMBER = 204;
 export const BUILD_DATE = "2026-08-03";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 204,
+    date: "2026-08-03",
+    title: "Gerry can add text boxes to a slide",
+    changes: [
+      "Ask for a footnote, caption or callout on an existing slide and she adds a real text box instead of folding the text into a box that was already there. She picks a role, not a font — the styling comes from the deck theme, so an added box matches its neighbours",
+      "She won't cover anything up: a box that would overlap existing text or an image, or run off the edge of the slide, is refused rather than drawn on top",
+    ],
+  },
   {
     build: 203,
     date: "2026-08-03",

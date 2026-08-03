@@ -977,8 +977,9 @@ TOOL_DEFINITIONS: list[dict] = [
                 "granted you permission for (request_drive_edit_permission); without a "
                 "grant this refuses and nothing is changed. Google Docs support "
                 "'append', 'replace' and 'overwrite'; Google Sheets support 'set_cells' "
-                "and 'append'; Google Slides support 'replace', 'set_shape' and "
-                "'delete_slide'; plain-text/markdown files support all three text modes. "
+                "and 'append'; Google Slides support 'replace', 'set_shape', "
+                "'add_text_box', 'delete_shape' and 'delete_slide'; plain-text/markdown "
+                "files support all three text modes. "
                 "Prefer 'replace' over 'overwrite' — targeted changes are far safer, and "
                 "'overwrite' throws the entire existing document away. Read the file "
                 "first with read_drive_file (or read_deck for a presentation) so you know "
@@ -996,7 +997,7 @@ TOOL_DEFINITIONS: list[dict] = [
                         "type": "string",
                         "enum": [
                             "append", "replace", "overwrite", "set_cells",
-                            "set_shape", "delete_slide",
+                            "set_shape", "add_text_box", "delete_shape", "delete_slide",
                         ],
                         "description": (
                             "append = add text at the end (or a row to a sheet); "
@@ -1005,8 +1006,42 @@ TOOL_DEFINITIONS: list[dict] = [
                             "set_cells = write 'values' into a spreadsheet 'cell_range'; "
                             "set_shape = replace one deck text box, its object id in "
                             "'cell_range' and the new text in 'text'; "
+                            "add_text_box = put a NEW text box on a slide — the SLIDE's "
+                            "object id in 'cell_range', the text in 'text', a 'role' "
+                            "for its styling and a 'box' for where it goes; "
+                            "delete_shape = remove one text box, its object id in "
+                            "'cell_range'; "
                             "delete_slide = remove one slide, its object id in 'cell_range'."
                         ),
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "footnote", "caption", "body", "detail", "callout",
+                            "label", "figure", "heading",
+                        ],
+                        "description": (
+                            "What the new text box IS (add_text_box only). Its font, size "
+                            "and colour come from the deck's own theme — never specify "
+                            "them yourself, and never try to match a look by eye."
+                        ),
+                    },
+                    "box": {
+                        "type": "object",
+                        "description": (
+                            "Where the new box goes, in inches from the slide's top-left "
+                            "(add_text_box only): {\"left\":0.56,\"top\":6.2,\"width\":11.7,"
+                            "\"height\":0.22}. Read the deck first — read_deck reports each "
+                            "shape's position and size, so pick an area that is actually "
+                            "empty. A box that overlaps existing content is refused. May "
+                            "be omitted for role 'footnote', which has an obvious home."
+                        ),
+                        "properties": {
+                            "left": {"type": "number"},
+                            "top": {"type": "number"},
+                            "width": {"type": "number"},
+                            "height": {"type": "number"},
+                        },
                     },
                     "text": {
                         "type": "string",
@@ -1143,11 +1178,14 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "read_deck",
             "description": (
-                "Read a Google Slides deck: its title, slide count, and the text of every "
-                "shape with the object id needed to change it. Use this before editing a "
-                "deck so you know what is there, and to answer questions about a "
-                "presentation's contents. Edit it afterwards with edit_drive_file using "
-                "mode 'set_shape' or 'delete_slide'."
+                "Read a Google Slides deck: its title, canvas size, slide count, and every "
+                "shape's text with the object id needed to change it AND its position and "
+                "size in inches. Use this before editing a deck — the positions are how "
+                "you find a clear area for a new text box — and to answer questions about "
+                "a presentation's contents. Edit it afterwards with edit_drive_file using "
+                "mode 'set_shape', 'add_text_box', 'delete_shape' or 'delete_slide'. When "
+                "the user asks for something to be ADDED to a slide, add a text box; do "
+                "not fold it into an existing box and call it new."
             ),
             "parameters": {
                 "type": "object",
@@ -3474,6 +3512,9 @@ async def execute_edit_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
     if isinstance(raw_values, list) and raw_values:
         values = [row if isinstance(row, list) else [row] for row in raw_values]
 
+    raw_box = args.get("box")
+    box = raw_box if isinstance(raw_box, dict) and raw_box else None
+
     try:
         result = await drive_edit.apply_edit(
             ctx.db,
@@ -3485,6 +3526,8 @@ async def execute_edit_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
             replace=str(args.get("replace", "") or ""),
             cell_range=str(args.get("cell_range", "") or ""),
             values=values,
+            role=str(args.get("role", "") or ""),
+            box=box,
         )
     except drive_edit.DriveEditError as exc:
         return str(exc)
@@ -5249,7 +5292,11 @@ async def execute_read_deck(ctx: ToolContext, args: dict[str, Any]) -> str:
 
     lines = [
         f"Deck: {deck['title']} — {deck['slide_count']} slide(s), id {file_id}",
-        "Object ids below are what edit_drive_file needs for set_shape/delete_slide.",
+        f"Canvas: {deck['width_in']}in x {deck['height_in']}in.",
+        "Shape ids go in cell_range for set_shape/delete_shape; SLIDE ids go there "
+        "for add_text_box/delete_slide.",
+        "Positions are left,top width x height in inches — use them to find empty "
+        "space before adding a box.",
         "",
     ]
     for slide in deck["slides"]:
@@ -5258,7 +5305,13 @@ async def execute_read_deck(ctx: ToolContext, args: dict[str, Any]) -> str:
             lines.append("  (no text — image or blank)")
         for shape in slide["text"]:
             body = shape["text"].replace("\n", " / ")
-            lines.append(f"  [{shape['object_id']}] {body}")
+            where = ""
+            if "left" in shape:
+                where = (
+                    f" @ {shape['left']:g},{shape['top']:g} "
+                    f"{shape['width']:g}x{shape['height']:g}"
+                )
+            lines.append(f"  [{shape['object_id']}]{where} {body}")
         lines.append("")
     return "\n".join(lines).rstrip()
 
