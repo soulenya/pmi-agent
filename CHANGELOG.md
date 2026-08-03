@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.42 — 2026-08-03
+**Gerry can add text boxes to a slide — in the deck's own style (Morgan request)**
+
+- Until now the only way she could "add" something to a slide was to rewrite a box that was already there, which is what she did when asked for a source footnote — folding it into an existing sub-headline. She said so honestly when asked, but the result wasn't what was wanted.
+- She can now **add a text box, and remove one**. What she can't do is choose how it looks: she picks a **role** — footnote, caption, body, detail, callout, label, figure or heading — and the font, size and colour come from the same Deck Theme the deck builder uses. A model asked for a hex code will eventually invent one, so it is never asked.
+- **She won't cover anything up.** Before adding a box she reads where every shape and image on that slide actually sits, and a position that overlaps existing content — or runs off the edge of the slide — is refused, naming what it would have hit. Ask for a footnote without saying where and she puts it on the bottom margin, above anything already down there.
+- Reading a deck now reports each shape's position and size alongside its text, which is how she finds the empty space in the first place.
+
 ### v3.3.41 — 2026-08-03
 **Fix: a research answer no longer dies at the last step (Morgan field report) + pin websites to a workroom**
 
