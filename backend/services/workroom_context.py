@@ -35,6 +35,7 @@ _KIND_LABELS = {
     "odoo_record": "Odoo record",
     "regulatory_doc": "Regulatory doc",
     "budget": "Budget",
+    "website": "Website",
 }
 
 

@@ -41,6 +41,7 @@ export function PinItemPicker({ kind, onPick, onClose }: Props) {
     );
   }
   if (kind === "note") return <NotePicker onPick={onPick} onClose={onClose} />;
+  if (kind === "website") return <WebsitePicker onPick={onPick} onClose={onClose} />;
   if (kind === "odoo_record") return <OdooPicker onPick={onPick} onClose={onClose} />;
   return <ListPicker kind={kind} onPick={onPick} onClose={onClose} />;
 }
@@ -222,6 +223,79 @@ function NotePicker({ onPick, onClose }: { onPick: (i: PickedItem[]) => void; on
             className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
           >
             Pin note
+          </button>
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
+function WebsitePicker({
+  onPick,
+  onClose,
+}: {
+  onPick: (i: PickedItem[]) => void;
+  onClose: () => void;
+}) {
+  const [url, setUrl] = useState("");
+  const [label, setLabel] = useState("");
+
+  // Bare hostnames are what people paste; assume https rather than rejecting.
+  const normalized = (() => {
+    const raw = url.trim();
+    if (!raw) return "";
+    return /^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`;
+  })();
+  const valid = (() => {
+    if (!normalized) return false;
+    try {
+      return Boolean(new URL(normalized).hostname.includes("."));
+    } catch {
+      return false;
+    }
+  })();
+  const hostname = valid ? new URL(normalized).hostname.replace(/^www\./, "") : "";
+
+  return (
+    <Shell title="Pin a website" onClose={onClose}>
+      <div className="space-y-3 p-4">
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            Address
+          </label>
+          <input
+            autoFocus
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="iqt.org/mission"
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+          />
+          {url.trim() && !valid && (
+            <p className="mt-1 text-xs text-destructive">
+              That doesn't look like a web address.
+            </p>
+          )}
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            What is it? <span className="font-normal">(optional)</span>
+          </label>
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={hostname || "IQT mission page"}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+          />
+        </div>
+        <div className="flex justify-end">
+          <button
+            onClick={() =>
+              onPick([{ ref_id: normalized, label: label.trim() || hostname }])
+            }
+            disabled={!valid}
+            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
+          >
+            Pin website
           </button>
         </div>
       </div>

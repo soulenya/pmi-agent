@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 202;
-export const BUILD_DATE = "2026-08-01";
+export const BUILD_NUMBER = 203;
+export const BUILD_DATE = "2026-08-03";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 203,
+    date: "2026-08-03",
+    title: "Research answers survive a failed pin — and you can pin websites",
+    changes: [
+      "Fixed: asking Gerry to research something and pin the findings could end in \"Internal server error\" after all the work was done — her notes were too long for the field they went in, and the failure took the whole answer down with it. Notes now hold real prose, and a tool that can't save says so instead of ending the turn",
+      "New pin kind: Website. Keep a source where you can find it again — paste the address, and it's clickable in the room. Gerry sees it every turn, so she can re-read the page instead of searching for it again",
+    ],
+  },
   {
     build: 202,
     date: "2026-08-01",
