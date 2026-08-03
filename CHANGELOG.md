@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.41 — 2026-08-03
+**Fix: a research answer no longer dies at the last step (Morgan field report) + pin websites to a workroom**
+
+- Asking Gerry to research a company and pin the findings ended in "⚠️ Internal server error" after all the work was done. She had written her findings as workroom notes — several hundred characters each — and the note field only accepted 300. The database refused them, and because the rejection left the conversation's database session unusable, the whole turn collapsed at the point where it saves the answer. The research was finished and then thrown away.
+- Two fixes. Note pins now hold real prose instead of a title's worth of text; and when any tool fails to save, the turn recovers instead of ending — Gerry is told what went wrong ("too long", "already exists", "a required field was missing"), says so, and keeps the rest of her answer. Previously one bad row could take down a whole reply.
+- Very long notes are still refused, but now with an explanation and a suggestion — split it up, or pin the source as a website — rather than a crash.
+- **New pin kind: Website.** Keep a source where you can find it again. Paste the address (`iqt.org/mission` is enough — no need to type `https://`) and optionally say what it is. Pinned websites are clickable in the room, and Gerry sees the address every turn, so she can re-read the page rather than searching for it again. Ask her to "pin that page to the room" and she will.
+
 ### v3.3.40 — 2026-08-01
 **Fix: editing a slide no longer wipes its formatting (Morgan field report)**
 

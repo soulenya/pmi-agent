@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.enums import MessageRole, TaskPriority, TaskStatus
@@ -1496,23 +1497,31 @@ TOOL_DEFINITIONS: list[dict] = [
                         "enum": [
                             "drive_doc", "kb_doc", "generated_file", "note",
                             "email_thread", "task", "odoo_record", "regulatory_doc",
-                            "budget",
+                            "budget", "website",
                         ],
                         "description": (
                             "Artifact kind. Use 'note' for DURABLE facts or decisions that "
                             "should stay visible every turn (e.g. 'Predicate device: K123456') "
                             "— for dated progress events use log_workroom_progress instead. "
+                            "Use 'website' for a source worth returning to: put the URL in "
+                            "ref_id and what it is in label. When research findings matter, "
+                            "pin the SOURCE as a website plus a short note, rather than one "
+                            "long note holding everything. "
                             "For 'budget' pass the budget title as label (ref_id optional) — "
                             "Gerry's writes to a pinned budget auto-journal in the room."
                         ),
                     },
                     "label": {
                         "type": "string",
-                        "description": "Short human-readable label, e.g. 'QMS Manual draft'. For notes, the note text itself.",
+                        "description": (
+                            "Short human-readable label, e.g. 'QMS Manual draft' or 'IQT "
+                            "mission page'. For notes, the note text itself — keep a note to "
+                            "one or two sentences; split anything longer into several pins."
+                        ),
                     },
                     "ref_id": {
                         "type": "string",
-                        "description": "Reference: Drive file ID, KB document id, generated filename, Gmail thread id, task id, etc. Omit for notes.",
+                        "description": "Reference: full URL for a website, Drive file ID, KB document id, generated filename, Gmail thread id, task id, etc. Omit for notes.",
                     },
                     "workroom_title": {
                         "type": "string",
@@ -3595,7 +3604,12 @@ async def execute_check_drive_backup_status(ctx: ToolContext, _args: dict[str, A
 _WORKROOM_KINDS = (
     "drive_doc", "kb_doc", "generated_file", "note",
     "email_thread", "task", "odoo_record", "regulatory_doc", "budget",
+    "website",
 )
+
+# The column is text now, so this is a readability limit, not a storage one:
+# pinned items are re-injected every turn and a wall of prose crowds the room.
+MAX_PIN_LABEL_CHARS = 600
 
 
 async def _resolve_room_or_error(ctx: ToolContext, args: dict[str, Any]):
@@ -3672,6 +3686,26 @@ async def execute_add_to_workroom(ctx: ToolContext, args: dict[str, Any]) -> str
         return f"Error: kind must be one of: {', '.join(_WORKROOM_KINDS)}."
     if not label:
         return "Error: label is required."
+    if kind == "website":
+        # A URL the user can't click is not a pinned source.
+        if not ref_id and label.lower().startswith(("http://", "https://", "www.")):
+            ref_id, label = label, label
+        if not ref_id:
+            return (
+                "Error: a website pin needs the page's URL in ref_id, with what it "
+                "is in label."
+            )
+        if ref_id.lower().startswith("www."):
+            ref_id = f"https://{ref_id}"
+        if not ref_id.lower().startswith(("http://", "https://")):
+            return f'Error: "{ref_id}" is not a URL — a website pin needs http:// or https://.'
+    if len(label) > MAX_PIN_LABEL_CHARS:
+        return (
+            f"Error: that label is {len(label)} characters — too long to stay "
+            f"readable in the room ({MAX_PIN_LABEL_CHARS} max). Split it into "
+            "separate pins, one fact each, or pin the source as a website and "
+            "keep the note short."
+        )
     room, err = await _resolve_room_or_error(ctx, args)
     if err:
         return err
@@ -5606,6 +5640,20 @@ _PRIMARY_ARG = {
 }
 
 
+def _db_error_hint(exc: BaseException) -> str:
+    """A one-line, model-actionable reason for a database write failure."""
+    text = str(getattr(exc, "orig", exc) or exc)
+    if "StringDataRightTruncation" in text or "value too long" in text:
+        return "one of the values was too long for the field it goes in."
+    if "UniqueViolation" in text or "duplicate key" in text:
+        return "a record with those details already exists."
+    if "ForeignKeyViolation" in text or "violates foreign key" in text:
+        return "it referenced something that does not exist."
+    if "NotNullViolation" in text or "null value in column" in text:
+        return "a required field was missing."
+    return "the database rejected the write."
+
+
 async def dispatch_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> str:
     """Execute a tool by name and return a string result for the model."""
     executor = TOOL_EXECUTORS.get(name)
@@ -5618,6 +5666,18 @@ async def dispatch_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> st
         result = await executor(ctx, args)
     except Exception as exc:
         logger.exception("Tool %s raised", name)
+        # A failed flush poisons the session: every later statement, including
+        # the executor's end-of-turn commit, raises PendingRollbackError and the
+        # whole answer is lost over one bad row. Roll back so the turn survives.
+        if isinstance(exc, SQLAlchemyError):
+            try:
+                await ctx.db.rollback()
+            except Exception:  # noqa: BLE001 — nothing useful left to do
+                logger.exception("Rollback after %s failed", name)
+            return (
+                f"Tool '{name}' failed to save: {_db_error_hint(exc)} Nothing was "
+                "written. Tell the user plainly; do not retry the same values."
+            )
         return f"Tool '{name}' failed: {exc}"
     if isinstance(result, str) and result.startswith("Error:"):
         # WARNING so it reaches app.log (the file handler drops INFO)
