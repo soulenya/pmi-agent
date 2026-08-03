@@ -176,6 +176,87 @@ async def describe_file(file_id: str) -> dict:
     return await _meta(file_id)
 
 
+async def _add_slide_text_box(
+    db: AsyncSession,
+    file_id: str,
+    slide_id: str,
+    text: str,
+    *,
+    role: str,
+    box: dict | None,
+    run,
+) -> str:
+    """Create a text box styled by the deck theme, refusing to cover anything."""
+    from services import google_service as gs
+    from services.decks.drive_theme import get_deck_theme
+    from services.decks.slide_edit import (
+        SlideEditError,
+        check_placement,
+        resolve_role,
+        suggest_footnote_box,
+    )
+
+    if not slide_id:
+        raise DriveEditError(
+            "add_text_box needs the SLIDE's object id in cell_range — read_deck "
+            "returns one per slide (not a shape id)."
+        )
+    if not text.strip():
+        raise DriveEditError("add_text_box needs the text to put in the box.")
+
+    theme, _ = await get_deck_theme(db)
+    try:
+        style = resolve_role(theme, role or "body")
+    except SlideEditError as exc:
+        raise DriveEditError(str(exc)) from exc
+
+    geometry = await run(lambda: gs.slides_page_geometry(file_id))
+    page = next(
+        (s for s in geometry["slides"] if s["object_id"] == slide_id), None
+    )
+    if page is None:
+        ids = ", ".join(s["object_id"] for s in geometry["slides"][:12])
+        raise DriveEditError(
+            f'No slide "{slide_id}" in this deck. Slide ids are: {ids}.'
+        )
+
+    canvas_w, canvas_h = geometry["width_in"], geometry["height_in"]
+    if box is None:
+        if (role or "").strip().lower() != "footnote":
+            raise DriveEditError(
+                "add_text_box needs a box: left, top, width and height in inches. "
+                "Read the deck first — read_deck reports each shape's position, so "
+                "you can find a clear area rather than guessing."
+            )
+        # Footnotes have one obvious home, so placing them is not a guess.
+        box = suggest_footnote_box(page["elements"], canvas_w, canvas_h, theme)
+
+    try:
+        placement = {k: float(box[k]) for k in ("left", "top", "width", "height")}
+    except (KeyError, TypeError, ValueError) as exc:
+        raise DriveEditError(
+            "box must give left, top, width and height as numbers of inches."
+        ) from exc
+
+    try:
+        check_placement(placement, page["elements"], canvas_w, canvas_h)
+    except SlideEditError as exc:
+        raise DriveEditError(str(exc)) from exc
+
+    body = text.upper() if style.pop("upper", False) else text
+    object_id = await run(lambda: gs.slides_add_textbox(
+        file_id, slide_id, body,
+        left_in=placement["left"], top_in=placement["top"],
+        width_in=placement["width"], height_in=placement["height"],
+        **style,
+    ))
+    return (
+        f"added a {role or 'body'} text box (id {object_id}) at "
+        f"{placement['left']:.2f}in, {placement['top']:.2f}in — "
+        f"{style['font']} {style['size_pt']:g}pt in the deck's own style"
+    )
+
+
 async def apply_edit(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -187,6 +268,8 @@ async def apply_edit(
     replace: str = "",
     cell_range: str = "",
     values: list[list] | None = None,
+    role: str = "",
+    box: dict | None = None,
 ) -> str:
     """Perform one edit on a granted Drive file and return a summary line.
 
@@ -292,9 +375,22 @@ async def apply_edit(
                     )
                 await _run(lambda: gs.slides_delete_slide(file_id, cell_range))
                 summary = f"deleted slide {cell_range}"
+            elif mode == "add_text_box":
+                summary = await _add_slide_text_box(
+                    db, file_id, cell_range, text, role=role, box=box, run=_run
+                )
+            elif mode == "delete_shape":
+                if not cell_range:
+                    raise DriveEditError(
+                        "delete_shape needs the shape's object id — read_deck returns one "
+                        "per text box."
+                    )
+                await _run(lambda: gs.slides_delete_object(file_id, cell_range))
+                summary = f"deleted shape {cell_range}"
             else:
                 raise DriveEditError(
-                    f'Google Slides support replace, set_shape and delete_slide — not "{mode}".'
+                    "Google Slides support replace, set_shape, add_text_box, "
+                    f'delete_shape and delete_slide — not "{mode}".'
                 )
 
         elif _is_text_file(mime):
