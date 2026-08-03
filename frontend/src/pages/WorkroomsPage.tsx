@@ -56,6 +56,7 @@ import { DropOverlay } from "@/components/DropOverlay";
 import { PinItemPicker, type PickedItem } from "@/components/workrooms/PinItemPicker";
 import { useFileDrop } from "@/hooks/useFileDrop";
 import { useToastStore } from "@/stores/toastStore";
+import { openExternal } from "@/lib/externalLinks";
 import { cn } from "@/lib/utils";
 
 const KIND_OPTIONS = Object.entries(ITEM_KIND_LABELS) as [WorkroomItemKind, string][];
@@ -718,7 +719,17 @@ function RoomDetail({
               <span className="shrink-0 rounded bg-accent px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                 {ITEM_KIND_LABELS[it.kind] ?? it.kind}
               </span>
-              <span className="flex-1 truncate">{it.label}</span>
+              {it.kind === "website" && it.ref_id ? (
+                <button
+                  onClick={() => openExternal(it.ref_id)}
+                  className="flex-1 truncate text-left text-primary hover:underline"
+                  title={it.ref_id}
+                >
+                  {it.label}
+                </button>
+              ) : (
+                <span className="flex-1 truncate">{it.label}</span>
+              )}
               {it.ref_id && (
                 <span className="hidden max-w-[180px] truncate text-xs text-muted-foreground sm:block">
                   {it.ref_id}
@@ -756,7 +767,9 @@ function RoomDetail({
             ) : (
               <Search className="h-3.5 w-3.5" />
             )}
-            Browse {ITEM_KIND_LABELS[itemKind].toLowerCase()}s…
+            {itemKind === "note" || itemKind === "website"
+              ? `Add a ${ITEM_KIND_LABELS[itemKind].toLowerCase()}…`
+              : `Browse ${ITEM_KIND_LABELS[itemKind].toLowerCase()}s…`}
           </button>
         </div>
         <details className="text-xs text-muted-foreground">

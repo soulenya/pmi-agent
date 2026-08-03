@@ -3,7 +3,7 @@
 A Workroom = a goal + pinned artifacts + a dedicated conversation + a progress
 journal. Items reference artifacts loosely by kind + ref_id (Drive file IDs,
 KB document UUIDs, generated filenames, Gmail thread IDs, task UUIDs, Odoo
-records, regulatory file IDs).
+records, regulatory file IDs, URLs).
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ WORKROOM_ITEM_KINDS = (
     "odoo_record",
     "regulatory_doc",
     "budget",
+    "website",
 )
 
 
@@ -74,8 +75,11 @@ class WorkroomItem(Base):
         index=True,
     )
     kind: Mapped[str] = mapped_column(String(30), nullable=False)
-    ref_id: Mapped[str] = mapped_column(String(500), nullable=False, default="")
-    label: Mapped[str] = mapped_column(String(300), nullable=False)
+    # ref_id holds a URL for "website" pins, so it can't be short either.
+    ref_id: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Text, not String(n): a "note" pin carries prose, not a title, and a
+    # rejected pin used to take the whole conversation turn down with it.
+    label: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
