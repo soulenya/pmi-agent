@@ -388,6 +388,8 @@ Ask for a presentation — "build me a pitch deck", "a product briefing", "a boa
 
 **The theme lives on Drive.** A doc named **Deck Theme** in the shared templates folder overrides colours, fonts, type sizes, the grid and the classification wording — see [Slide deck theme](#slide-deck-theme) below. Layouts remain in code.
 
+**Editing an existing deck.** With a per-file edit grant, Gerry can rewrite a text box, **add** one, remove one, or delete a slide. New text is styled by **role** — `footnote`, `caption`, `body`, `detail`, `callout`, `label`, `figure`, `heading` — and the font, size and colour for each come from the deck theme, so she cannot pick her own and an added box matches its neighbours. Placement is checked against the slide's real geometry: a box that would run off the canvas or cover existing content is refused with the ids it would have hit. A footnote with no stated position goes on the bottom margin, above whatever is already there.
+
 ---
 
 ### Knowledge Base & Search
@@ -461,7 +463,7 @@ Connected services: Gmail (read + send), Google Drive (read, plus per-file editi
 
 **Write actions** (send email, create calendar event) go through the human-in-the-loop approval queue on the same page — click **Approve** or **Cancel** before they execute.
 
-**Editing a Drive file** is granted per file: when Gerry wants to change a document she asks in chat, naming that one file. Allowing it gives her write access to that file only — every other file stays read-only and the next one needs its own permission. Docs, Sheets, **Google Slides** and plain-text files are editable in place; PDFs and images are not. Rewriting a slide's text box carries the box's existing font, size, colour and spacing onto the new text, so an edited slide still matches the deck. Granted files are listed under **Settings → Drive Edit Permissions** and can be revoked at any time; Drive's own **File → Version history** is the undo. A permission also lifts the QMS/draft read restriction for that single file, since naming it and clicking Allow is the explicit request that rule asks for.
+**Editing a Drive file** is granted per file: when Gerry wants to change a document she asks in chat, naming that one file. Allowing it gives her write access to that file only — every other file stays read-only and the next one needs its own permission. Docs, Sheets, **Google Slides** and plain-text files are editable in place; PDFs and images are not. Rewriting a slide's text box carries the box's existing font, size, colour and spacing onto the new text, so an edited slide still matches the deck; Gerry can also add and remove text boxes on a slide, styled from the deck theme by role (footnote, caption, callout…) rather than by fonts she picks, and a box that would cover existing content is refused. Granted files are listed under **Settings → Drive Edit Permissions** and can be revoked at any time; Drive's own **File → Version history** is the undo. A permission also lifts the QMS/draft read restriction for that single file, since naming it and clicking Allow is the explicit request that rule asks for.
 
 > Slides access is new — reading or editing an existing deck requires reconnecting Google once so the new permission is granted. Creating a deck does not.
 

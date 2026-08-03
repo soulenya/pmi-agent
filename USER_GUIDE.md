@@ -515,6 +515,16 @@ Text is measured and flowed rather than poured into fixed boxes, so a long headi
 
 The deck's colours, fonts, type sizes and the classification wording come from a doc named **Deck Theme** in the shared **PMI Templates** Drive folder — the same folder that holds your document templates. Edit that doc and the next deck picks it up; no update required. If a line in it is wrong (a colour that isn't a hex code, a type size of 9000), Gerry keeps the built-in value and **tells you which lines she ignored**. The layouts themselves are built in and can't be changed from the doc.
 
+### Editing a deck she didn't build
+
+Give Gerry permission for a presentation (see [Letting Gerry edit a Drive file](#letting-gerry-edit-a-drive-file)) and she can change it in place. She can rewrite the text in a box, **add a new text box**, remove a box, and delete whole slides.
+
+**She styles new text from the theme, not by eye.** You ask for a footnote, a caption, a callout or a heading; the font, size and colour come from the same Deck Theme the builder uses, so an added box matches the slides around it. She is not able to pick her own fonts or colours here — that's deliberate, and it's what stops an added line looking bolted on.
+
+**She won't cover anything up.** Before adding a box she reads where everything on the slide already sits, and a position that would overlap existing text or an image is refused rather than drawn on top. If you ask for a footnote without saying where, she puts it along the bottom margin, above anything already down there.
+
+Rewriting a box keeps that box's own font, size, colour and spacing — see the note under [Letting Gerry edit a Drive file](#letting-gerry-edit-a-drive-file).
+
 ---
 
 ## Investor Relations
@@ -562,7 +572,7 @@ By default Gerry reads your Drive but never changes anything. If you ask her to 
 2. Click **Allow** and she can edit **that file only**. Every other file in your Drive stays read-only, and the next file needs its own separate permission.
 3. Click **Deny** and nothing happens.
 
-What she can edit this way: **Google Docs** (append, find-and-replace, or rewrite), **Google Sheets** (set a cell range or append a row), **Google Slides** (replace text across a deck, rewrite one text box, or delete a slide), and **plain-text files**. PDFs and images are not editable in place — she'll offer to upload a replacement instead.
+What she can edit this way: **Google Docs** (append, find-and-replace, or rewrite), **Google Sheets** (set a cell range or append a row), **Google Slides** (replace text across a deck, rewrite one text box, add a new text box, remove a box, or delete a slide), and **plain-text files**. PDFs and images are not editable in place — she'll offer to upload a replacement instead.
 
 **Slide edits keep the slide's look.** When Gerry rewrites a text box, the font, size, colour and spacing that box already had are carried over to the new text, so an edited slide still matches the rest of the deck. If a box mixed styles — one word in a different colour, say — the replacement takes the style of the first run throughout.
 

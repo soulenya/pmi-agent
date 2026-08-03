@@ -12,6 +12,7 @@ import email.mime.text
 import logging
 import threading
 import time
+import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
@@ -1468,32 +1469,177 @@ def _slides_shape_text(shape_el: dict) -> str:
     return "".join(parts).strip()
 
 
+_EMU_PER_INCH = 914400
+
+
+def _slides_box(el: dict) -> dict | None:
+    """A page element's position and size in inches, or None if unstated."""
+    size = el.get("size") or {}
+    tf = el.get("transform") or {}
+    w = ((size.get("width") or {}).get("magnitude") or 0) * (tf.get("scaleX") or 1)
+    h = ((size.get("height") or {}).get("magnitude") or 0) * (tf.get("scaleY") or 1)
+    if not w and not h:
+        return None
+    return {
+        "left": round((tf.get("translateX") or 0) / _EMU_PER_INCH, 2),
+        "top": round((tf.get("translateY") or 0) / _EMU_PER_INCH, 2),
+        "width": round(w / _EMU_PER_INCH, 2),
+        "height": round(h / _EMU_PER_INCH, 2),
+    }
+
+
 def slides_read(file_id: str) -> dict:
     """Read a Google Slides deck as plain structure.
 
-    Returns ``{title, slide_count, slides: [{index, object_id, text: [...]}]}``.
-    Text is per shape and in reading order, which is what the model needs to
-    reason about a deck without seeing it.
+    Returns ``{title, width_in, height_in, slide_count, slides: [...]}``. Each
+    slide lists its text shapes in reading order with their object id and box,
+    which is what the model needs to reason about a deck it cannot see —
+    including where there is room to put something new.
     """
     svc = _build("slides", "v1")
     deck = svc.presentations().get(presentationId=file_id).execute()
+    page = deck.get("pageSize") or {}
     slides = []
-    for i, page in enumerate(deck.get("slides") or []):
+    for i, pg in enumerate(deck.get("slides") or []):
         texts = []
-        for el in page.get("pageElements") or []:
+        for el in pg.get("pageElements") or []:
             body = _slides_shape_text(el)
-            if body:
-                texts.append({"object_id": el.get("objectId", ""), "text": body})
+            if not body:
+                continue
+            entry = {"object_id": el.get("objectId", ""), "text": body}
+            box = _slides_box(el)
+            if box:
+                entry.update(box)
+            texts.append(entry)
         slides.append({
             "index": i + 1,
-            "object_id": page.get("objectId", ""),
+            "object_id": pg.get("objectId", ""),
             "text": texts,
         })
     return {
         "title": deck.get("title", ""),
+        "width_in": round(((page.get("width") or {}).get("magnitude") or 0) / _EMU_PER_INCH, 2),
+        "height_in": round(((page.get("height") or {}).get("magnitude") or 0) / _EMU_PER_INCH, 2),
         "slide_count": len(slides),
         "slides": slides,
     }
+
+
+def slides_page_geometry(file_id: str) -> dict:
+    """Every page element's box plus its text and per-slide styling hints.
+
+    Separate from slides_read because placing a NEW box needs to know about
+    images and background rectangles too, not just the text shapes.
+    """
+    svc = _build("slides", "v1")
+    deck = svc.presentations().get(
+        presentationId=file_id, fields="pageSize,slides(objectId,pageElements)"
+    ).execute()
+    page = deck.get("pageSize") or {}
+    slides = []
+    for i, pg in enumerate(deck.get("slides") or []):
+        elements = []
+        for el in pg.get("pageElements") or []:
+            box = _slides_box(el) or {}
+            run_style, _ = _slides_shape_style(el)
+            elements.append({
+                "object_id": el.get("objectId", ""),
+                "text": _slides_shape_text(el),
+                "style": run_style,
+                **box,
+            })
+        slides.append({
+            "index": i + 1,
+            "object_id": pg.get("objectId", ""),
+            "elements": elements,
+        })
+    return {
+        "width_in": round(((page.get("width") or {}).get("magnitude") or 0) / _EMU_PER_INCH, 2),
+        "height_in": round(((page.get("height") or {}).get("magnitude") or 0) / _EMU_PER_INCH, 2),
+        "slides": slides,
+    }
+
+
+def _slides_rgb(hex_colour: str) -> dict:
+    h = hex_colour.lstrip("#")
+    return {"rgbColor": {
+        "red": int(h[0:2], 16) / 255,
+        "green": int(h[2:4], 16) / 255,
+        "blue": int(h[4:6], 16) / 255,
+    }}
+
+
+def slides_add_textbox(
+    file_id: str,
+    slide_object_id: str,
+    text: str,
+    *,
+    left_in: float,
+    top_in: float,
+    width_in: float,
+    height_in: float,
+    font: str,
+    size_pt: float,
+    colour: str,
+    bold: bool = False,
+    align: str = "START",
+) -> str:
+    """Create a text box on one slide and style it. Returns the new object id."""
+    svc = _build("slides", "v1")
+    object_id = f"lg{uuid.uuid4().hex[:14]}"
+    emu = lambda v: int(round(v * _EMU_PER_INCH))  # noqa: E731
+    whole = {"type": "ALL"}
+    requests = [
+        {"createShape": {
+            "objectId": object_id,
+            "shapeType": "TEXT_BOX",
+            "elementProperties": {
+                "pageObjectId": slide_object_id,
+                "size": {
+                    "width": {"magnitude": emu(width_in), "unit": "EMU"},
+                    "height": {"magnitude": emu(height_in), "unit": "EMU"},
+                },
+                "transform": {
+                    "scaleX": 1, "scaleY": 1,
+                    "translateX": emu(left_in), "translateY": emu(top_in),
+                    "unit": "EMU",
+                },
+            },
+        }},
+        {"insertText": {"objectId": object_id, "insertionIndex": 0, "text": text}},
+        {"updateTextStyle": {
+            "objectId": object_id,
+            "textRange": whole,
+            "style": {
+                "fontFamily": font,
+                "bold": bold,
+                "fontSize": {"magnitude": size_pt, "unit": "PT"},
+                "foregroundColor": {"opaqueColor": _slides_rgb(colour)},
+            },
+            "fields": "fontFamily,bold,fontSize,foregroundColor",
+        }},
+        {"updateParagraphStyle": {
+            "objectId": object_id,
+            "textRange": whole,
+            # 100 = single. Slides measures lineSpacing as a percentage here,
+            # unlike the .pptx path where it has to be absolute points.
+            "style": {"alignment": align, "lineSpacing": 100},
+            "fields": "alignment,lineSpacing",
+        }},
+    ]
+    svc.presentations().batchUpdate(
+        presentationId=file_id, body={"requests": requests}
+    ).execute()
+    return object_id
+
+
+def slides_delete_object(file_id: str, object_id: str) -> None:
+    """Delete one page element (a shape, image or text box) by its object id."""
+    svc = _build("slides", "v1")
+    svc.presentations().batchUpdate(
+        presentationId=file_id,
+        body={"requests": [{"deleteObject": {"objectId": object_id}}]},
+    ).execute()
 
 
 def slides_replace_text(file_id: str, find: str, replace: str, match_case: bool = True) -> dict:
