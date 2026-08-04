@@ -200,6 +200,7 @@ Navigate to **AI Assistant** in the sidebar.
 - When Gerry **creates** something during a chat — an email draft, an approval request, a task, a budget entry, a filed invoice — a **"take me to it" chip** appears under her reply: one click jumps straight to the draft/approval/budget instead of you hunting it down. Chips work in the sidebar chat too and stay on the message in history
 - **Restricted sources**: Gerry never reads or references the QMS folder (or its subfolders) or any file with "draft" in its name unless you explicitly ask — and she'll confirm first, naming the folder and file she's about to open. Allowing her to **edit** a specific file counts as asking: she can then read and change that one file without checking again, while its folder and every other draft stay restricted
 - **Long conversations** open on your most recent messages. Scroll up and click **Load earlier messages** to walk back through the rest — there's no limit on how far back a conversation can go, and nothing is ever dropped
+- **Stopping Gerry mid-answer:** a **Stop** button appears while she's working. Whatever she has already written is kept and marked *Stopped*, and any file or draft she'd already produced stays — stopping doesn't undo finished work, it just prevents the next step. Stop also works when the connection has dropped, which is when it's usually most wanted
 - Hover over a conversation in the left panel to rename or archive it
 - Click **+** to start a new conversation
 

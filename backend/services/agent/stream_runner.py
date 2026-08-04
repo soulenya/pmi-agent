@@ -26,6 +26,24 @@ logger = logging.getLogger(__name__)
 # Keep strong references so background runs are not garbage-collected mid-flight.
 _active_runs: set[asyncio.Task] = set()
 
+# conversation_id -> the event its run watches. Cancellation is COOPERATIVE:
+# task.cancel() would abandon the transaction mid-flight and lose the partial
+# answer, so the agent checks this between steps and stops cleanly instead.
+_stop_events: dict[uuid.UUID, asyncio.Event] = {}
+
+
+def request_stop(conversation_id: uuid.UUID) -> bool:
+    """Ask the run for this conversation to stop. False if nothing is running."""
+    event = _stop_events.get(conversation_id)
+    if event is None:
+        return False
+    event.set()
+    return True
+
+
+def is_running(conversation_id: uuid.UUID) -> bool:
+    return conversation_id in _stop_events
+
 
 async def _run_agent_to_queue(
     user_id: uuid.UUID,
@@ -40,6 +58,8 @@ async def _run_agent_to_queue(
     Always pushes a ``None`` sentinel when finished (success or failure) so the
     forwarder knows the turn is over.
     """
+    stop = asyncio.Event()
+    _stop_events[conversation_id] = stop
     try:
         async with AsyncSessionLocal() as db:
             try:
@@ -49,6 +69,7 @@ async def _run_agent_to_queue(
                     agent = await LangGraphSupervisor.create(
                         db=db, user_id=user_id, conversation_id=conversation_id
                     )
+                    agent.stop_event = stop
                     gen = agent.run(content, voice=voice)
                 else:
                     from services.agent.executor import AgentExecutor
@@ -56,6 +77,7 @@ async def _run_agent_to_queue(
                     executor = await AgentExecutor.create(
                         db=db, user_id=user_id, conversation_id=conversation_id
                     )
+                    executor.stop_event = stop
                     gen = executor._run(content, voice=voice)
 
                 async for frame in gen:
@@ -80,6 +102,7 @@ async def _run_agent_to_queue(
 
                 await queue.put(WSError(detail="Internal server error.").model_dump_json())
     finally:
+        _stop_events.pop(conversation_id, None)
         await queue.put(None)
 
 

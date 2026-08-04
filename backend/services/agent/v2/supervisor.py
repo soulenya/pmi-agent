@@ -15,6 +15,7 @@ Each streaming frame is a JSON-encoded dict matching the v1 frame schema:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -96,6 +97,8 @@ class LangGraphSupervisor:
         self.user_id = user_id
         self.conversation_id = conversation_id
         self._agents: dict = {}  # populated lazily in run()
+        # Set by stream_runner when the user asks to stop mid-turn.
+        self.stop_event: asyncio.Event | None = None
 
     # ── Factory ───────────────────────────────────────────────────────────────
 
@@ -360,6 +363,21 @@ class LangGraphSupervisor:
             extra_system_context=attach_ctx,
             company_context=company_ctx,
         ):
+            if self.stop_event is not None and self.stop_event.is_set():
+                # Keep what was produced — tools already ran and files may exist.
+                partial = "".join(full_response_parts).strip()
+                await self._persist_messages(
+                    user_text,
+                    f"{partial}\n\n_Stopped._" if partial else "_Stopped before I got started._",
+                    turn_artifacts,
+                )
+                yield json.dumps({
+                    "type": "done",
+                    "conversation_id": str(self.conversation_id),
+                    "stopped": True,
+                })
+                return
+
             frame_type = frame.get("type", "")
 
             if frame_type == "token":

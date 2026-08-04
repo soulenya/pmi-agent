@@ -58,6 +58,14 @@ export async function listMessages(conversationId: string): Promise<Message[]> {
   return (await listMessagePage(conversationId)).messages;
 }
 
+/** Ask the running turn to stop. `stopping` is false when nothing was running. */
+export async function stopTurn(conversationId: string): Promise<{ stopping: boolean }> {
+  const resp = await apiClient.post<{ stopping: boolean }>(
+    `/conversations/${conversationId}/stop`
+  );
+  return resp.data;
+}
+
 // ── Approvals ─────────────────────────────────────────────────────────────────
 
 export async function listPendingApprovals(params?: {
