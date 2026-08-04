@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.approval import ApprovalIntent
@@ -115,32 +115,53 @@ class MessageRepository:
         in a long conversation the just-saved user turn would be dropped and the
         window could end on an assistant message — which Anthropic rejects with
         "the conversation must end with a user message" on models that disallow
-        assistant prefill. ``most_recent`` is ignored when paginating via
-        ``before_id``.
+        assistant prefill.
+
+        ``before_id`` walks backwards for scroll-up pagination: it returns the
+        ``limit`` messages IMMEDIATELY before that message, not the oldest ones.
+        Ordering is by (created_at, id) because messages saved in one transaction
+        share ``created_at`` — a timestamp-only cursor would skip or repeat them.
         """
-        if most_recent and before_id is None:
-            # Take the newest `limit` rows, then restore chronological order.
-            stmt = (
-                select(Message)
-                .where(Message.conversation_id == conversation_id)
-                .order_by(Message.created_at.desc())
-                .limit(limit)
+        newest_first = most_recent or before_id is not None
+        stmt = select(Message).where(Message.conversation_id == conversation_id)
+
+        if before_id is not None:
+            cursor = (
+                select(Message.created_at, Message.id)
+                .where(Message.id == before_id)
+                .subquery()
             )
+            stmt = stmt.where(
+                tuple_(Message.created_at, Message.id)
+                < tuple_(cursor.c.created_at, cursor.c.id)
+            )
+
+        if newest_first:
+            stmt = stmt.order_by(Message.created_at.desc(), Message.id.desc()).limit(limit)
             result = await self.db.execute(stmt)
             return list(reversed(result.scalars().all()))
 
-        stmt = (
-            select(Message)
-            .where(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.asc())
-            .limit(limit)
-        )
-        if before_id is not None:
-            # Pagination: messages created before the given message id
-            sub = select(Message.created_at).where(Message.id == before_id).scalar_subquery()
-            stmt = stmt.where(Message.created_at < sub)
+        stmt = stmt.order_by(Message.created_at.asc(), Message.id.asc()).limit(limit)
         result = await self.db.execute(stmt)
         return list(result.scalars())
+
+    async def has_before(self, conversation_id: uuid.UUID, message_id: uuid.UUID) -> bool:
+        """Whether any message precedes ``message_id`` in this conversation."""
+        cursor = (
+            select(Message.created_at, Message.id)
+            .where(Message.id == message_id)
+            .subquery()
+        )
+        stmt = (
+            select(Message.id)
+            .where(
+                Message.conversation_id == conversation_id,
+                tuple_(Message.created_at, Message.id)
+                < tuple_(cursor.c.created_at, cursor.c.id),
+            )
+            .limit(1)
+        )
+        return (await self.db.execute(stmt)).first() is not None
 
 
 class ConversationAttachmentRepository:

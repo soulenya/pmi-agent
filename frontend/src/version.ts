@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 205;
+export const BUILD_NUMBER = 206;
 export const BUILD_DATE = "2026-08-04";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 206,
+    date: "2026-08-04",
+    title: "Long conversations no longer look truncated",
+    changes: [
+      "Fixed: past about a hundred messages a chat stopped showing new replies and looked like it had lost earlier ones. Nothing was deleted — the chat was loading the oldest hundred messages instead of the newest. It now opens on the most recent, with a \"Load earlier messages\" button for the rest of the history",
+    ],
+  },
   {
     build: 205,
     date: "2026-08-04",

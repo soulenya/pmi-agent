@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,17 +115,30 @@ async def update_conversation(
 @router.get("/{conv_id}/messages", response_model=list[MessageOut])
 async def list_messages(
     conv_id: uuid.UUID,
+    response: Response,
     limit: int = Query(100, ge=1, le=500),
     before_id: uuid.UUID | None = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[MessageOut]:
+    """The NEWEST `limit` messages, oldest→newest. Pass `before_id` to walk back.
+
+    Defaulting to the newest is what a chat window wants: the oldest-first default
+    this used to have made every message past the limit invisible, which read as
+    the conversation having been truncated.
+    """
     conv_repo = ConversationRepository(db)
     conv = await conv_repo.get(conv_id, current_user.id)
     if conv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found.")
     msg_repo = MessageRepository(db)
-    return await msg_repo.list_for_conversation(conv_id, limit=limit, before_id=before_id)
+    messages = await msg_repo.list_for_conversation(
+        conv_id, limit=limit, before_id=before_id, most_recent=True
+    )
+    # Lets the client decide whether to offer "load earlier" without a second call.
+    has_more = bool(messages) and await msg_repo.has_before(conv_id, messages[0].id)
+    response.headers["X-Has-More"] = "true" if has_more else "false"
+    return messages
 
 
 # ── Conversation attachments (reference files) ────────────────────────────────
