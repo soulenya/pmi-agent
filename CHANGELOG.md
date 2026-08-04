@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.43 — 2026-08-04
+**Gerry can add and remove whole slides (Morgan request)**
+
+- **Adding a slide** uses the same fourteen layouts she builds decks from, so a slide added later is indistinguishable from one that was there at the start. Ask for it at a position or let her append it. Deleting a slide already worked; both now behave properly.
+- **She inherits the deck's classification mark** by reading the slides already there, rather than asking again or guessing — a new slide that disagreed with its neighbours would be worse than one with no mark at all.
+- **Page numbers are corrected** after an insert or a delete, so a deck doesn't end up with two slide 4s. Only numbers in the page-number corner are touched; nothing in the body of a slide is rewritten.
+- Under the hood the layouts are not written twice. The deck builder's own renderers are recorded and replayed as Google Slides instructions, so a slide added to a live deck lands on exactly the same grid as a generated one — verified to within a ten-thousandth of an inch across all fourteen layouts.
+
 ### v3.3.42 — 2026-08-03
 **Gerry can add text boxes to a slide — in the deck's own style (Morgan request)**
 
