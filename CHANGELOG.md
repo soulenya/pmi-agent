@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.44 — 2026-08-04
+**Fix: long conversations appeared to lose messages (Morgan field report)**
+
+- Past about a hundred messages, a conversation stopped showing new replies and looked as though earlier entries had been deleted. Nothing was ever deleted: the chat was loading the **oldest** hundred messages and everything after them was simply off the end. A workroom chat sitting at 109 messages was showing the first 100 and hiding the 9 most recent.
+- Chat now loads the **most recent** messages, with a **Load earlier messages** button that walks back through the whole history a page at a time. Your place on screen is kept when older messages load in above.
+- Also fixed while in there: the "load earlier" mechanism itself was returning the oldest messages rather than the ones immediately before the point you were reading, and messages saved in the same instant could be skipped or repeated when paging.
+- Gerry herself was never affected — she reads the most recent turns, which is why her replies still made sense while the screen looked stuck.
+
 ### v3.3.43 — 2026-08-04
 **Gerry can add and remove whole slides (Morgan request)**
 
