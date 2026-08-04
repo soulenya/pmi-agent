@@ -8,11 +8,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bot, ChevronRight, Loader2, RotateCcw, Send, Wrench } from "lucide-react";
+import { Bot, ChevronRight, Loader2, RotateCcw, Send, Square, Wrench } from "lucide-react";
 import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
 import ConfirmDriveEditModal, { type DriveEditRequest } from "@/components/ConfirmDriveEditModal";
 import { useChatSidebarStore } from "@/stores/chatSidebarStore";
-import { createConversation, listConversations, listMessages } from "@/api/chat";
+import { createConversation, listConversations, listMessages, stopTurn } from "@/api/chat";
 import { grantDriveEdit } from "@/api/google";
 import { useAuthStore } from "@/stores/authStore";
 import { useResizableTextarea } from "@/hooks/useResizableTextarea";
@@ -103,6 +103,24 @@ export function ChatSidebar() {
   // True once a sent message has gone 45s with no streaming/tool activity —
   // gates the "No reply? Resend" chip so it never flashes during normal turns.
   const [turnStuck, setTurnStuck] = useState(false);
+  const [stopping, setStopping] = useState(false);
+
+  // A turn is in flight while the last message is the user's, or text is streaming.
+  const turnRunning =
+    streamingContent !== null ||
+    (messages.length > 0 && messages[messages.length - 1].role === "user");
+
+  const handleStop = useCallback(async () => {
+    if (!activeConversationId) return;
+    setStopping(true);
+    try {
+      await stopTurn(activeConversationId);
+    } catch {
+      /* the turn may still land; leave the UI as it is */
+    } finally {
+      setStopping(false);
+    }
+  }, [activeConversationId]);
 
   useEffect(() => {
     const waiting =
@@ -466,6 +484,17 @@ export function ChatSidebar() {
             <span className="truncate">{a.label}</span>
           </div>
         ))}
+        {turnRunning && (
+          <button
+            onClick={handleStop}
+            disabled={stopping}
+            className="ml-2 flex w-fit items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-60"
+            title="Stop here. Anything Gerry has already done is kept."
+          >
+            <Square className="h-3 w-3" />
+            {stopping ? "Stopping…" : "Stop"}
+          </button>
+        )}
         {/* Hung turn — 45s with no reply and nothing streaming */}
         {turnStuck &&
           streamingContent === null &&

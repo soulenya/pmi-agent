@@ -14,6 +14,7 @@ Max tool-call rounds: MAX_TOOL_ROUNDS (prevents infinite loops)
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -280,6 +281,12 @@ class AgentExecutor:
     # conversation across runs: with last week's report in context the model
     # would reword it instead of doing the work.
     fresh_context: bool = False
+    # Set when the user asks to stop. Checked between streamed chunks and
+    # between tool rounds; whatever was generated so far is still saved.
+    stop_event: asyncio.Event | None = None
+
+    def _stop_requested(self) -> bool:
+        return self.stop_event is not None and self.stop_event.is_set()
 
     @classmethod
     async def create(cls, db: AsyncSession, user_id, conversation_id) -> "AgentExecutor":
@@ -293,6 +300,43 @@ class AgentExecutor:
         Yields WSToken frames during streaming, then a final WSDone or WSError.
         """
         return self._run(user_text)
+
+    async def _finish_stopped(
+        self,
+        msg_repo: MessageRepository,
+        content: str,
+        model: str,
+        cited_chunk_ids: list[str],
+        turn_artifacts: list[dict],
+        user_text: str,
+    ) -> AsyncGenerator[str, None]:
+        """End a stopped turn, keeping whatever was produced.
+
+        Work already done is real — tools ran, files may exist — so the partial
+        answer is saved and marked rather than discarded. A turn stopped before
+        any text was produced saves a short note instead of an empty message,
+        because a blank assistant bubble looks like a failure.
+        """
+        import re as _re
+
+        clean = _re.sub(r"<tool_call>.*?</tool_call>", "", content, flags=_re.DOTALL).strip()
+        body = f"{clean}\n\n_Stopped._" if clean else "_Stopped before I got started._"
+        msg = await msg_repo.create(
+            conversation_id=self.conversation_id,
+            role=MessageRole.ASSISTANT,
+            content=body,
+            model_name=model,
+            cited_chunk_ids=cited_chunk_ids,
+            tool_results=turn_artifacts,
+        )
+        await self.db.commit()
+        await _auto_title_conversation(self.db, self.conversation_id, self.user_id, user_text)
+        yield WSDone(
+            conversation_id=str(self.conversation_id),
+            message_id=str(msg.id),
+            cited_chunk_ids=cited_chunk_ids,
+            stopped=True,
+        ).model_dump_json()
 
     async def _run(self, user_text: str, voice: bool = False) -> AsyncGenerator[str, None]:
         # ── 1. Persist user message ─────────────────────────────────────────
@@ -327,10 +371,13 @@ class AgentExecutor:
             final_model = ""
 
             # ── Stream from Ollama ────────────────────────────────────────────
+            stopped_mid_stream = False
             try:
                 async for chunk in self.ollama.chat_stream(
                     messages, tools=TOOL_DEFINITIONS
                 ):
+                    # This chunk is already in hand — emit it, THEN stop. Checking
+                    # first would throw away text the model had produced.
                     if chunk.content:
                         content_this_round += chunk.content
                         token_frame = WSToken(
@@ -346,12 +393,25 @@ class AgentExecutor:
                         final_tokens = chunk.output_tokens
                         final_model = chunk.model
 
+                    if self._stop_requested():
+                        stopped_mid_stream = True
+                        break
+
             except (OllamaError, Exception) as exc:
                 if "LLM" in str(type(exc).__name__) or isinstance(exc, OllamaError):
                     err = WSError(detail=f"LLM unavailable: {exc}")
                 else:
                     err = WSError(detail=f"LLM error: {exc}")
                 yield err.model_dump_json()
+                return
+
+            if stopped_mid_stream:
+                accumulated_content += content_this_round
+                async for frame in self._finish_stopped(
+                    msg_repo, accumulated_content, final_model, cited_chunk_ids,
+                    turn_artifacts, user_text,
+                ):
+                    yield frame
                 return
 
             # ── No tool calls → final answer ──────────────────────────────────
@@ -408,6 +468,16 @@ class AgentExecutor:
                 })
 
             for tc in tool_calls_this_round:
+                # Checked BEFORE dispatch: a tool can send mail or write to Drive,
+                # so "stop" has to mean "don't start the next one".
+                if self._stop_requested():
+                    async for frame in self._finish_stopped(
+                        msg_repo, accumulated_content + content_this_round, final_model,
+                        cited_chunk_ids, turn_artifacts, user_text,
+                    ):
+                        yield frame
+                    return
+
                 fn = tc.get("function", {})
                 tool_name = fn.get("name", "")
                 raw_args = fn.get("arguments", {})
