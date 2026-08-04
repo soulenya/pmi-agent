@@ -33,11 +33,29 @@ export async function updateConversation(
   return resp.data;
 }
 
-export async function listMessages(conversationId: string): Promise<Message[]> {
+export interface MessagePage {
+  messages: Message[];
+  /** True when older messages exist before `messages[0]`. */
+  hasMore: boolean;
+}
+
+/** A page of messages, newest last. Omit `beforeId` for the latest page. */
+export async function listMessagePage(
+  conversationId: string,
+  opts?: { beforeId?: string; limit?: number }
+): Promise<MessagePage> {
   const resp = await apiClient.get<Message[]>(
-    `/conversations/${conversationId}/messages`
+    `/conversations/${conversationId}/messages`,
+    { params: { limit: opts?.limit ?? 100, before_id: opts?.beforeId } }
   );
-  return resp.data;
+  return {
+    messages: resp.data,
+    hasMore: resp.headers["x-has-more"] === "true",
+  };
+}
+
+export async function listMessages(conversationId: string): Promise<Message[]> {
+  return (await listMessagePage(conversationId)).messages;
 }
 
 // ── Approvals ─────────────────────────────────────────────────────────────────

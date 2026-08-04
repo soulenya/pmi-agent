@@ -19,8 +19,9 @@ import { uploadAttachment } from "@/api/attachments";
 import {
   createConversation,
   listConversations,
-  listMessages,
+  listMessagePage,
   updateConversation,
+  type MessagePage,
 } from "@/api/chat";
 import { listWorkrooms } from "@/api/workrooms";
 import { getSettings } from "@/api/settings";
@@ -151,7 +152,11 @@ export function ChatPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  // Set while prepending older messages, so the scroll-to-bottom effect and the
+  // scroll-position restore don't fight each other.
+  const restoreScrollRef = useRef<number | null>(null);
 
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
@@ -334,14 +339,49 @@ export function ChatPage() {
   });
 
   // â”€â”€ Messages for active conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const { data: messages = [], isLoading: messagesLoading } = useQuery({
+  const { data: messagePage, isLoading: messagesLoading } = useQuery({
     queryKey: ["messages", conversationId],
-    queryFn: () => listMessages(conversationId!),
+    queryFn: () => listMessagePage(conversationId!),
     enabled: !!conversationId,
     // While a turn is running with a dead socket, the answer still completes in
     // the background — poll so it appears without a manual refresh.
     refetchInterval: busySince && !wsConnected ? 5_000 : false,
   });
+  const messages = messagePage?.messages ?? [];
+  const hasOlder = messagePage?.hasMore ?? false;
+
+  const appendMessage = useCallback(
+    (msg: Message) => {
+      queryClient.setQueryData<MessagePage>(["messages", conversationId], (prev) => ({
+        messages: [...(prev?.messages ?? []), msg],
+        hasMore: prev?.hasMore ?? false,
+      }));
+    },
+    [conversationId, queryClient],
+  );
+
+  // Fetch the page before the oldest message on screen and prepend it.
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const loadOlder = useCallback(async () => {
+    if (!conversationId || loadingOlder || messages.length === 0) return;
+    setLoadingOlder(true);
+    try {
+      const older = await listMessagePage(conversationId, {
+        beforeId: messages[0].id,
+      });
+      if (older.messages.length === 0) return;
+      const el = scrollRef.current;
+      // Anchor on distance from the bottom: prepending changes scrollHeight, so
+      // holding scrollTop would jump the view.
+      if (el) restoreScrollRef.current = el.scrollHeight - el.scrollTop;
+      queryClient.setQueryData<MessagePage>(["messages", conversationId], (prev) => ({
+        messages: [...older.messages, ...(prev?.messages ?? [])],
+        hasMore: older.hasMore,
+      }));
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [conversationId, loadingOlder, messages, queryClient]);
 
   // Tick the elapsed clock while a turn is in flight.
   useEffect(() => {
@@ -550,24 +590,18 @@ export function ChatPage() {
           // In voice mode, resume listening so the conversation isn't stranded
           if (voiceModeRef.current) void voiceStart();
           // Inject a synthetic error message into the message list so it's visible in the chat bubble
-          queryClient.setQueryData<Message[]>(
-            ["messages", conversationId],
-            (prev) => [
-              ...(prev ?? []),
-              {
-                id: crypto.randomUUID(),
-                conversation_id: conversationId ?? "",
-                role: "assistant",
-                content: `⚠️ ${detail}`,
-                agent_type: null,
-                model_name: null,
-                cited_chunk_ids: [],
-                tool_calls: null,
-                tool_results: null,
-                created_at: new Date().toISOString(),
-              },
-            ],
-          );
+          appendMessage({
+            id: crypto.randomUUID(),
+            conversation_id: conversationId ?? "",
+            role: "assistant",
+            content: `⚠️ ${detail}`,
+            agent_type: null,
+            model_name: null,
+            cited_chunk_ids: [],
+            tool_calls: null,
+            tool_results: null,
+            created_at: new Date().toISOString(),
+          });
         }
       } catch {
         // ignore malformed frames
@@ -591,27 +625,30 @@ export function ChatPage() {
     const msg = pendingMessage;
     setPendingMessage(null);
     wsRef.current.send(JSON.stringify({ type: 'human', content: msg }));
-    queryClient.setQueryData<Message[]>(
-      ['messages', conversationId],
-      (prev) => [
-        ...(prev ?? []),
-        {
-          id: crypto.randomUUID(),
-          conversation_id: conversationId,
-          role: 'user',
-          content: msg,
-          agent_type: null,
-          model_name: null,
-          cited_chunk_ids: [],
-          tool_calls: null,
-          tool_results: null,
-          created_at: new Date().toISOString(),
-        },
-      ],
-    );
-  }, [pendingMessage, conversationId, wsConnected, queryClient]);
+    appendMessage({
+      id: crypto.randomUUID(),
+      conversation_id: conversationId,
+      role: 'user',
+      content: msg,
+      agent_type: null,
+      model_name: null,
+      cited_chunk_ids: [],
+      tool_calls: null,
+      tool_results: null,
+      created_at: new Date().toISOString(),
+    });
+  }, [pendingMessage, conversationId, wsConnected, appendMessage]);
 
   useEffect(() => {
+    const anchor = restoreScrollRef.current;
+    if (anchor !== null) {
+      // Older messages were just prepended — hold the reader's place instead of
+      // scrolling to the newest message.
+      restoreScrollRef.current = null;
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight - anchor;
+      return;
+    }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingContent, toolActivities]);
 
@@ -643,13 +680,10 @@ export function ChatPage() {
           tool_results: null,
           created_at: new Date().toISOString(),
         };
-        queryClient.setQueryData<Message[]>(
-          ["messages", conversationId],
-          (prev) => [...(prev ?? []), optimistic],
-        );
+        appendMessage(optimistic);
       }
     },
-    [conversationId, createConvMutation, queryClient],
+    [conversationId, createConvMutation, appendMessage],
   );
   handleSendRef.current = handleSend;
 
@@ -762,7 +796,7 @@ export function ChatPage() {
         )}
 
         {/* Messages */}
-        <div className="flex-1 space-y-4 overflow-y-auto pb-2">
+        <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-2">
           {!conversationId && (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
               <p className="text-lg font-medium">How can I help you today?</p>
@@ -775,6 +809,19 @@ export function ChatPage() {
           {messagesLoading && (
             <div className="flex justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {hasOlder && !messagesLoading && (
+            <div className="flex justify-center py-2">
+              <button
+                onClick={loadOlder}
+                disabled={loadingOlder}
+                className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-60"
+              >
+                {loadingOlder && <Loader2 className="h-3 w-3 animate-spin" />}
+                {loadingOlder ? "Loading…" : "Load earlier messages"}
+              </button>
             </div>
           )}
 
