@@ -1642,6 +1642,72 @@ def slides_delete_object(file_id: str, object_id: str) -> None:
     ).execute()
 
 
+def slides_slide_ids(file_id: str) -> list[str]:
+    """Every slide's object id, in deck order."""
+    svc = _build("slides", "v1")
+    deck = svc.presentations().get(
+        presentationId=file_id, fields="slides(objectId)"
+    ).execute()
+    return [s.get("objectId", "") for s in deck.get("slides") or []]
+
+
+def slides_add_slide(
+    file_id: str, requests: list[dict], *, index: int | None = None
+) -> str:
+    """Create a blank slide and draw `requests` onto it. Returns its object id.
+
+    `requests` must be built for the returned page id, so a placeholder token is
+    substituted here — the caller cannot know the id before the slide exists.
+    """
+    svc = _build("slides", "v1")
+    page_id = f"lgs{uuid.uuid4().hex[:13]}"
+    create: dict[str, Any] = {
+        "objectId": page_id,
+        "slideLayoutReference": {"predefinedLayout": "BLANK"},
+    }
+    if index is not None:
+        create["insertionIndex"] = index
+    body = [{"createSlide": create}]
+    for req in requests:
+        body.append(_slides_retarget(req, page_id))
+    svc.presentations().batchUpdate(
+        presentationId=file_id, body={"requests": body}
+    ).execute()
+    return page_id
+
+
+def _slides_retarget(request: dict, page_id: str) -> dict:
+    """Point a prepared request at the real page id."""
+    # Imported here, not at module scope: slides_renderer pulls in python-pptx,
+    # and google_service is imported on nearly every request path.
+    from services.decks.slides_renderer import PAGE_TOKEN
+
+    out = {}
+    for key, value in request.items():
+        if isinstance(value, dict):
+            value = dict(value)
+            props = value.get("elementProperties")
+            if isinstance(props, dict) and props.get("pageObjectId") == PAGE_TOKEN:
+                value["elementProperties"] = {**props, "pageObjectId": page_id}
+        out[key] = value
+    return out
+
+
+def slides_set_background(file_id: str, page_id: str, hex_colour: str) -> None:
+    """Set one slide's background to a solid colour."""
+    svc = _build("slides", "v1")
+    svc.presentations().batchUpdate(
+        presentationId=file_id,
+        body={"requests": [{"updatePageProperties": {
+            "objectId": page_id,
+            "pageProperties": {"pageBackgroundFill": {
+                "solidFill": {"color": _slides_rgb(hex_colour)},
+            }},
+            "fields": "pageBackgroundFill.solidFill.color",
+        }}]},
+    ).execute()
+
+
 def slides_replace_text(file_id: str, find: str, replace: str, match_case: bool = True) -> dict:
     """Replace every occurrence of ``find`` across a deck. Returns occurrences changed."""
     svc = _build("slides", "v1")
