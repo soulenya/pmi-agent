@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 206;
+export const BUILD_NUMBER = 207;
 export const BUILD_DATE = "2026-08-04";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 207,
+    date: "2026-08-04",
+    title: "You can stop Gerry mid-answer",
+    changes: [
+      "A Stop button appears while Gerry is working, in both the main chat and the sidebar. Whatever she has already written is kept and marked Stopped, and any file or draft she'd produced stays — stopping prevents the next step rather than undoing finished work",
+      "She won't start another tool after you've asked her to stop, which matters when a tool can send email or write to Drive",
+    ],
+  },
   {
     build: 206,
     date: "2026-08-04",

@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.45 — 2026-08-04
+**You can stop Gerry mid-answer (Morgan request)**
+
+- A **Stop** button now appears while Gerry is working — in the main chat and the sidebar chat, both while she's thinking and while text is streaming. There was previously no way to interrupt a turn at all; the only option was to wait it out or navigate away and let it finish invisibly.
+- **Stopping keeps what she's done.** The partial answer is saved and marked *Stopped*, and anything a tool already produced — a file, a draft, a pinned item — stays. Stopping prevents the *next* step; it doesn't undo completed work.
+- She won't start another tool after you've asked her to stop. That matters because a tool can send email or write to Drive, so "stop" has to mean "don't begin the next one".
+- Stop works even when the connection has dropped, which is usually when you most want it. If nothing was actually running, the button clears a stuck-looking screen instead.
+
 ### v3.3.44 — 2026-08-04
 **Fix: long conversations appeared to lose messages (Morgan field report)**
 
