@@ -978,8 +978,8 @@ TOOL_DEFINITIONS: list[dict] = [
                 "grant this refuses and nothing is changed. Google Docs support "
                 "'append', 'replace' and 'overwrite'; Google Sheets support 'set_cells' "
                 "and 'append'; Google Slides support 'replace', 'set_shape', "
-                "'add_text_box', 'delete_shape' and 'delete_slide'; plain-text/markdown "
-                "files support all three text modes. "
+                "'add_text_box', 'add_slide', 'delete_shape' and 'delete_slide'; "
+                "plain-text/markdown files support all three text modes. "
                 "Prefer 'replace' over 'overwrite' — targeted changes are far safer, and "
                 "'overwrite' throws the entire existing document away. Read the file "
                 "first with read_drive_file (or read_deck for a presentation) so you know "
@@ -997,7 +997,8 @@ TOOL_DEFINITIONS: list[dict] = [
                         "type": "string",
                         "enum": [
                             "append", "replace", "overwrite", "set_cells",
-                            "set_shape", "add_text_box", "delete_shape", "delete_slide",
+                            "set_shape", "add_text_box", "add_slide",
+                            "delete_shape", "delete_slide",
                         ],
                         "description": (
                             "append = add text at the end (or a row to a sheet); "
@@ -1009,9 +1010,35 @@ TOOL_DEFINITIONS: list[dict] = [
                             "add_text_box = put a NEW text box on a slide — the SLIDE's "
                             "object id in 'cell_range', the text in 'text', a 'role' "
                             "for its styling and a 'box' for where it goes; "
+                            "add_slide = add a WHOLE NEW slide built from one of the "
+                            "fourteen deck layouts — pass 'slide' and optionally "
+                            "'position'; "
                             "delete_shape = remove one text box, its object id in "
                             "'cell_range'; "
                             "delete_slide = remove one slide, its object id in 'cell_range'."
+                        ),
+                    },
+                    "slide": {
+                        "type": "object",
+                        "description": (
+                            "The new slide (add_slide only): an 'archetype' naming one of "
+                            "the fourteen layouts plus that layout's fields — exactly the "
+                            "shape create_deck takes for one slide. Call "
+                            "list_deck_archetypes first for the fields each accepts. The "
+                            "deck's colours, fonts and classification mark are applied "
+                            "automatically, so do not describe styling here."
+                        ),
+                        "properties": {
+                            "archetype": {"type": "string"},
+                            "headline": {"type": "string"},
+                            "eyebrow": {"type": "string"},
+                        },
+                    },
+                    "position": {
+                        "type": "integer",
+                        "description": (
+                            "Where the new slide goes, counting from 1 (add_slide only). "
+                            "Omit to append it at the end."
                         ),
                     },
                     "role": {
@@ -1167,8 +1194,9 @@ TOOL_DEFINITIONS: list[dict] = [
             "name": "list_deck_archetypes",
             "description": (
                 "List the slide layouts create_deck understands, with the fields each one "
-                "accepts. Call this before building a deck so every slide uses fields that "
-                "actually render."
+                "accepts. Call this before building a deck, or before adding a slide to an "
+                "existing one with edit_drive_file mode 'add_slide', so every slide uses "
+                "fields that actually render."
             ),
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
@@ -1183,9 +1211,10 @@ TOOL_DEFINITIONS: list[dict] = [
                 "size in inches. Use this before editing a deck — the positions are how "
                 "you find a clear area for a new text box — and to answer questions about "
                 "a presentation's contents. Edit it afterwards with edit_drive_file using "
-                "mode 'set_shape', 'add_text_box', 'delete_shape' or 'delete_slide'. When "
-                "the user asks for something to be ADDED to a slide, add a text box; do "
-                "not fold it into an existing box and call it new."
+                "mode 'set_shape', 'add_text_box', 'add_slide', 'delete_shape' or "
+                "'delete_slide'. When the user asks for something to be ADDED to a slide, "
+                "add a text box; do not fold it into an existing box and call it new. For "
+                "a whole new slide use 'add_slide', which builds it from a deck layout."
             ),
             "parameters": {
                 "type": "object",
@@ -3514,6 +3543,13 @@ async def execute_edit_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
 
     raw_box = args.get("box")
     box = raw_box if isinstance(raw_box, dict) and raw_box else None
+    raw_slide = args.get("slide")
+    slide = raw_slide if isinstance(raw_slide, dict) and raw_slide else None
+    raw_pos = args.get("position")
+    try:
+        position = int(raw_pos) if raw_pos not in (None, "") else None
+    except (TypeError, ValueError):
+        return "Error: position must be a whole number, counting slides from 1."
 
     try:
         result = await drive_edit.apply_edit(
@@ -3528,6 +3564,8 @@ async def execute_edit_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
             values=values,
             role=str(args.get("role", "") or ""),
             box=box,
+            slide=slide,
+            position=position,
         )
     except drive_edit.DriveEditError as exc:
         return str(exc)

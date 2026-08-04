@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 204;
-export const BUILD_DATE = "2026-08-03";
+export const BUILD_NUMBER = 205;
+export const BUILD_DATE = "2026-08-04";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 205,
+    date: "2026-08-04",
+    title: "Gerry can add and remove whole slides",
+    changes: [
+      "Ask her to add a slide to an existing deck and she builds it from the same fourteen layouts she uses for a new deck — at a position you name, or at the end. She reads the deck's classification mark off the slides already there rather than asking again",
+      "Page numbers are corrected after adding or deleting a slide, so a deck never ends up with two slide 4s",
+    ],
+  },
   {
     build: 204,
     date: "2026-08-03",
