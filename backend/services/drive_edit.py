@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -176,6 +177,119 @@ async def describe_file(file_id: str) -> dict:
     return await _meta(file_id)
 
 
+def _existing_classification(geometry: dict, theme) -> str:
+    """The mark already used on this deck, so a new slide carries the same one.
+
+    Read rather than asked: the deck's own slides are the authority, and a new
+    slide that disagrees with its neighbours is worse than one with no mark.
+    """
+    known = {v for v in theme.classifications.values() if v}
+    for page in geometry.get("slides") or []:
+        for el in page.get("elements") or []:
+            text = (el.get("text") or "").strip()
+            if text in known:
+                return text
+    return ""
+
+
+async def _add_slide(
+    db: AsyncSession,
+    file_id: str,
+    *,
+    slide: dict | None,
+    position: int | None,
+    run,
+) -> str:
+    """Build one archetype slide and insert it into an existing deck."""
+    from services import google_service as gs
+    from services.decks.archetypes import BY_NAME
+    from services.decks.drive_theme import get_deck_theme
+    from services.decks.slides_renderer import PAGE_TOKEN, record, to_requests
+
+    if not isinstance(slide, dict) or not slide:
+        raise DriveEditError(
+            "add_slide needs a 'slide' object: an archetype plus its fields, the "
+            "same shape create_deck takes. Call list_deck_archetypes to see them."
+        )
+    archetype = str(slide.get("archetype", "")).strip()
+    if not archetype:
+        raise DriveEditError(
+            "The slide needs an 'archetype'. Call list_deck_archetypes for the "
+            "fourteen layouts and the fields each one accepts."
+        )
+    if archetype not in BY_NAME:
+        raise DriveEditError(
+            f'"{archetype}" is not a layout. Available: {", ".join(sorted(BY_NAME))}.'
+        )
+
+    theme, _ = await get_deck_theme(db)
+    geometry = await run(lambda: gs.slides_page_geometry(file_id))
+    total = len(geometry.get("slides") or [])
+    index = total if position is None else max(0, min(int(position) - 1, total))
+
+    mark = _existing_classification(geometry, theme)
+    # A cover in first place carries no page number, matching build_pptx.
+    page_no = None if index == 0 and archetype == "cover" else index + 1
+    try:
+        ops = record(
+            archetype, slide, theme,
+            page_no=page_no, classification=mark,
+        )
+    except Exception as exc:  # noqa: BLE001 — a bad field set must read clearly
+        raise DriveEditError(
+            f"That slide could not be laid out: {exc}. Check the archetype's "
+            "fields with list_deck_archetypes."
+        ) from exc
+
+    requests = to_requests(ops, PAGE_TOKEN, f"lg{uuid.uuid4().hex[:8]}_")
+    page_id = await run(lambda: gs.slides_add_slide(file_id, requests, index=index))
+    await run(lambda: gs.slides_set_background(file_id, page_id, theme.palette.background))
+
+    renumbered = await _renumber_pages(file_id, theme, run)
+
+    where = f"at position {index + 1} of {total + 1}"
+    marked = f', marked "{mark}"' if mark else " (this deck carries no classification mark)"
+    tail = f"; renumbered {renumbered} page number(s)" if renumbered else ""
+    return f"added a {archetype} slide {where} (slide id {page_id}){marked}{tail}"
+
+
+_PAGE_NO_RE = re.compile(r"^\d{1,3}$")
+
+
+async def _renumber_pages(file_id: str, theme, run) -> int:
+    """Rewrite the page-number marks so they match the new slide order.
+
+    Inserting or deleting a slide otherwise leaves every later number stale.
+    Only shapes that sit where the theme puts the page number AND contain
+    nothing but digits are touched, so body text is never rewritten.
+    """
+    from services import google_service as gs
+
+    c = theme.chrome
+    geometry = await run(lambda: gs.slides_page_geometry(file_id))
+    fixed = 0
+    for page in geometry.get("slides") or []:
+        want = str(page["index"]).zfill(2)
+        for el in page.get("elements") or []:
+            text = (el.get("text") or "").strip()
+            if not _PAGE_NO_RE.match(text) or text == want or "left" not in el:
+                continue
+            at_corner = (
+                abs(el["left"] - c.page_no_l) <= 0.35
+                and abs(el["top"] - c.page_no_t) <= 0.35
+            )
+            if not at_corner:
+                continue
+            try:
+                await run(lambda oid=el["object_id"]: gs.slides_set_shape_text(
+                    file_id, oid, want
+                ))
+                fixed += 1
+            except Exception:  # noqa: BLE001 — a stale number must not fail the edit
+                logger.exception("Could not renumber page mark %s", el.get("object_id"))
+    return fixed
+
+
 async def _add_slide_text_box(
     db: AsyncSession,
     file_id: str,
@@ -270,6 +384,8 @@ async def apply_edit(
     values: list[list] | None = None,
     role: str = "",
     box: dict | None = None,
+    slide: dict | None = None,
+    position: int | None = None,
 ) -> str:
     """Perform one edit on a granted Drive file and return a summary line.
 
@@ -374,7 +490,13 @@ async def apply_edit(
                         "per slide."
                     )
                 await _run(lambda: gs.slides_delete_slide(file_id, cell_range))
-                summary = f"deleted slide {cell_range}"
+                from services.decks.drive_theme import get_deck_theme
+
+                theme, _ = await get_deck_theme(db)
+                fixed = await _renumber_pages(file_id, theme, _run)
+                summary = f"deleted slide {cell_range}" + (
+                    f" and renumbered {fixed} page number(s)" if fixed else ""
+                )
             elif mode == "add_text_box":
                 summary = await _add_slide_text_box(
                     db, file_id, cell_range, text, role=role, box=box, run=_run
@@ -387,10 +509,14 @@ async def apply_edit(
                     )
                 await _run(lambda: gs.slides_delete_object(file_id, cell_range))
                 summary = f"deleted shape {cell_range}"
+            elif mode == "add_slide":
+                summary = await _add_slide(
+                    db, file_id, slide=slide, position=position, run=_run
+                )
             else:
                 raise DriveEditError(
                     "Google Slides support replace, set_shape, add_text_box, "
-                    f'delete_shape and delete_slide — not "{mode}".'
+                    f'add_slide, delete_shape and delete_slide — not "{mode}".'
                 )
 
         elif _is_text_file(mime):
