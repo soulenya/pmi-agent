@@ -40,7 +40,7 @@ Key design principles:
 
 | Module                           | Description                                                                                                                                |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **AI Chat (Little Gerry)** | Streaming conversational AI with tool use, RAG over your knowledge base, and real-time WebSocket responses                                 |
+| **AI Chat (Little Gerry)** | Streaming conversational AI with tool use, RAG over your knowledge base, and real-time WebSocket responses. Turns can be **stopped mid-answer** — the partial reply and any work already done are kept — and long conversations page back through their full history |
 | **Ask Gerry about this**   | One-click button on any task, project, contact, email, draft, calendar event, KB document, generated file, or attachment — opens a chat seeded with that item (files are read in full) |
 | **Dashboard**              | At-a-glance view of tasks, pending approvals, today's meetings, and AI-generated daily briefing                                            |
 | **Daily Assistant**        | Once-a-day background scan of your Gmail and Google Tasks that surfaces suggested follow-ups and to-dos for human review (mark them done individually or in bulk), plus a docked **briefing panel** on the home screen showing today's schedule, unread email, tasks due, pending approvals, suggestions, and an Odoo snapshot |

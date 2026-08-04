@@ -141,6 +141,26 @@ async def list_messages(
     return messages
 
 
+@router.post("/{conv_id}/stop")
+async def stop_turn(
+    conv_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Ask the running turn in this conversation to stop.
+
+    HTTP rather than a WebSocket frame: during a turn the socket loop is blocked
+    forwarding frames and never reads, and a stop is most wanted precisely when
+    the socket has died.
+    """
+    from services.agent.stream_runner import request_stop
+
+    conv = await ConversationRepository(db).get(conv_id, current_user.id)
+    if conv is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found.")
+    return {"stopping": request_stop(conv_id)}
+
+
 # ── Conversation attachments (reference files) ────────────────────────────────
 
 async def _require_conversation(conv_id: uuid.UUID, user: User, db: AsyncSession):

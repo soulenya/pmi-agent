@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines, Volume2, RotateCcw } from "lucide-react";
+import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines, Volume2, RotateCcw, Square } from "lucide-react";
 import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
 import { SentenceSpeaker } from "@/lib/sentenceSpeaker";
 import {
@@ -20,6 +20,7 @@ import {
   createConversation,
   listConversations,
   listMessagePage,
+  stopTurn,
   updateConversation,
   type MessagePage,
 } from "@/api/chat";
@@ -705,6 +706,33 @@ export function ChatPage() {
     }
   }, [messages, handleSend, setPendingMessage]);
 
+  // ── Stop ────────────────────────────────────────────────────────────────
+  // The server finishes cleanly and saves whatever Gerry produced, so the busy
+  // state is cleared by the arriving `done` frame rather than optimistically.
+  const [stopping, setStopping] = useState(false);
+  const handleStop = useCallback(async () => {
+    if (!conversationId) return;
+    setStopping(true);
+    try {
+      const { stopping: accepted } = await stopTurn(conversationId);
+      if (!accepted) {
+        // Nothing was running server-side — the UI was stuck, so clear it.
+        setBusySince(null);
+        setToolActivities([]);
+        setStreamingContent(null);
+        queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      }
+    } catch {
+      /* leave the busy state alone; the turn may still land */
+    } finally {
+      setStopping(false);
+    }
+  }, [conversationId, queryClient]);
+
+  useEffect(() => {
+    if (!busySince) setStopping(false);
+  }, [busySince]);
+
   return (
     <div className="flex h-full gap-4">
       {/* â”€â”€ Conversation sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
@@ -887,16 +915,27 @@ export function ChatPage() {
                     background; the answer will appear here when it's ready.
                   </p>
                 )}
-                {(elapsedSec >= 90 || !wsConnected) && (
+                <div className="mt-1 flex flex-wrap items-center gap-2">
                   <button
-                    onClick={resendLast}
-                    className="mt-1 flex w-fit items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-accent"
-                    title="Give up on this attempt and send your last message again (a duplicate reply may still arrive)"
+                    onClick={handleStop}
+                    disabled={stopping}
+                    className="flex w-fit items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-60"
+                    title="Stop here. Anything Gerry has already done is kept."
                   >
-                    <RotateCcw className="h-3 w-3" />
-                    Stuck? Resend message
+                    <Square className="h-3 w-3" />
+                    {stopping ? "Stopping…" : "Stop"}
                   </button>
-                )}
+                  {(elapsedSec >= 90 || !wsConnected) && (
+                    <button
+                      onClick={resendLast}
+                      className="flex w-fit items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-accent"
+                      title="Give up on this attempt and send your last message again (a duplicate reply may still arrive)"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Stuck? Resend message
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -936,6 +975,21 @@ export function ChatPage() {
                 created_at: new Date().toISOString(),
               }}
             />
+          )}
+
+          {/* Stop while text is streaming — the busy card above is hidden then. */}
+          {streamingContent && (
+            <div className="ml-11">
+              <button
+                onClick={handleStop}
+                disabled={stopping}
+                className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-60"
+                title="Stop here. What Gerry has written so far is kept."
+              >
+                <Square className="h-3 w-3" />
+                {stopping ? "Stopping…" : "Stop"}
+              </button>
+            </div>
           )}
 
           <div ref={bottomRef} />

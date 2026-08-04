@@ -153,6 +153,8 @@ class WSDone(BaseModel):
     conversation_id: str
     message_id: str
     cited_chunk_ids: list[str] = Field(default_factory=list)
+    # True when the turn ended because the user asked it to stop.
+    stopped: bool = False
 
 
 class WSError(BaseModel):
