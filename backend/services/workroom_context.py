@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 MAX_WORKROOM_CONTEXT_CHARS = 4_000
 _JOURNAL_ENTRIES = 5
 
+# Stable prefix so goal edits can be found again in the journal and rendered
+# separately from ordinary progress notes.
+GOAL_CHANGE_PREFIX = "GOAL CHANGED"
+_GOAL_SNIPPET_CHARS = 400
+
 _KIND_LABELS = {
     "drive_doc": "Drive doc",
     "kb_doc": "KB document",
@@ -76,19 +81,40 @@ async def build_workroom_context(db: AsyncSession, conversation_id) -> str:
             (
                 await db.execute(
                     select(WorkroomJournalEntry)
-                    .where(WorkroomJournalEntry.workroom_id == room.id)
+                    .where(
+                        WorkroomJournalEntry.workroom_id == room.id,
+                        WorkroomJournalEntry.entry.notlike(f"{GOAL_CHANGE_PREFIX}%"),
+                    )
                     .order_by(desc(WorkroomJournalEntry.created_at))
                     .limit(_JOURNAL_ENTRIES)
                 )
             ).scalars()
         )
+        last_goal_change = (
+            await db.execute(
+                select(WorkroomJournalEntry)
+                .where(
+                    WorkroomJournalEntry.workroom_id == room.id,
+                    WorkroomJournalEntry.entry.like(f"{GOAL_CHANGE_PREFIX}%"),
+                )
+                .order_by(desc(WorkroomJournalEntry.created_at))
+                .limit(1)
+            )
+        ).scalars().first()
 
         lines = [
             f'\n\nWORKROOM: "{room.title}" — this conversation is a persistent '
             "co-work space shared by you and the user across sessions.",
         ]
         if room.goal.strip():
-            lines.append(f"GOAL: {room.goal.strip()}")
+            lines.append(f"GOAL (always current, re-read every turn): {room.goal.strip()}")
+        if last_goal_change is not None:
+            stamp = (
+                last_goal_change.created_at.strftime("%Y-%m-%d")
+                if last_goal_change.created_at
+                else ""
+            )
+            lines.append(f"{stamp}: {last_goal_change.entry}")
         if items:
             lines.append("PINNED ITEMS:")
             for it in items:
@@ -100,13 +126,20 @@ async def build_workroom_context(db: AsyncSession, conversation_id) -> str:
             for j in journal:
                 stamp = j.created_at.strftime("%Y-%m-%d") if j.created_at else ""
                 lines.append(f"- {stamp}: {j.entry}")
-        lines.append(
+        # Appended after the cap: it is the last line, so a room with many pins
+        # would otherwise lose the very rules that keep the goal honest.
+        closing = (
             "Ground your work in this room's goal and pinned items. Use pinned "
             "Drive/KB references directly (read_drive_file, "
-            "read_knowledge_base_document) instead of searching from scratch."
+            "read_knowledge_base_document) instead of searching from scratch. "
+            "The user edits the goal, title and pins directly in the app and you "
+            "get no notification — the GOAL above is whatever it says right now, "
+            "so never tell the user their goal is unchanged or still the original. "
+            "If they say they changed it, they did: read it back to them and, when "
+            "a GOAL CHANGED line is present, use it to say what actually differs."
         )
-        block = "\n".join(lines) + "\n"
-        return block[:MAX_WORKROOM_CONTEXT_CHARS]
+        body = "\n".join(lines)[: MAX_WORKROOM_CONTEXT_CHARS - len(closing) - 2]
+        return f"{body}\n{closing}\n"
     except Exception:  # noqa: BLE001 — context must never break a turn
         logger.exception("Failed to build workroom context for %s", conversation_id)
         return ""
@@ -182,6 +215,61 @@ async def add_journal_entry(
     db.add(j)
     await db.flush()
     return j
+
+
+def _snippet(text: str) -> str:
+    text = " ".join((text or "").split())
+    return (
+        text[:_GOAL_SNIPPET_CHARS] + "…"
+        if len(text) > _GOAL_SNIPPET_CHARS
+        else text or "(empty)"
+    )
+
+
+async def record_goal_change(
+    db: AsyncSession, room: Workroom, old_goal: str, new_goal: str, actor: str
+) -> None:
+    """Journal a goal edit with its previous wording. Nothing else keeps the old
+    goal, so without this a later turn cannot tell the goal ever changed."""
+    if (old_goal or "").strip() == (new_goal or "").strip():
+        return
+    await add_journal_entry(
+        db,
+        room,
+        f'{GOAL_CHANGE_PREFIX} by {actor}. Was: "{_snippet(old_goal)}" '
+        f'Now: "{_snippet(new_goal)}"',
+    )
+
+
+async def find_pinned_rooms(
+    db: AsyncSession, user_id: uuid.UUID, ref_ids: list[str]
+) -> dict[str, list[str]]:
+    """ref_id → titles of the ACTIVE rooms pinning it. Lets a tool notice it is
+    about to open a file that belongs to a different room. Never raises."""
+    wanted = [r for r in ref_ids if r]
+    if not wanted:
+        return {}
+    try:
+        rows = (
+            await db.execute(
+                select(WorkroomItem.ref_id, Workroom.title)
+                .join(Workroom, Workroom.id == WorkroomItem.workroom_id)
+                .where(
+                    Workroom.user_id == user_id,
+                    Workroom.status == "active",
+                    WorkroomItem.ref_id.in_(wanted),
+                )
+            )
+        ).all()
+    except Exception:  # noqa: BLE001 — a lookup hint must never break a tool
+        logger.exception("Failed to look up pinned rooms")
+        return {}
+    out: dict[str, list[str]] = {}
+    for ref_id, title in rows:
+        titles = out.setdefault(ref_id, [])
+        if title not in titles:
+            titles.append(title)
+    return out
 
 
 async def log_room_event(db: AsyncSession, conversation_id, entry: str) -> None:

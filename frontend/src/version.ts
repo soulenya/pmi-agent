@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 208;
+export const BUILD_NUMBER = 209;
 export const BUILD_DATE = "2026-08-05";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 209,
+    date: "2026-08-05",
+    title: "Gerry keeps up with the changes you make yourself",
+    changes: [
+      "Editing a workroom's goal or title is recorded in the room journal with the old wording, the new wording and who changed it, so Gerry can no longer tell you the goal is still the original",
+      "Drive results say which workroom a file belongs to; opening another room's file warns you, and editing one is refused until you confirm",
+      "Reading a document or deck reports when it was last edited and by whom, so Gerry works from your live version instead of a stale copy when you're both in the same file",
+    ],
+  },
   {
     build: 208,
     date: "2026-08-05",

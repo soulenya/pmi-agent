@@ -1094,6 +1094,14 @@ TOOL_DEFINITIONS: list[dict] = [
                         "description": "Rows of cell values for Sheets, e.g. [[\"2026-07-31\", 42]].",
                         "items": {"type": "array", "items": {"type": "string"}},
                     },
+                    "confirm_cross_room": {
+                        "type": "boolean",
+                        "description": (
+                            "Set true only after the user has confirmed they really want "
+                            "you to edit a file that belongs to a different workroom. "
+                            "Never set it pre-emptively."
+                        ),
+                    },
                 },
                 "required": ["file_id", "mode"],
             },
@@ -2998,6 +3006,60 @@ def _google_not_connected() -> str:
     )
 
 
+async def _cross_room_note(ctx: ToolContext, file_id: str) -> str:
+    """Flag a file pinned to a workroom other than the one we are sitting in —
+    the usual cause of opening the previous project's deck by mistake."""
+    if not file_id:
+        return ""
+    from services.workroom_context import find_pinned_rooms, get_workroom_for_conversation
+
+    try:
+        owners = (await find_pinned_rooms(ctx.db, ctx.user_id, [file_id])).get(file_id, [])
+        if not owners:
+            return ""
+        here = await get_workroom_for_conversation(ctx.db, ctx.conversation_id)
+        current = here.title if here is not None else ""
+        others = [t for t in owners if t != current]
+        if not others:
+            return ""
+        listing = ", ".join(f'"{t}"' for t in others)
+        where = f' You are in workroom "{current}".' if current else ""
+        return (
+            f"WRONG-ROOM WARNING: this file is pinned to workroom {listing}, not "
+            f"to the room you are working in.{where} Say which file you have "
+            "opened and confirm with the user before using or editing it.\n\n"
+        )
+    except Exception:  # noqa: BLE001 — a hint must never break the tool
+        logger.exception("Cross-room check failed for %s", file_id)
+        return ""
+
+
+def _freshness_note(modified_iso: str, modified_by: str = "") -> str:
+    """One line on when the file last moved and who moved it, so 'check on
+    progress' reads the live file instead of trusting a stale earlier copy."""
+    if not modified_iso:
+        return ""
+    who = f" by {modified_by}" if modified_by else ""
+    try:
+        when = datetime.fromisoformat(modified_iso.replace("Z", "+00:00"))
+    except ValueError:
+        return f"Last edited {modified_iso}{who}."
+    mins = (datetime.now(timezone.utc) - when).total_seconds() / 60
+    if mins < 0:
+        mins = 0
+    if mins < 30:
+        ago = "just now" if mins < 1 else f"{int(mins)} minute(s) ago"
+        return (
+            f"Last edited {ago}{who}. The user may have this open and be editing "
+            "it alongside you — this content is the live version, so trust it over "
+            "anything you wrote or read earlier, do not re-apply edits you already "
+            "made, and do not overwrite their wording."
+        )
+    if mins < 60 * 24:
+        return f"Last edited {int(mins // 60)} hour(s) ago{who}."
+    return f"Last edited {when.strftime('%Y-%m-%d %H:%M UTC')}{who}."
+
+
 async def execute_search_gmail(ctx: ToolContext, args: dict[str, Any]) -> str:
     import asyncio
     from services.google_service import gmail_search, get_credentials
@@ -3116,11 +3178,27 @@ async def execute_search_drive(ctx: ToolContext, args: dict[str, Any]) -> str:
     )
     if not files:
         return f"No Drive files found for: {query}" + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
+    from services.workroom_context import find_pinned_rooms, get_workroom_for_conversation
+    owners = await find_pinned_rooms(ctx.db, ctx.user_id, [f["id"] for f in files])
+    here = await get_workroom_for_conversation(ctx.db, ctx.conversation_id)
+    current = here.title if here is not None else ""
     lines = [f"Drive files for '{query}' ({len(files)} found):\n"]
     for f in files:
+        rooms = owners.get(f["id"], [])
+        if current and current in rooms:
+            room_line = "\nWorkroom: pinned to THIS room"
+        elif rooms:
+            room_line = "\nWorkroom: belongs to " + ", ".join(f'"{t}"' for t in rooms)
+        else:
+            room_line = ""
         lines.append(
             f"ID: {f['id']}\nName: {f['name']}\nType: {f['type']}\n"
-            f"Modified: {f['modified']}\nURL: {f['url']}"
+            f"Modified: {f['modified']}\nURL: {f['url']}{room_line}"
+        )
+    if current:
+        lines.append(
+            f'Prefer files pinned to "{current}". Never open one belonging to '
+            "another room without saying so and asking first."
         )
     return "\n\n".join(lines) + (EXCLUDED_NOTE.format(n=excluded) if excluded else "")
 
@@ -3361,6 +3439,8 @@ async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
     content = result.get("content", "")
     if not content:
         return f"File '{result.get('name', file_id)}' has no readable text content."
+    warning = await _cross_room_note(ctx, file_id)
+    freshness = _freshness_note(result.get("modified", ""), result.get("modified_by", ""))
     total = len(content)
     if offset >= total:
         return (
@@ -3382,8 +3462,9 @@ async def execute_read_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
             else ""
         )
     return (
-        f"File: {result['name']}\nType: {result['type']}\nURL: {result['url']}\n"
-        f"Characters {offset:,}–{end:,} of {total:,}:\n\n"
+        f"{warning}File: {result['name']}\nType: {result['type']}\nURL: {result['url']}\n"
+        + (f"{freshness}\n" if freshness else "")
+        + f"Characters {offset:,}–{end:,} of {total:,}:\n\n"
         f"{page}{note}"
     )
 
@@ -3535,6 +3616,15 @@ async def execute_edit_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
     mode = str(args.get("mode", "")).strip().lower()
     if not mode:
         return "Error: mode is required (append, replace, overwrite or set_cells)."
+    # Editing another room's file is the expensive mistake, so stop rather than warn.
+    if not bool(args.get("confirm_cross_room")):
+        warning = await _cross_room_note(ctx, file_id)
+        if warning:
+            return (
+                warning.strip()
+                + " Nothing was edited. Name the file to the user, and only call "
+                "edit_drive_file again with confirm_cross_room=true once they agree."
+            )
 
     raw_values = args.get("values")
     values: list[list] | None = None
@@ -3882,7 +3972,7 @@ async def execute_remove_from_workroom(ctx: ToolContext, args: dict[str, Any]) -
 
 
 async def execute_update_workroom(ctx: ToolContext, args: dict[str, Any]) -> str:
-    from services.workroom_context import add_journal_entry
+    from services.workroom_context import add_journal_entry, record_goal_change
 
     room, err = await _resolve_room_or_error(ctx, args)
     if err:
@@ -3893,7 +3983,9 @@ async def execute_update_workroom(ctx: ToolContext, args: dict[str, Any]) -> str
         room.title = new_title[:200]
         changed.append(f'title → "{room.title}"')
     if args.get("goal") is not None and "goal" in args:
-        room.goal = str(args["goal"]).strip()[:4000]
+        new_goal = str(args["goal"]).strip()[:4000]
+        await record_goal_change(ctx.db, room, room.goal, new_goal, "Gerry, at the user's request")
+        room.goal = new_goal
         changed.append("goal updated")
     status = str(args.get("status", "")).strip().lower()
     if status:
@@ -5292,7 +5384,7 @@ async def execute_read_deck(ctx: ToolContext, args: dict[str, Any]) -> str:
     """Read a Google Slides deck, including the object ids needed to edit it."""
     import asyncio
 
-    from services.google_service import get_credentials, slides_read
+    from services.google_service import drive_get_metadata, get_credentials, slides_read
 
     if not get_credentials():
         return _google_not_connected()
@@ -5337,6 +5429,22 @@ async def execute_read_deck(ctx: ToolContext, args: dict[str, Any]) -> str:
         "space before adding a box.",
         "",
     ]
+    try:
+        meta = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: drive_get_metadata(file_id)
+        )
+    except Exception:  # noqa: BLE001 — freshness is a hint, not the payload
+        meta = None
+    stale = (
+        _freshness_note(meta.get("modified", ""), meta.get("modified_by", ""))
+        if meta
+        else ""
+    )
+    if stale:
+        lines.insert(0, stale)
+    warning = await _cross_room_note(ctx, file_id)
+    if warning:
+        lines.insert(0, warning.strip())
     for slide in deck["slides"]:
         lines.append(f"Slide {slide['index']} (slide id {slide['object_id']}):")
         if not slide["text"]:
