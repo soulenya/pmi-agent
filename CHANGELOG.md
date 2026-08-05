@@ -4,6 +4,11 @@
 
 ## Changelog
 
+### v3.3.48 — 2026-08-05
+**Fix: email subjects were squeezed into a single column of words (Morgan field report)**
+
+- The subject of an open email shared its row with the eight action buttons, so a long one was crushed into a narrow strip — "Re: Follow-up: Regulatory Rationale for New Contract Sections" came out one word per line. The subject now gets the full width of the pane on its own line, with the buttons on the row beneath, wrapping when they run out of room.
+
 ### v3.3.47 — 2026-08-05
 **Gerry keeps up with the changes you make yourself (Morgan field report)**
 
