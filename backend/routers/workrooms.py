@@ -199,10 +199,19 @@ async def update_workroom(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> WorkroomOut:
+    from services.workroom_context import add_journal_entry, record_goal_change
+
     room = await _get_owned_room(db, room_id, current_user.id)
-    if body.title is not None:
+    # Journal edits made here: Gerry only ever sees the current row, so an
+    # unrecorded goal change leaves her insisting the goal never moved.
+    actor = f"{current_user.display_name or current_user.email} (edited directly in the app, not through you)"
+    if body.title is not None and body.title.strip() != room.title:
+        await add_journal_entry(
+            db, room, f'Room renamed by {actor}: "{room.title}" → "{body.title.strip()}"'
+        )
         room.title = body.title.strip()
     if body.goal is not None:
+        await record_goal_change(db, room, room.goal, body.goal.strip(), actor)
         room.goal = body.goal.strip()
     if body.status is not None:
         room.status = body.status

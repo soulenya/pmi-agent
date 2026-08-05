@@ -1256,7 +1256,7 @@ def drive_get_content(file_id: str, max_chars: int | None = 10_000) -> dict:
     svc = _build("drive", "v3")
     meta = svc.files().get(
         fileId=file_id,
-        fields="id,name,mimeType,webViewLink,modifiedTime",
+        fields="id,name,mimeType,webViewLink,modifiedTime,lastModifyingUser(displayName)",
         supportsAllDrives=True,
     ).execute()
     mime = meta.get("mimeType", "")
@@ -1331,6 +1331,7 @@ def drive_get_content(file_id: str, max_chars: int | None = 10_000) -> dict:
         "type": mime,
         "url": meta.get("webViewLink", ""),
         "modified": meta.get("modifiedTime", ""),
+        "modified_by": (meta.get("lastModifyingUser") or {}).get("displayName", ""),
         "content": content,
         "truncated": was_truncated,
         "total_chars": total_chars,
@@ -1924,7 +1925,10 @@ def drive_get_metadata(file_id: str) -> dict | None:
     try:
         meta = svc.files().get(
             fileId=file_id,
-            fields="id,name,mimeType,modifiedTime,trashed,webViewLink",
+            fields=(
+                "id,name,mimeType,modifiedTime,trashed,webViewLink,"
+                "lastModifyingUser(displayName)"
+            ),
             supportsAllDrives=True,
         ).execute()
     except HttpError as exc:
@@ -1936,6 +1940,7 @@ def drive_get_metadata(file_id: str) -> dict | None:
         "name": meta.get("name", ""),
         "mimeType": meta.get("mimeType", ""),
         "modified": meta.get("modifiedTime", ""),
+        "modified_by": (meta.get("lastModifyingUser") or {}).get("displayName", ""),
         "trashed": bool(meta.get("trashed", False)),
         "url": meta.get("webViewLink", ""),
     }
