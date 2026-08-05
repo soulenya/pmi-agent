@@ -1946,11 +1946,12 @@ function ThreadReader({
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <h2 className="text-xl font-semibold text-white">
+      {/* Subject gets its own row: sharing one with eight buttons crushed it to a word per line. */}
+      <div className="mb-4 space-y-3">
+        <h2 className="text-xl font-semibold text-white break-words">
           {detail.subject || "(no subject)"}
         </h2>
-        <div className="shrink-0 flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={openReply}
             className="text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 transition-colors flex items-center gap-1.5"
