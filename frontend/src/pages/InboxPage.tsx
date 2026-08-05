@@ -20,7 +20,9 @@ import {
   Trash2,
   Loader2,
   ReplyAll,
+  Forward,
   Check,
+  ChevronDown,
   Folder,
   ArrowUpDown,
   X,
@@ -77,6 +79,8 @@ interface ThreadMessage {
   date: string;
   body: string;
   body_html: string;
+  /** Per-message UNREAD label — drives which parts of a thread open expanded. */
+  unread?: boolean;
   attachments: ThreadAttachment[];
 }
 
@@ -943,7 +947,15 @@ export default function InboxPage() {
           ) : thread.isLoading ? (
             <p className="p-6 text-sm text-zinc-500">Loading conversation…</p>
           ) : thread.data ? (
-            <ThreadReader detail={thread.data} signature={resolveSig(signature.data)} />
+            <ThreadReader
+              // Remount per thread so reply boxes, expand state and the
+              // "what was unread when I opened this" snapshot all reset.
+              key={thread.data.thread_id}
+              detail={thread.data}
+              signature={resolveSig(signature.data)}
+              onTrash={() => trashThread.mutate(thread.data!.thread_id)}
+              trashing={trashThread.isPending}
+            />
           ) : (
             <p className="p-6 text-sm text-red-400">Could not load this conversation.</p>
           )}
@@ -1684,7 +1696,17 @@ function TagModal({ threadId, onClose }: { threadId: string; onClose: () => void
   );
 }
 
-function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: string }) {
+function ThreadReader({
+  detail,
+  signature,
+  onTrash,
+  trashing,
+}: {
+  detail: ThreadDetail;
+  signature: string;
+  onTrash: () => void;
+  trashing: boolean;
+}) {
   const qc = useQueryClient();
   const [showImport, setShowImport] = useState(false);
   const [title, setTitle] = useState(
@@ -1701,6 +1723,76 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
   const [replyBody, setReplyBody] = useState("");
   const [instruction, setInstruction] = useState("");
   const [showTags, setShowTags] = useState(false);
+  const [showForward, setShowForward] = useState(false);
+  const [forwardTo, setForwardTo] = useState("");
+  const [forwardNote, setForwardNote] = useState("");
+  const [forwardAttachments, setForwardAttachments] = useState(true);
+
+  // Which messages were unread when this thread was opened. Frozen on mount:
+  // marking the thread read (below) must not collapse what you're reading.
+  const [initialUnread] = useState(
+    () => new Set(detail.messages.filter((m) => m.unread).map((m) => m.id)),
+  );
+  // Messages the user has clicked, which flip whatever the default was.
+  const [toggled, setToggled] = useState<Set<string>>(new Set());
+  // Nothing was unread (or the backend didn't say): show the newest message so
+  // the pane is never just a wall of collapsed rows.
+  const openByDefault = initialUnread.size > 0 ? initialUnread : new Set([last?.id ?? ""]);
+
+  /** Open when the default and the user's click disagree — a plain XOR. */
+  function isOpen(m: ThreadMessage) {
+    return openByDefault.has(m.id) !== toggled.has(m.id);
+  }
+  function toggleMessage(id: string) {
+    setToggled((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  const collapsedCount = detail.messages.filter((m) => !isOpen(m)).length;
+
+  /** Rolling summary so the collapsed part of the thread isn't lost. */
+  const summary = useQuery<{ summary: string }>({
+    queryKey: ["gmail-thread-summary", detail.thread_id],
+    queryFn: async () =>
+      (await apiClient.get(`${GOOGLE_PREFIX}/gmail/thread/${detail.thread_id}/summary`))
+        .data,
+    enabled: detail.messages.length > 1,
+    staleTime: 10 * 60_000,
+    retry: false,
+  });
+
+  /** Clear the inbox highlight once you've actually looked at the thread. */
+  const setUnread = useMutation({
+    mutationFn: async (unread: boolean) => {
+      const path = unread ? "unread" : "read";
+      const res = await apiClient.post(
+        `${GOOGLE_PREFIX}/gmail/thread/${detail.thread_id}/${path}`,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, unread) => {
+      // Patch the cached list rather than refetching: the highlight clears
+      // immediately, and a thread you're reading doesn't vanish out from under
+      // you while the "Unread" filter is active.
+      for (const key of [["gmail-inbox"], ["gmail-by-tag"]]) {
+        qc.setQueriesData<InboxThread[]>({ queryKey: key }, (old) =>
+          old?.map((t) => (t.thread_id === detail.thread_id ? { ...t, unread } : t)),
+        );
+      }
+    },
+  });
+
+  const markedRef = useRef(false);
+  useEffect(() => {
+    // Once per opened thread, and only if there was something to clear.
+    if (markedRef.current || initialUnread.size === 0) return;
+    markedRef.current = true;
+    setUnread.mutate(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail.thread_id]);
 
   // Pending Gerry drafts (and other approvals) tied to this thread — reviewed inline.
   const threadApprovals = usePendingApprovals({
@@ -1717,6 +1809,7 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
     setInstruction("");
     setShowReply(true);
     setShowImport(false);
+    setShowForward(false);
     setNotice(null);
   }
 
@@ -1750,8 +1843,38 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
     setInstruction("");
     setShowReply(true);
     setShowImport(false);
+    setShowForward(false);
     setNotice(null);
   }
+
+  /** Forward the newest message in the thread, attachments and all. */
+  function openForward() {
+    setForwardTo("");
+    setForwardNote(signature ? `\n\n${signature}` : "");
+    setShowForward(true);
+    setShowReply(false);
+    setShowImport(false);
+    setNotice(null);
+  }
+
+  const sendForward = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post(`${GOOGLE_PREFIX}/gmail/forward`, {
+        message_id: last?.id,
+        to: forwardTo.trim(),
+        note: forwardNote,
+        include_attachments: forwardAttachments,
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      setShowForward(false);
+      setForwardTo("");
+      setForwardNote("");
+      setNotice({ kind: "ok", text: "Forwarded." });
+    },
+    onError: (e) => setNotice({ kind: "error", text: getError(e) }),
+  });
 
   const sendReply = useMutation({
     mutationFn: async () => {
@@ -1842,6 +1965,13 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
             <ReplyAll className="w-3.5 h-3.5" />
             Reply all
           </button>
+          <button
+            onClick={openForward}
+            className="text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 transition-colors flex items-center gap-1.5"
+          >
+            <Forward className="w-3.5 h-3.5" />
+            Forward
+          </button>
           <AskGerryButton
             label="Ask Gerry"
             className="px-3 py-1.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 hover:text-amber-200"
@@ -1880,6 +2010,39 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
           >
             <BookPlus className="w-3.5 h-3.5" />
             Add to Knowledge Base
+          </button>
+          <button
+            onClick={() => {
+              setUnread.mutate(true, {
+                onSuccess: () =>
+                  setNotice({
+                    kind: "ok",
+                    text: "Marked unread — it will show as new in your inbox again.",
+                  }),
+                onError: (e) => setNotice({ kind: "error", text: getError(e) }),
+              });
+            }}
+            disabled={setUnread.isPending}
+            className="text-xs px-3 py-1.5 rounded border border-zinc-600 text-zinc-300 hover:border-zinc-400 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Mail className="w-3.5 h-3.5" />
+            Mark unread
+          </button>
+          <button
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Move this email to Trash? You can recover it from Gmail for 30 days.",
+                )
+              ) {
+                onTrash();
+              }
+            }}
+            disabled={trashing}
+            className="text-xs px-3 py-1.5 rounded border border-zinc-600 text-zinc-400 hover:border-red-500 hover:text-red-400 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete
           </button>
         </div>
       </div>
@@ -1986,6 +2149,56 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
         </div>
       )}
 
+      {showForward && (
+        <div className="mb-4 rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-3">
+          <label className="block text-xs text-zinc-500">
+            Forward to
+            <RecipientInput value={forwardTo} onChange={setForwardTo} />
+          </label>
+          <p className="text-xs text-zinc-500">
+            Subject:{" "}
+            <span className="text-zinc-300">
+              {/^fwd:/i.test(detail.subject) ? detail.subject : `Fwd: ${detail.subject}`}
+            </span>
+          </p>
+          <textarea
+            value={forwardNote}
+            onChange={(e) => setForwardNote(e.target.value)}
+            rows={4}
+            placeholder="Add a note above the forwarded message (optional)…"
+            className="w-full text-sm px-2 py-1.5 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 focus:outline-none focus:border-zinc-500"
+          />
+          <label className="flex items-center gap-2 text-xs text-zinc-400">
+            <input
+              type="checkbox"
+              checked={forwardAttachments}
+              onChange={(e) => setForwardAttachments(e.target.checked)}
+              className="accent-amber-600"
+            />
+            Include the original attachments
+          </label>
+          <p className="text-[11px] text-zinc-600">
+            The most recent message in this thread is quoted below your note.
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => sendForward.mutate()}
+              disabled={sendForward.isPending || !forwardTo.trim()}
+              className="text-xs px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            >
+              <Forward className="w-3.5 h-3.5" />
+              {sendForward.isPending ? "Forwarding…" : "Forward"}
+            </button>
+            <button
+              onClick={() => setShowForward(false)}
+              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         {(threadApprovals.data ?? []).length > 0 && (
           <div className="space-y-3">
@@ -2004,17 +2217,67 @@ function ThreadReader({ detail, signature }: { detail: ThreadDetail; signature: 
             ))}
           </div>
         )}
-        {[...detail.messages].reverse().map((m) => (
-          <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-            <div className="flex items-baseline justify-between gap-3 mb-2">
-              <p className="text-sm font-medium text-zinc-200">{senderName(m.from)}</p>
-              <p className="text-xs text-zinc-500 shrink-0">{fmtDate(m.date)}</p>
-            </div>
-            <p className="text-xs text-zinc-500 mb-3">to {m.to}</p>
-            <MessageBody message={m} />
-            <Attachments message={m} />
+        {collapsedCount > 0 && detail.messages.length > 1 && (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
+            <p className="text-xs uppercase tracking-wide text-zinc-500 mb-2 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              Conversation so far
+            </p>
+            {summary.isLoading ? (
+              <p className="text-sm text-zinc-500 flex items-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Gerry is summarising this thread…
+              </p>
+            ) : summary.data?.summary ? (
+              <p className="text-sm text-zinc-300 whitespace-pre-wrap">
+                {summary.data.summary}
+              </p>
+            ) : (
+              <p className="text-sm text-zinc-500">
+                {collapsedCount} earlier message{collapsedCount === 1 ? "" : "s"} —
+                expand any of them below to read in full.
+              </p>
+            )}
           </div>
-        ))}
+        )}
+        {[...detail.messages].reverse().map((m) =>
+          isOpen(m) ? (
+            <div key={m.id} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+              <button
+                onClick={() => toggleMessage(m.id)}
+                className="w-full text-left group"
+                title="Collapse this message"
+              >
+                <div className="flex items-baseline justify-between gap-3 mb-2">
+                  <p className="text-sm font-medium text-zinc-200 flex items-center gap-1.5">
+                    <ChevronDown className="w-3.5 h-3.5 text-zinc-500 group-hover:text-zinc-300" />
+                    {senderName(m.from)}
+                  </p>
+                  <p className="text-xs text-zinc-500 shrink-0">{fmtDate(m.date)}</p>
+                </div>
+                <p className="text-xs text-zinc-500 mb-3">to {m.to}</p>
+              </button>
+              <MessageBody message={m} />
+              <Attachments message={m} />
+            </div>
+          ) : (
+            <button
+              key={m.id}
+              onClick={() => toggleMessage(m.id)}
+              className="w-full text-left rounded-lg border border-zinc-800/70 bg-zinc-900/30 px-4 py-2.5 hover:border-zinc-700 hover:bg-zinc-900/60 transition-colors"
+              title="Expand this message"
+            >
+              <div className="flex items-baseline gap-3">
+                <ChevronDown className="w-3.5 h-3.5 text-zinc-600 shrink-0 -rotate-90" />
+                <p className="text-sm text-zinc-400 shrink-0">{senderName(m.from)}</p>
+                <p className="text-xs text-zinc-600 truncate flex-1">
+                  {(m.body || "").replace(/\s+/g, " ").slice(0, 120)}
+                </p>
+                <p className="text-xs text-zinc-600 shrink-0">{fmtDate(m.date)}</p>
+              </div>
+            </button>
+          ),
+        )}
       </div>
     </div>
   );
