@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.47 — 2026-08-05
+**Gerry keeps up with the changes you make yourself (Morgan field report)**
+
+- **Editing a workroom's goal is now recorded.** Changing the goal in the Goal box used to overwrite it silently — nothing anywhere kept the previous wording. Gerry would read the new goal, have no evidence it had ever moved, and tell you it was "still the original". The room's journal now logs every goal and title edit with the old wording, the new wording, and who made it, and the room carries that line into every conversation.
+- **Gerry is told, in the room itself, that you edit the goal directly** and that she gets no notification when you do. She is instructed to take the goal in front of her as current and never to claim it hasn't changed. If you say you changed it, she believes you and reads it back.
+- **She stops opening the wrong project's document.** Drive search results now say which workroom a file belongs to, opening one that is pinned to a different room prints a plain warning naming both rooms, and **editing** another room's file is refused outright until you confirm — a deck from last month's pitch is no longer one fuzzy filename match away from being rewritten.
+- **She notices when you're working in the same document.** Reading a Drive file or a deck now reports when it was last edited and by whom. If it moved in the last half hour, she's told you may have it open, that what she just read is the live version, and not to re-apply edits she made earlier or overwrite your wording.
+
 ### v3.3.46 — 2026-08-05
 **Mail behaves like mail (Morgan request)**
 
