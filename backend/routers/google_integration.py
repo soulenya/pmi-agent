@@ -864,6 +864,131 @@ async def gmail_thread_trash(thread_id: str, _user=Depends(get_current_user)):
         raise HTTPException(502, f"Could not move the email to Trash: {exc}")
 
 
+def _modify_scope_error(exc: Exception, action: str) -> HTTPException:
+    """Turn a Gmail permission failure into a 'reconnect Google' message.
+
+    Accounts connected before ``gmail.modify`` was added to SCOPES hold a
+    narrower grant, so label changes come back as 403 until they reconnect.
+    """
+    msg = str(exc).lower()
+    if "insufficient" in msg or "scope" in msg or "permission" in msg or "403" in msg:
+        return HTTPException(
+            403,
+            f"{action} needs an extra Google permission. Please reconnect your "
+            "Google account (Google Workspace → reconnect) to grant it.",
+        )
+    return HTTPException(502, f"{action} failed: {exc}")
+
+
+@router.post("/gmail/thread/{thread_id}/read")
+async def gmail_thread_mark_read(thread_id: str, _user=Depends(get_current_user)):
+    """Clear the UNREAD label on a thread — used when you open it in Gerry."""
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+    try:
+        return gs.gmail_set_thread_unread(thread_id, unread=False)
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+    except Exception as exc:
+        raise _modify_scope_error(exc, "Marking mail as read")
+
+
+@router.post("/gmail/thread/{thread_id}/unread")
+async def gmail_thread_mark_unread(thread_id: str, _user=Depends(get_current_user)):
+    """Put the UNREAD label back on a thread so it re-highlights in the inbox."""
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+    try:
+        return gs.gmail_set_thread_unread(thread_id, unread=True)
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+    except Exception as exc:
+        raise _modify_scope_error(exc, "Marking mail as unread")
+
+
+class GmailForwardRequest(BaseModel):
+    message_id: str
+    to: str
+    note: str = ""
+    cc: str | None = None
+    bcc: str | None = None
+    include_attachments: bool = True
+
+
+@router.post("/gmail/forward")
+async def gmail_forward(req: GmailForwardRequest, _user=Depends(get_current_user)):
+    """Forward a message, quoting the original and carrying its attachments."""
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+    if not req.to.strip():
+        raise HTTPException(422, "Enter at least one recipient to forward to.")
+    try:
+        return gs.gmail_forward(
+            message_id=req.message_id,
+            to=req.to.strip(),
+            note=req.note,
+            cc=(req.cc or "").strip() or None,
+            bcc=(req.bcc or "").strip() or None,
+            include_attachments=req.include_attachments,
+        )
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+    except Exception as exc:
+        raise HTTPException(502, f"Could not forward the email: {exc}")
+
+
+@router.get("/gmail/thread/{thread_id}/summary")
+async def gmail_thread_summary(
+    thread_id: str,
+    db: AsyncSession = Depends(get_db),
+    _user=Depends(get_current_user),
+):
+    """Summarise a thread so read messages can stay collapsed.
+
+    Returns ``{thread_id, summary}``. Single-message threads are not worth an
+    LLM round trip, so they come back with an empty summary.
+    """
+    from services.llm.router import get_llm_client
+
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+    try:
+        thread = gs.gmail_get_thread(thread_id)
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+    except Exception as exc:
+        raise HTTPException(502, f"Could not load the email thread: {exc}")
+
+    messages = thread.get("messages", [])
+    if len(messages) < 2:
+        return {"thread_id": thread_id, "summary": ""}
+
+    transcript = "\n\n---\n\n".join(
+        f"From: {m.get('from', '')}\nDate: {m.get('date', '')}\n"
+        f"{(m.get('body') or '')[:4000]}"
+        for m in messages[-12:]
+    )
+    prompt = (
+        "Summarise the email thread below for a busy executive at Precisian "
+        "Medical Instruments, a medical device startup.\n\n"
+        f"Subject: {thread.get('subject', '')}\n\n"
+        f"THREAD (oldest to newest):\n{transcript}\n\n"
+        "Write 2-4 short sentences covering what the thread is about, what was "
+        "decided, and anything still outstanding. If someone is waiting on a "
+        "response, say who and for what. Plain prose, no bullet points, no "
+        "preamble — start straight with the summary."
+    )
+    try:
+        client = await get_llm_client(db, task="emails")
+        chunk = await client.chat(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+        return {"thread_id": thread_id, "summary": chunk.content.strip()}
+    except Exception as exc:
+        raise HTTPException(502, f"Could not summarise the thread: {exc}")
+
+
 class GmailComposeDraftRequest(BaseModel):
     to: str
     instruction: str

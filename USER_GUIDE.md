@@ -174,7 +174,7 @@ Your profile is **yours alone**. It is stored against your account, never shared
 | **Tasks** | Kanban board for action tracking |
 | **Projects** | Group tasks by project with milestone tracking |
 | **Calendar** | Local events + Google Calendar side by side |
-| **Gmail** | Full inbox — browse standard folders (Inbox, Sent, Drafts, Starred, etc.), sort your mail, read, search, filter by tag, reply/reply-all, move to Trash, open attachments or add them to the Knowledge Base, and compose & send your own emails |
+| **Gmail** | Full inbox — browse standard folders (Inbox, Sent, Drafts, Starred, etc.), sort your mail, read, search, filter by tag, reply/reply-all/forward, mark read or unread, move to Trash, collapse read parts of a thread behind a Gerry summary, open attachments or add them to the Knowledge Base, and compose & send your own emails |
 | **Email Drafts** | Ask Little Gerry to draft an email, then approve it to send — or write your own from the Gmail composer |
 | **Meeting Notes** | Auto-records and transcribes your video calls, then AI-summarizes them — or paste a transcript manually |
 | **Regulatory** | Track DHF, IFU, 510(k), and ISO documents with AI drafting |
@@ -397,6 +397,9 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 - The inbox **refreshes itself every minute** (and immediately when you come back to the app); an open thread updates on its own too.
 - The list shows the 30 most recent conversations — click **Load 30 more** at the bottom to reach older mail.
 - Click a message to open the full thread. The **newest message is shown at the top**, and every message sits on a clean, readable card so text stays legible in dark mode.
+- **Opening a thread marks it read in Gmail**, so the highlight on a new email disappears as soon as you've looked at it here. Use **Mark unread** if you'd rather deal with it later.
+- **Long threads open collapsed.** Only the messages you haven't read yet are expanded; everything already read shrinks to a single clickable line showing the sender, the date, and the opening words. Click any line to expand it, or click an open message's header to collapse it again.
+- **Gerry summarises the rest of the conversation** in a short paragraph above the messages whenever part of a thread is collapsed — what it's about, what was decided, and who is waiting on what.
 - If Gerry has drafted a reply for the thread, it appears at the **top of the thread** under “Waiting for your approval” — approve, edit, or reject it right there.
 - For each attachment you can **open it in Google Workspace**, open it with your default app, download it, or click **Add to Knowledge Base** to import it so Little Gerry can reference it later.
 
@@ -406,14 +409,16 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 2. Choose **Write it myself**, fill in **To**, **Subject**, and your message (your Gmail signature is added automatically), and attach files if needed.
 3. Click **Send** — the email is sent immediately from your connected Gmail account. Emails you write yourself do **not** need approval.
 
-### Replies
+### Replies and forwarding
 
 - **Reply** or **Reply all** (Reply all pre-fills the other recipients as Cc) directly from a thread. Your own addresses are never included — including any **send-as alias** on your account, so mail sent to an alias doesn't Cc you back into your own reply.
+- **Forward** sends the newest message in the thread on to someone else. Add a note of your own at the top; the original is quoted underneath and its **attachments are carried across** (untick the box if you'd rather send just the text).
 - You can also ask Little Gerry to draft a reply — the draft appears **right in the thread** for you to approve, edit, or reject before anything is sent.
 
 ### Other actions
 
-- **Move to Trash** to clean up your inbox.
+- **Mark unread** puts a thread back in the pile so it shows as new again.
+- **Move to Trash** to clean up your inbox — available on the open email, and on hover in the list. Deleted mail is recoverable from Gmail for 30 days.
 - **Draft selected** asks Little Gerry to draft replies for the emails you tick — each drafted reply lands in **Approvals** for your review.
 
 ---
@@ -561,7 +566,7 @@ Navigate to **Settings → Google Integration**.
 
 | Service | What Little Gerry can do |
 |---------|--------------------------|
-| **Gmail** | Read, search, and tag emails; compose & send your own; reply/reply-all; move to Trash; open attachments — see [Gmail](#gmail-inbox-compose--replies) |
+| **Gmail** | Read, search, and tag emails; compose & send your own; reply/reply-all/forward; mark read or unread; move to Trash; summarise and collapse long threads; open attachments — see [Gmail](#gmail-inbox-compose--replies) |
 | **Google Drive** | Browse folders, read files, import to KB; edit a specific file in place once you allow it — see [Letting Gerry edit a Drive file](#letting-gerry-edit-a-drive-file) |
 | **Google Calendar** | Read events, show on Calendar page |
 | **Contacts** | Look up contact information |
