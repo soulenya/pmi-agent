@@ -573,6 +573,8 @@ def gmail_get_thread(thread_id: str) -> dict:
             "date": headers.get("Date", ""),
             "body": text or _extract_body(payload),
             "body_html": html,
+            # Per-message, so the reader can expand only what hasn't been read.
+            "unread": "UNREAD" in (m.get("labelIds", []) or []),
             "attachments": _list_attachments(payload),
         })
     # Every address this account owns, so the UI can exclude them from
@@ -598,6 +600,85 @@ def gmail_trash_thread(thread_id: str) -> dict:
     svc = _build("gmail", "v1")
     svc.users().threads().trash(userId="me", id=thread_id).execute()
     return {"thread_id": thread_id, "status": "trashed"}
+
+
+def gmail_set_thread_unread(thread_id: str, unread: bool) -> dict:
+    """Add or remove the UNREAD label across every message in a thread.
+
+    Requires the ``gmail.modify`` scope. ``threads().modify`` applies the change
+    to all messages at once, so re-reading an old thread doesn't leave earlier
+    messages stuck unread.
+    """
+    svc = _build("gmail", "v1")
+    body = {"addLabelIds": ["UNREAD"]} if unread else {"removeLabelIds": ["UNREAD"]}
+    svc.users().threads().modify(userId="me", id=thread_id, body=body).execute()
+    return {"thread_id": thread_id, "unread": unread}
+
+
+def gmail_set_message_unread(message_id: str, unread: bool) -> dict:
+    """Add or remove the UNREAD label on a single message."""
+    svc = _build("gmail", "v1")
+    body = {"addLabelIds": ["UNREAD"]} if unread else {"removeLabelIds": ["UNREAD"]}
+    svc.users().messages().modify(userId="me", id=message_id, body=body).execute()
+    return {"message_id": message_id, "unread": unread}
+
+
+def gmail_forward(
+    message_id: str,
+    to: str,
+    note: str = "",
+    cc: str | None = None,
+    bcc: str | None = None,
+    include_attachments: bool = True,
+) -> dict:
+    """Forward an existing message, quoting it below an optional note.
+
+    The original's attachments are re-downloaded and re-attached so the
+    forwarded copy is complete — a forward that silently drops attachments is
+    worse than no forward at all.
+    """
+    svc = _build("gmail", "v1")
+    original = svc.users().messages().get(
+        userId="me", id=message_id, format="full"
+    ).execute()
+    payload = original.get("payload", {})
+    headers = {h["name"]: h["value"] for h in payload.get("headers", [])}
+    subject = headers.get("Subject", "") or "(no subject)"
+    if not subject.lower().startswith("fwd:"):
+        subject = f"Fwd: {subject}"
+
+    text, _html = _extract_bodies(payload)
+    quoted = text or _extract_body(payload)
+    header_block = (
+        "---------- Forwarded message ----------\n"
+        f"From: {headers.get('From', '')}\n"
+        f"Date: {headers.get('Date', '')}\n"
+        f"Subject: {headers.get('Subject', '')}\n"
+        f"To: {headers.get('To', '')}\n"
+    )
+    if headers.get("Cc"):
+        header_block += f"Cc: {headers['Cc']}\n"
+    body = f"{note}\n\n{header_block}\n{quoted}" if note.strip() else f"{header_block}\n{quoted}"
+
+    attachments: list[dict] = []
+    if include_attachments:
+        for att in _list_attachments(payload):
+            try:
+                data = svc.users().messages().attachments().get(
+                    userId="me", messageId=message_id, id=att["attachment_id"]
+                ).execute()
+                raw = base64.urlsafe_b64decode(data.get("data", ""))
+                attachments.append({
+                    "filename": att.get("filename") or "attachment",
+                    "mime_type": att.get("mime_type") or "application/octet-stream",
+                    "data": raw,
+                })
+            except Exception:
+                logger.exception("Could not attach %s to forward", att.get("filename"))
+
+    return gmail_send(
+        to=to, subject=subject, body=body, cc=cc, bcc=bcc, attachments=attachments
+    )
 
 
 def gmail_profile_email() -> str:

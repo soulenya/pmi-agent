@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 207;
-export const BUILD_DATE = "2026-08-04";
+export const BUILD_NUMBER = 208;
+export const BUILD_DATE = "2026-08-05";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 208,
+    date: "2026-08-05",
+    title: "Mail behaves like mail",
+    changes: [
+      "Opening an email marks it read in Gmail, so the highlight on a new message goes away once you've looked at it here",
+      "Long threads open with only the unread part expanded; read messages collapse to one line, with a short Gerry summary of the conversation above them",
+      "Forward an email, with the original quoted and its attachments carried across; Mark unread and Delete are now on the open email too",
+    ],
+  },
   {
     build: 207,
     date: "2026-08-04",

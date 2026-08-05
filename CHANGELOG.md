@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v3.3.46 — 2026-08-05
+**Mail behaves like mail (Morgan request)**
+
+- **Opening an email clears its highlight.** Reading a message in Little Gerry now marks it read in Gmail itself, so the bold, yellow-flagged row stops shouting at you the moment you've looked at it. Previously the only way to clear it was to open the same mail again in Gmail.
+- **Long threads open collapsed.** Only the parts you haven't read yet are expanded. Everything already read shrinks to a single line — sender, date, first words — that you can click to open. A thirty-message thread no longer arrives as thirty full-height boxes.
+- **Gerry summarises the collapsed part** in two or three sentences above the thread: what it's about, what was decided, and who is waiting on what. This replaces having to scroll the whole history to work out where a conversation got to.
+- **Forward** is now available, with the original quoted underneath and its attachments carried across. A forward that silently dropped the attachment would have been worse than none.
+- **Mark unread** puts a thread back in the pile if you opened it by accident or want to deal with it later, and **Delete** is now on the open email rather than only on hover in the list.
+
 ### v3.3.45 — 2026-08-04
 **You can stop Gerry mid-answer (Morgan request)**
 
