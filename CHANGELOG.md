@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.49 — 2026-08-06
+**The Daily Assistant stops handing you a wall of items (Morgan request)**
+
+- **Suggestions are grouped by what they're about, not listed one after another.** Six workrooms' next steps used to arrive as thirty-one separate cards; they now appear as six boxes — *Henry Jackson Foundation · 6*, *In Q Tel · 6* — each with a one-line description of what's inside. Email follow-ups group under the person you're waiting on. Click a box to open it.
+- **Dismiss all** clears a whole group in one go, instead of a card at a time.
+- **The list sorts itself by what you actually use.** Little Gerry now counts how often you keep versus bin each type of suggestion. Kinds you accept — meeting summaries, at 83% — sit at the top and open automatically. Kinds you always dismiss sink to the bottom, arrive collapsed, and say so plainly: *"You've dismissed every one of these so far."* Small groups of two or fewer always stay open; they cost nothing to show.
+- **Workroom next steps stop piling up.** Every active room was proposing up to two more each day whether or not you'd answered the last ones, which is how thirty-one accumulated in three days. A room now waits until its current suggestion is dealt with before offering another.
+
 ### v3.3.48 — 2026-08-05
 **Fix: email subjects were squeezed into a single column of words (Morgan field report)**
 
