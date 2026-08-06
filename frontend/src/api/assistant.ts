@@ -51,6 +51,15 @@ export interface BulkResult {
   skipped: number;
 }
 
+/** Lifetime accept/dismiss history for one kind of suggestion. */
+export interface KindStats {
+  kind: SuggestionKind;
+  pending: number;
+  accepted: number;
+  dismissed: number;
+  completed: number;
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 
 export async function getAssistantSettings(): Promise<AssistantSettings> {
@@ -80,6 +89,11 @@ export async function listSuggestions(params?: {
 export async function getPendingSuggestionCount(): Promise<number> {
   const resp = await apiClient.get<{ pending: number }>("/assistant/suggestions/count");
   return resp.data.pending;
+}
+
+export async function getSuggestionStats(): Promise<KindStats[]> {
+  const resp = await apiClient.get<KindStats[]>("/assistant/suggestions/stats");
+  return resp.data;
 }
 
 export async function acceptSuggestion(id: string): Promise<AcceptResult> {

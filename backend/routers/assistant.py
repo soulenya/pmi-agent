@@ -117,6 +117,14 @@ class BulkResult(BaseModel):
     skipped: int
 
 
+class KindStats(BaseModel):
+    kind: str
+    pending: int = 0
+    accepted: int = 0
+    dismissed: int = 0
+    completed: int = 0
+
+
 class AssistantSettings(BaseModel):
     enabled: bool
     hour_local: int
@@ -193,6 +201,34 @@ async def count_pending(
         )
     ).scalar_one()
     return {"pending": int(count or 0)}
+
+
+@router.get("/suggestions/stats", response_model=list[KindStats])
+async def suggestion_stats(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-kind accept/dismiss history — the UI ranks categories by it."""
+    rows = (
+        await db.execute(
+            select(
+                AssistantSuggestion.kind,
+                AssistantSuggestion.status,
+                func.count(AssistantSuggestion.id),
+            )
+            .where(AssistantSuggestion.user_id == user.id)
+            .group_by(AssistantSuggestion.kind, AssistantSuggestion.status)
+        )
+    ).all()
+
+    tally: dict[str, dict[str, int]] = {}
+    for kind, status, count in rows:
+        bucket = tally.setdefault(
+            kind, {"pending": 0, "accepted": 0, "dismissed": 0, "completed": 0}
+        )
+        if status in bucket:
+            bucket[status] += int(count or 0)
+    return [KindStats(kind=kind, **counts) for kind, counts in tally.items()]
 
 
 async def _get_owned(db: AsyncSession, user: User, suggestion_id: uuid.UUID) -> AssistantSuggestion:
