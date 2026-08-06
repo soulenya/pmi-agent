@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 210;
-export const BUILD_DATE = "2026-08-05";
+export const BUILD_NUMBER = 211;
+export const BUILD_DATE = "2026-08-06";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 211,
+    date: "2026-08-06",
+    title: "The Daily Assistant fits on a screen again",
+    changes: [
+      "Suggestions are grouped by what they're about — one box per workroom or per person you're waiting on — instead of a single long list of cards",
+      "Dismiss all clears a whole group at once",
+      "Groups are ordered by how often you accept that kind of suggestion; ones you always dismiss arrive collapsed at the bottom",
+      "A workroom waits for you to answer its current next step before proposing another, so they stop stacking up daily",
+    ],
+  },
   {
     build: 210,
     date: "2026-08-05",

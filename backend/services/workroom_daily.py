@@ -24,7 +24,7 @@ import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.assistant import AssistantSuggestion
@@ -42,6 +42,10 @@ SETTING_LAST_DATE = "workroom.daily.last_date"
 # Same suppression rule as the main assistant scan: one dismissal lets a
 # suggestion resurface; two suppresses it for good.
 _DISMISS_SUPPRESS_THRESHOLD = 2
+
+# A room may hold only this many unanswered next steps at a time. Without it
+# every room stacked ~2 more each day and the review list filled with them.
+_MAX_PENDING_TODOS_PER_ROOM = 1
 
 _TODO_SYSTEM = (
     "You are Little Gerry, an AI chief of staff. You review a co-work room "
@@ -337,6 +341,23 @@ async def _propose_todos(db: AsyncSession, room: Workroom) -> list[dict]:
     return [t for t in todos if isinstance(t, dict) and str(t.get("title", "")).strip()][:2]
 
 
+async def _pending_todo_count(db: AsyncSession, user_id: uuid.UUID, room: Workroom) -> int:
+    """How many next steps this room already has waiting for an answer."""
+    return int(
+        (
+            await db.execute(
+                select(func.count(AssistantSuggestion.id)).where(
+                    AssistantSuggestion.user_id == user_id,
+                    AssistantSuggestion.kind == "workroom_todo",
+                    AssistantSuggestion.status == "pending",
+                    AssistantSuggestion.source_id.like(f"room:{room.id}:%"),
+                )
+            )
+        ).scalar_one()
+        or 0
+    )
+
+
 async def _upsert_todo(
     db: AsyncSession, user_id: uuid.UUID, room: Workroom, todo: dict
 ) -> AssistantSuggestion | None:
@@ -446,6 +467,9 @@ async def run_workroom_daily(db: AsyncSession) -> dict:
 
             # Proactive to-dos
             try:
+                room_pending = await _pending_todo_count(db, user.id, room)
+                if room_pending >= _MAX_PENDING_TODOS_PER_ROOM:
+                    continue
                 for todo in await _propose_todos(db, room):
                     s = await _upsert_todo(db, user.id, room, todo)
                     if s is None:
@@ -463,6 +487,9 @@ async def run_workroom_daily(db: AsyncSession) -> dict:
                     summary["notifications"].append(
                         {"user_id": str(user.id), "id": str(notif.id), "title": s.title}
                     )
+                    room_pending += 1
+                    if room_pending >= _MAX_PENDING_TODOS_PER_ROOM:
+                        break
             except Exception:  # noqa: BLE001
                 logger.exception("Room todos failed for %s", room.id)
 
