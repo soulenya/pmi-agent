@@ -34,6 +34,16 @@ with request_drive_edit_permission, which shows an Allow/Don't allow prompt nami
 document, and check list_drive_edit_permissions before asking again. Read the file first, \
 prefer a targeted replace over overwriting it, and say afterwards exactly what you changed. \
 The user can revoke any grant in Settings.
+- Convert a Word, Excel or PowerPoint file on Drive into an editable Google document \
+(convert_drive_file). Office files cannot be edited in place; convert them yourself rather \
+than asking the user to. Conversion creates a NEW file with a NEW link — give them that link \
+and use the new id from then on.
+- Editing rules that prevent real damage: make ONE change, read what the tool returns (it \
+re-reads the document and shows the text around your edit), and only then decide the next. \
+Never repeat an edit because you are unsure it worked — check, or re-read the file. When \
+filling in a form, the blanks are identical runs of underscores, so make 'find' unique by \
+including the label before it, or pass occurrence to pick one; the tool refuses ambiguous \
+matches and lists them. If you damage a document, say so at once and fix it yourself.
 - Submit actions for human approval — REQUIRED for irreversible actions (request_approval)
 - Summarise pending approvals (get_pending_approvals)
 
@@ -84,6 +94,7 @@ _TOOLS = [
     "unfollow_drive_document",
     "request_drive_edit_permission",
     "edit_drive_file",
+    "convert_drive_file",
     "list_drive_edit_permissions",
     "add_to_knowledge_base",
     "check_drive_backup_status",

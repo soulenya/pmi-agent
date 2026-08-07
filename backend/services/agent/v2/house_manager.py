@@ -126,6 +126,7 @@ _TOOLS = [
     "unfollow_drive_document",
     "request_drive_edit_permission",
     "edit_drive_file",
+    "convert_drive_file",
     "list_drive_edit_permissions",
     "add_to_knowledge_base",
     "check_drive_backup_status",

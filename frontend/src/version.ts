@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 211;
-export const BUILD_DATE = "2026-08-06";
+export const BUILD_NUMBER = 212;
+export const BUILD_DATE = "2026-08-07";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 212,
+    date: "2026-08-07",
+    title: "Editing documents stops going wrong",
+    changes: [
+      "Word, Excel and PowerPoint files on Drive can now be edited — Gerry converts them to a Google copy herself instead of asking you to do it by hand; your original is untouched",
+      "A find-and-replace now changes one place instead of every place — filling one blank on a form no longer writes the same answer into every blank",
+      "If the text to find appears more than once the edit is refused and each match is shown in context so the right one can be chosen",
+      "After every edit Gerry re-reads the document and reports what it actually says, and warns if the new text landed in more than one spot",
+      "She recognises an edit that already worked and stops retrying it, which is what duplicated the address in the NDA",
+    ],
+  },
   {
     build: 211,
     date: "2026-08-06",

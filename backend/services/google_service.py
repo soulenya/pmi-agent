@@ -1525,6 +1525,151 @@ def docs_replace_text(file_id: str, find: str, replace: str, match_case: bool = 
     return {"title": meta.get("title", ""), "occurrences": changed}
 
 
+def _docs_flat_text(svc, file_id: str) -> tuple[str, str, list[int]]:
+    """``(title, plain text, doc index per character)`` for a native Google Doc.
+
+    The index list is what makes a single-occurrence replace possible: Docs
+    addresses content by integer offset, so a match found in the flat text can
+    be turned back into the exact range to delete.
+    """
+
+    def walk(elements: list, out: list) -> None:
+        for el in elements or []:
+            para = el.get("paragraph")
+            if para:
+                for pe in para.get("elements") or []:
+                    run = pe.get("textRun") or {}
+                    if run.get("content"):
+                        out.append((int(pe.get("startIndex", 0)), run["content"]))
+            table = el.get("table")
+            if table:
+                for row in table.get("tableRows") or []:
+                    for cell in row.get("tableCells") or []:
+                        walk(cell.get("content") or [], out)
+            toc = el.get("tableOfContents")
+            if toc:
+                walk(toc.get("content") or [], out)
+
+    doc = svc.documents().get(documentId=file_id).execute()
+    segments: list[tuple[int, str]] = []
+    walk((doc.get("body") or {}).get("content") or [], segments)
+    segments.sort(key=lambda seg: seg[0])
+
+    parts: list[str] = []
+    positions: list[int] = []
+    for start, content in segments:
+        parts.append(content)
+        positions.extend(range(start, start + len(content)))
+    return doc.get("title", ""), "".join(parts), positions
+
+
+def _has_astral(text: str) -> bool:
+    """True when text contains non-BMP characters (emoji, rare CJK).
+
+    Docs counts index positions in UTF-16 code units; Python counts code
+    points. They agree everywhere except here, so index maths is abandoned
+    rather than risk deleting the wrong range.
+    """
+    return any(ord(ch) > 0xFFFF for ch in text)
+
+
+def docs_find_occurrences(
+    file_id: str, find: str, *, match_case: bool = True, context: int = 70
+) -> dict:
+    """Locate every occurrence of ``find``, with its doc range and surroundings.
+
+    Returns ``{title, text, indexable, matches}``. Each match carries ``start``
+    and ``end`` (a Docs content range), ``before``/``after`` snippets so a
+    caller can tell two matches apart, and ``contiguous`` — false when the text
+    straddles a table or section boundary and must not be deleted as one range.
+    """
+    svc = _build("docs", "v1")
+    title, text, positions = _docs_flat_text(svc, file_id)
+    indexable = not _has_astral(text)
+
+    matches: list[dict] = []
+    if find and indexable:
+        hay = text if match_case else text.lower()
+        needle = find if match_case else find.lower()
+        i = hay.find(needle)
+        while i != -1:
+            start = positions[i]
+            end = positions[i + len(needle) - 1] + 1
+            matches.append(
+                {
+                    "start": start,
+                    "end": end,
+                    "contiguous": end - start == len(needle),
+                    "before": text[max(0, i - context) : i].replace("\n", " ⏎ "),
+                    "after": text[i + len(needle) : i + len(needle) + context].replace("\n", " ⏎ "),
+                }
+            )
+            i = hay.find(needle, i + len(needle))
+    return {"title": title, "text": text, "indexable": indexable, "matches": matches}
+
+
+def docs_replace_range(file_id: str, start: int, end: int, new_text: str) -> dict:
+    """Swap one exact range of a Google Doc for ``new_text``.
+
+    Unlike ``docs_replace_text`` this touches a single occurrence, which is the
+    only safe option in a form full of identical blank placeholders.
+    """
+    svc = _build("docs", "v1")
+    requests: list[dict] = []
+    if end > start:
+        requests.append(
+            {"deleteContentRange": {"range": {"startIndex": start, "endIndex": end}}}
+        )
+    if new_text:
+        requests.append({"insertText": {"location": {"index": start}, "text": new_text}})
+    if requests:
+        svc.documents().batchUpdate(documentId=file_id, body={"requests": requests}).execute()
+    return {"chars": len(new_text)}
+
+
+def docs_plain_text(file_id: str) -> str:
+    """The committed body text of a native Google Doc, for post-edit verification."""
+    svc = _build("docs", "v1")
+    _, text, _ = _docs_flat_text(svc, file_id)
+    return text
+
+
+def drive_convert_to_google(file_id: str) -> dict:
+    """Create a native Google Workspace copy of a Word/Excel/PowerPoint file.
+
+    Returns ``{id, name, mime_type, url, source_name}``, or ``{}`` when the
+    source is not a convertible format. The original is left untouched — Drive
+    conversion always produces a new file with a new id.
+    """
+    import re as _re
+
+    svc = _build("drive", "v3")
+    meta = svc.files().get(
+        fileId=file_id, fields="id,name,mimeType", supportsAllDrives=True
+    ).execute()
+    target = _WORKSPACE_IMPORT_MAP.get(meta.get("mimeType", ""))
+    if not target:
+        return {}
+    source_name = meta.get("name", "") or file_id
+    name = _re.sub(
+        r"\.(docx?|xlsx?|pptx?|rtf|odt|ods|odp|csv|tsv|txt|html?)$", "", source_name, flags=_re.I
+    )
+    copied = svc.files().copy(
+        fileId=file_id,
+        body={"name": name or source_name, "mimeType": target},
+        supportsAllDrives=True,
+        fields="id,name,mimeType,webViewLink",
+    ).execute()
+    return {
+        "id": copied.get("id", ""),
+        "name": copied.get("name", ""),
+        "mime_type": copied.get("mimeType", target),
+        "url": copied.get("webViewLink", ""),
+        "source_name": source_name,
+    }
+
+
+
 def docs_overwrite_text(file_id: str, text: str) -> dict:
     """Replace a native Google Doc's entire body with ``text``.
 
