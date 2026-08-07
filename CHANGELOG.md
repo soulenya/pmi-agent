@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v3.3.50 — 2026-08-07
+**Editing documents stops going wrong (Morgan field report)**
+
+- **Word, Excel and PowerPoint files can now be edited.** Gerry used to hit a `.docx` on Drive, report she couldn't change it, and ask you to open it yourself, pick *Open with Google Docs*, and paste the new link back. She now converts it herself in one step. The conversion makes a new Google copy — your original file is left exactly as it was — and she tells you the new link and works from it.
+- **A find-and-replace changes one place, not every place.** This is the bug that scrambled the NDA. Every edit went through Google's *replace all*, so filling in a blank on a form — and a form's blanks are all the same run of underscores — wrote the same answer into every field at once. An edit now targets a single occurrence. If the text you asked her to find appears more than once, the edit is refused and she shows you each match with the words around it so the right one can be picked.
+- **She checks her own work.** After every edit she re-reads the document and reports what it now actually says at that spot, and warns if the new text has landed in more than one place. Previously an edit that had garbled a paragraph came back as "done".
+- **She stops re-applying edits that already worked.** When a replace finds nothing, she now checks whether the replacement text is already there and says so — "this edit has already been applied" — instead of guessing at whitespace and trying again. Repeated retries were how the same address ended up in the Notices section three times in three different formats.
+- **She is told to fix her own mess.** The instructions now require her to say plainly when an edit goes wrong and repair it, rather than telling you to open the document and delete the duplicates by hand.
+
 ### v3.3.49 — 2026-08-06
 **The Daily Assistant stops handing you a wall of items (Morgan request)**
 

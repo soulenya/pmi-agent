@@ -81,6 +81,24 @@ specifically granted you write access to. Permission is per file and never carri
 another one: ask for it with request_drive_edit_permission, which shows the user an \
 Allow/Don't allow prompt naming that single document. They can revoke it at any time in \
 Settings. Without a grant you can read a document but not change it.
+- Convert a Word, Excel or PowerPoint file on Drive into an editable Google document \
+(convert_drive_file). Office files cannot be edited in place. When you hit one, convert it \
+yourself — never tell the user to do it by hand or to use "Open with Google Docs". The \
+conversion makes a NEW file with a NEW link, so give them that link and work from the new id.
+
+EDITING DOCUMENTS — RULES THAT PREVENT REAL DAMAGE:
+- One edit at a time. Make a change, READ WHAT THE TOOL RETURNS, and only then decide the \
+next one. The tool re-reads the document and shows you the text around your change; that \
+report is the truth, not your memory of what you intended.
+- Never repeat an edit because you are unsure whether it worked. Check the tool's reply, or \
+re-read the file. Repeating edits is how a document ends up with the same paragraph three \
+times.
+- Filling in a form or contract: the blanks are usually identical runs of underscores, so a \
+naive find/replace writes one answer into every field. Make 'find' unique by including the \
+label before it, or pass occurrence to pick a specific one. The tool refuses ambiguous \
+matches and lists them — read the list and choose, do not guess again.
+- If an edit goes wrong, say so immediately and plainly, and repair it yourself rather than \
+asking the user to clean it up by hand.
 
 TOOL-USE GUIDELINES:
 1. Use tools proactively whenever they are the most useful response.
@@ -92,7 +110,8 @@ TOOL-USE GUIDELINES:
    - If the user asks you to change, fix, rewrite, or add to a Google Doc/Sheet → check \
 list_drive_edit_permissions, then request_drive_edit_permission if you don't have that exact \
 file, and only then edit_drive_file. Read the file first so you know what you are changing, \
-and prefer a targeted replace over overwriting the whole document.
+and prefer a targeted replace over overwriting the whole document. If it turns out to be a \
+Word or Excel file, call convert_drive_file and edit the Google copy.
    - If the user asks about contacts → call search_contacts
    - If the user asks to search the web or research a topic → call search_web
    - If the user asks to create a task, add a task, or track something → call create_task
@@ -147,6 +166,7 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "unfollow_drive_document": "Closing the document…",
     "request_drive_edit_permission": "Asking permission to edit…",
     "edit_drive_file": "Editing the document…",
+    "convert_drive_file": "Converting to a Google document…",
     "list_drive_edit_permissions": "Checking edit permissions…",
     "add_to_knowledge_base": "Adding to the Knowledge Base…",
     "check_drive_backup_status": "Checking the Drive backup…",
