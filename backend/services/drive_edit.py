@@ -34,6 +34,22 @@ SLIDES_MIME = "application/vnd.google-apps.presentation"
 _TEXT_MIME_PREFIXES = ("text/",)
 _TEXT_MIMES = {"application/json", "application/xml", "application/x-yaml"}
 
+# Office formats Drive can turn into a native Google file. Editable only after
+# conversion — their bytes are a zip archive, not text.
+_CONVERTIBLE_MIMES = {
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word",
+    "application/msword": "Word",
+    "application/rtf": "rich text",
+    "text/rtf": "rich text",
+    "application/vnd.oasis.opendocument.text": "OpenDocument text",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel",
+    "application/vnd.ms-excel": "Excel",
+    "application/vnd.oasis.opendocument.spreadsheet": "OpenDocument spreadsheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PowerPoint",
+    "application/vnd.ms-powerpoint": "PowerPoint",
+    "application/vnd.oasis.opendocument.presentation": "OpenDocument presentation",
+}
+
 
 class DriveEditError(Exception):
     """A refusal or failure the caller should report verbatim to the user."""
@@ -371,6 +387,217 @@ async def _add_slide_text_box(
     )
 
 
+async def convert_to_google(
+    db: AsyncSession, user_id: uuid.UUID, file_id: str
+) -> str:
+    """Make an editable Google copy of a Word/Excel/PowerPoint file on Drive.
+
+    The source is left alone — Drive conversion always produces a new file with
+    a new id — and the user's edit grant is carried onto the copy so they are
+    not asked to approve the same document twice.
+    """
+    from services import google_service as gs
+
+    meta = await _meta(file_id)
+    mime = meta.get("mimeType", "")
+    name = meta.get("name") or file_id
+    if mime in (DOC_MIME, SHEET_MIME, SLIDES_MIME):
+        raise DriveEditError(
+            f'"{name}" is already a native Google file and can be edited directly — '
+            "no conversion is needed."
+        )
+    if mime not in _CONVERTIBLE_MIMES:
+        raise DriveEditError(
+            f'"{name}" is a {mime or "binary"} file, which Drive cannot convert into a '
+            "Google document. Word, Excel, PowerPoint, RTF and OpenDocument files can "
+            "be converted; PDFs and images cannot."
+        )
+
+    missing = write_access_missing()
+    if missing:
+        raise DriveEditError(missing)
+
+    loop = asyncio.get_event_loop()
+    try:
+        copied = await loop.run_in_executor(
+            None, lambda: gs.drive_convert_to_google(file_id)
+        )
+    except Exception as exc:  # noqa: BLE001 — surfaced to the user, not swallowed
+        logger.exception("Drive conversion failed for %s", file_id)
+        raise DriveEditError(f'Could not convert "{name}": {exc}') from exc
+    if not copied.get("id"):
+        raise DriveEditError(f'Drive would not convert "{name}".')
+
+    inherited = await get_active_grant(db, user_id, file_id) is not None
+    if inherited:
+        await grant(
+            db,
+            user_id,
+            copied["id"],
+            file_name=copied.get("name", ""),
+            mime_type=copied.get("mime_type", ""),
+            file_url=copied.get("url", ""),
+        )
+
+    kind = {DOC_MIME: "Google Doc", SHEET_MIME: "Google Sheet", SLIDES_MIME: "Google Slides deck"}.get(
+        copied.get("mime_type", ""), "Google file"
+    )
+    permission = (
+        "Your edit permission carried across, so it is ready to edit now."
+        if inherited
+        else "Ask for edit permission on this NEW id before changing it."
+    )
+    return (
+        f'Converted "{copied.get("source_name", name)}" into a {kind}.\n'
+        f'New file: "{copied.get("name", "")}"\n'
+        f'New file_id: {copied["id"]}\n'
+        f'Link: {copied.get("url", "")}\n'
+        f"{permission} The original {_CONVERTIBLE_MIMES.get(mime, '')} file is unchanged "
+        "and keeps its own link — tell the user the copy is a separate document, and "
+        "use the NEW file_id from now on."
+    )
+
+
+def _quote(text: str, limit: int = 60) -> str:
+    """A single-line, length-capped rendering of text for an error message."""
+    flat = " ".join(text.split())
+    return flat if len(flat) <= limit else flat[: limit - 1] + "…"
+
+
+async def _no_change_report(
+    file_id: str, name: str, find: str, replace: str, run
+) -> str:
+    """Explain a zero-match replace, distinguishing 'already done' from 'not there'.
+
+    A model that is told only "not found" tries again with a different guess;
+    told the replacement is already in place, it stops.
+    """
+    from services import google_service as gs
+
+    try:
+        body = await run(lambda: gs.docs_plain_text(file_id))
+    except Exception:  # noqa: BLE001 — the diagnosis is optional, the refusal is not
+        body = ""
+    if replace and body and replace in body:
+        return (
+            f'No change needed: "{_quote(find)}" is not in "{name}", but '
+            f'"{_quote(replace)}" already is — this edit has already been applied. '
+            "Do not repeat it. Re-read the document if you are unsure of its current state."
+        )
+    return (
+        f'No change: "{_quote(find)}" does not appear in "{name}". The document was '
+        "not modified. Re-read it with read_drive_file and copy the target text "
+        "exactly as it appears, including spacing, rather than guessing again."
+    )
+
+
+async def _replace_in_doc(
+    file_id: str,
+    name: str,
+    find: str,
+    replace: str,
+    occurrence: int | None,
+    all_occurrences: bool,
+    run,
+) -> str | None:
+    """Replace one occurrence in a Google Doc. Returns None when nothing matched.
+
+    Refuses an ambiguous multi-match instead of changing them all: form and
+    contract templates repeat the same blank placeholder in every field, so a
+    replace-everything write scatters one answer across the whole document.
+    """
+    from services import google_service as gs
+
+    found = await run(lambda: gs.docs_find_occurrences(file_id, find))
+    matches = found["matches"]
+
+    if not found["indexable"]:
+        # Emoji or other non-BMP text makes index maths unsafe; fall back.
+        result = await run(lambda: gs.docs_replace_text(file_id, find, replace))
+        n = result["occurrences"]
+        if n == 0:
+            return None
+        return f'replaced {n} occurrence{"s" if n != 1 else ""} of "{_quote(find)}"'
+
+    if not matches:
+        return None
+
+    if all_occurrences:
+        result = await run(lambda: gs.docs_replace_text(file_id, find, replace))
+        n = result["occurrences"]
+        return f'replaced all {n} occurrence{"s" if n != 1 else ""} of "{_quote(find)}"'
+
+    if len(matches) > 1 and occurrence is None:
+        listing = "\n".join(
+            f"  {i}. …{m['before'][-45:]}[{_quote(find, 30)}]{m['after'][:45]}…"
+            for i, m in enumerate(matches[:8], start=1)
+        )
+        more = f"\n  (and {len(matches) - 8} more)" if len(matches) > 8 else ""
+        raise DriveEditError(
+            f'Nothing was changed. "{_quote(find)}" appears {len(matches)} times in '
+            f'"{name}", so replacing it would write the same text into all of them — '
+            "that is how a form ends up with one answer in every blank.\n"
+            f"{listing}{more}\n"
+            "Either pass occurrence=<number from the list above> to change exactly "
+            "one, or extend 'find' with enough surrounding text to be unique (for "
+            "example include the label that precedes it). Pass all_occurrences=true "
+            "only when you genuinely mean every one."
+        )
+
+    index = 1 if occurrence is None else occurrence
+    if index < 1 or index > len(matches):
+        raise DriveEditError(
+            f'Nothing was changed. occurrence={index} was requested but '
+            f'"{_quote(find)}" appears {len(matches)} time(s) in "{name}".'
+        )
+    target = matches[index - 1]
+    if not target["contiguous"]:
+        raise DriveEditError(
+            f'Nothing was changed. That occurrence of "{_quote(find)}" straddles a '
+            "table cell or section boundary, so it cannot be replaced as one block. "
+            "Target a shorter run of text that sits inside a single paragraph or cell."
+        )
+
+    await run(lambda: gs.docs_replace_range(file_id, target["start"], target["end"], replace))
+    where = f" (occurrence {index} of {len(matches)})" if len(matches) > 1 else ""
+    return f'replaced "{_quote(find)}" with "{_quote(replace) or "nothing"}"{where}'
+
+
+async def _verify_doc_edit(file_id: str, find: str, replace: str, run) -> str:
+    """Re-read the doc and show the text around the change.
+
+    Without this the model only knows what it asked for, not what landed, so it
+    reports success on a garbled document — or retries an edit that worked.
+    """
+    from services import google_service as gs
+
+    try:
+        body = await run(lambda: gs.docs_plain_text(file_id))
+    except Exception:  # noqa: BLE001 — verification is best-effort
+        return ""
+    at = body.find(replace)
+    if at == -1:
+        return (
+            "\n\nWARNING: re-reading the document does not show the new text. "
+            "Read it with read_drive_file before making any further edit."
+        )
+    window = " ⏎ ".join(body[max(0, at - 120) : at + len(replace) + 120].splitlines())
+    note = f"\n\nVerified — the document now reads:\n…{window}…"
+    copies = body.count(replace)
+    if copies > 1:
+        note += (
+            f"\n\nWARNING: that text now appears {copies} times in the document. "
+            "If it should appear once, read the file and remove the duplicates "
+            "before doing anything else."
+        )
+    if find and find in body:
+        note += (
+            f'\n\nNote: "{_quote(find)}" still appears elsewhere in the document. '
+            "That is expected if you deliberately changed only one occurrence."
+        )
+    return note
+
+
 async def apply_edit(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -386,6 +613,8 @@ async def apply_edit(
     box: dict | None = None,
     slide: dict | None = None,
     position: int | None = None,
+    occurrence: int | None = None,
+    all_occurrences: bool = False,
 ) -> str:
     """Perform one edit on a granted Drive file and return a summary line.
 
@@ -427,14 +656,11 @@ async def apply_edit(
             elif mode == "replace":
                 if not find:
                     raise DriveEditError("replace needs find.")
-                result = await _run(lambda: gs.docs_replace_text(file_id, find, replace))
-                n = result["occurrences"]
-                if n == 0:
-                    return (
-                        f'No change: "{find}" does not appear in "{name}". '
-                        "The document was not modified."
-                    )
-                summary = f"replaced {n} occurrence{'s' if n != 1 else ''} of \"{find}\""
+                summary = await _replace_in_doc(
+                    file_id, name, find, replace, occurrence, all_occurrences, _run
+                )
+                if summary is None:
+                    return await _no_change_report(file_id, name, find, replace, _run)
             elif mode == "overwrite":
                 if not text:
                     raise DriveEditError("overwrite needs the full replacement text.")
@@ -547,6 +773,16 @@ async def apply_edit(
             )
             summary = f"saved {len(new_text):,} characters"
 
+        elif mime in _CONVERTIBLE_MIMES:
+            raise DriveEditError(
+                f'"{name}" is a {_CONVERTIBLE_MIMES[mime]} file, not a native Google '
+                "document, so its text cannot be edited in place — writing to it would "
+                "corrupt the file. Call convert_drive_file on it: that makes a Google "
+                "Docs copy you can edit immediately, carries your edit permission "
+                "across, and leaves the original untouched. Tell the user the copy is "
+                "a new file with its own link before you start changing it."
+            )
+
         else:
             raise DriveEditError(
                 f'"{name}" is a {mime or "binary"} file — Gerry can edit Google Docs, '
@@ -583,7 +819,11 @@ async def apply_edit(
         row.file_name = meta["name"][:500]
     await db.flush()
 
+    check = ""
+    if mime == DOC_MIME and mode == "replace" and replace:
+        check = await _verify_doc_edit(file_id, find, replace, _run)
+
     return (
         f'Edited "{name}" — {summary}. The change is live in Google Drive now; '
-        "File → Version history there restores the previous version."
+        "File → Version history there restores the previous version." + check
     )

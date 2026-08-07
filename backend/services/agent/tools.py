@@ -980,11 +980,16 @@ TOOL_DEFINITIONS: list[dict] = [
                 "and 'append'; Google Slides support 'replace', 'set_shape', "
                 "'add_text_box', 'add_slide', 'delete_shape' and 'delete_slide'; "
                 "plain-text/markdown files support all three text modes. "
+                "Word/Excel/PowerPoint files CANNOT be edited — call convert_drive_file "
+                "first to make an editable Google copy. "
                 "Prefer 'replace' over 'overwrite' — targeted changes are far safer, and "
                 "'overwrite' throws the entire existing document away. Read the file "
                 "first with read_drive_file (or read_deck for a presentation) so you know "
                 "exactly what you are changing, and tell the user what you changed "
-                "afterwards."
+                "afterwards. Each 'replace' changes ONE occurrence and returns the "
+                "surrounding text so you can confirm it landed — read that confirmation "
+                "before deciding what to do next, and never repeat an edit you have not "
+                "verified failed."
             ),
             "parameters": {
                 "type": "object",
@@ -1076,11 +1081,34 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "find": {
                         "type": "string",
-                        "description": "Exact text to look for (replace mode). Case-sensitive.",
+                        "description": (
+                            "Exact text to look for (replace mode). Case-sensitive, and "
+                            "matched literally including spacing. If it occurs more than "
+                            "once the edit is REFUSED and the matches are listed — make "
+                            "'find' long enough to be unique (include the label or "
+                            "sentence around it) rather than passing a bare run of "
+                            "underscores, which every blank in a form shares."
+                        ),
                     },
                     "replace": {
                         "type": "string",
                         "description": "Text to put in its place (replace mode). Empty string deletes it.",
+                    },
+                    "occurrence": {
+                        "type": "integer",
+                        "description": (
+                            "Which match to change when 'find' appears several times, "
+                            "counting from 1 in the order the refusal listed them. "
+                            "Omit when 'find' is unique."
+                        ),
+                    },
+                    "all_occurrences": {
+                        "type": "boolean",
+                        "description": (
+                            "Change EVERY match at once. Only for a genuine global "
+                            "rename, e.g. a company name that changed throughout. Never "
+                            "use it to fill in a blank."
+                        ),
                     },
                     "cell_range": {
                         "type": "string",
@@ -1104,6 +1132,34 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                 },
                 "required": ["file_id", "mode"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "convert_drive_file",
+            "description": (
+                "Turn a Word, Excel, PowerPoint, RTF or OpenDocument file on Drive into "
+                "a native Google Doc/Sheet/Slides copy that can actually be edited. Use "
+                "this the moment edit_drive_file reports a file is not native — do not "
+                "ask the user to convert it by hand, and do not tell them to use "
+                "'Open with Google Docs'. "
+                "IMPORTANT: conversion creates a NEW file with a NEW id and link; the "
+                "original is left exactly as it was. Use the new file_id for every "
+                "subsequent read and edit, and give the user the new link so they are "
+                "not looking at the untouched original while you edit the copy. "
+                "The user's edit permission carries over automatically."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_id": {
+                        "type": "string",
+                        "description": "Drive file ID or full pasted URL of the file to convert.",
+                    },
+                },
+                "required": ["file_id"],
             },
         },
     },
@@ -3641,6 +3697,12 @@ async def execute_edit_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
     except (TypeError, ValueError):
         return "Error: position must be a whole number, counting slides from 1."
 
+    raw_occurrence = args.get("occurrence")
+    try:
+        occurrence = int(raw_occurrence) if raw_occurrence not in (None, "") else None
+    except (TypeError, ValueError):
+        return "Error: occurrence must be a whole number, counting matches from 1."
+
     try:
         result = await drive_edit.apply_edit(
             ctx.db,
@@ -3656,10 +3718,28 @@ async def execute_edit_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str
             box=box,
             slide=slide,
             position=position,
+            occurrence=occurrence,
+            all_occurrences=bool(args.get("all_occurrences")),
         )
     except drive_edit.DriveEditError as exc:
         return str(exc)
     return result
+
+
+async def execute_convert_drive_file(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import drive_edit
+    from services.google_service import get_credentials
+    from services.live_document import extract_drive_file_id
+
+    if not get_credentials():
+        return _google_not_connected()
+    file_id = extract_drive_file_id(str(args.get("file_id", "")))
+    if not file_id:
+        return "Error: file_id (or a pasted document URL) is required."
+    try:
+        return await drive_edit.convert_to_google(ctx.db, ctx.user_id, file_id)
+    except drive_edit.DriveEditError as exc:
+        return str(exc)
 
 
 async def execute_list_drive_edit_permissions(ctx: ToolContext, _args: dict[str, Any]) -> str:
@@ -5747,6 +5827,7 @@ TOOL_EXECUTORS = {
     "unfollow_drive_document": execute_unfollow_drive_document,
     "request_drive_edit_permission": execute_request_drive_edit_permission,
     "edit_drive_file": execute_edit_drive_file,
+    "convert_drive_file": execute_convert_drive_file,
     "list_drive_edit_permissions": execute_list_drive_edit_permissions,
     "add_to_knowledge_base": execute_add_to_knowledge_base,
     "check_drive_backup_status": execute_check_drive_backup_status,
@@ -5813,6 +5894,7 @@ _PRIMARY_ARG = {
     "follow_drive_document": "file_id",
     "request_drive_edit_permission": "file_id",
     "edit_drive_file": "file_id",
+    "convert_drive_file": "file_id",
     "read_deck": "file_id",
     "add_to_knowledge_base": "drive_file_id",
     "get_file_template": "file_type",
