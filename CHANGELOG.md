@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.3.51 — 2026-08-10
+**Fix: reading a document with vision crashed outright (Morgan field report)**
+
+- **"name 'asyncio' is not defined" is gone.** Reading a PDF or image from Drive with vision failed every time with that message. It was a missing import in the tool file — nothing to do with permissions or the document. A second missing import sat one step behind it and would have broken the same tool again the moment the first was fixed; both are in. A check across the rest of the backend found no other place where this could happen.
+- **Charts and diagrams are read, not skipped.** The instruction sent to the vision model asked only for text, so a Gantt chart came back as a handful of stray labels — the dates live in where the bars sit, and nothing was looking at the bars. It is now told to cover every figure: each row of a Gantt or timeline with the start and end it spans, the series and values of a plotted chart, what a photograph or diagram shows. Where an axis is too coarse to read a value exactly it says so instead of inventing a date.
+- **Asking a question now steers the reading.** Your question used to be asked only of the text after the pages had already been read and set aside, so anything the first pass didn't think worth writing down was gone for good. The question is now given to the model that looks at the pages.
+
 ### v3.3.50 — 2026-08-07
 **Editing documents stops going wrong (Morgan field report)**
 

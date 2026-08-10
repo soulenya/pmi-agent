@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 212;
-export const BUILD_DATE = "2026-08-07";
+export const BUILD_NUMBER = 213;
+export const BUILD_DATE = "2026-08-10";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 213,
+    date: "2026-08-10",
+    title: "Reading a document with vision works again",
+    changes: [
+      "Fixed the \"name 'asyncio' is not defined\" crash that broke every vision read of a PDF or image — a missing import, plus a second one right behind it that would have broken the same tool again",
+      "Charts and diagrams are read instead of skipped: each row of a Gantt or timeline with the dates it spans, the values behind a plotted chart, what a diagram shows",
+      "Where a chart's axis is too coarse to read a value exactly, Gerry says so rather than inventing a date",
+      "A question you ask about a document is now given to the model that looks at the pages, not just to the text it wrote down first",
+    ],
+  },
   {
     build: 212,
     date: "2026-08-07",

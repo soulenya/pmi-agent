@@ -38,8 +38,14 @@ SCANNED_PDF_MIN_CHARS = 200
 _TRANSCRIBE_PROMPT = (
     "Transcribe ALL legible text from this document, preserving reading order and "
     "structure (headings, tables as rows). If any region is illegible or cut off, "
-    "write [illegible] there — never guess at unreadable content. Return only the "
-    "transcription, no commentary."
+    "write [illegible] there — never guess at unreadable content. "
+    "Do not skip figures. For every chart, diagram, timeline or image, add a "
+    "[FIGURE] block giving its caption and the information it carries, reading the "
+    "values off the drawing itself — for a Gantt or timeline that means each row's "
+    "label and the start and end it spans, read against the axis; for a plotted "
+    "chart, the series and their values; for a photograph or diagram, what it "
+    "shows. Where an axis is too coarse to read a value exactly, say so rather "
+    "than inventing precision. Return only the transcription, no commentary."
 )
 
 
@@ -202,6 +208,15 @@ async def extract_document(
                     "splitting — reduce the file size (e.g. re-scan at lower DPI)."
                 )
             prompt = _TRANSCRIBE_PROMPT
+            if instruction:
+                # The vision pass is the only stage that sees the pages, so tell it
+                # what is wanted — otherwise a figure is summarised away before the
+                # question is ever asked.
+                prompt += (
+                    f"\n\nThe reader is looking for: {instruction}\nCover that in full "
+                    "detail wherever it appears, including inside figures, while still "
+                    "transcribing the rest of the document."
+                )
             if len(parts) > 1:
                 prompt += f"\n(This is part {i + 1} of {len(parts)} of the same document.)"
             chunk = await client.chat(
