@@ -17,6 +17,8 @@ Tools receive a ToolContext rather than direct DB sessions so the caller
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
 import re
@@ -760,7 +762,12 @@ TOOL_DEFINITIONS: list[dict] = [
             "description": (
                 "Read a scanned PDF or image (certificate, invoice, form, photo of a "
                 "document) with VISION — the model looks at the pages directly, so it "
-                "works where normal text extraction returns nothing. Returns the "
+                "works where normal text extraction returns nothing. It also reads "
+                "FIGURES: use it for a Gantt chart, timeline, plotted chart or diagram "
+                "whose content is drawn rather than written, and pass 'instruction' "
+                "saying what you need from it (e.g. 'the start and end date of every "
+                "bar in the three Gantt charts') — that steers the pass that looks at "
+                "the pages. Returns the "
                 "transcribed text and, when a schema is given, structured JSON with "
                 "null for fields not present (never invented). Source is exactly ONE "
                 "of: drive_file_id, generated_filename, or attachment_name."
@@ -790,7 +797,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "instruction": {
                         "type": "string",
-                        "description": "Optional extra guidance or a question to answer from the document.",
+                        "description": "What you need from the document — a question to answer, or the detail to concentrate on. Always set it when the answer lives in a chart or figure; it is passed to the pass that looks at the pages.",
                     },
                     "confirm_restricted": {
                         "type": "boolean",
