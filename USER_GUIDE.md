@@ -299,6 +299,14 @@ The Knowledge Base is Little Gerry's long-term memory about PMI and VACTOR.
 - DOCX (Word)
 - TXT
 
+### Scanned pages, charts and diagrams
+
+A document with no text layer — a scan, a photo of a page, an image — is read by looking at the pages, so it works where copying the text out returns nothing.
+
+**Figures are read too.** Ask about a Gantt chart, timeline, plotted chart or diagram and Gerry reads the drawing itself: each row of a Gantt with the start and end its bar spans, the values behind a plotted chart, what a photograph or diagram shows — not just the labels printed around it. If an axis is too coarse to pin a value down exactly she says so rather than inventing a date.
+
+**Ask for what you want.** Say which figure and what you need from it — "the start and end date of every bar in the three Gantt charts" — and the question is put to the model while it is looking at the pages. A vague request gets a general transcription.
+
 ### Importing from Google Drive
 
 On the Documents page, use **Import from Drive** to search your Drive and pull files directly into the Knowledge Base.
