@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v3.3.52 — 2026-08-11
+**Fix: long documents were read only as far as page eight (Morgan field report)**
+
+- **A long document is now read to the end.** A 62-page solicitation came back cut off mid-word on page 8, and Gerry had no way of knowing it. The vision model was handed up to 90 pages at once, but a single reply can only hold about eight pages of text — it ran out of room, stopped mid-sentence, and that half-read result was stored as if it were the whole document. Documents are now sent in pieces small enough to come back complete.
+- **A reply that gets cut off is spotted and re-read.** When the model does run out of room, that piece is split and read again in halves until it fits. If it still cannot be finished, the extraction says which sections are incomplete rather than presenting them as the full text.
+- **Gerry can page through what she read.** Only the first 6,000 characters of any transcription — about four pages — ever reached her, with no way to ask for the rest, so she answered questions about a 62-page document from its opening pages. She now gets it in 30,000-character pages and is told to keep reading to the end before answering. Fetching the later pages re-reads stored text and costs nothing.
+
 ### v3.3.51 — 2026-08-10
 **Fix: reading a document with vision crashed outright (Morgan field report)**
 
