@@ -42,7 +42,10 @@ _tools_support_cache: dict[str, bool] = {}
 
 class StreamChunk:
     """One chunk from a streaming response."""
-    __slots__ = ("content", "tool_calls", "done", "model", "input_tokens", "output_tokens")
+    __slots__ = (
+        "content", "tool_calls", "done", "model", "input_tokens", "output_tokens",
+        "stop_reason",
+    )
 
     def __init__(
         self,
@@ -52,6 +55,7 @@ class StreamChunk:
         model: str = "",
         input_tokens: int = 0,
         output_tokens: int = 0,
+        stop_reason: str = "",
     ) -> None:
         self.content = content
         self.tool_calls = tool_calls or []
@@ -59,6 +63,8 @@ class StreamChunk:
         self.model = model
         self.input_tokens = input_tokens
         self.output_tokens = output_tokens
+        # "max_tokens" here means the reply was cut off mid-output, not finished.
+        self.stop_reason = stop_reason
 
 
 # ── Text-based tool-call helpers ──────────────────────────────────────────────

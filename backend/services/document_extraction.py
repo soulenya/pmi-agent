@@ -23,10 +23,15 @@ from models.db.document_extraction import DocumentExtraction
 
 logger = logging.getLogger(__name__)
 
-# Anthropic caps PDF requests around 100 pages / ~32 MB — stay under both and
-# split long PDFs into parts.
-MAX_PART_PAGES = 90
+# Anthropic caps PDF requests around 100 pages / ~32 MB. The binding limit is
+# not the request though — it is the REPLY: a transcription has to fit in the
+# model's max_tokens, and a dense page costs roughly 700 output tokens, so a
+# 90-page part is cut off mid-word about eight pages in.
+MAX_PART_PAGES = 8
 MAX_VISION_BYTES = 28 * 1024 * 1024
+
+# A part whose reply was cut off is re-split this many times before giving up.
+MAX_SPLIT_RETRIES = 3
 
 IMAGE_MEDIA_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
 SUPPORTED_MEDIA_TYPES = IMAGE_MEDIA_TYPES | {"application/pdf"}
@@ -72,23 +77,43 @@ def _content_block(raw: bytes, media_type: str) -> dict:
     return {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": data}}
 
 
-def _split_pdf(raw: bytes) -> tuple[list[bytes], int]:
-    """Split a PDF into ≤MAX_PART_PAGES-page parts. Returns (parts, total_pages)."""
+def _split_pdf(raw: bytes, pages_per_part: int = MAX_PART_PAGES) -> tuple[list[bytes], int]:
+    """Split a PDF into ≤pages_per_part-page parts. Returns (parts, total_pages)."""
     import fitz
 
     doc = fitz.open(stream=raw, filetype="pdf")
     total = doc.page_count
-    if total <= MAX_PART_PAGES and len(raw) <= MAX_VISION_BYTES:
+    if total <= pages_per_part and len(raw) <= MAX_VISION_BYTES:
         doc.close()
         return [raw], total
     parts: list[bytes] = []
-    for start in range(0, total, MAX_PART_PAGES):
+    for start in range(0, total, pages_per_part):
         part = fitz.open()
-        part.insert_pdf(doc, from_page=start, to_page=min(start + MAX_PART_PAGES, total) - 1)
+        part.insert_pdf(doc, from_page=start, to_page=min(start + pages_per_part, total) - 1)
         parts.append(part.tobytes())
         part.close()
     doc.close()
     return parts, total
+
+
+def _halve_pdf(raw: bytes) -> list[bytes] | None:
+    """Split one PDF part into two. Returns None when it is already a single page."""
+    import fitz
+
+    doc = fitz.open(stream=raw, filetype="pdf")
+    total = doc.page_count
+    if total < 2:
+        doc.close()
+        return None
+    mid = total // 2
+    halves = []
+    for lo, hi in ((0, mid - 1), (mid, total - 1)):
+        part = fitz.open()
+        part.insert_pdf(doc, from_page=lo, to_page=hi)
+        halves.append(part.tobytes())
+        part.close()
+    doc.close()
+    return halves
 
 
 def parse_json_response(text: str) -> dict | None:
@@ -201,12 +226,9 @@ async def extract_document(
 
         texts: list[str] = []
         in_tokens = out_tokens = 0
-        for i, part in enumerate(parts):
-            if len(part) > MAX_VISION_BYTES:
-                raise ValueError(
-                    "Document part exceeds the API size limit even after page "
-                    "splitting — reduce the file size (e.g. re-scan at lower DPI)."
-                )
+        truncated_parts = 0
+
+        def _build_prompt(index: int, count: int) -> str:
             prompt = _TRANSCRIBE_PROMPT
             if instruction:
                 # The vision pass is the only stage that sees the pages, so tell it
@@ -217,21 +239,64 @@ async def extract_document(
                     "detail wherever it appears, including inside figures, while still "
                     "transcribing the rest of the document."
                 )
-            if len(parts) > 1:
-                prompt += f"\n(This is part {i + 1} of {len(parts)} of the same document.)"
+            if count > 1:
+                prompt += f"\n(This is part {index + 1} of {count} of the same document.)"
+            return prompt
+
+        async def _transcribe(part: bytes, index: int, count: int, depth: int = 0) -> list[str]:
+            """Transcribe one part, re-splitting it if the reply was cut off."""
+            nonlocal in_tokens, out_tokens, truncated_parts
+
+            if len(part) > MAX_VISION_BYTES:
+                raise ValueError(
+                    "Document part exceeds the API size limit even after page "
+                    "splitting — reduce the file size (e.g. re-scan at lower DPI)."
+                )
             chunk = await client.chat(
                 messages=[{
                     "role": "user",
-                    "content": [_content_block(part, media_type), {"type": "text", "text": prompt}],
+                    "content": [
+                        _content_block(part, media_type),
+                        {"type": "text", "text": _build_prompt(index, count)},
+                    ],
                 }],
                 temperature=0.0,
             )
-            texts.append(chunk.content.strip())
             in_tokens += chunk.input_tokens or 0
             out_tokens += chunk.output_tokens or 0
 
-        raw_text = "\n\n".join(texts).strip()
+            # A max_tokens stop means the transcription ran out of room mid-word.
+            # Keeping it would silently lose the rest of those pages, so halve the
+            # part and read each side instead.
+            if getattr(chunk, "stop_reason", "") == "max_tokens":
+                halves = _halve_pdf(part) if media_type == "application/pdf" else None
+                if halves and depth < MAX_SPLIT_RETRIES:
+                    logger.info(
+                        "Vision transcription hit the output limit on part %d/%d of %s; "
+                        "splitting it and retrying.", index + 1, count, file_name,
+                    )
+                    out: list[str] = []
+                    for half in halves:
+                        out.extend(await _transcribe(half, index, count, depth + 1))
+                    return out
+                truncated_parts += 1
+                logger.warning(
+                    "Vision transcription of %s was cut off and could not be split "
+                    "further (part %d/%d).", file_name, index + 1, count,
+                )
+            return [chunk.content.strip()]
+
+        for i, part in enumerate(parts):
+            texts.extend(await _transcribe(part, i, len(parts)))
+
+        raw_text = "\n\n".join(t for t in texts if t).strip()
         row.raw_text = raw_text
+        if truncated_parts:
+            row.error = (
+                f"{truncated_parts} section(s) of this document hit the model's output "
+                "limit and are incomplete — the text below stops early in those places. "
+                "Treat any section that ends mid-sentence as unread."
+            )
 
         if schema is not None:
             extract_prompt = (
