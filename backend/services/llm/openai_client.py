@@ -153,6 +153,12 @@ class OpenAIClient:
             model=resp.model,
             input_tokens=usage.prompt_tokens if usage else 0,
             output_tokens=usage.completion_tokens if usage else 0,
+            # "length" is OpenAI's name for Anthropic's "max_tokens" — the reply
+            # was cut off. Normalise so callers only test one value.
+            stop_reason=(
+                "max_tokens" if resp.choices[0].finish_reason == "length"
+                else (resp.choices[0].finish_reason or "")
+            ),
         )
 
     async def is_available(self) -> bool:

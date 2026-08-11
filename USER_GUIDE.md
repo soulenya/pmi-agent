@@ -307,6 +307,8 @@ A document with no text layer — a scan, a photo of a page, an image — is rea
 
 **Ask for what you want.** Say which figure and what you need from it — "the start and end date of every bar in the three Gantt charts" — and the question is put to the model while it is looking at the pages. A vague request gets a general transcription.
 
+**Long documents.** A long scan is read in sections and Gerry pages through the result until she reaches the end, so a 60-page solicitation is answered from all of it rather than its opening pages. This takes longer than a short document. If a section cannot be read completely she names it instead of leaving you to spot the gap.
+
 ### Importing from Google Drive
 
 On the Documents page, use **Import from Drive** to search your Drive and pull files directly into the Knowledge Base.

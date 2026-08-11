@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 213;
-export const BUILD_DATE = "2026-08-10";
+export const BUILD_NUMBER = 214;
+export const BUILD_DATE = "2026-08-11";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 214,
+    date: "2026-08-11",
+    title: "Long documents are read to the end",
+    changes: [
+      "Fixed a 62-page document being read only as far as page 8: the vision model was given up to 90 pages at once but can only write about eight pages back, so it stopped mid-word and the half-read result was stored as complete",
+      "Documents are now sent in pieces small enough to come back whole, and any piece that still gets cut off is split and read again",
+      "If a section truly cannot be finished, Gerry says which parts are incomplete instead of presenting them as the full text",
+      "Gerry now receives the transcription in 30,000-character pages instead of only the first 6,000 characters, and is told to read to the end before answering — the later pages cost nothing to fetch",
+    ],
+  },
   {
     build: 213,
     date: "2026-08-10",
