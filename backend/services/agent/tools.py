@@ -770,7 +770,11 @@ TOOL_DEFINITIONS: list[dict] = [
                 "the pages. Returns the "
                 "transcribed text and, when a schema is given, structured JSON with "
                 "null for fields not present (never invented). Source is exactly ONE "
-                "of: drive_file_id, generated_filename, or attachment_name."
+                "of: drive_file_id, generated_filename, or attachment_name. A long "
+                "document comes back one page at a time: when the reply says the "
+                "document CONTINUES, call this again with the extraction_id and offset "
+                "it gives you and keep going until you reach the end — that re-reads "
+                "stored text and costs nothing. Never answer from a partial read."
             ),
             "parameters": {
                 "type": "object",
@@ -802,6 +806,14 @@ TOOL_DEFINITIONS: list[dict] = [
                     "confirm_restricted": {
                         "type": "boolean",
                         "description": "Read a QMS/draft Drive file — ONLY after the user explicitly asked and you named the folder/file and got their confirmation.",
+                    },
+                    "extraction_id": {
+                        "type": "string",
+                        "description": "Continue an extraction you already ran: the id from a previous reply. Reads the stored transcription — no new vision run, no cost. Use with offset.",
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Character position to start reading from. Use the offset the previous reply told you to use.",
                     },
                 },
             },
@@ -5552,9 +5564,68 @@ async def execute_read_deck(ctx: ToolContext, args: dict[str, Any]) -> str:
 
 # ── Dispatcher ────────────────────────────────────────────────────────────────
 
+_EXTRACT_PAGE_CHARS = 30_000
+
+
+def _extraction_page(
+    raw_text: str, offset: int, extraction_id: Any, prefix: list[str]
+) -> str:
+    """Format one page of a transcription with instructions for reading the rest."""
+    total = len(raw_text)
+    if offset >= total:
+        return (
+            f"Offset {offset:,} is past the end of this transcription "
+            f"({total:,} characters total). The document has been fully read."
+        )
+    page = raw_text[offset : offset + _EXTRACT_PAGE_CHARS]
+    end = offset + len(page)
+    if end < total:
+        note = (
+            f"\n\n[PAGE ENDS at character {end:,} of {total:,} — the document "
+            f"CONTINUES. Call extract_document again with extraction_id="
+            f"'{extraction_id}' and offset={end} to read the next page. That "
+            "re-reads the stored transcription and costs nothing. Do not summarize "
+            "or draw conclusions until you have read to the end.]"
+        )
+    else:
+        note = f"\n\n[END OF DOCUMENT — characters {offset:,}–{end:,} of {total:,}.]"
+    return "\n\n".join(
+        prefix + [f"TRANSCRIBED TEXT, characters {offset:,}–{end:,} of {total:,}:\n{page}{note}"]
+    )
+
+
 async def execute_extract_document(ctx: ToolContext, args: dict[str, Any]) -> str:
     """Vision extraction — read a scanned PDF/image via the document_extraction task."""
     from services.document_extraction import extract_document as run_extraction
+
+    try:
+        offset = max(0, int(args.get("offset") or 0))
+    except (TypeError, ValueError):
+        offset = 0
+
+    # Continuation: page through a transcription that has already been made,
+    # instead of paying for the whole vision run again.
+    prior_id = str(args.get("extraction_id", "")).strip()
+    if prior_id:
+        from sqlalchemy import select as _select
+        from models.db.document_extraction import DocumentExtraction
+
+        try:
+            row = (
+                await ctx.db.execute(
+                    _select(DocumentExtraction).where(DocumentExtraction.id == uuid.UUID(prior_id))
+                )
+            ).scalar_one_or_none()
+        except (ValueError, AttributeError):
+            row = None
+        if row is None:
+            return f"Error: no stored extraction with id '{prior_id}'."
+        if row.status != "ok" or not row.raw_text:
+            return f"That extraction has no stored text (status {row.status})."
+        head = [f"Stored transcription — {row.file_name} ({row.pages or 1} page(s))."]
+        if row.error:
+            head.append(f"Note: {row.error}")
+        return _extraction_page(row.raw_text, offset, row.id, head)
 
     schema = args.get("schema") if isinstance(args.get("schema"), dict) else None
     instruction = str(args.get("instruction", "")).strip() or None
@@ -5669,12 +5740,10 @@ async def execute_extract_document(ctx: ToolContext, args: dict[str, Any]) -> st
         f" ({result.pages or 1} page(s), model {result.model})."
     ]
     if result.structured is not None:
-        parts.append("STRUCTURED DATA:\n" + json.dumps(result.structured, indent=2)[:6000])
+        parts.append("STRUCTURED DATA:\n" + json.dumps(result.structured, indent=2)[:20_000])
     if result.error:
         parts.append(f"Note: {result.error}")
-    truncated = " (truncated)" if len(result.raw_text) > 6000 else ""
-    parts.append(f"TRANSCRIBED TEXT{truncated}:\n{result.raw_text[:6000]}")
-    return "\n\n".join(parts)
+    return _extraction_page(result.raw_text, offset, result.id, parts)
 
 
 async def execute_compile_company_timeline(ctx: ToolContext, args: dict[str, Any]) -> str:

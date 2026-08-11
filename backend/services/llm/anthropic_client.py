@@ -240,6 +240,7 @@ class AnthropicClient:
             model=self._model,
             input_tokens=resp.usage.input_tokens if resp.usage else 0,
             output_tokens=resp.usage.output_tokens if resp.usage else 0,
+            stop_reason=getattr(resp, "stop_reason", "") or "",
         )
 
     async def is_available(self) -> bool:
