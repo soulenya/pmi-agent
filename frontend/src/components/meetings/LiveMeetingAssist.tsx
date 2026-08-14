@@ -40,7 +40,10 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import { cn } from "@/lib/utils";
 
+// Idle polling just watches for a meeting to start; once one is live the
+// transcript is arriving every few seconds and 3 s of jitter is visible.
 const POLL_MS = 3_000;
+const LIVE_POLL_MS = 1_000;
 
 function Toggle({
   checked,
@@ -155,6 +158,14 @@ export function LiveMeetingAssist() {
   useEffect(() => {
     if (!authed) return;
     let disposed = false;
+    let id = 0;
+    let period = 0;
+    const setPeriod = (ms: number) => {
+      if (ms === period) return;
+      period = ms;
+      window.clearInterval(id);
+      id = window.setInterval(() => void tick(), ms);
+    };
     const tick = async () => {
       try {
         const s = await getLiveState(lastSeg.current, lastCard.current);
@@ -167,9 +178,11 @@ export function LiveMeetingAssist() {
             lastCard.current = -1;
           }
           setState({ active: false });
+          setPeriod(POLL_MS);
           return;
         }
         setState(s);
+        setPeriod(s.consent === "accepted" ? LIVE_POLL_MS : POLL_MS);
         if (s.segments?.length) {
           setSegments((prev) => [...prev, ...s.segments!]);
           lastSeg.current = s.segments[s.segments.length - 1].seq;
@@ -191,7 +204,7 @@ export function LiveMeetingAssist() {
       }
     };
     void tick();
-    const id = window.setInterval(() => void tick(), POLL_MS);
+    setPeriod(POLL_MS);
     return () => {
       disposed = true;
       window.clearInterval(id);

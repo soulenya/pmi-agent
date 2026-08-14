@@ -40,6 +40,21 @@ class VoiceNotConfiguredError(Exception):
     """Raised when no Google Cloud API key is stored in the keyring."""
 
 
+# Live transcription posts a chunk every few seconds; a fresh client per call
+# pays for DNS and a TLS handshake each time.
+_STT_CLIENT: httpx.AsyncClient | None = None
+
+
+def _stt_client() -> httpx.AsyncClient:
+    global _STT_CLIENT
+    if _STT_CLIENT is None or _STT_CLIENT.is_closed:
+        _STT_CLIENT = httpx.AsyncClient(
+            timeout=60,
+            limits=httpx.Limits(max_keepalive_connections=4, keepalive_expiry=120),
+        )
+    return _STT_CLIENT
+
+
 class VoiceApiError(Exception):
     """Raised when the Google Speech API returns an error response."""
 
@@ -125,12 +140,12 @@ async def transcribe(
     if phrases:
         config["speechContexts"] = [{"phrases": phrases[:500], "boost": 15.0}]
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            STT_URL,
-            params={"key": _api_key()},
-            json={"config": config, "audio": {"content": base64.b64encode(audio).decode()}},
-        )
+    client = _stt_client()
+    resp = await client.post(
+        STT_URL,
+        params={"key": _api_key()},
+        json={"config": config, "audio": {"content": base64.b64encode(audio).decode()}},
+    )
     _raise_for_error(resp)
 
     results = resp.json().get("results", [])
