@@ -2,7 +2,7 @@
 
 Layered ON TOP of the existing MeetingMonitor recording flow (which is
 unchanged): when a meeting is detected, the UI shows a consent pop-down;
-if the user accepts, this session drains ~15 s audio chunks from the
+if the user accepts, this session drains short audio chunks from the
 already-running recorder, transcribes each via the short-clip Google STT
 path, and (per the accepted options) runs a periodic assist pass that
 produces cards — jargon definitions and suggested answers.
@@ -35,8 +35,10 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-CHUNK_SECONDS = 15
+CHUNK_SECONDS = 6
 ASSIST_INTERVAL_SECONDS = 30
+_MAX_CONCURRENT_STT = 3       # chunks in flight at once
+_STT_DEADLINE_SECONDS = 25    # a hung chunk must not stall the ones behind it
 _ASSIST_WINDOW_CHARS = 2_400   # transcript tail given to the assist model
 _MAX_CARDS = 200
 
@@ -107,6 +109,13 @@ class LiveMeetingSession:
         self.last_error: str | None = None
         self._seq = 0
         self._tasks: list[asyncio.Task] = []
+        # Chunks are transcribed concurrently but shown in the order they were
+        # spoken, so a finished chunk waits here for the ones ahead of it.
+        self._drain_index = 0
+        self._flush_index = 0
+        self._results: dict[int, str] = {}
+        self._chunk_tasks: set[asyncio.Task] = set()
+        self._stt_slots: asyncio.Semaphore | None = None
 
     # ── state for the UI poll ────────────────────────────────────────────
 
@@ -178,12 +187,20 @@ class LiveMeetingSession:
         for t in self._tasks:
             t.cancel()
         self._tasks = []
+        for t in list(self._chunk_tasks):
+            t.cancel()
+        self._chunk_tasks.clear()
 
     # ── audio chunk loop ─────────────────────────────────────────────────
 
     async def _chunk_loop(self, recorder) -> None:
-        from services.voice import google_speech
+        """Drain audio on a fixed cadence; transcribe off the loop.
 
+        Awaiting the STT round-trip here used to delay the next drain, so each
+        chunk grew by however long the previous request took and the transcript
+        fell further behind the longer the meeting ran.
+        """
+        self._stt_slots = asyncio.Semaphore(_MAX_CONCURRENT_STT)
         try:
             while self.consent == "accepted":
                 await asyncio.sleep(CHUNK_SECONDS)
@@ -216,27 +233,54 @@ class LiveMeetingSession:
                         }
                     )
                     continue
-                if not google_speech.is_configured():
-                    self.last_error = "Live transcription needs the Google Cloud voice key (Settings → Voice)."
-                    continue
-                try:
-                    text = await google_speech.transcribe(
-                        wav, "audio/wav", phrases=self.vocabulary or None
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("Live chunk STT failed: %s", exc)
-                    continue
-                text = (text or "").strip()
-                if text:
-                    self.segments.append(
-                        {
-                            "seq": self._next_seq(),
-                            "at": datetime.now(timezone.utc).isoformat(),
-                            "text": text,
-                        }
-                    )
+                index = self._drain_index
+                self._drain_index += 1
+                task = asyncio.create_task(self._transcribe_chunk(index, wav))
+                self._chunk_tasks.add(task)
+                task.add_done_callback(self._chunk_tasks.discard)
         except asyncio.CancelledError:
             pass
+
+    async def _transcribe_chunk(self, index: int, wav: bytes) -> None:
+        from services.voice import google_speech
+
+        text = ""
+        try:
+            if not google_speech.is_configured():
+                self.last_error = "Live transcription needs the Google Cloud voice key (Settings → Voice)."
+            else:
+                assert self._stt_slots is not None
+                async with self._stt_slots:
+                    text = await asyncio.wait_for(
+                        google_speech.transcribe(
+                            wav, "audio/wav", phrases=self.vocabulary or None
+                        ),
+                        timeout=_STT_DEADLINE_SECONDS,
+                    )
+        except asyncio.CancelledError:
+            raise
+        except asyncio.TimeoutError:
+            logger.warning("Live chunk STT timed out after %ss", _STT_DEADLINE_SECONDS)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Live chunk STT failed: %s", exc)
+        # A dropped chunk still has to release the ones queued behind it.
+        self._results[index] = (text or "").strip()
+        self._flush_results()
+
+    def _flush_results(self) -> None:
+        """Publish finished chunks in spoken order, up to the first gap."""
+        while self._flush_index in self._results:
+            text = self._results.pop(self._flush_index)
+            self._flush_index += 1
+            if not text:
+                continue
+            self.segments.append(
+                {
+                    "seq": self._next_seq(),
+                    "at": datetime.now(timezone.utc).isoformat(),
+                    "text": text,
+                }
+            )
 
     # ── assist loop ──────────────────────────────────────────────────────
 

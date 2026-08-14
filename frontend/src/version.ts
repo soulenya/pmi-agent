@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 214;
-export const BUILD_DATE = "2026-08-11";
+export const BUILD_NUMBER = 215;
+export const BUILD_DATE = "2026-08-14";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 215,
+    date: "2026-08-14",
+    title: "The live meeting transcript keeps up",
+    changes: [
+      "Fixed the live transcript running 15–40 seconds behind and falling further behind the longer a meeting ran: each 15-second chunk of audio waited for the previous one to come back from Google before it was collected",
+      "Audio is now collected on a fixed 6-second cadence and transcribed independently, so transcription time no longer adds to the wait",
+      "The panel refreshes every second while a meeting is live, instead of every three",
+      "A failed or stalled chunk is skipped after 25 seconds instead of holding up everything spoken after it",
+    ],
+  },
   {
     build: 214,
     date: "2026-08-11",
