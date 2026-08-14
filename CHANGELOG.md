@@ -4,6 +4,14 @@
 
 ## Changelog
 
+### v3.3.53 — 2026-08-14
+**The live meeting transcript keeps up (Morgan field report: 15–40 seconds behind)**
+
+- **The lag no longer grows as the meeting runs.** Audio was collected in 15-second chunks, but the next chunk didn't start until the previous one had come back from Google — so every second of transcription time was added to the wait, and the gap widened the longer you talked. Collecting and transcribing now happen independently, on a fixed 6-second cadence.
+- **The panel updates every second** while a meeting is live, instead of every three.
+- **Typical lag is now 5–10 seconds**, down from 15–40.
+- **A dropped or slow chunk no longer holds up the rest.** If one request to Google fails or stalls, that stretch is skipped after 25 seconds and everything spoken afterwards still appears, in the right order.
+
 ### v3.3.52 — 2026-08-11
 **Fix: long documents were read only as far as page eight (Morgan field report)**
 

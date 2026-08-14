@@ -469,7 +469,7 @@ When enabled, Little Gerry watches for video-call apps (Zoom, Teams, Google Meet
 
 When a call is detected, a **pop-down asks whether you'd like Gerry to follow along** — nothing happens without your OK, and your choices are remembered as next meeting's defaults:
 
-- **Live transcript & notes** — a docked panel follows the conversation in near-real-time (15–40 s behind the audio)
+- **Live transcript & notes** — a docked panel follows the conversation, typically 5–10 seconds behind the audio
 - **Decode jargon & acronyms** — buzzwords and industry terms are defined in context as quiet cards in the panel
 - **Suggest answers — under NDA** — Gerry may draw on company knowledge for suggested answers and says what she used
 - **Suggest answers — NOT under NDA** — Gerry is given **no company data at all** (enforced in the code, not just instructions); answers come from public knowledge only and are badged as such
