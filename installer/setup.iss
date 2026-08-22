@@ -186,9 +186,10 @@ Filename: "{app}\Stop Little Gerry.bat"; \
     Flags: runhidden waituntilterminated; \
     RunOnceId: "StopServices"
 
-; Stop and remove the Docker PostgreSQL container
+; Stop the Docker PostgreSQL container. The volume is deliberately KEPT so a
+; reinstall finds the user's data intact; deleting it is opt-in, see [Code].
 Filename: "cmd.exe"; \
-    Parameters: "/c cd /d ""{app}"" && docker compose down -v"; \
+    Parameters: "/c cd /d ""{app}"" && docker compose down"; \
     Flags: runhidden waituntilterminated; \
     RunOnceId: "DockerDown"
 
@@ -252,6 +253,36 @@ begin
       Chr(13)+Chr(10) +
       'Use the desktop shortcut or Start Menu entry to open Little Gerry.',
       mbInformation, MB_OK, IDOK);
+  end;
+end;
+
+// Uninstalling keeps the database volume and the documents folder, so a
+// reinstall picks up where the user left off. Deleting them is opt-in and
+// cannot be undone. Answering under /SILENT keeps the data.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+  DataDir: String;
+begin
+  if CurUninstallStep = usUninstall then begin
+    if SuppressibleMsgBox(
+      'Also delete your Little Gerry data?' + Chr(13)+Chr(10) +
+      Chr(13)+Chr(10) +
+      'This would permanently erase your conversations, tasks, workrooms, ' +
+      'settings, uploaded documents and the knowledge base.' + Chr(13)+Chr(10) +
+      Chr(13)+Chr(10) +
+      'Choose No to keep everything. If you reinstall Little Gerry on this ' +
+      'computer it will pick up exactly where you left off.' + Chr(13)+Chr(10) +
+      Chr(13)+Chr(10) +
+      'Delete all data?',
+      mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) = IDYES
+    then begin
+      Exec('cmd.exe', '/c cd /d "' + ExpandConstant('{app}') + '" && docker compose down -v',
+           '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      DataDir := ExpandConstant('{%USERPROFILE}') + '\.pmi-agent';
+      if DirExists(DataDir) then
+        DelTree(DataDir, True, True, True);
+    end;
   end;
 end;
 
