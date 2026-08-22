@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 215;
-export const BUILD_DATE = "2026-08-14";
+export const BUILD_NUMBER = 216;
+export const BUILD_DATE = "2026-08-22";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,20 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 216,
+    date: "2026-08-22",
+    title: "Your work survives an uninstall",
+    changes: [
+      "Fixed uninstalling Little Gerry silently deleting everything you had ever put into it — conversations, tasks, workrooms and the entire knowledge base were destroyed along with the program, with no warning and no way back",
+      "Uninstalling now keeps your data by default, and asks first if you want it removed as well",
+      "New Settings → Backup & Restore: save everything to a single file, and load it back on this or any other computer",
+      "A backup carries your documents in a form the new machine can read, so moving to a different laptop works — you only sign back into Google and paste your API keys in again",
+      "The setup guide now also covers restoring from a backup, your name, your company profile, your writing voice, meeting transcription, a daily briefing, automatic Drive backups and which model does which job",
+      "Existing users are shown only the new setup steps, once",
+      "The chat panel beside your work can now be widened by dragging its edge, expanded to double width, or popped out into a floating window you can move anywhere on screen",
+    ],
+  },
   {
     build: 215,
     date: "2026-08-14",

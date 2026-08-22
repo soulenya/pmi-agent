@@ -4,6 +4,16 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink, ScanText, PenLine, Pencil, Trash2, Upload, Sparkles, ChevronDown, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  getDataSummary,
+  createDataExport,
+  deleteDataExport,
+  inspectDataImport,
+  runDataImport,
+  formatBytes,
+  type ArchiveManifest,
+  type RestoreResult,
+} from "@/api/dataTransfer";
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
 import { useAuthStore } from "@/stores/authStore";
@@ -1994,6 +2004,282 @@ function SystemHealthSection() {
     </Section>
   );
 }
+// ── Backup & restore section ────────────────────────────────────────────────
+
+function BackupRestoreSection() {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const { data: summary, isLoading } = useQuery({
+    queryKey: ["data-summary"],
+    queryFn: getDataSummary,
+  });
+
+  const [exportNote, setExportNote] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ file: File; manifest: ArchiveManifest } | null>(null);
+  const [inspecting, setInspecting] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restored, setRestored] = useState<RestoreResult | null>(null);
+
+  const exportMutation = useMutation({
+    mutationFn: createDataExport,
+    onSuccess: (r) => {
+      setExportNote(
+        `Saved ${r.filename} (${formatBytes(r.bytes)})` +
+          (r.skipped_files ? ` — ${r.skipped_files} unreadable file(s) skipped.` : "."),
+      );
+      qc.invalidateQueries({ queryKey: ["data-summary"] });
+    },
+    onError: (e: unknown) => {
+      setExportNote(e instanceof Error ? e.message : "The backup failed.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteDataExport,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["data-summary"] }),
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: runDataImport,
+    onSuccess: (r) => {
+      setRestored(r);
+      setPending(null);
+      qc.invalidateQueries();
+    },
+    onError: (e: unknown) => {
+      setRestoreError(e instanceof Error ? e.message : "The restore failed.");
+      setPending(null);
+    },
+  });
+
+  async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setRestoreError(null);
+    setRestored(null);
+    setInspecting(true);
+    try {
+      const manifest = await inspectDataImport(file);
+      setPending({ file, manifest });
+    } catch (err: unknown) {
+      setRestoreError(err instanceof Error ? err.message : "That file is not a Little Gerry backup.");
+    } finally {
+      setInspecting(false);
+    }
+  }
+
+  const counts = summary?.counts ?? {};
+  const busy = exportMutation.isPending || restoreMutation.isPending;
+
+  return (
+    <Section
+      id="backup-restore"
+      icon={HardDrive}
+      title="Backup & Restore"
+      description="Save everything to a single file, or move it to another computer"
+    >
+      <p className="text-xs text-muted-foreground">
+        A backup holds your conversations, tasks, workrooms, documents and the whole knowledge
+        base. It does <span className="font-medium">not</span> hold your API keys or your Google
+        connection — after restoring you sign in to Google again and paste your keys back in.
+      </p>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking what you have…
+        </div>
+      ) : (
+        <>
+          {summary && !summary.docker_running && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-400/60 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                The database isn't running, so backup and restore are unavailable. Start Little
+                Gerry normally and come back.
+              </span>
+            </div>
+          )}
+
+          {summary && (
+            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 rounded-lg border bg-muted/40 p-3 text-xs sm:grid-cols-3">
+              {Object.entries(counts).map(([label, n]) => (
+                <div key={label} className="flex justify-between gap-2">
+                  <span className="text-muted-foreground capitalize">{label.replace(/_/g, " ")}</span>
+                  <span className="font-medium tabular-nums">{n.toLocaleString()}</span>
+                </div>
+              ))}
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Database</span>
+                <span className="font-medium tabular-nums">{formatBytes(summary.database_bytes)}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">Document files</span>
+                <span className="font-medium tabular-nums">
+                  {summary.document_files.toLocaleString()} · {formatBytes(summary.document_bytes)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Create */}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setExportNote(null);
+                exportMutation.mutate();
+              }}
+              disabled={busy || !summary?.docker_running}
+              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {exportMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              {exportMutation.isPending ? "Backing up…" : "Back up everything"}
+            </button>
+            {summary?.directory && (
+              <span className="text-[11px] text-muted-foreground">
+                Saved to <code className="font-mono">{summary.directory}</code>
+              </span>
+            )}
+          </div>
+          {exportMutation.isPending && (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              This can take several minutes on a large library. Leave the window open.
+            </p>
+          )}
+          {exportNote && (
+            <p
+              className={cn(
+                "mt-2 text-xs",
+                exportMutation.isError ? "text-red-600" : "text-green-600",
+              )}
+            >
+              {exportNote}
+            </p>
+          )}
+
+          {/* Existing archives */}
+          {summary && summary.archives.length > 0 && (
+            <div className="mt-4 space-y-1">
+              <p className="text-xs font-medium">Backups on this computer</p>
+              {summary.archives.map((a) => (
+                <div
+                  key={a.filename}
+                  className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs"
+                >
+                  <Database className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate font-mono">{a.filename}</span>
+                  <span className="ml-auto shrink-0 text-muted-foreground tabular-nums">
+                    {formatBytes(a.bytes)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => deleteMutation.mutate(a.filename)}
+                    disabled={busy || deleteMutation.isPending}
+                    title="Delete this backup"
+                    className="shrink-0 text-muted-foreground hover:text-red-600 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Restore */}
+          <div className="mt-5 border-t pt-4">
+            <p className="text-xs font-medium">Restore from a backup</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Restoring <span className="font-medium text-red-600">replaces everything</span>{" "}
+              currently in Little Gerry with the contents of the backup file. A safety copy of your
+              current database is taken first.
+            </p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".lgbackup"
+              onChange={handlePick}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={busy || inspecting || !summary?.docker_running}
+              className="mt-2 flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            >
+              {inspecting ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
+              Choose a backup file…
+            </button>
+
+            {restoreError && <p className="mt-2 text-xs text-red-600">{restoreError}</p>}
+
+            {pending && (
+              <div className="mt-3 rounded-lg border border-red-400/60 bg-red-50 p-3 text-xs dark:bg-red-950/30">
+                <p className="font-medium">{pending.file.name}</p>
+                <p className="mt-1 text-muted-foreground">
+                  Made {new Date(pending.manifest.created_at).toLocaleString()} by Little Gerry{" "}
+                  {pending.manifest.app_version} — {pending.manifest.documents ?? 0} document(s).
+                </p>
+                {pending.manifest.reconnect_required && (
+                  <p className="mt-1 text-amber-700 dark:text-amber-300">
+                    This backup came from a different computer, so you'll need to reconnect Google
+                    and re-enter your API keys afterwards.
+                  </p>
+                )}
+                <p className="mt-2 font-medium text-red-700 dark:text-red-300">
+                  Everything currently in Little Gerry will be replaced. This cannot be undone from
+                  inside the app.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => restoreMutation.mutate(pending.file)}
+                    disabled={restoreMutation.isPending}
+                    className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {restoreMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {restoreMutation.isPending ? "Restoring…" : "Replace everything"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPending(null)}
+                    disabled={restoreMutation.isPending}
+                    className="rounded-lg border px-3 py-1.5 font-medium hover:bg-accent disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {restored && (
+              <div className="mt-3 rounded-lg border border-green-500/60 bg-green-50 p-3 text-xs dark:bg-green-950/30">
+                <p className="font-medium text-green-700 dark:text-green-300">
+                  Restored {restored.restored.documents} document(s).
+                </p>
+                <p className="mt-1">
+                  Close Little Gerry and open it again so everything reloads.
+                  {restored.reconnect_required &&
+                    " Then reconnect Google Workspace and re-enter your API keys in Settings."}
+                </p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </Section>
+  );
+}
+
 // ── Software updates section ────────────────────────────────────────────────
 
 function UpdateSection() {
@@ -2284,6 +2570,7 @@ export function SettingsPage() {
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />
           <VoiceSection settings={mergedSettings} onChange={handleChange} />
           <SystemHealthSection />
+          <BackupRestoreSection />
           <UpdateSection />
           <ChangelogSection />
 

@@ -114,6 +114,27 @@ Everyone runs their own copy of Little Gerry, so each install keeps its own loca
 
 ## AI Configuration (First Time)
 
+### The setup guide
+
+The first time you sign in, Little Gerry walks you through everything it needs. You can skip any step and come back to it later in Settings. It covers:
+
+1. **Welcome** and **How it works** — what the background pieces the installer set up are for.
+2. **Restore** — if you are moving from another computer, load your `.lgbackup` file here and everything comes back before you set anything else up. See [Backup & Restore](#backup--restore).
+3. **Claude** and **Voyage** — the two API keys described below.
+4. **Google Workspace** — sign in so Gerry can reach your mail, calendar and Drive.
+5. **You** — the name Gerry uses when it addresses you and signs drafts.
+6. **Company** — the Drive folder holding your company background, which Gerry keeps in mind in every conversation.
+7. **Your voice** — optionally let Gerry read your sent mail and learn how you write, so its drafts sound like you.
+8. **Speech** and **Meetings** — the Google Cloud key that powers talking to Gerry out loud and live meeting transcription.
+9. **Briefing** — optionally schedule a short summary of your mail, calendar and tasks to be waiting each morning.
+10. **Backups** — a daily copy of your conversations into your own Google Drive.
+11. **Models** — which model handles which job; the defaults are sensible and you can change them later.
+12. **Using it**, **Roles** and **Done**.
+
+If you have used Little Gerry before and an update adds new setup steps, the guide reappears once showing **only the steps that are new to you**.
+
+### The two API keys
+
 Before using the Knowledge Base or Semantic Search, you need two API keys:
 
 ### Step 1 — Anthropic API Key (for AI responses)
@@ -242,6 +263,16 @@ Almost everywhere in the app you'll see an **"Ask Gerry about this"** button (a 
 - Click it and Little Gerry opens a **fresh conversation already primed with that item's details**, so you can dive straight into questions without copying anything over.
 - For real files — email attachments and generated files — Little Gerry reads the **actual contents** of the file, so you can ask about what's inside.
 - Each "Ask Gerry" chat opens in the Little Gerry side panel and becomes its own conversation you can return to later.
+
+### Sizing the side panel
+
+The side panel starts narrow, which is fine for a quick question and cramped for a long answer. Three ways to give it more room:
+
+- **Drag the left edge** to any width you like. Double-click the edge to snap it back to the default.
+- **Expand** (the double-arrow button in the panel header) jumps straight to double width, and back again.
+- **Pop out** (the picture-in-picture button) lifts the panel off the side of the window into a floating panel you can drag around by its header and resize from the bottom-right corner. Put it wherever it doesn't cover what you're reading. The dock button in its header puts it back.
+
+Whatever you choose is remembered — width, expanded, popped out and where you left it floating — so it comes back the same way next time.
 
 ---
 
@@ -700,6 +731,19 @@ Build, edit, upload or remove your personal writing voice profile so Gerry's dra
 
 ### System Health
 Live status of PostgreSQL, the active LLM (with API ping), active embedding provider (with API ping), disk space, and whether a Knowledge Base re-index is needed.
+
+### Backup & Restore
+Save everything Little Gerry holds into a single file, and load it back on this or any other computer.
+
+**Making a backup.** The section opens with a summary of what you have — conversations, tasks, documents, how much disk it all comes to. Click **Back up everything** and Little Gerry writes one `.lgbackup` file into `C:\Users\<you>\.pmi-agent\exports`. It contains your database, every document you have imported, chat attachments and generated files. On a large library this takes several minutes; leave the window open. Backups already on this computer are listed underneath, and you can delete old ones from there.
+
+**What a backup does *not* contain.** Your API keys and your Google sign-in are deliberately left out. After restoring you sign back into Google Workspace and paste your keys into **Settings → AI Engine** again.
+
+**Restoring.** Click **Choose a backup file…**, pick the `.lgbackup` file, and check the details Little Gerry reads back from it — when it was made, which version made it, how many documents it holds. Restoring **replaces everything currently in Little Gerry**, so read that screen before confirming. A copy of your current database is taken first, into the same exports folder, in case you picked the wrong file. When it finishes, close Little Gerry and open it again.
+
+**Moving to a new computer.** Make a backup on the old machine, copy the file across, install Little Gerry on the new machine, and load the backup from the very first screen of the setup guide. Your documents are decrypted on the way out and re-encrypted with the new machine's own key on the way in, so they open normally — the encryption key itself never leaves the computer that made it. Little Gerry will tell you the backup came from elsewhere and remind you to reconnect Google and re-enter your keys.
+
+**Uninstalling.** Uninstalling Little Gerry leaves all of this alone. The uninstaller asks whether you also want your data deleted, and the answer is **No** unless you change it. Reinstalling picks up exactly where you left off.
 
 ### Updates
 Click **Check for Updates** to compare your build against the latest on GitHub. Click **Install Update** to pull the latest version and restart automatically.

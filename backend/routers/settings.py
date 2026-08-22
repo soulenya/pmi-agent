@@ -30,6 +30,11 @@ from services.auth.service import hash_password, verify_password
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
+# Current revision of the first-use wizard. Raise this whenever steps are added
+# so existing users are offered the new ones; the frontend keeps a matching
+# constant that decides which steps to show.
+ONBOARDING_VERSION = 2
+
 # ── Setting keys that are safe to expose ────────────────────────────────────
 
 EXPOSED_KEYS = {
@@ -734,9 +739,15 @@ async def complete_onboarding(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> UserOut:
-    """Mark the current user's first-use setup wizard as completed (one-time)."""
+    """Mark the setup wizard finished at the current wizard revision."""
+    changed = False
     if not current_user.onboarding_complete:
         current_user.onboarding_complete = True
+        changed = True
+    if current_user.onboarding_version < ONBOARDING_VERSION:
+        current_user.onboarding_version = ONBOARDING_VERSION
+        changed = True
+    if changed:
         await db.commit()
         await db.refresh(current_user)
     return UserOut.model_validate(current_user)
