@@ -4,7 +4,7 @@ import axios from "axios";
 import { googleInitiate, googlePoll, getCredentialsStatus, fetchCredentials } from "@/api/auth";
 import type { CredentialsStatus } from "@/api/auth";
 import { useAuthStore } from "@/stores/authStore";
-import { SetupWizard } from "@/components/SetupWizard";
+import { SetupWizard, ONBOARDING_VERSION } from "@/components/SetupWizard";
 import { cn } from "@/lib/utils";
 import { Loader2, CheckCircle2, XCircle, Download } from "lucide-react";
 
@@ -63,6 +63,7 @@ export function LoginPage() {
   const [ssoState, setSsoState] = useState<SsoState>("idle");
   const [ssoError, setSsoError] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
+  const [wizardVersion, setWizardVersion] = useState(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const authIdRef = useRef<string | null>(null);
 
@@ -135,8 +136,11 @@ export function LoginPage() {
           setTokens(result.access_token, result.refresh_token);
           setUser(result.user);
 
-          // Show the one-time setup wizard on first use (per-user flag).
-          if (!result.user.onboarding_complete) {
+          // Show the setup wizard on first use, and again — with only the new
+          // steps — whenever the wizard has gained steps since this user saw it.
+          const seenVersion = result.user.onboarding_version ?? 0;
+          if (!result.user.onboarding_complete || seenVersion < ONBOARDING_VERSION) {
+            setWizardVersion(result.user.onboarding_complete ? seenVersion : 0);
             setShowSetup(true);
             return; // don't navigate yet
           }
@@ -173,7 +177,9 @@ export function LoginPage() {
 
   return (
     <>
-      {showSetup && <SetupWizard onComplete={() => navigate("/")} />}
+      {showSetup && (
+        <SetupWizard onboardingVersion={wizardVersion} onComplete={() => navigate("/")} />
+      )}
       <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm rounded-lg border bg-card p-8 shadow-md">
         <h1 className="mb-1 text-2xl font-bold">Little Gerry</h1>

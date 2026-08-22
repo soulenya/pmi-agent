@@ -19,13 +19,31 @@
  * server (POST /settings/onboarding/complete) so the wizard never shows again.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   updateSettings,
   testConnection,
   getSettings,
   completeOnboarding,
+  getMyProfile,
+  updateMyProfile,
+  getCompanyContext,
+  refreshCompanyContext,
+  setCompanyContextFileId,
 } from "@/api/settings";
+import { apiClient } from "@/api/client";
+import { getWritingVoice, analyzeWritingVoice } from "@/api/writingVoice";
+import {
+  listScheduledTasks,
+  createScheduledTask,
+  updateScheduledTask,
+} from "@/api/scheduledTasks";
+import {
+  inspectDataImport,
+  runDataImport,
+  type ArchiveManifest,
+  type RestoreResult,
+} from "@/api/dataTransfer";
 import { getGoogleStatus, startGoogleAuth } from "@/api/google";
 import {
   Sparkles,
@@ -48,30 +66,117 @@ import {
   ExternalLink,
   Mic,
   FileText,
+  HardDrive,
+  AlertTriangle,
+  Clock,
+  Building2,
+  PenLine,
+  SlidersHorizontal,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
   /** Called after the wizard is dismissed (completed or skipped to the end). */
   onComplete: () => void;
+  /**
+   * The wizard revision this user has already been through. 0 (or undefined)
+   * means they have never seen it and get the full run; an existing user with a
+   * lower version than ONBOARDING_VERSION is shown only the steps added since.
+   */
+  onboardingVersion?: number;
 }
 
-const STEPS = [
-  "Welcome",
-  "How it works",
-  "Claude",
-  "Voyage",
-  "Google",
-  "Voice",
-  "Using it",
-  "Roles",
-  "Done",
-] as const;
+/**
+ * Bump this whenever steps are added, and tag the new steps with the same
+ * number in `since`. Must match ONBOARDING_VERSION in backend/routers/settings.py.
+ */
+export const ONBOARDING_VERSION = 2;
 
-const LAST_STEP = STEPS.length - 1;
+/** The scheduled task the briefing step creates, matched by title so it is only made once. */
+const BRIEFING_TITLE = "Daily briefing";
+const BRIEFING_PROMPT =
+  "Give me my daily briefing: what happened since yesterday across my email, calendar and " +
+  "documents, what needs my attention today, and any tasks that are due or overdue. " +
+  "Keep it short and lead with anything urgent.";
 
-export function SetupWizard({ onComplete }: Props) {
+type StepId =
+  | "welcome"
+  | "how"
+  | "restore"
+  | "claude"
+  | "voyage"
+  | "google"
+  | "you"
+  | "company"
+  | "writing-voice"
+  | "voice"
+  | "meetings"
+  | "briefing"
+  | "backups"
+  | "models"
+  | "using"
+  | "roles"
+  | "done";
+
+interface StepDef {
+  id: StepId;
+  label: string;
+  /** Wizard revision that introduced this step. */
+  since: number;
+}
+
+const ALL_STEPS: StepDef[] = [
+  { id: "welcome", label: "Welcome", since: 1 },
+  { id: "how", label: "How it works", since: 1 },
+  { id: "restore", label: "Restore", since: 2 },
+  { id: "claude", label: "Claude", since: 1 },
+  { id: "voyage", label: "Voyage", since: 1 },
+  { id: "google", label: "Google", since: 1 },
+  { id: "you", label: "You", since: 2 },
+  { id: "company", label: "Company", since: 2 },
+  { id: "writing-voice", label: "Your voice", since: 2 },
+  { id: "voice", label: "Speech", since: 1 },
+  { id: "meetings", label: "Meetings", since: 2 },
+  { id: "briefing", label: "Briefing", since: 2 },
+  { id: "backups", label: "Backups", since: 2 },
+  { id: "models", label: "Models", since: 2 },
+  { id: "using", label: "Using it", since: 1 },
+  { id: "roles", label: "Roles", since: 1 },
+  { id: "done", label: "Done", since: 1 },
+];
+
+/** Steps where the user has just done something, so "Continue" reads better than "Next". */
+const CONTINUE_STEPS = new Set<StepId>([
+  "restore",
+  "claude",
+  "voyage",
+  "google",
+  "you",
+  "company",
+  "writing-voice",
+  "voice",
+  "backups",
+]);
+
+/**
+ * A first-time user (version 0) gets everything. Someone who has already been
+ * through an earlier revision gets only what is new to them, plus the closing
+ * step so there is always a way out.
+ */
+function visibleSteps(seenVersion: number): StepDef[] {
+  if (seenVersion <= 0) return ALL_STEPS;
+  const fresh = ALL_STEPS.filter((s) => s.since > seenVersion);
+  if (!fresh.length) return [ALL_STEPS[ALL_STEPS.length - 1]];
+  return [...fresh, ALL_STEPS[ALL_STEPS.length - 1]];
+}
+
+export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
+  const isUpdate = onboardingVersion > 0;
+  const [steps] = useState(() => visibleSteps(onboardingVersion));
   const [step, setStep] = useState(0);
+  const lastStep = steps.length - 1;
+  const stepId = steps[Math.min(step, lastStep)].id;
 
   // ── Claude (Anthropic) ──────────────────────────────────────────────────────
   const [anthropicKey, setAnthropicKey] = useState("");
@@ -184,8 +289,8 @@ export function SetupWizard({ onComplete }: Props) {
   }, []);
 
   useEffect(() => {
-    if (step === 4) void refreshGoogle();
-  }, [step, refreshGoogle]);
+    if (stepId === "google") void refreshGoogle();
+  }, [stepId, refreshGoogle]);
 
   async function handleConnectGoogle() {
     setGoogleConnecting(true);
@@ -206,6 +311,212 @@ export function SetupWizard({ onComplete }: Props) {
     }, 2000);
   }
 
+  // ── Restore from a backup ───────────────────────────────────────────────────
+  const restoreFileRef = useRef<HTMLInputElement>(null);
+  const [restorePending, setRestorePending] = useState<{ file: File; manifest: ArchiveManifest } | null>(null);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restoreDone, setRestoreDone] = useState<RestoreResult | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+
+  async function handlePickRestore(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setRestoreError(null);
+    setRestoreBusy(true);
+    try {
+      setRestorePending({ file, manifest: await inspectDataImport(file) });
+    } catch (err: unknown) {
+      setRestoreError(err instanceof Error ? err.message : "That is not a Little Gerry backup file.");
+    } finally {
+      setRestoreBusy(false);
+    }
+  }
+
+  async function handleRunRestore() {
+    if (!restorePending) return;
+    setRestoreBusy(true);
+    setRestoreError(null);
+    try {
+      setRestoreDone(await runDataImport(restorePending.file));
+      setRestorePending(null);
+    } catch (err: unknown) {
+      setRestoreError(err instanceof Error ? err.message : "The restore failed.");
+    } finally {
+      setRestoreBusy(false);
+    }
+  }
+
+  // ── Your details ────────────────────────────────────────────────────────────
+  const [displayName, setDisplayName] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameResult, setNameResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    getMyProfile()
+      .then((u) => setDisplayName(u.display_name ?? ""))
+      .catch(() => {});
+  }, []);
+
+  async function handleSaveName() {
+    if (!displayName.trim()) return;
+    setNameSaving(true);
+    setNameResult(null);
+    try {
+      await updateMyProfile({ display_name: displayName.trim() });
+      setNameResult({ ok: true, message: "Saved — Little Gerry will address you by this name." });
+    } catch (e: unknown) {
+      setNameResult({ ok: false, message: e instanceof Error ? e.message : "Could not save." });
+    } finally {
+      setNameSaving(false);
+    }
+  }
+
+  // ── Company profile ─────────────────────────────────────────────────────────
+  const [companyFolder, setCompanyFolder] = useState("");
+  const [companySaving, setCompanySaving] = useState(false);
+  const [companyResult, setCompanyResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    if (stepId !== "company") return;
+    getCompanyContext()
+      .then((c) => {
+        setCompanyFolder(c.drive_file_id ?? "");
+        if (c.synced_at) {
+          setCompanyResult({
+            ok: true,
+            message: `Already loaded — ${(c.sections ?? []).length} section(s), last read ${new Date(c.synced_at).toLocaleDateString()}.`,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [stepId]);
+
+  async function handleSaveCompany() {
+    setCompanySaving(true);
+    setCompanyResult(null);
+    try {
+      const r = companyFolder.trim()
+        ? await setCompanyContextFileId(companyFolder.trim())
+        : await refreshCompanyContext();
+      setCompanyResult(
+        r.ok
+          ? { ok: true, message: `Loaded ${(r.sections ?? []).length} section(s) from Drive.` }
+          : { ok: false, message: r.error ?? "Could not read that folder." },
+      );
+    } catch (e: unknown) {
+      setCompanyResult({ ok: false, message: e instanceof Error ? e.message : "Could not read that folder." });
+    } finally {
+      setCompanySaving(false);
+    }
+  }
+
+  // ── Writing voice ───────────────────────────────────────────────────────────
+  const [voiceAnalyzing, setVoiceAnalyzing] = useState(false);
+  const [voiceProfileResult, setVoiceProfileResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    if (stepId !== "writing-voice") return;
+    getWritingVoice()
+      .then((v) => {
+        if (v.profile) {
+          setVoiceProfileResult({ ok: true, message: "Your writing voice is already on file." });
+        }
+      })
+      .catch(() => {});
+  }, [stepId]);
+
+  async function handleAnalyzeVoice() {
+    setVoiceAnalyzing(true);
+    setVoiceProfileResult(null);
+    try {
+      const r = await analyzeWritingVoice();
+      setVoiceProfileResult({
+        ok: true,
+        message: `Done — learned from ${r.messages_analyzed} of your sent emails.`,
+      });
+    } catch (e: unknown) {
+      setVoiceProfileResult({
+        ok: false,
+        message:
+          e instanceof Error
+            ? e.message
+            : "Could not read your sent mail. Connect Google Workspace first, or add this later in Settings.",
+      });
+    } finally {
+      setVoiceAnalyzing(false);
+    }
+  }
+
+  // ── Automatic backups ───────────────────────────────────────────────────────
+  const [backupsEnabled, setBackupsEnabled] = useState(true);
+  const [backupHour, setBackupHour] = useState(2);
+  const [backupsSaving, setBackupsSaving] = useState(false);
+  const [backupsResult, setBackupsResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    if (stepId !== "backups") return;
+    apiClient
+      .get<{ config: { enabled: boolean; hour: number } }>("/api/backups/status")
+      .then(({ data }) => {
+        setBackupsEnabled(data.config.enabled);
+        setBackupHour(data.config.hour);
+      })
+      .catch(() => {});
+  }, [stepId]);
+
+  async function handleSaveBackups() {
+    setBackupsSaving(true);
+    setBackupsResult(null);
+    try {
+      await apiClient.put("/api/backups/settings", { enabled: backupsEnabled, hour: backupHour });
+      setBackupsResult({
+        ok: true,
+        message: backupsEnabled
+          ? `Saved — your conversations will be copied to Google Drive every day at ${String(backupHour).padStart(2, "0")}:00.`
+          : "Saved — automatic backups are off.",
+      });
+    } catch (e: unknown) {
+      setBackupsResult({ ok: false, message: e instanceof Error ? e.message : "Could not save." });
+    } finally {
+      setBackupsSaving(false);
+    }
+  }
+
+  // ── Daily briefing ──────────────────────────────────────────────────────────
+  const [briefingHour, setBriefingHour] = useState(7);
+  const [briefingSaving, setBriefingSaving] = useState(false);
+  const [briefingResult, setBriefingResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function handleCreateBriefing() {
+    setBriefingSaving(true);
+    setBriefingResult(null);
+    try {
+      const existing = await listScheduledTasks();
+      const already = existing.find((t) => t.title === BRIEFING_TITLE);
+      if (already) {
+        await updateScheduledTask(already.id, { hour: briefingHour, minute: 0, enabled: true });
+      } else {
+        await createScheduledTask({
+          title: BRIEFING_TITLE,
+          prompt: BRIEFING_PROMPT,
+          frequency: "daily",
+          hour: briefingHour,
+          minute: 0,
+          enabled: true,
+        });
+      }
+      setBriefingResult({
+        ok: true,
+        message: `Scheduled for ${String(briefingHour).padStart(2, "0")}:00 every day.`,
+      });
+    } catch (e: unknown) {
+      setBriefingResult({ ok: false, message: e instanceof Error ? e.message : "Could not schedule it." });
+    } finally {
+      setBriefingSaving(false);
+    }
+  }
+
   // ── Finish ──────────────────────────────────────────────────────────────────
   async function handleFinish() {
     setFinishing(true);
@@ -219,7 +530,7 @@ export function SetupWizard({ onComplete }: Props) {
     }
   }
 
-  const goNext = () => setStep((s) => Math.min(LAST_STEP, s + 1));
+  const goNext = () => setStep((s) => Math.min(lastStep, s + 1));
   const goBack = () => setStep((s) => Math.max(0, s - 1));
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -230,15 +541,17 @@ export function SetupWizard({ onComplete }: Props) {
         <div className="border-b px-6 py-5">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Welcome to Little Gerry</h2>
+            <h2 className="text-lg font-semibold">
+              {isUpdate ? "What's new to set up" : "Welcome to Little Gerry"}
+            </h2>
             <span className="ml-auto text-xs text-muted-foreground">
-              Step {step + 1} of {STEPS.length}
+              Step {step + 1} of {steps.length}
             </span>
           </div>
           {/* Step dots */}
           <div className="mt-4 flex items-center gap-1.5">
-            {STEPS.map((label, i) => (
-              <div key={label} className="flex flex-1 flex-col items-center gap-1">
+            {steps.map(({ id, label }, i) => (
+              <div key={id} className="flex flex-1 flex-col items-center gap-1">
                 <div
                   className={cn(
                     "h-1.5 w-full rounded-full transition-colors",
@@ -261,7 +574,7 @@ export function SetupWizard({ onComplete }: Props) {
         {/* Body */}
         <div className="min-h-[20rem] flex-1 overflow-y-auto px-6 py-6">
           {/* ── 0 Welcome ─────────────────────────────────────────────────── */}
-          {step === 0 && (
+          {stepId === "welcome" && (
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <div className="rounded-lg bg-primary/10 p-2.5">
@@ -285,7 +598,7 @@ export function SetupWizard({ onComplete }: Props) {
           )}
 
           {/* ── 1 How it works ────────────────────────────────────────────── */}
-          {step === 1 && (
+          {stepId === "how" && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 The installer set up a couple of background pieces so everything runs privately on
@@ -314,7 +627,7 @@ export function SetupWizard({ onComplete }: Props) {
           )}
 
           {/* ── 2 Claude ──────────────────────────────────────────────────── */}
-          {step === 2 && (
+          {stepId === "claude" && (
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <div className="rounded-lg bg-orange-500/10 p-2.5">
@@ -370,7 +683,7 @@ export function SetupWizard({ onComplete }: Props) {
           )}
 
           {/* ── 3 Voyage ──────────────────────────────────────────────────── */}
-          {step === 3 && (
+          {stepId === "voyage" && (
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <div className="rounded-lg bg-violet-500/10 p-2.5">
@@ -427,7 +740,7 @@ export function SetupWizard({ onComplete }: Props) {
           )}
 
           {/* ── 4 Google ──────────────────────────────────────────────────── */}
-          {step === 4 && (
+          {stepId === "google" && (
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <div className="rounded-lg bg-sky-500/10 p-2.5">
@@ -470,7 +783,7 @@ export function SetupWizard({ onComplete }: Props) {
           )}
 
           {/* ── 5 Voice ───────────────────────────────────────────────────── */}
-          {step === 5 && (
+          {stepId === "voice" && (
             <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <div className="rounded-lg bg-rose-500/10 p-2.5">
@@ -539,7 +852,7 @@ export function SetupWizard({ onComplete }: Props) {
           )}
 
           {/* ── 6 Using it ──────────────────────────────────────────────── */}
-          {step === 6 && (
+          {stepId === "using" && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">A few things you&apos;ll do every day:</p>
               <InfoRow
@@ -587,7 +900,7 @@ export function SetupWizard({ onComplete }: Props) {
           )}
 
           {/* ── 7 Roles ───────────────────────────────────────────────────── */}
-          {step === 7 && (
+          {stepId === "roles" && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Access is based on your role and a per-user permission:
@@ -613,15 +926,409 @@ export function SetupWizard({ onComplete }: Props) {
             </div>
           )}
 
-          {/* ── 8 Done ──────────────────────────────────────────────────── */}
-          {step === 8 && (
+          {/* ── Restore from a backup ─────────────────────────────────────── */}
+          {stepId === "restore" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-sky-500/10 p-2.5">
+                  <HardDrive className="h-6 w-6 text-sky-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">Moving from another computer?</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    If you made a backup from a previous installation, load it now and everything
+                    comes back — conversations, tasks, documents and the whole knowledge base. If
+                    this is a fresh start, just skip ahead.
+                  </p>
+                </div>
+              </div>
+
+              <input
+                ref={restoreFileRef}
+                type="file"
+                accept=".lgbackup"
+                onChange={handlePickRestore}
+                className="hidden"
+              />
+
+              {!restoreDone && (
+                <button
+                  onClick={() => restoreFileRef.current?.click()}
+                  disabled={restoreBusy}
+                  className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                >
+                  {restoreBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  Choose a backup file…
+                </button>
+              )}
+
+              {restoreError && (
+                <p className="flex items-start gap-1.5 text-sm text-red-600">
+                  <XCircle className="mt-0.5 h-4 w-4 shrink-0" /> {restoreError}
+                </p>
+              )}
+
+              {restorePending && (
+                <div className="rounded-lg border border-amber-400/70 bg-amber-50 p-4 text-sm dark:bg-amber-950/30">
+                  <p className="font-medium">{restorePending.file.name}</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Made {new Date(restorePending.manifest.created_at).toLocaleString()} —{" "}
+                    {restorePending.manifest.documents ?? 0} document(s).
+                  </p>
+                  <p className="mt-2 flex items-start gap-1.5 text-amber-800 dark:text-amber-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    Anything already in Little Gerry will be replaced by the contents of this file.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={handleRunRestore}
+                      disabled={restoreBusy}
+                      className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {restoreBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {restoreBusy ? "Restoring…" : "Restore this backup"}
+                    </button>
+                    <button
+                      onClick={() => setRestorePending(null)}
+                      disabled={restoreBusy}
+                      className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {restoreDone && (
+                <div className="rounded-lg border border-green-500/60 bg-green-50 p-4 text-sm dark:bg-green-950/30">
+                  <p className="flex items-center gap-1.5 font-medium text-green-700 dark:text-green-300">
+                    <CheckCircle2 className="h-4 w-4" /> Restored{" "}
+                    {restoreDone.restored.documents} document(s).
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    Carry on through the rest of this guide to put your API keys back
+                    {restoreDone.reconnect_required ? " and reconnect Google Workspace" : ""}, then
+                    close and reopen Little Gerry.
+                  </p>
+                </div>
+              )}
+
+              <DefaultNote>
+                You can make a backup at any time from Settings → Backup &amp; Restore.
+              </DefaultNote>
+            </div>
+          )}
+
+          {/* ── Your details ──────────────────────────────────────────────── */}
+          {stepId === "you" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-primary/10 p-2.5">
+                  <Users className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">What should Little Gerry call you?</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    This name is used when it addresses you, and when it signs off drafts and emails
+                    it writes on your behalf.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Your name</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => { setDisplayName(e.target.value); setNameResult(null); }}
+                    placeholder="Morgan Keane"
+                    className="flex-1 rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveName}
+                    disabled={nameSaving || !displayName.trim()}
+                    className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {nameSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Save
+                  </button>
+                </div>
+              </div>
+
+              <ResultBanner result={nameResult} />
+            </div>
+          )}
+
+          {/* ── Company profile ───────────────────────────────────────────── */}
+          {stepId === "company" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-blue-500/10 p-2.5">
+                  <Building2 className="h-6 w-6 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">Teach it about your company</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Point Little Gerry at a Google Drive folder holding your company background —
+                    who you are, what you make, your standards and terminology. It reads those
+                    documents and keeps them in mind in every conversation.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Google Drive folder ID</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={companyFolder}
+                    onChange={(e) => { setCompanyFolder(e.target.value); setCompanyResult(null); }}
+                    placeholder="Leave blank to use the PMI default folder"
+                    className="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <button
+                    onClick={handleSaveCompany}
+                    disabled={companySaving}
+                    className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {companySaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {companySaving ? "Reading…" : "Load"}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  The ID is the long code in the folder&apos;s Drive address, after{" "}
+                  <span className="font-mono">/folders/</span>. This needs Google Workspace
+                  connected.
+                </p>
+              </div>
+
+              <ResultBanner result={companyResult} />
+            </div>
+          )}
+
+          {/* ── Writing voice ─────────────────────────────────────────────── */}
+          {stepId === "writing-voice" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-rose-500/10 p-2.5">
+                  <PenLine className="h-6 w-6 text-rose-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">Write the way you write</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Little Gerry can study the emails you have already sent and learn how you
+                    phrase things — how formal you are, how you open and close, the words you
+                    favour — then use that when it drafts for you.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+                It reads up to 120 of your own sent messages from the last six months. Nothing
+                leaves your machine except the text sent to your chosen AI model, and only the
+                resulting description of your style is kept — not the emails.
+              </div>
+
+              <button
+                onClick={handleAnalyzeVoice}
+                disabled={voiceAnalyzing}
+                className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+              >
+                {voiceAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
+                {voiceAnalyzing ? "Reading your sent mail…" : "Learn my writing voice"}
+              </button>
+
+              <ResultBanner result={voiceProfileResult} />
+              <DefaultNote>
+                Optional. You can do this later, or paste in a writing sample instead, from
+                Settings → Writing Voice.
+              </DefaultNote>
+            </div>
+          )}
+
+          {/* ── Meetings ──────────────────────────────────────────────────── */}
+          {stepId === "meetings" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-indigo-500/10 p-2.5">
+                  <Video className="h-6 w-6 text-indigo-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">Meeting notes, taken for you</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Little Gerry can listen to a meeting through your microphone, transcribe it live
+                    and hand you a summary with the decisions and action items when it ends.
+                  </p>
+                </div>
+              </div>
+              <InfoRow
+                icon={<Mic className="h-5 w-5 text-indigo-500" />}
+                title="Start it from the Meetings page"
+                desc="Open Meetings, press Start, and put your laptop where it can hear the room. You can
+                      type notes alongside the transcript as it runs."
+              />
+              <InfoRow
+                icon={<KeyRound className="h-5 w-5 text-primary" />}
+                title="Uses the speech key from the next step"
+                desc="Live transcription runs on Google Cloud Speech-to-Text, so it needs the same Google
+                      Cloud API key used for voice chat."
+              />
+              <DefaultNote>
+                Nothing is recorded to disk unless you ask for it — the transcript is what gets
+                kept.
+              </DefaultNote>
+            </div>
+          )}
+
+          {/* ── Daily briefing ────────────────────────────────────────────── */}
+          {stepId === "briefing" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-amber-500/10 p-2.5">
+                  <Clock className="h-6 w-6 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">A briefing every morning</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Little Gerry can run itself before you sit down — checking your email, calendar
+                    and tasks — and leave a short briefing waiting for you.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-sm font-medium">Run it at</label>
+                <select
+                  value={briefingHour}
+                  onChange={(e) => { setBriefingHour(Number(e.target.value)); setBriefingResult(null); }}
+                  className="rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>
+                      {String(h).padStart(2, "0")}:00
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleCreateBriefing}
+                  disabled={briefingSaving}
+                  className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {briefingSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Schedule it
+                </button>
+              </div>
+
+              <ResultBanner result={briefingResult} />
+              <DefaultNote>
+                Optional. Change the time, edit what it looks at, or turn it off from the Scheduled
+                Tasks page.
+              </DefaultNote>
+            </div>
+          )}
+
+          {/* ── Automatic backups ─────────────────────────────────────────── */}
+          {stepId === "backups" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-emerald-500/10 p-2.5">
+                  <ShieldCheck className="h-6 w-6 text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">Keep a copy in Google Drive</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Once a day Little Gerry can copy your conversations to your own Google Drive, so
+                    a lost laptop doesn&apos;t mean lost work.
+                  </p>
+                </div>
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={backupsEnabled}
+                  onChange={(e) => { setBackupsEnabled(e.target.checked); setBackupsResult(null); }}
+                  className="h-4 w-4"
+                />
+                Back up automatically every day
+              </label>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-sm font-medium">At</label>
+                <select
+                  value={backupHour}
+                  disabled={!backupsEnabled}
+                  onChange={(e) => { setBackupHour(Number(e.target.value)); setBackupsResult(null); }}
+                  className="rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>
+                      {String(h).padStart(2, "0")}:00
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleSaveBackups}
+                  disabled={backupsSaving}
+                  className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {backupsSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save
+                </button>
+              </div>
+
+              <ResultBanner result={backupsResult} />
+              <DefaultNote>
+                This needs Google Workspace connected. For a complete copy — documents and knowledge
+                base as well — use Settings → Backup &amp; Restore.
+              </DefaultNote>
+            </div>
+          )}
+
+          {/* ── Models per task ───────────────────────────────────────────── */}
+          {stepId === "models" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-violet-500/10 p-2.5">
+                  <SlidersHorizontal className="h-6 w-6 text-violet-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">Different jobs, different models</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Chatting, summarising a long document, extracting fields from a scan and
+                    drafting a report don&apos;t all need the same model. Little Gerry picks a
+                    sensible one for each job out of the box.
+                  </p>
+                </div>
+              </div>
+              <InfoRow
+                icon={<Boxes className="h-5 w-5 text-orange-500" />}
+                title="The defaults are already good"
+                desc="Claude Sonnet handles conversation and drafting; lighter models take the quick,
+                      repetitive jobs so you spend less and wait less."
+              />
+              <InfoRow
+                icon={<SlidersHorizontal className="h-5 w-5 text-violet-500" />}
+                title="Change any of them later"
+                desc="Settings → Models Per Task lists every job with the model it uses, and lets you swap
+                      in anything you have a key for."
+              />
+              <DefaultNote>Nothing to do here — this is just so you know it exists.</DefaultNote>
+            </div>
+          )}
+
+          {/* ── Done ────────────────────────────────────────────────────── */}
+          {stepId === "done" && (
             <div className="space-y-4 py-6 text-center">
               <CheckCircle2 className="mx-auto h-14 w-14 text-green-500" />
               <div>
                 <p className="text-lg font-semibold">You&apos;re all set!</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Claude and Voyage are configured as your defaults. Everything you set up here can be
-                  changed anytime in Settings.
+                  {isUpdate
+                    ? "That's everything new. Anything you skipped is waiting for you in Settings."
+                    : "Claude and Voyage are configured as your defaults. Everything you set up here can be changed anytime in Settings."}
                 </p>
               </div>
               <button
@@ -637,7 +1344,7 @@ export function SetupWizard({ onComplete }: Props) {
         </div>
 
         {/* Footer */}
-        {step < LAST_STEP && (
+        {step < lastStep && (
           <div className="flex items-center justify-between border-t px-6 py-4">
             <button
               onClick={goBack}
@@ -650,7 +1357,7 @@ export function SetupWizard({ onComplete }: Props) {
               onClick={goNext}
               className="flex items-center gap-1.5 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow hover:bg-primary/90"
             >
-              {step === 2 || step === 3 || step === 4 || step === 5 ? "Continue" : "Next"}
+              {CONTINUE_STEPS.has(stepId) ? "Continue" : "Next"}
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>

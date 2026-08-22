@@ -1,17 +1,38 @@
 /**
  * ChatSidebar — persistent assistant panel visible on all pages.
  * Collapsed: 32px tab showing Bot icon + "ASSISTANT" text.
- * Expanded: 320px panel with full chat interface.
+ * Expanded: resizable docked column, or a free-floating panel when popped out.
  * Sends page context prefix so the AI knows what the user is viewing.
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bot, ChevronRight, Loader2, RotateCcw, Send, Square, Wrench } from "lucide-react";
+import {
+  Bot,
+  ChevronRight,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  PanelRight,
+  PictureInPicture2,
+  RotateCcw,
+  Send,
+  Square,
+  Wrench,
+} from "lucide-react";
 import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
 import ConfirmDriveEditModal, { type DriveEditRequest } from "@/components/ConfirmDriveEditModal";
-import { useChatSidebarStore } from "@/stores/chatSidebarStore";
+import {
+  useChatSidebarStore,
+  type FloatRect,
+  DOCK_MIN_WIDTH,
+  DOCK_MAX_WIDTH,
+  DOCK_DEFAULT_WIDTH,
+  DOCK_WIDE_WIDTH,
+  FLOAT_MIN_WIDTH,
+  FLOAT_MIN_HEIGHT,
+} from "@/stores/chatSidebarStore";
 import { createConversation, listConversations, listMessages, stopTurn } from "@/api/chat";
 import { grantDriveEdit } from "@/api/google";
 import { useAuthStore } from "@/stores/authStore";
@@ -57,6 +78,30 @@ interface ToolActivity {
   label: string;
 }
 
+function clampWidth(w: number): number {
+  return Math.min(Math.max(Math.round(w), DOCK_MIN_WIDTH), DOCK_MAX_WIDTH);
+}
+
+/** Keep a floating panel on screen, leaving its header reachable. */
+function clampRect(r: FloatRect): FloatRect {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const w = Math.min(Math.max(Math.round(r.w), FLOAT_MIN_WIDTH), Math.max(FLOAT_MIN_WIDTH, vw - 16));
+  const h = Math.min(Math.max(Math.round(r.h), FLOAT_MIN_HEIGHT), Math.max(FLOAT_MIN_HEIGHT, vh - 16));
+  return {
+    w,
+    h,
+    x: Math.min(Math.max(8, Math.round(r.x)), Math.max(8, vw - w - 8)),
+    y: Math.min(Math.max(8, Math.round(r.y)), Math.max(8, vh - 56)),
+  };
+}
+
+function defaultRect(width: number): FloatRect {
+  const w = Math.max(FLOAT_MIN_WIDTH, width);
+  const h = Math.round(window.innerHeight * 0.7);
+  return clampRect({ w, h, x: window.innerWidth - w - 32, y: 72 });
+}
+
 // ── ChatSidebarToggle — rendered in Header ─────────────────────────────────
 
 export function ChatSidebarToggle() {
@@ -86,6 +131,12 @@ export function ChatSidebar() {
     setActiveConversationId,
     pendingMessage,
     setPendingMessage,
+    width,
+    setWidth,
+    popped,
+    setPopped,
+    floatRect,
+    setFloatRect,
   } = useChatSidebarStore();
   const { accessToken: token } = useAuthStore();
   const location = useLocation();
@@ -160,6 +211,126 @@ export function ChatSidebar() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [toggle]);
+
+  // ── Panel geometry: docked width, floating position/size ───────────────────
+  // Live drag values are kept local and only committed to the persisted store
+  // on pointer-up, so a drag doesn't write to localStorage on every frame.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const [dragRect, setDragRect] = useState<FloatRect | null>(null);
+  const widthDragRef = useRef<{ startX: number; startW: number } | null>(null);
+  const rectDragRef = useRef<
+    { mode: "move" | "resize"; startX: number; startY: number; origin: FloatRect } | null
+  >(null);
+
+  const effectiveWidth = dragWidth ?? width;
+  const rect = dragRect ?? floatRect;
+
+  // Re-clamp a floating panel when the window shrinks so it can't strand offscreen.
+  useEffect(() => {
+    if (!popped) return;
+    function onResize() {
+      const current = useChatSidebarStore.getState().floatRect;
+      setFloatRect(current ? clampRect(current) : defaultRect(useChatSidebarStore.getState().width));
+    }
+    window.addEventListener("resize", onResize);
+    onResize();
+    return () => window.removeEventListener("resize", onResize);
+  }, [popped, setFloatRect]);
+
+  const startWidthDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    widthDragRef.current = { startX: e.clientX, startW: width };
+    setDragWidth(width);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }, [width]);
+
+  const onWidthDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const d = widthDragRef.current;
+    if (!d) return;
+    // Panel is docked on the right, so dragging left widens it.
+    setDragWidth(clampWidth(d.startW - (e.clientX - d.startX)));
+  }, []);
+
+  const endWidthDrag = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!widthDragRef.current) return;
+    widthDragRef.current = null;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    setDragWidth((w) => { if (w !== null) setWidth(w); return null; });
+  }, [setWidth]);
+
+  const startRectDrag = useCallback(
+    (mode: "move" | "resize") => (e: React.PointerEvent<HTMLElement>) => {
+      // Never start a drag from an interactive control in the header.
+      if (mode === "move" && (e.target as HTMLElement).closest("button, select, input, textarea, a")) {
+        return;
+      }
+      const origin = useChatSidebarStore.getState().floatRect;
+      if (!origin) return;
+      e.preventDefault();
+      rectDragRef.current = { mode, startX: e.clientX, startY: e.clientY, origin };
+      setDragRect(origin);
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    },
+    [],
+  );
+
+  const onRectDrag = useCallback((e: React.PointerEvent<HTMLElement>) => {
+    const d = rectDragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    setDragRect(
+      clampRect(
+        d.mode === "move"
+          ? { ...d.origin, x: d.origin.x + dx, y: d.origin.y + dy }
+          : { ...d.origin, w: d.origin.w + dx, h: d.origin.h + dy },
+      ),
+    );
+  }, []);
+
+  const endRectDrag = useCallback((e: React.PointerEvent<HTMLElement>) => {
+    if (!rectDragRef.current) return;
+    rectDragRef.current = null;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    setDragRect((r) => { if (r) setFloatRect(r); return null; });
+  }, [setFloatRect]);
+
+  /** Pop out in place: the floating panel opens over the column it left. */
+  const popOut = useCallback(() => {
+    const box = panelRef.current?.getBoundingClientRect();
+    setFloatRect(
+      clampRect(
+        box
+          ? { x: box.left, y: box.top, w: Math.max(FLOAT_MIN_WIDTH, box.width), h: box.height }
+          : defaultRect(width),
+      ),
+    );
+    setPopped(true);
+  }, [setFloatRect, setPopped, width]);
+
+  const isExpanded = popped
+    ? !!rect && rect.w >= window.innerWidth * 0.6
+    : effectiveWidth >= DOCK_WIDE_WIDTH;
+
+  const toggleExpanded = useCallback(() => {
+    if (!popped) {
+      setWidth(effectiveWidth >= DOCK_WIDE_WIDTH ? DOCK_DEFAULT_WIDTH : DOCK_WIDE_WIDTH);
+      return;
+    }
+    const current = useChatSidebarStore.getState().floatRect;
+    if (!current) return;
+    setFloatRect(
+      current.w >= window.innerWidth * 0.6
+        ? defaultRect(DOCK_WIDE_WIDTH)
+        : clampRect({
+            x: window.innerWidth * 0.1,
+            y: window.innerHeight * 0.08,
+            w: window.innerWidth * 0.8,
+            h: window.innerHeight * 0.84,
+          }),
+    );
+  }, [popped, effectiveWidth, setWidth, setFloatRect]);
 
   // Conversations list
   const { data: conversations = [], isFetched: conversationsFetched } = useQuery({
@@ -409,10 +580,19 @@ export function ChatSidebar() {
   }
 
   // ── Expanded panel ─────────────────────────────────────────────────────────
-  return (
-    <div className="flex w-80 shrink-0 flex-col border-l bg-background">
+  const panelContents = (
+    <>
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-3 py-2.5">
+      <div
+        onPointerDown={popped ? startRectDrag("move") : undefined}
+        onPointerMove={popped ? onRectDrag : undefined}
+        onPointerUp={popped ? endRectDrag : undefined}
+        onPointerCancel={popped ? endRectDrag : undefined}
+        className={cn(
+          "flex items-center justify-between border-b px-3 py-2.5",
+          popped && "cursor-grab select-none active:cursor-grabbing",
+        )}
+      >
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold">Little Gerry</span>
@@ -440,6 +620,20 @@ export function ChatSidebar() {
             title="New conversation"
           >
             +
+          </button>
+          <button
+            onClick={toggleExpanded}
+            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            title={isExpanded ? "Shrink" : "Expand"}
+          >
+            {isExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            onClick={() => (popped ? setPopped(false) : popOut())}
+            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            title={popped ? "Dock back to the side" : "Pop out into a floating window"}
+          >
+            {popped ? <PanelRight className="h-3.5 w-3.5" /> : <PictureInPicture2 className="h-3.5 w-3.5" />}
           </button>
           <button
             onClick={toggle}
@@ -549,32 +743,76 @@ export function ChatSidebar() {
           </button>
         </div>
       </div>
+    </>
+  );
 
-      {pendingDriveEdit && (
-        <ConfirmDriveEditModal
-          request={pendingDriveEdit}
-          busy={grantingDriveEdit}
-          error={driveEditError}
-          onAllow={async () => {
-            setGrantingDriveEdit(true);
-            setDriveEditError(null);
-            try {
-              await grantDriveEdit(pendingDriveEdit.file_id);
-              qc.invalidateQueries({ queryKey: ["drive-edit-grants"] });
-              setPendingDriveEdit(null);
-            } catch (err) {
-              const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-              setDriveEditError(typeof detail === "string" ? detail : "Couldn't grant permission.");
-            } finally {
-              setGrantingDriveEdit(false);
-            }
-          }}
-          onDeny={() => {
-            setDriveEditError(null);
-            setPendingDriveEdit(null);
-          }}
-        />
-      )}
+  const driveEditModal = pendingDriveEdit && (
+    <ConfirmDriveEditModal
+      request={pendingDriveEdit}
+      busy={grantingDriveEdit}
+      error={driveEditError}
+      onAllow={async () => {
+        setGrantingDriveEdit(true);
+        setDriveEditError(null);
+        try {
+          await grantDriveEdit(pendingDriveEdit.file_id);
+          qc.invalidateQueries({ queryKey: ["drive-edit-grants"] });
+          setPendingDriveEdit(null);
+        } catch (err) {
+          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+          setDriveEditError(typeof detail === "string" ? detail : "Couldn't grant permission.");
+        } finally {
+          setGrantingDriveEdit(false);
+        }
+      }}
+      onDeny={() => {
+        setDriveEditError(null);
+        setPendingDriveEdit(null);
+      }}
+    />
+  );
+
+  // ── Popped out: floats over the app, drag the header to move it ────────────
+  if (popped && rect) {
+    return (
+      <>
+        <div
+          className="fixed z-40 flex flex-col overflow-hidden rounded-lg border bg-background shadow-2xl"
+          style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
+        >
+          {panelContents}
+          <div
+            onPointerDown={startRectDrag("resize")}
+            onPointerMove={onRectDrag}
+            onPointerUp={endRectDrag}
+            onPointerCancel={endRectDrag}
+            title="Drag to resize"
+            className="absolute bottom-0 right-0 z-10 h-4 w-4 cursor-nwse-resize rounded-tl border-l border-t bg-muted/60 hover:bg-muted-foreground/30"
+          />
+        </div>
+        {driveEditModal}
+      </>
+    );
+  }
+
+  // ── Docked column: drag the left edge to resize ────────────────────────────
+  return (
+    <div
+      ref={panelRef}
+      className="relative flex shrink-0 flex-col border-l bg-background"
+      style={{ width: effectiveWidth }}
+    >
+      <div
+        onPointerDown={startWidthDrag}
+        onPointerMove={onWidthDrag}
+        onPointerUp={endWidthDrag}
+        onPointerCancel={endWidthDrag}
+        onDoubleClick={() => setWidth(DOCK_DEFAULT_WIDTH)}
+        title="Drag to resize • double-click to reset"
+        className="absolute inset-y-0 left-0 z-20 w-1.5 cursor-ew-resize hover:bg-primary/40"
+      />
+      {panelContents}
+      {driveEditModal}
     </div>
   );
 }
