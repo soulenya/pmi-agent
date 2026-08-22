@@ -30,6 +30,8 @@ export interface User {
   is_active: boolean;
   can_write_regulatory?: boolean;
   onboarding_complete?: boolean;
+  /** Which revision of the setup wizard this user has been through. */
+  onboarding_version?: number;
   created_at: string;
 }
 

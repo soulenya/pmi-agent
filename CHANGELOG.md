@@ -4,6 +4,17 @@
 
 ## Changelog
 
+### v3.3.54 — 2026-08-22
+**Uninstalling no longer destroys your work — plus backup, restore, and a fuller setup guide**
+
+- **Uninstalling Little Gerry was wiping everything.** The uninstaller tore down the database *and its storage volume* — conversations, tasks, workrooms, users, settings, document records and the entire knowledge base went with the program, silently and permanently. Reinstalling gave you an empty app. Your document files survived on disk but were orphaned, with nothing left to say what they were. This is fixed: uninstalling now leaves your data alone by default, and asks first if you actually want it deleted.
+- **Settings → Backup & Restore.** One button writes everything — database, documents, chat attachments, generated files — into a single `.lgbackup` file in `~/.pmi-agent/exports`. Another loads one back. The page shows what you have before you start: how many conversations, documents and tasks, and how much disk it comes to.
+- **A backup moves between computers.** Documents on disk are encrypted with a key held in your operating system's credential store, and that key never leaves the machine it was made on. So the backup decrypts them on the way out and re-encrypts them with the new machine's key on the way in. No key material is ever written into the archive. What a backup does *not* carry is your API keys and Google sign-in — after restoring onto a different computer you reconnect Google and paste your keys back in, and Little Gerry tells you so.
+- **Restoring is safe to attempt.** A copy of your current database is taken before anything is replaced, and the last three are kept. Backup files are checked before they are opened.
+- **The setup guide covers what it was skipping.** It now walks through restoring from a backup (first, before you set anything else up), your name, your company profile folder in Drive, learning your writing voice from your sent mail, meeting transcription, a daily morning briefing, automatic Drive backups, and which model handles which job.
+- **Existing users see only the new steps.** The wizard records which revision you have been through, so after updating you get the handful of things that are new to you and nothing you have already done.
+- **The side chat panel resizes and pops out.** Drag its left edge to any width, double-click the edge to snap back, use the expand button for double width, or pop it out into a floating window you can drag anywhere on screen and resize from the corner. Where you leave it is where it comes back.
+
 ### v3.3.53 — 2026-08-14
 **The live meeting transcript keeps up (Morgan field report: 15–40 seconds behind)**
 
