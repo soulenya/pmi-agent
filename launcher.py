@@ -879,11 +879,9 @@ class _JsApi:
                     )
                     _browser_win.events.closed += _closed
                     _browser_win.events.loaded += self._inject_toolbar
-                    _browser_win.on_top = True
                     return {"ok": True, "url": target, "title": ""}
                 _browser_win.load_url(target)
                 _browser_win.show()
-                _browser_win.on_top = True
             return {"ok": True, "url": target, "title": ""}
         except Exception:
             _log_error()
@@ -997,7 +995,6 @@ class _JsApi:
         if _browser_win is None:
             return False
         try:
-            _browser_win.on_top = False
             _browser_win.hide()
             return True
         except Exception:
@@ -1009,7 +1006,6 @@ class _JsApi:
             return False
         try:
             _browser_win.show()
-            _browser_win.on_top = True
             return True
         except Exception:
             _log_error()
