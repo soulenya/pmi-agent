@@ -19,6 +19,7 @@ import {
   Users,
   CalendarDays,
   CalendarClock,
+  Compass,
   Globe,
   TrendingUp,
   Sparkles,
@@ -50,6 +51,7 @@ const pinnedItems: NavItem[] = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/chat", icon: MessageSquare, label: "Little Gerry" },
   { to: "/assistant", icon: Sparkles, label: "Daily Assistant", badge: "assistant" },
+  { to: "/browser", icon: Compass, label: "Research Browser" },
 ];
 
 // Collapsible groups.
@@ -72,7 +74,6 @@ const navGroups: NavGroup[] = [
       { to: "/documents", icon: FileText, label: "Knowledge Base" },
       { to: "/search", icon: Search, label: "Search" },
       { to: "/research", icon: FlaskConical, label: "Research" },
-      { to: "/browser", icon: Globe, label: "Research Browser" },
       { to: "/files", icon: FileText, label: "Generated Files" },
     ],
   },
