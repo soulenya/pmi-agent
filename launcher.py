@@ -868,6 +868,29 @@ class _JsApi:
         title = self._browser_js("document.title") or ""
         return {"open": True, "url": url, "title": title}
 
+    def browser_fit(self, left: float, top: float, right: float, bottom: float) -> bool:
+        """Sit the browser window over a region of the main window.
+
+        The caller passes insets as fractions of its own viewport rather than
+        pixels, so this works out at whatever DPI scaling the display is using:
+        every number below is derived from the main window's own geometry.
+        """
+        if _browser_win is None or _win_ref is None:
+            return False
+        try:
+            mx, my = _win_ref.x, _win_ref.y
+            mw, mh = _win_ref.width, _win_ref.height
+            x = mx + int(mw * max(0.0, min(0.9, left)))
+            y = my + int(mh * max(0.0, min(0.9, top)))
+            w = max(480, int(mw * (1.0 - left - right)))
+            h = max(320, int(mh * (1.0 - top - bottom)))
+            _browser_win.move(x, y)
+            _browser_win.resize(w, h)
+            return True
+        except Exception:
+            _log_error()
+            return False
+
     def browser_capture(self) -> dict:
         """Read the rendered page — this is the only way content leaves the browser."""
         if _browser_win is None:

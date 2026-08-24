@@ -41,6 +41,7 @@ interface BrowserBridge {
   browser_forward(): Promise<boolean>;
   browser_reload(): Promise<boolean>;
   browser_state(): Promise<{ open: boolean; url: string; title: string }>;
+  browser_fit(left: number, top: number, right: number, bottom: number): Promise<boolean>;
   browser_capture(): Promise<{ ok: boolean; url?: string; title?: string; text?: string; error?: string }>;
   browser_close(): Promise<boolean>;
 }
@@ -83,6 +84,21 @@ export async function browserReload() {
 
 export async function browserWindowState() {
   return (await bridge()?.browser_state()) ?? { open: false, url: "", title: "" };
+}
+
+/**
+ * Park the browser window over `el`, so it fills the page area without hiding
+ * the navigation or the chat panel. Insets go over as fractions of the viewport
+ * because the shell, not the web page, knows the real pixel geometry.
+ */
+export async function fitBrowserTo(el: HTMLElement | null) {
+  const api = bridge();
+  if (!api || !el) return;
+  const r = el.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth;
+  const vh = document.documentElement.clientHeight;
+  if (r.width < 100 || r.height < 100 || !vw || !vh) return;
+  await api.browser_fit(r.left / vw, r.top / vh, (vw - r.right) / vw, (vh - r.bottom) / vh);
 }
 
 export async function closeBrowser() {

@@ -4,11 +4,15 @@ import {
   ArrowLeft,
   ArrowRight,
   BookmarkPlus,
+  Compass,
   Eye,
   EyeOff,
   ExternalLink,
-  Globe,
+  Library,
   Loader2,
+  Maximize2,
+  MessageSquare,
+  Pin,
   Plus,
   RotateCw,
   Star,
@@ -24,6 +28,7 @@ import {
   capturePage,
   closeBrowser,
   deleteBookmark,
+  fitBrowserTo,
   getBrowserState,
   hostOf,
   isBrowserAvailable,
@@ -35,6 +40,7 @@ import {
   setFollowing,
   toUrl,
 } from "@/api/browser";
+import { addWorkroomItem, listWorkrooms } from "@/api/workrooms";
 import { useAskGerry } from "@/hooks/useAskGerry";
 import { cn } from "@/lib/utils";
 
@@ -59,7 +65,9 @@ export function ResearchBrowserPage() {
   const [opened, setOpened] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
   const addressFocused = useRef(false);
+  const slotRef = useRef<HTMLDivElement>(null);
 
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0];
 
@@ -70,6 +78,11 @@ export function ResearchBrowserPage() {
   const { data: state } = useQuery({
     queryKey: ["browser", "state"],
     queryFn: getBrowserState,
+  });
+  const { data: workrooms = [] } = useQuery({
+    queryKey: ["workrooms"],
+    queryFn: () => listWorkrooms(),
+    enabled: pinOpen,
   });
   const following = state?.following ?? false;
 
@@ -91,6 +104,22 @@ export function ResearchBrowserPage() {
       setTabs((prev) => prev.map((t) => (t.id === activeId ? { ...t, ...patch } : t))),
     [activeId],
   );
+
+  const fit = useCallback(() => void fitBrowserTo(slotRef.current), []);
+
+  // Keep the window parked over the slot as the app window, the chat panel or
+  // the navigation change size.
+  useEffect(() => {
+    if (!available || !opened) return;
+    fit();
+    const observer = new ResizeObserver(() => fit());
+    if (slotRef.current) observer.observe(slotRef.current);
+    window.addEventListener("resize", fit);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+  }, [available, opened, fit]);
 
   // Poll the real window so the address bar and tab title follow links the user
   // clicks inside the page — there is no navigation event on the bridge.
@@ -133,8 +162,12 @@ export function ResearchBrowserPage() {
     setAddress(url);
     updateActive({ url });
     const result = opened ? await navigateBrowser(url) : await openBrowser(url);
-    if (result.ok) setOpened(true);
-    else setMessage(result.error ?? "Could not open that page.");
+    if (result.ok) {
+      setOpened(true);
+      window.setTimeout(fit, 300);
+    } else {
+      setMessage(result.error ?? "Could not open that page.");
+    }
   };
 
   const newTab = () => {
@@ -148,7 +181,7 @@ export function ResearchBrowserPage() {
   const switchTab = (tab: Tab) => {
     setActiveId(tab.id);
     setAddress(tab.url);
-    void (opened ? navigateBrowser(tab.url) : openBrowser(tab.url).then(() => setOpened(true)));
+    void (opened ? navigateBrowser(tab.url) : go(tab.url));
   };
 
   const closeTab = (id: number) => {
@@ -212,6 +245,17 @@ export function ResearchBrowserPage() {
       setMessage(`Saved "${saved.title}" to the Knowledge Base (${saved.chunk_count} chunks).`);
     });
 
+  const handlePin = (roomId: string, roomTitle: string) =>
+    withBusy("pin", async () => {
+      setPinOpen(false);
+      await addWorkroomItem(roomId, {
+        kind: "website",
+        ref_id: active.url,
+        label: active.title || hostOf(active.url),
+      });
+      setMessage(`Pinned to ${roomTitle}.`);
+    });
+
   const currentBookmark = bookmarks.find((b) => b.url === active?.url);
 
   if (!available) {
@@ -226,177 +270,250 @@ export function ResearchBrowserPage() {
     );
   }
 
-  return (
-    <div className="flex h-full flex-col gap-4 p-6">
-      <header>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold">
-          <Globe className="h-6 w-6" /> Research Browser
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Browse in a separate window. Sign in to sites normally — Gerry only sees a page when
-          you ask him to.
-        </p>
-      </header>
+  const actionClass =
+    "flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50";
 
-      {/* tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto">
-        {tabs.map((tab) => (
-          <div
-            key={tab.id}
-            onClick={() => switchTab(tab)}
+  return (
+    <div className="flex h-full min-h-0 gap-4 p-4">
+      {/* Persistent action rail */}
+      <aside className="flex w-60 shrink-0 flex-col gap-3 overflow-y-auto">
+        <div>
+          <h1 className="flex items-center gap-2 text-lg font-semibold">
+            <Compass className="h-5 w-5" /> Research Browser
+          </h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sign in to sites normally. Gerry only sees a page when you ask.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <button
+            onClick={() => followMut.mutate(!following)}
             className={cn(
-              "group flex max-w-[220px] cursor-pointer items-center gap-2 rounded-t-md border-b-2 px-3 py-2 text-sm",
-              tab.id === activeId
-                ? "border-primary bg-muted font-medium"
-                : "border-transparent hover:bg-muted/50",
+              actionClass,
+              following && "border-primary bg-primary text-primary-foreground hover:bg-primary",
             )}
           >
-            <span className="truncate">{tab.title || hostOf(tab.url)}</span>
+            {following ? (
+              <Eye className="h-4 w-4 shrink-0" />
+            ) : (
+              <EyeOff className="h-4 w-4 shrink-0" />
+            )}
+            {following ? "Gerry is watching" : "Browse with Gerry"}
+          </button>
+
+          <button onClick={handleAsk} disabled={!opened || busy !== null} className={actionClass}>
+            {busy === "ask" ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            ) : (
+              <MessageSquare className="h-4 w-4 shrink-0" />
+            )}
+            Ask Gerry about this page
+          </button>
+
+          <button onClick={handleSaveKb} disabled={!opened || busy !== null} className={actionClass}>
+            {busy === "kb" ? (
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            ) : (
+              <Library className="h-4 w-4 shrink-0" />
+            )}
+            Save to Knowledge Base
+          </button>
+
+          <div className="relative">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                closeTab(tab.id);
-              }}
-              className="opacity-0 transition-opacity group-hover:opacity-100"
-              aria-label="Close tab"
+              onClick={() => setPinOpen((v) => !v)}
+              disabled={!opened || busy !== null}
+              className={actionClass}
             >
-              <X className="h-3.5 w-3.5" />
+              {busy === "pin" ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <Pin className="h-4 w-4 shrink-0" />
+              )}
+              Pin to workroom
             </button>
+            {pinOpen && (
+              <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-lg">
+                {workrooms.length === 0 ? (
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground">No workrooms yet.</p>
+                ) : (
+                  workrooms.map((room) => (
+                    <button
+                      key={room.id}
+                      onClick={() => handlePin(room.id, room.title)}
+                      className="block w-full truncate rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+                    >
+                      {room.title}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
-        ))}
-        <button onClick={newTab} className="rounded p-2 hover:bg-muted" aria-label="New tab">
-          <Plus className="h-4 w-4" />
-        </button>
-      </div>
 
-      {/* address bar */}
-      <div className="flex items-center gap-2">
-        <button onClick={() => void browserBack()} className="rounded p-2 hover:bg-muted" aria-label="Back">
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <button onClick={() => void browserForward()} className="rounded p-2 hover:bg-muted" aria-label="Forward">
-          <ArrowRight className="h-4 w-4" />
-        </button>
-        <button onClick={() => void browserReload()} className="rounded p-2 hover:bg-muted" aria-label="Reload">
-          <RotateCw className="h-4 w-4" />
-        </button>
-        <form
-          className="flex-1"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void go(address);
-          }}
-        >
-          <input
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            onFocus={() => (addressFocused.current = true)}
-            onBlur={() => (addressFocused.current = false)}
-            placeholder="Search or enter an address"
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
-          />
-        </form>
-        <button
-          onClick={() =>
-            currentBookmark
-              ? unbookmarkMut.mutate(currentBookmark.id)
-              : bookmarkMut.mutate({ url: active.url, title: active.title })
-          }
-          className="rounded p-2 hover:bg-muted"
-          aria-label={currentBookmark ? "Remove bookmark" : "Add bookmark"}
-        >
-          {currentBookmark ? (
-            <Star className="h-4 w-4 fill-current text-amber-500" />
-          ) : (
-            <BookmarkPlus className="h-4 w-4" />
-          )}
-        </button>
-        {!opened && (
-          <button
-            onClick={() => void go(address || HOME)}
-            className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground"
-          >
-            <ExternalLink className="h-4 w-4" /> Open browser
+          <button onClick={fit} disabled={!opened} className={actionClass}>
+            <Maximize2 className="h-4 w-4 shrink-0" />
+            Fit to window
           </button>
-        )}
-      </div>
+        </div>
 
-      {/* actions */}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
-        <button
-          onClick={() => followMut.mutate(!following)}
-          className={cn(
-            "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
-            following ? "bg-primary text-primary-foreground" : "border hover:bg-muted",
-          )}
-        >
-          {following ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-          {following ? "Gerry is watching this window" : "Browse with Gerry"}
-        </button>
-        <button
-          onClick={handleAsk}
-          disabled={!opened || busy !== null}
-          className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
-        >
-          {busy === "ask" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Ask Gerry about this page
-        </button>
-        <button
-          onClick={handleSaveKb}
-          disabled={!opened || busy !== null}
-          className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
-        >
-          {busy === "kb" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Save to Knowledge Base
-        </button>
-        {opened && (
-          <button
-            onClick={() => {
-              void closeBrowser();
-              setOpened(false);
-            }}
-            className="ml-auto rounded-md border px-3 py-2 text-sm hover:bg-muted"
-          >
-            Close browser window
-          </button>
-        )}
-      </div>
-
-      {following && (
-        <p className="text-xs text-muted-foreground">
-          Gerry sees the page you're on in every chat message until you switch this off. Pages
-          are read fresh each time and never stored.
-        </p>
-      )}
-      {message && <p className="text-sm text-muted-foreground">{message}</p>}
-
-      {/* bookmarks */}
-      <section className="min-h-0 flex-1 overflow-y-auto">
-        <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Bookmarks</h2>
-        {bookmarks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No bookmarks yet. Use the star in the address bar to save a page.
+        {following && (
+          <p className="rounded-md bg-muted p-2 text-xs text-muted-foreground">
+            The page you're on goes with every chat message until you switch this off. Nothing is
+            stored.
           </p>
-        ) : (
-          <ul className="space-y-1">
-            {bookmarks.map((b) => (
-              <li key={b.id} className="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted">
-                <button onClick={() => void go(b.url)} className="min-w-0 flex-1 text-left">
-                  <span className="block truncate text-sm">{b.title || b.url}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{hostOf(b.url)}</span>
-                </button>
-                <button
-                  onClick={() => unbookmarkMut.mutate(b.id)}
-                  className="rounded p-1.5 opacity-0 hover:bg-background group-hover:opacity-100"
-                  aria-label="Delete bookmark"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </li>
-            ))}
-          </ul>
         )}
-      </section>
+        {message && <p className="text-xs text-muted-foreground">{message}</p>}
+
+        <div className="min-h-0 flex-1">
+          <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Bookmarks
+          </h2>
+          {bookmarks.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Use the star in the address bar to save a page.
+            </p>
+          ) : (
+            <ul className="space-y-0.5">
+              {bookmarks.map((b) => (
+                <li
+                  key={b.id}
+                  className="group flex items-center gap-1 rounded-md px-2 py-1 hover:bg-muted"
+                >
+                  <button
+                    onClick={() => void go(b.url)}
+                    className="min-w-0 flex-1 truncate text-left text-sm"
+                  >
+                    {b.title || hostOf(b.url)}
+                  </button>
+                  <button
+                    onClick={() => unbookmarkMut.mutate(b.id)}
+                    className="rounded p-1 opacity-0 group-hover:opacity-100"
+                    aria-label="Delete bookmark"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </aside>
+
+      {/* Chrome, plus the slot the real browser window is parked over */}
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              onClick={() => switchTab(tab)}
+              className={cn(
+                "group flex max-w-[200px] cursor-pointer items-center gap-2 rounded-t-md border-b-2 px-3 py-1.5 text-sm",
+                tab.id === activeId
+                  ? "border-primary bg-muted font-medium"
+                  : "border-transparent hover:bg-muted/50",
+              )}
+            >
+              <span className="truncate">{tab.title || hostOf(tab.url)}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeTab(tab.id);
+                }}
+                className="opacity-0 group-hover:opacity-100"
+                aria-label="Close tab"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+          <button onClick={newTab} className="rounded p-1.5 hover:bg-muted" aria-label="New tab">
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => void browserBack()}
+            className="rounded p-2 hover:bg-muted"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => void browserForward()}
+            className="rounded p-2 hover:bg-muted"
+            aria-label="Forward"
+          >
+            <ArrowRight className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => void browserReload()}
+            className="rounded p-2 hover:bg-muted"
+            aria-label="Reload"
+          >
+            <RotateCw className="h-4 w-4" />
+          </button>
+          <form
+            className="flex-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void go(address);
+            }}
+          >
+            <input
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              onFocus={() => (addressFocused.current = true)}
+              onBlur={() => (addressFocused.current = false)}
+              placeholder="Search or enter an address"
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </form>
+          <button
+            onClick={() =>
+              currentBookmark
+                ? unbookmarkMut.mutate(currentBookmark.id)
+                : bookmarkMut.mutate({ url: active.url, title: active.title })
+            }
+            className="rounded p-2 hover:bg-muted"
+            aria-label={currentBookmark ? "Remove bookmark" : "Add bookmark"}
+          >
+            {currentBookmark ? (
+              <Star className="h-4 w-4 fill-current text-amber-500" />
+            ) : (
+              <BookmarkPlus className="h-4 w-4" />
+            )}
+          </button>
+          {opened && (
+            <button
+              onClick={() => {
+                void closeBrowser();
+                setOpened(false);
+              }}
+              className="rounded p-2 hover:bg-muted"
+              aria-label="Close browser window"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div
+          ref={slotRef}
+          className="flex min-h-0 flex-1 items-center justify-center rounded-lg border-2 border-dashed"
+        >
+          {!opened && (
+            <button
+              onClick={() => void go(address || HOME)}
+              className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+            >
+              <ExternalLink className="h-4 w-4" /> Open browser
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
