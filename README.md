@@ -52,6 +52,7 @@ Key design principles:
 | **Knowledge Base**         | Upload and semantically search internal documents (PDFs, DOCX, TXT); auto-chunked and embedded. Little Gerry can also read an entire document in full when asked to summarize or analyze it, including scanned pages and figures — a Gantt chart, timeline or plotted chart is read off the drawing, with each bar's dates reported rather than the labels alone. Long scans are read in sections and paged through to the end, and any section that could not be read completely is named |
 | **Search**                 | Semantic vector search across all uploaded documents with category filtering                                                               |
 | **Research**               | AI-assisted literature/regulatory research with cited responses                                                                            |
+| **Research Browser**       | A real browser window driven from inside the app: address bar, back/forward, tabs, bookmarks, and persistent logins. "Ask Gerry about this page" reads the rendered page (after its JavaScript, behind your logins) into a new conversation; "Browse with Gerry" keeps the current page in his context on every turn; "Save to Knowledge Base" files it permanently. Gerry never navigates on his own |
 | **Meeting Notes**          | Auto-detects video calls (Zoom/Teams/Meet) and records + transcribes system audio, then AI-summarizes with one-click action item extraction → Tasks; manual transcript paste also supported; meetings and transcripts are searchable from chat |
 | **Gmail**                  | Full inbox: browse standard Gmail folders (Inbox, Sent, Drafts, Starred, Important, Archived, Spam, Trash, All Mail), sort your mail (newest/oldest/sender/unread first), read/search/tag emails, reply, reply-all & forward, mark read or unread (opening a thread clears its highlight automatically), long threads open with only the unread part expanded behind a Gerry-written summary, move to Trash, open attachments in Google Workspace, add attachments straight to the Knowledge Base, and compose & send your own email directly (no approval needed for mail you write yourself) |
 | **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications; submit for approval to send from your Gmail account     |
@@ -410,6 +411,16 @@ A new slide is built from the same fourteen layouts and the same theme as a gene
 ### Research
 
 Navigate to **Research** → **New Research Report** → enter a topic. Little Gerry searches the web (DuckDuckGo), reads sources, and generates a structured cited report stored in the research archive.
+
+### Research Browser
+
+Navigate to **Research Browser** and press **Open browser**. A separate browser window appears; drive it from the address bar, tabs and bookmarks in Little Gerry. Sign-ins persist between launches.
+
+- **Ask Gerry about this page** — captures the rendered page and opens a new conversation with it attached.
+- **Browse with Gerry** — a toggle; while on, the page you are viewing is included with every chat message and refreshed as you navigate. Nothing is stored.
+- **Save to Knowledge Base** — files the page under *Web Research* with its source URL so it becomes searchable and citable.
+
+Gerry only ever sees a page you have opened yourself. Page text enters his prompt labelled as user-supplied material, not as instructions.
 
 ---
 

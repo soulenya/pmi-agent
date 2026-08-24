@@ -15,6 +15,7 @@ import { TasksPage } from "@/pages/TasksPage";
 import { RegulatoryPage } from "@/pages/RegulatoryPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 import { ResearchPage } from "@/pages/ResearchPage";
+import { ResearchBrowserPage } from "@/pages/ResearchBrowserPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { MeetingsPage } from "@/pages/MeetingsPage";
@@ -77,6 +78,7 @@ function ThemedApp() {
             <Route path="regulatory" element={<ErrorBoundary><RegulatoryPage /></ErrorBoundary>} />
             <Route path="notifications" element={<ErrorBoundary><NotificationsPage /></ErrorBoundary>} />
             <Route path="research" element={<ErrorBoundary><ResearchPage /></ErrorBoundary>} />
+            <Route path="browser" element={<ErrorBoundary><ResearchBrowserPage /></ErrorBoundary>} />
             <Route path="projects" element={<ErrorBoundary><ProjectsPage /></ErrorBoundary>} />
             <Route path="projects/:id" element={<ErrorBoundary><ProjectDetailPage /></ErrorBoundary>} />
             <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />

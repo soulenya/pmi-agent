@@ -107,6 +107,8 @@ _ready       = threading.Event()
 _win_ref     = None          # set to webview.Window once created
 _icon_ref    = None          # set to pystray.Icon once created
 _skip_close_confirm = False  # set True by tray "Stop" to skip second dialog
+_browser_win = None          # second window used by the in-app research browser
+_browser_lock = threading.Lock()
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -733,8 +735,163 @@ def _make_tray(win=None):
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
+# Runs inside the browsed page. Picks the densest article-ish container, drops
+# chrome and scripts, and returns readable text — WebView2 has already executed
+# the page's JavaScript, so this sees what the user sees.
+_EXTRACT_JS = r"""
+(function () {
+  try {
+    var best = null, bestLen = 0;
+    var cands = document.querySelectorAll(
+      'article, main, [role="main"], #content, .content, .post, .article, .entry-content'
+    );
+    for (var i = 0; i < cands.length; i++) {
+      var len = (cands[i].innerText || '').trim().length;
+      if (len > bestLen) { bestLen = len; best = cands[i]; }
+    }
+    var root = (bestLen > 400 && best) ? best : document.body;
+    if (!root) return { url: location.href, title: document.title || '', text: '' };
+    var clone = root.cloneNode(true);
+    var junk = clone.querySelectorAll(
+      'script,style,noscript,nav,aside,footer,header,form,iframe,svg,button,' +
+      '[aria-hidden="true"],[role="navigation"],[role="banner"],[role="contentinfo"]'
+    );
+    for (var j = 0; j < junk.length; j++) { junk[j].remove(); }
+    var text = (clone.innerText || '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    return { url: location.href, title: document.title || '', text: text.slice(0, 200000) };
+  } catch (e) {
+    var fallback = document.body ? (document.body.innerText || '') : '';
+    return {
+      url: location.href, title: document.title || '',
+      text: fallback.slice(0, 200000), error: String(e)
+    };
+  }
+})()
+"""
+
+
 class _JsApi:
     """JavaScript bridge exposed to the React app as ``window.pywebview.api``."""
+
+    # ── research browser ──────────────────────────────────────────────────
+    # A second webview window the user drives themselves. Little Gerry renders
+    # the address bar, tabs and bookmarks in the main window and steers this one
+    # through the methods below; nothing here navigates on its own.
+
+    @staticmethod
+    def _safe_url(url: str) -> str:
+        """Return a normalised http(s) URL, or '' if it is not one."""
+        if not isinstance(url, str):
+            return ""
+        url = url.strip()
+        if not url:
+            return ""
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url.lstrip("/")
+        return url if url.startswith(("http://", "https://")) else ""
+
+    def browser_open(self, url: str = "") -> dict:
+        """Show the research browser, navigating to ``url`` if given."""
+        global _browser_win
+        import webview
+
+        target = self._safe_url(url) or "https://duckduckgo.com"
+        try:
+            with _browser_lock:
+                if _browser_win is None:
+                    def _closed() -> None:
+                        global _browser_win
+                        _browser_win = None
+
+                    _browser_win = webview.create_window(
+                        "Research — Little Gerry",
+                        url=target,
+                        width=1180,
+                        height=880,
+                        min_size=(600, 400),
+                        text_select=True,
+                    )
+                    _browser_win.events.closed += _closed
+                    return {"ok": True, "url": target, "title": ""}
+                _browser_win.load_url(target)
+                _browser_win.show()
+            return {"ok": True, "url": target, "title": ""}
+        except Exception:
+            _log_error()
+            return {"ok": False, "error": "Could not open the research browser."}
+
+    def browser_navigate(self, url: str) -> dict:
+        target = self._safe_url(url)
+        if not target:
+            return {"ok": False, "error": "That does not look like a web address."}
+        if _browser_win is None:
+            return self.browser_open(target)
+        try:
+            _browser_win.load_url(target)
+            return {"ok": True, "url": target}
+        except Exception:
+            _log_error()
+            return {"ok": False, "error": "Could not open that page."}
+
+    def _browser_js(self, script: str):
+        if _browser_win is None:
+            return None
+        try:
+            return _browser_win.evaluate_js(script)
+        except Exception:
+            _log_error()
+            return None
+
+    def browser_back(self) -> bool:
+        self._browser_js("history.back()")
+        return True
+
+    def browser_forward(self) -> bool:
+        self._browser_js("history.forward()")
+        return True
+
+    def browser_reload(self) -> bool:
+        self._browser_js("location.reload()")
+        return True
+
+    def browser_state(self) -> dict:
+        """Where the browser currently is, for the address bar and tab strip."""
+        if _browser_win is None:
+            return {"open": False, "url": "", "title": ""}
+        try:
+            url = _browser_win.get_current_url() or ""
+        except Exception:
+            url = ""
+        title = self._browser_js("document.title") or ""
+        return {"open": True, "url": url, "title": title}
+
+    def browser_capture(self) -> dict:
+        """Read the rendered page — this is the only way content leaves the browser."""
+        if _browser_win is None:
+            return {"ok": False, "error": "The research browser is not open."}
+        result = self._browser_js(_EXTRACT_JS)
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "Could not read that page."}
+        return {
+            "ok": True,
+            "url": result.get("url") or "",
+            "title": result.get("title") or "",
+            "text": result.get("text") or "",
+        }
+
+    def browser_close(self) -> bool:
+        global _browser_win
+        with _browser_lock:
+            win, _browser_win = _browser_win, None
+        if win is not None:
+            try:
+                win.destroy()
+            except Exception:
+                _log_error()
+        return True
 
     def open_external(self, url: str) -> bool:
         """Open a URL in the user's default system browser.
@@ -954,10 +1111,23 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
 
     # gui="winforms" is the most stable Windows backend (WinForms + Edge WebView2).
     # On macOS pywebview uses its native Cocoa/WebKit backend automatically.
+    # private_mode=False keeps cookies on disk so a site the user signs into in
+    # the research browser is still signed in next launch.
+    store = Path.home() / ".pmi-agent" / "webview"
+    try:
+        store.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        _log_error()
     if IS_WINDOWS:
-        webview.start(_after_start, win, gui="winforms", debug=False)
+        webview.start(
+            _after_start, win, gui="winforms", debug=False,
+            private_mode=False, storage_path=str(store),
+        )
     else:
-        webview.start(_after_start, win, debug=False)
+        webview.start(
+            _after_start, win, debug=False,
+            private_mode=False, storage_path=str(store),
+        )
 
     # Reached here only when the window is closed
     _force_exit_after(12)  # guarantee exit even if teardown blocks
