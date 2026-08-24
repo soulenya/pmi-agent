@@ -32,6 +32,9 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_browser_bookmarks_user_id "
         "ON browser_bookmarks (user_id)"
     )
+    # Migrations run as the superuser `pmi`; the API runs as `pmi_app`, which has
+    # no CREATE rights and must own the table to be able to read or write it.
+    op.execute("ALTER TABLE browser_bookmarks OWNER TO pmi_app")
 
 
 def downgrade() -> None:
