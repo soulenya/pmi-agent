@@ -107,6 +107,10 @@ _ready       = threading.Event()
 _win_ref     = None          # set to webview.Window once created
 _icon_ref    = None          # set to pystray.Icon once created
 _skip_close_confirm = False  # set True by tray "Stop" to skip second dialog
+_browser_win = None          # second window used by the in-app research browser
+_browser_lock = threading.Lock()
+_browser_actions: list[str] = []   # button presses from the in-page floating bar
+_browser_following = [False]       # so an injected bar renders the right label
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -733,8 +737,304 @@ def _make_tray(win=None):
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
+# Runs inside the browsed page. Picks the densest article-ish container, drops
+# chrome and scripts, and returns readable text — WebView2 has already executed
+# the page's JavaScript, so this sees what the user sees.
+_EXTRACT_JS = r"""
+(function () {
+  try {
+    var best = null, bestLen = 0;
+    var cands = document.querySelectorAll(
+      'article, main, [role="main"], #content, .content, .post, .article, .entry-content'
+    );
+    for (var i = 0; i < cands.length; i++) {
+      var len = (cands[i].innerText || '').trim().length;
+      if (len > bestLen) { bestLen = len; best = cands[i]; }
+    }
+    var root = (bestLen > 400 && best) ? best : document.body;
+    if (!root) return { url: location.href, title: document.title || '', text: '' };
+    var clone = root.cloneNode(true);
+    var junk = clone.querySelectorAll(
+      'script,style,noscript,nav,aside,footer,header,form,iframe,svg,button,' +
+      '[aria-hidden="true"],[role="navigation"],[role="banner"],[role="contentinfo"]'
+    );
+    for (var j = 0; j < junk.length; j++) { junk[j].remove(); }
+    var text = (clone.innerText || '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    return { url: location.href, title: document.title || '', text: text.slice(0, 200000) };
+  } catch (e) {
+    var fallback = document.body ? (document.body.innerText || '') : '';
+    return {
+      url: location.href, title: document.title || '',
+      text: fallback.slice(0, 200000), error: String(e)
+    };
+  }
+})()
+"""
+
+# Floating action bar drawn on top of whatever site is loaded. Injected after
+# every navigation because a page load wipes it. Buttons only queue a request —
+# the React app polls for it and does the actual work, since it is the side that
+# holds the login token.
+_TOOLBAR_JS = r"""
+(function () {
+  if (window.__lgBar) return true;
+  var wrap = document.createElement('div');
+  wrap.style.cssText = [
+    'position:fixed', 'left:12px', 'bottom:12px', 'z-index:2147483647',
+    'display:flex', 'gap:6px', 'padding:6px',
+    'background:rgba(17,17,20,0.92)', 'border:1px solid rgba(255,255,255,0.16)',
+    'border-radius:10px', 'box-shadow:0 6px 24px rgba(0,0,0,0.45)',
+    'font:500 12px/1.2 system-ui,Segoe UI,sans-serif', 'color:#fff',
+    'opacity:0.45', 'transition:opacity .15s'
+  ].join(';');
+  wrap.onmouseenter = function () { wrap.style.opacity = '1'; };
+  wrap.onmouseleave = function () { wrap.style.opacity = '0.45'; };
+
+  function send(action) {
+    try { window.pywebview.api.browser_action(action); } catch (e) { /* bridge not ready */ }
+  }
+  function button(label, action, toggles) {
+    var b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = [
+      'all:unset', 'cursor:pointer', 'padding:6px 10px', 'border-radius:6px',
+      'background:rgba(255,255,255,0.10)', 'white-space:nowrap'
+    ].join(';');
+    b.onmouseover = function () { b.style.background = 'rgba(255,255,255,0.22)'; };
+    b.onmouseout = function () { b.style.background = b.dataset.on === '1'
+      ? 'rgba(96,165,250,0.55)' : 'rgba(255,255,255,0.10)'; };
+    b.onclick = function () {
+      if (toggles) {
+        b.dataset.on = b.dataset.on === '1' ? '0' : '1';
+        b.textContent = b.dataset.on === '1' ? 'Gerry is watching' : 'Browse with Gerry';
+        b.style.background = b.dataset.on === '1'
+          ? 'rgba(96,165,250,0.55)' : 'rgba(255,255,255,0.10)';
+      }
+      send(action);
+    };
+    return b;
+  }
+
+  var watch = button('Browse with Gerry', 'follow', true);
+  if (window.__lgFollowing) {
+    watch.dataset.on = '1';
+    watch.textContent = 'Gerry is watching';
+    watch.style.background = 'rgba(96,165,250,0.55)';
+  }
+  wrap.appendChild(watch);
+  wrap.appendChild(button('Ask Gerry', 'ask', false));
+  wrap.appendChild(button('Save to KB', 'kb', false));
+  wrap.appendChild(button('Pin', 'pin', false));
+  (document.body || document.documentElement).appendChild(wrap);
+  window.__lgBar = wrap;
+  return true;
+})()
+"""
+
+
 class _JsApi:
     """JavaScript bridge exposed to the React app as ``window.pywebview.api``."""
+
+    # ── research browser ──────────────────────────────────────────────────
+    # A second webview window the user drives themselves. Little Gerry renders
+    # the address bar, tabs and bookmarks in the main window and steers this one
+    # through the methods below; nothing here navigates on its own.
+
+    @staticmethod
+    def _safe_url(url: str) -> str:
+        """Return a normalised http(s) URL, or '' if it is not one."""
+        if not isinstance(url, str):
+            return ""
+        url = url.strip()
+        if not url:
+            return ""
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url.lstrip("/")
+        return url if url.startswith(("http://", "https://")) else ""
+
+    def browser_open(self, url: str = "") -> dict:
+        """Show the research browser, navigating to ``url`` if given."""
+        global _browser_win
+        import webview
+
+        target = self._safe_url(url) or "https://duckduckgo.com"
+        try:
+            with _browser_lock:
+                if _browser_win is None:
+                    def _closed() -> None:
+                        global _browser_win
+                        _browser_win = None
+
+                    _browser_win = webview.create_window(
+                        "Research — Little Gerry",
+                        url=target,
+                        width=1180,
+                        height=880,
+                        min_size=(600, 400),
+                        text_select=True,
+                        js_api=self,
+                    )
+                    _browser_win.events.closed += _closed
+                    _browser_win.events.loaded += self._inject_toolbar
+                    return {"ok": True, "url": target, "title": ""}
+                _browser_win.load_url(target)
+                _browser_win.show()
+            return {"ok": True, "url": target, "title": ""}
+        except Exception:
+            _log_error()
+            return {"ok": False, "error": "Could not open the research browser."}
+
+    def _inject_toolbar(self) -> None:
+        try:
+            if _browser_win is not None:
+                _browser_win.evaluate_js(
+                    f"window.__lgFollowing={'true' if _browser_following[0] else 'false'};"
+                    + _TOOLBAR_JS
+                )
+        except Exception:
+            _log_error()
+
+    # ── requests raised from the floating bar ────────────────────────────
+
+    def browser_action(self, action: str) -> bool:
+        """Queue a button press from the in-page bar for the React app to run."""
+        if action in ("ask", "kb", "pin", "follow"):
+            _browser_actions.append(action)
+        return True
+
+    def browser_take_actions(self) -> list:
+        """Hand over queued button presses and clear the queue."""
+        pending, _browser_actions[:] = list(_browser_actions), []
+        return pending
+
+    def browser_set_following(self, following: bool) -> bool:
+        _browser_following[0] = bool(following)
+        return True
+
+    def browser_navigate(self, url: str) -> dict:
+        target = self._safe_url(url)
+        if not target:
+            return {"ok": False, "error": "That does not look like a web address."}
+        if _browser_win is None:
+            return self.browser_open(target)
+        try:
+            _browser_win.load_url(target)
+            return {"ok": True, "url": target}
+        except Exception:
+            _log_error()
+            return {"ok": False, "error": "Could not open that page."}
+
+    def _browser_js(self, script: str):
+        if _browser_win is None:
+            return None
+        try:
+            return _browser_win.evaluate_js(script)
+        except Exception:
+            _log_error()
+            return None
+
+    def browser_back(self) -> bool:
+        self._browser_js("history.back()")
+        return True
+
+    def browser_forward(self) -> bool:
+        self._browser_js("history.forward()")
+        return True
+
+    def browser_reload(self) -> bool:
+        self._browser_js("location.reload()")
+        return True
+
+    def browser_state(self) -> dict:
+        """Where the browser currently is, for the address bar and tab strip."""
+        if _browser_win is None:
+            return {"open": False, "url": "", "title": ""}
+        try:
+            url = _browser_win.get_current_url() or ""
+        except Exception:
+            url = ""
+        title = self._browser_js("document.title") or ""
+        return {"open": True, "url": url, "title": title}
+
+    def browser_fit(
+        self, left: float, top: float, width: float, height: float,
+        view_w: float, view_h: float,
+    ) -> bool:
+        """Park the browser window over a rectangle of the main window's page.
+
+        The caller works in CSS pixels inside its own viewport; pywebview works
+        in logical pixels around the outer window frame. Comparing the main
+        window's frame size with the viewport size the caller reports gives the
+        exact width of the title bar and borders, which both windows share — so
+        no guessing and nothing to get wrong at fractional DPI scaling.
+
+        The browser's own frame is placed inside the rectangle, title bar
+        included, so its buttons never sit over the address bar above it.
+        """
+        if _browser_win is None or _win_ref is None:
+            return False
+        try:
+            frame_w, frame_h = _win_ref.width, _win_ref.height
+            chrome_w = max(0, frame_w - int(view_w))
+            chrome_h = max(0, frame_h - int(view_h))
+            border = chrome_w // 2
+            title = max(0, chrome_h - border)
+
+            _browser_win.move(int(_win_ref.x + border + left), int(_win_ref.y + title + top))
+            _browser_win.resize(int(width), int(height))
+            return True
+        except Exception:
+            _log_error()
+            return False
+
+    def browser_hide(self) -> bool:
+        """Tuck the window away when the user moves to another part of the app."""
+        if _browser_win is None:
+            return False
+        try:
+            _browser_win.hide()
+            return True
+        except Exception:
+            _log_error()
+            return False
+
+    def browser_show(self) -> bool:
+        if _browser_win is None:
+            return False
+        try:
+            _browser_win.show()
+            return True
+        except Exception:
+            _log_error()
+            return False
+
+    def browser_capture(self) -> dict:
+        """Read the rendered page — this is the only way content leaves the browser."""
+        if _browser_win is None:
+            return {"ok": False, "error": "The research browser is not open."}
+        result = self._browser_js(_EXTRACT_JS)
+        if not isinstance(result, dict):
+            return {"ok": False, "error": "Could not read that page."}
+        return {
+            "ok": True,
+            "url": result.get("url") or "",
+            "title": result.get("title") or "",
+            "text": result.get("text") or "",
+        }
+
+    def browser_close(self) -> bool:
+        global _browser_win
+        with _browser_lock:
+            win, _browser_win = _browser_win, None
+        if win is not None:
+            try:
+                win.destroy()
+            except Exception:
+                _log_error()
+        return True
 
     def open_external(self, url: str) -> bool:
         """Open a URL in the user's default system browser.
@@ -954,10 +1254,23 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
 
     # gui="winforms" is the most stable Windows backend (WinForms + Edge WebView2).
     # On macOS pywebview uses its native Cocoa/WebKit backend automatically.
+    # private_mode=False keeps cookies on disk so a site the user signs into in
+    # the research browser is still signed in next launch.
+    store = Path.home() / ".pmi-agent" / "webview"
+    try:
+        store.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        _log_error()
     if IS_WINDOWS:
-        webview.start(_after_start, win, gui="winforms", debug=False)
+        webview.start(
+            _after_start, win, gui="winforms", debug=False,
+            private_mode=False, storage_path=str(store),
+        )
     else:
-        webview.start(_after_start, win, debug=False)
+        webview.start(
+            _after_start, win, debug=False,
+            private_mode=False, storage_path=str(store),
+        )
 
     # Reached here only when the window is closed
     _force_exit_after(12)  # guarantee exit even if teardown blocks

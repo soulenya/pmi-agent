@@ -700,6 +700,16 @@ class AgentExecutor:
         except Exception:  # noqa: BLE001 — live doc is best-effort context
             logger.exception("Failed to build live document context")
 
+        # Research browser — the page the user is looking at, while they have
+        # "Browse with Gerry" switched on.
+        try:
+            from services.browser_context import build_live_page_context
+            page_ctx = build_live_page_context(self.user_id)
+            if page_ctx:
+                messages[0]["content"] += page_ctx
+        except Exception:  # noqa: BLE001 — browser page is best-effort context
+            logger.exception("Failed to build research browser context")
+
         # Workroom — if this conversation is pinned to a co-work room, inject
         # the room's goal, pinned artifacts, and recent journal every turn.
         try:

@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 216;
-export const BUILD_DATE = "2026-08-22";
+export const BUILD_NUMBER = 217;
+export const BUILD_DATE = "2026-08-24";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,21 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 217,
+    date: "2026-08-24",
+    title: "Browse the web without leaving Little Gerry",
+    changes: [
+      "New Research Browser: a real browser window that opens beside Little Gerry, with an address bar, back and forward, tabs and bookmarks",
+      "Sign in to sites normally — you now stay signed in after closing Little Gerry, instead of having to log in again every launch",
+      "'Ask Gerry about this page' starts a new conversation with the page already read, so you can ask questions about what you're looking at",
+      "'Browse with Gerry' keeps him looking over your shoulder: every message you send includes whatever page you're on, until you switch it off",
+      "'Save to Knowledge Base' files the page away permanently so it turns up in search and Gerry can cite it later",
+      "The same buttons ride on a bar in the bottom-left corner of every page you browse, so you can act without clicking back to Little Gerry",
+      "Leave the browser page and the window tucks away instead of falling behind the app — the compass at the foot of the left rail brings it back",
+      "Gerry never browses on his own — he only ever sees a page you are looking at, and is told to treat what a page says as material, not as instructions",
+    ],
+  },
   {
     build: 216,
     date: "2026-08-22",
