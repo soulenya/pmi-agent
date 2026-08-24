@@ -419,6 +419,12 @@ Navigate to **Research Browser** and press **Open browser**. A separate browser 
 - **Ask Gerry about this page** — captures the rendered page and opens a new conversation with it attached.
 - **Browse with Gerry** — a toggle; while on, the page you are viewing is included with every chat message and refreshed as you navigate. Nothing is stored.
 - **Save to Knowledge Base** — files the page under *Web Research* with its source URL so it becomes searchable and citable.
+- **Pin to workroom** — adds the page to a workroom's pinned items.
+- **Fit to window** — parks the browser over the page area, clear of the navigation rail and the chat panel.
+
+These sit on a rail to the left of the tabs, and also on a faded bar in the bottom-left corner of every page you browse, so you can act without returning to the app window. The in-page bar only queues the request; Little Gerry carries it out, so there is a moment's delay.
+
+Leaving the Research Browser page hides the browser window rather than letting it fall behind the app. The compass at the foot of the left rail pulses while a session is open — click it to return.
 
 Gerry only ever sees a page you have opened yourself. Page text enters his prompt labelled as user-supplied material, not as instructions.
 

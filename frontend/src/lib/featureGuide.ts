@@ -60,6 +60,18 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Log progress in the journal so Gerry (and future you) always knows where things stand",
     ],
   },
+  browser: {
+    tagline: "Browse the web with Gerry looking over your shoulder.",
+    capabilities: [
+      "A real browser inside the app — tabs, back and forward, bookmarks, and logins that survive a restart",
+      "Turn on \"Browse with Gerry\" and the page you are reading joins the chat, so you can ask about it without copying anything across",
+      "Save a page straight into the knowledge base, or pin it to a workroom",
+      "The same buttons ride on a bar in the bottom-left corner of every page you visit, so you never have to come back to the app window",
+      "\"Fit to window\" parks the browser over the page area, leaving the navigation and the chat panel clear",
+      "Leave the browser page and the window tucks away; the compass at the foot of the left rail pulses and brings it back",
+      "Gerry never browses on her own — you drive, and page text reaches her as material you are showing her, never as instructions",
+    ],
+  },
 
   // ── Work ────────────────────────────────────────────────────────────────
   work: {

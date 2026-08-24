@@ -401,13 +401,19 @@ Navigate to **Research Browser** and press **Open browser**. A separate browser 
 
 **You stay signed in.** Log in to a supplier portal, a standards library or a journal once and it remembers you next time you start Little Gerry.
 
-Three things you can do with the page you're on:
+Things you can do with the page you're on:
 
 | Button | What it does |
 |--------|--------------|
 | **Ask Gerry about this page** | Reads the page as you see it and opens a new conversation with the text attached. Good for "summarise this", "what's the catch here?", "how does this compare to what we do?" |
 | **Browse with Gerry** | A toggle. While it's on, whatever page you're on goes along with every message you send, and updates as you move around. Ask "what do you make of this?" without capturing anything. Turn it off when you're done. |
 | **Save to Knowledge Base** | Files the page away permanently under *Web Research*, with a link back to where it came from. It turns up in search and Gerry can cite it, even if the site later changes or disappears. |
+| **Pin to workroom** | Adds the page to a workroom's pinned items, so it's part of that room's context from then on. |
+| **Fit to window** | Sizes the browser to the page area, clear of the left rail and the chat panel. |
+
+**The buttons follow you onto the page.** As well as the rail beside the tabs, a faded dark bar sits in the bottom-left corner of every page you browse. Hover it and it comes up solid. Use it and you don't have to click back to the Little Gerry window at all. It hands the request over to Little Gerry to carry out, so give it a second.
+
+**The browser gets out of the way.** Move to another part of the app and the browser window disappears rather than sinking behind Little Gerry. The compass at the bottom of the left-hand rail pulses to show the session is still there — click it to bring the browser back exactly as you left it.
 
 **What Gerry can and can't see.** He only ever sees a page you have opened yourself — he can't go browsing on his own, and he can't reach anything you haven't shown him. Page text is handed to him as *material you are showing him*, never as instructions: if a page contains something like "ignore your previous instructions", he'll tell you about it rather than act on it.
 
