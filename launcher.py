@@ -109,6 +109,8 @@ _icon_ref    = None          # set to pystray.Icon once created
 _skip_close_confirm = False  # set True by tray "Stop" to skip second dialog
 _browser_win = None          # second window used by the in-app research browser
 _browser_lock = threading.Lock()
+_browser_actions: list[str] = []   # button presses from the in-page floating bar
+_browser_following = [False]       # so an injected bar renders the right label
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -772,6 +774,66 @@ _EXTRACT_JS = r"""
 })()
 """
 
+# Floating action bar drawn on top of whatever site is loaded. Injected after
+# every navigation because a page load wipes it. Buttons only queue a request —
+# the React app polls for it and does the actual work, since it is the side that
+# holds the login token.
+_TOOLBAR_JS = r"""
+(function () {
+  if (window.__lgBar) return true;
+  var wrap = document.createElement('div');
+  wrap.style.cssText = [
+    'position:fixed', 'left:12px', 'bottom:12px', 'z-index:2147483647',
+    'display:flex', 'gap:6px', 'padding:6px',
+    'background:rgba(17,17,20,0.92)', 'border:1px solid rgba(255,255,255,0.16)',
+    'border-radius:10px', 'box-shadow:0 6px 24px rgba(0,0,0,0.45)',
+    'font:500 12px/1.2 system-ui,Segoe UI,sans-serif', 'color:#fff',
+    'opacity:0.45', 'transition:opacity .15s'
+  ].join(';');
+  wrap.onmouseenter = function () { wrap.style.opacity = '1'; };
+  wrap.onmouseleave = function () { wrap.style.opacity = '0.45'; };
+
+  function send(action) {
+    try { window.pywebview.api.browser_action(action); } catch (e) { /* bridge not ready */ }
+  }
+  function button(label, action, toggles) {
+    var b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = [
+      'all:unset', 'cursor:pointer', 'padding:6px 10px', 'border-radius:6px',
+      'background:rgba(255,255,255,0.10)', 'white-space:nowrap'
+    ].join(';');
+    b.onmouseover = function () { b.style.background = 'rgba(255,255,255,0.22)'; };
+    b.onmouseout = function () { b.style.background = b.dataset.on === '1'
+      ? 'rgba(96,165,250,0.55)' : 'rgba(255,255,255,0.10)'; };
+    b.onclick = function () {
+      if (toggles) {
+        b.dataset.on = b.dataset.on === '1' ? '0' : '1';
+        b.textContent = b.dataset.on === '1' ? 'Gerry is watching' : 'Browse with Gerry';
+        b.style.background = b.dataset.on === '1'
+          ? 'rgba(96,165,250,0.55)' : 'rgba(255,255,255,0.10)';
+      }
+      send(action);
+    };
+    return b;
+  }
+
+  var watch = button('Browse with Gerry', 'follow', true);
+  if (window.__lgFollowing) {
+    watch.dataset.on = '1';
+    watch.textContent = 'Gerry is watching';
+    watch.style.background = 'rgba(96,165,250,0.55)';
+  }
+  wrap.appendChild(watch);
+  wrap.appendChild(button('Ask Gerry', 'ask', false));
+  wrap.appendChild(button('Save to KB', 'kb', false));
+  wrap.appendChild(button('Pin', 'pin', false));
+  (document.body || document.documentElement).appendChild(wrap);
+  window.__lgBar = wrap;
+  return true;
+})()
+"""
+
 
 class _JsApi:
     """JavaScript bridge exposed to the React app as ``window.pywebview.api``."""
@@ -813,15 +875,46 @@ class _JsApi:
                         height=880,
                         min_size=(600, 400),
                         text_select=True,
+                        js_api=self,
                     )
                     _browser_win.events.closed += _closed
+                    _browser_win.events.loaded += self._inject_toolbar
+                    _browser_win.on_top = True
                     return {"ok": True, "url": target, "title": ""}
                 _browser_win.load_url(target)
                 _browser_win.show()
+                _browser_win.on_top = True
             return {"ok": True, "url": target, "title": ""}
         except Exception:
             _log_error()
             return {"ok": False, "error": "Could not open the research browser."}
+
+    def _inject_toolbar(self) -> None:
+        try:
+            if _browser_win is not None:
+                _browser_win.evaluate_js(
+                    f"window.__lgFollowing={'true' if _browser_following[0] else 'false'};"
+                    + _TOOLBAR_JS
+                )
+        except Exception:
+            _log_error()
+
+    # ── requests raised from the floating bar ────────────────────────────
+
+    def browser_action(self, action: str) -> bool:
+        """Queue a button press from the in-page bar for the React app to run."""
+        if action in ("ask", "kb", "pin", "follow"):
+            _browser_actions.append(action)
+        return True
+
+    def browser_take_actions(self) -> list:
+        """Hand over queued button presses and clear the queue."""
+        pending, _browser_actions[:] = list(_browser_actions), []
+        return pending
+
+    def browser_set_following(self, following: bool) -> bool:
+        _browser_following[0] = bool(following)
+        return True
 
     def browser_navigate(self, url: str) -> dict:
         target = self._safe_url(url)
@@ -868,24 +961,55 @@ class _JsApi:
         title = self._browser_js("document.title") or ""
         return {"open": True, "url": url, "title": title}
 
-    def browser_fit(self, left: float, top: float, right: float, bottom: float) -> bool:
-        """Sit the browser window over a region of the main window.
+    def browser_fit(
+        self, left: float, top: float, width: float, height: float,
+        view_w: float, view_h: float,
+    ) -> bool:
+        """Park the browser window over a rectangle of the main window's page.
 
-        The caller passes insets as fractions of its own viewport rather than
-        pixels, so this works out at whatever DPI scaling the display is using:
-        every number below is derived from the main window's own geometry.
+        The caller works in CSS pixels inside its own viewport; pywebview works
+        in logical pixels around the outer window frame. Comparing the main
+        window's frame size with the viewport size the caller reports gives the
+        exact width of the title bar and borders, which both windows share — so
+        no guessing and nothing to get wrong at fractional DPI scaling.
         """
         if _browser_win is None or _win_ref is None:
             return False
         try:
-            mx, my = _win_ref.x, _win_ref.y
-            mw, mh = _win_ref.width, _win_ref.height
-            x = mx + int(mw * max(0.0, min(0.9, left)))
-            y = my + int(mh * max(0.0, min(0.9, top)))
-            w = max(480, int(mw * (1.0 - left - right)))
-            h = max(320, int(mh * (1.0 - top - bottom)))
-            _browser_win.move(x, y)
-            _browser_win.resize(w, h)
+            frame_w, frame_h = _win_ref.width, _win_ref.height
+            chrome_w = max(0, frame_w - int(view_w))
+            chrome_h = max(0, frame_h - int(view_h))
+            border = chrome_w // 2
+            title = max(0, chrome_h - border)
+
+            client_x = _win_ref.x + border
+            client_y = _win_ref.y + title
+
+            _browser_win.move(int(client_x + left - border), int(client_y + top - title))
+            _browser_win.resize(int(width + chrome_w), int(height + chrome_h))
+            return True
+        except Exception:
+            _log_error()
+            return False
+
+    def browser_hide(self) -> bool:
+        """Tuck the window away when the user moves to another part of the app."""
+        if _browser_win is None:
+            return False
+        try:
+            _browser_win.on_top = False
+            _browser_win.hide()
+            return True
+        except Exception:
+            _log_error()
+            return False
+
+    def browser_show(self) -> bool:
+        if _browser_win is None:
+            return False
+        try:
+            _browser_win.show()
+            _browser_win.on_top = True
             return True
         except Exception:
             _log_error()

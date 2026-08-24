@@ -12,6 +12,7 @@ import { useRef, useState } from "react";
 import { useNavigate, NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Orbit, MessageSquare } from "lucide-react";
+import { BrowserDock } from "@/components/layout/BrowserDock";
 import { useNavStore } from "@/stores/navStore";
 import { PLANETS, type Planet } from "@/lib/solarSystem";
 import { BUILD_NUMBER, BUILD_DATE } from "@/version";
@@ -194,6 +195,8 @@ export function AncestorRail() {
       )}
 
       <div className="flex-1" />
+
+      <BrowserDock />
 
       {/* Relocated from the old sidebar */}
       <NavLink
