@@ -972,6 +972,9 @@ class _JsApi:
         window's frame size with the viewport size the caller reports gives the
         exact width of the title bar and borders, which both windows share — so
         no guessing and nothing to get wrong at fractional DPI scaling.
+
+        The browser's own frame is placed inside the rectangle, title bar
+        included, so its buttons never sit over the address bar above it.
         """
         if _browser_win is None or _win_ref is None:
             return False
@@ -982,11 +985,8 @@ class _JsApi:
             border = chrome_w // 2
             title = max(0, chrome_h - border)
 
-            client_x = _win_ref.x + border
-            client_y = _win_ref.y + title
-
-            _browser_win.move(int(client_x + left - border), int(client_y + top - title))
-            _browser_win.resize(int(width + chrome_w), int(height + chrome_h))
+            _browser_win.move(int(_win_ref.x + border + left), int(_win_ref.y + title + top))
+            _browser_win.resize(int(width), int(height))
             return True
         except Exception:
             _log_error()
