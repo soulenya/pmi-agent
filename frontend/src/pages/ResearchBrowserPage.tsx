@@ -31,17 +31,22 @@ import {
   fitBrowserTo,
   getBrowserState,
   hostOf,
+  hideBrowser,
   isBrowserAvailable,
   listBookmarks,
+  markFollowingInBar,
   navigateBrowser,
   openBrowser,
   pushPage,
   savePageToKb,
   setFollowing,
+  showBrowser,
+  takeBrowserActions,
   toUrl,
 } from "@/api/browser";
 import { addWorkroomItem, listWorkrooms } from "@/api/workrooms";
 import { useAskGerry } from "@/hooks/useAskGerry";
+import { useBrowserSessionStore } from "@/stores/browserSessionStore";
 import { cn } from "@/lib/utils";
 
 const HOME = "https://duckduckgo.com";
@@ -68,6 +73,7 @@ export function ResearchBrowserPage() {
   const [pinOpen, setPinOpen] = useState(false);
   const addressFocused = useRef(false);
   const slotRef = useRef<HTMLDivElement>(null);
+  const setSession = useBrowserSessionStore((s) => s.setSession);
 
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0];
 
@@ -106,6 +112,25 @@ export function ResearchBrowserPage() {
   );
 
   const fit = useCallback(() => void fitBrowserTo(slotRef.current), []);
+
+  // Coming back to this page re-shows the window; leaving it tucks the window
+  // away, so it never floats over the rest of the app.
+  useEffect(() => {
+    if (!available) return;
+    if (useBrowserSessionStore.getState().open) {
+      setOpened(true);
+      void showBrowser();
+    }
+    return () => void hideBrowser();
+  }, [available]);
+
+  useEffect(() => {
+    setSession({ open: opened, url: active?.url, title: active?.title });
+  }, [opened, active?.url, active?.title, setSession]);
+
+  useEffect(() => {
+    void markFollowingInBar(following);
+  }, [following]);
 
   // Keep the window parked over the slot as the app window, the chat panel or
   // the navigation change size.
@@ -254,7 +279,30 @@ export function ResearchBrowserPage() {
         label: active.title || hostOf(active.url),
       });
       setMessage(`Pinned to ${roomTitle}.`);
+      void showBrowser();
     });
+
+  // The bar floating over the browsed page can only queue a request; the work
+  // happens here, on the side that holds the login token.
+  const runAction = useRef<(action: string) => void>(() => {});
+  runAction.current = (action: string) => {
+    if (action === "ask") void handleAsk();
+    else if (action === "kb") void handleSaveKb();
+    else if (action === "follow") followMut.mutate(!following);
+    else if (action === "pin") {
+      // The picker lives in the main window, which is behind the browser.
+      void hideBrowser();
+      setPinOpen(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!available || !opened) return;
+    const timer = window.setInterval(async () => {
+      for (const action of await takeBrowserActions()) runAction.current(action);
+    }, 900);
+    return () => window.clearInterval(timer);
+  }, [available, opened]);
 
   const currentBookmark = bookmarks.find((b) => b.url === active?.url);
 

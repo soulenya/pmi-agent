@@ -41,7 +41,14 @@ interface BrowserBridge {
   browser_forward(): Promise<boolean>;
   browser_reload(): Promise<boolean>;
   browser_state(): Promise<{ open: boolean; url: string; title: string }>;
-  browser_fit(left: number, top: number, right: number, bottom: number): Promise<boolean>;
+  browser_fit(
+    left: number, top: number, width: number, height: number,
+    viewW: number, viewH: number,
+  ): Promise<boolean>;
+  browser_hide(): Promise<boolean>;
+  browser_show(): Promise<boolean>;
+  browser_take_actions(): Promise<string[]>;
+  browser_set_following(following: boolean): Promise<boolean>;
   browser_capture(): Promise<{ ok: boolean; url?: string; title?: string; text?: string; error?: string }>;
   browser_close(): Promise<boolean>;
 }
@@ -88,8 +95,8 @@ export async function browserWindowState() {
 
 /**
  * Park the browser window over `el`, so it fills the page area without hiding
- * the navigation or the chat panel. Insets go over as fractions of the viewport
- * because the shell, not the web page, knows the real pixel geometry.
+ * the navigation or the chat panel. Measurements go over in CSS pixels; the
+ * shell works out the title-bar and border offsets from its own geometry.
  */
 export async function fitBrowserTo(el: HTMLElement | null) {
   const api = bridge();
@@ -98,7 +105,25 @@ export async function fitBrowserTo(el: HTMLElement | null) {
   const vw = document.documentElement.clientWidth;
   const vh = document.documentElement.clientHeight;
   if (r.width < 100 || r.height < 100 || !vw || !vh) return;
-  await api.browser_fit(r.left / vw, r.top / vh, (vw - r.right) / vw, (vh - r.bottom) / vh);
+  await api.browser_fit(r.left, r.top, r.width, r.height, vw, vh);
+}
+
+/** Tuck the window away when the user moves to another part of the app. */
+export async function hideBrowser() {
+  await bridge()?.browser_hide();
+}
+
+export async function showBrowser() {
+  await bridge()?.browser_show();
+}
+
+/** Button presses made on the bar floating over the browsed page. */
+export async function takeBrowserActions(): Promise<string[]> {
+  return (await bridge()?.browser_take_actions()) ?? [];
+}
+
+export async function markFollowingInBar(following: boolean) {
+  await bridge()?.browser_set_following(following);
 }
 
 export async function closeBrowser() {
