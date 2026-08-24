@@ -72,6 +72,7 @@ const navGroups: NavGroup[] = [
       { to: "/documents", icon: FileText, label: "Knowledge Base" },
       { to: "/search", icon: Search, label: "Search" },
       { to: "/research", icon: FlaskConical, label: "Research" },
+      { to: "/browser", icon: Globe, label: "Research Browser" },
       { to: "/files", icon: FileText, label: "Generated Files" },
     ],
   },

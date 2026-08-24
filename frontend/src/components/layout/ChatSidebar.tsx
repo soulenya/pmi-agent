@@ -58,6 +58,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/regulatory": "Regulatory",
   "/projects":   "Projects",
   "/research":   "Research",
+  "/browser":    "Research Browser",
   "/approvals":  "Approvals",
   "/settings":   "Settings",
   "/files":      "Generated Files",
