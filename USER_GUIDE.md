@@ -35,22 +35,23 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 10. [Knowledge Base](#knowledge-base)
 11. [Semantic Search](#semantic-search)
 12. [Research](#research)
-13. [Tasks & Projects](#tasks--projects)
-14. [Calendar](#calendar)
-15. [Gmail (Inbox, Compose & Replies)](#gmail-inbox-compose--replies)
-16. [Email Drafts](#email-drafts)
-17. [Meeting Notes](#meeting-notes)
-18. [Regulatory Documents](#regulatory-documents)
-19. [Slide Decks](#slide-decks)
-20. [Investor Relations](#investor-relations)
-21. [Google Workspace](#google-workspace)
-22. [Odoo ERP](#odoo-erp)
-23. [Manage Budgets](#manage-budgets)
-24. [Approvals Queue](#approvals-queue)
-25. [Notifications](#notifications)
-26. [Settings](#settings)
-27. [Updating Little Gerry](#updating-little-gerry)
-28. [Tips & Example Prompts](#tips--example-prompts)
+13. [Research Browser](#research-browser)
+14. [Tasks & Projects](#tasks--projects)
+15. [Calendar](#calendar)
+16. [Gmail (Inbox, Compose & Replies)](#gmail-inbox-compose--replies)
+17. [Email Drafts](#email-drafts)
+18. [Meeting Notes](#meeting-notes)
+19. [Regulatory Documents](#regulatory-documents)
+20. [Slide Decks](#slide-decks)
+21. [Investor Relations](#investor-relations)
+22. [Google Workspace](#google-workspace)
+23. [Odoo ERP](#odoo-erp)
+24. [Manage Budgets](#manage-budgets)
+25. [Approvals Queue](#approvals-queue)
+26. [Notifications](#notifications)
+27. [Settings](#settings)
+28. [Updating Little Gerry](#updating-little-gerry)
+29. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -389,6 +390,36 @@ Navigate to **Research** → **New Research Report**.
 2. Little Gerry searches the web (DuckDuckGo), reads the top sources, and synthesizes a report
 3. The report is saved to your research archive with citations
 4. All reports are searchable and can be referenced in chat
+
+---
+
+## Research Browser
+
+A browser that lives inside Little Gerry, so anything you find on the web is one click away from being something Gerry can read.
+
+Navigate to **Research Browser** and press **Open browser**. A separate browser window opens next to Little Gerry. You drive it from the app: type in the address bar, use back, forward and reload, open tabs, and star pages to bookmark them.
+
+**You stay signed in.** Log in to a supplier portal, a standards library or a journal once and it remembers you next time you start Little Gerry.
+
+Things you can do with the page you're on:
+
+| Button | What it does |
+|--------|--------------|
+| **Ask Gerry about this page** | Reads the page as you see it and opens a new conversation with the text attached. Good for "summarise this", "what's the catch here?", "how does this compare to what we do?" |
+| **Browse with Gerry** | A toggle. While it's on, whatever page you're on goes along with every message you send, and updates as you move around. Ask "what do you make of this?" without capturing anything. Turn it off when you're done. |
+| **Save to Knowledge Base** | Files the page away permanently under *Web Research*, with a link back to where it came from. It turns up in search and Gerry can cite it, even if the site later changes or disappears. |
+| **Pin to workroom** | Adds the page to a workroom's pinned items, so it's part of that room's context from then on. |
+| **Fit to window** | Sizes the browser to the page area, clear of the left rail and the chat panel. |
+
+**The buttons follow you onto the page.** As well as the rail beside the tabs, a faded dark bar sits in the bottom-left corner of every page you browse. Hover it and it comes up solid. Use it and you don't have to click back to the Little Gerry window at all. It hands the request over to Little Gerry to carry out, so give it a second.
+
+**The browser gets out of the way.** Move to another part of the app and the browser window disappears rather than sinking behind Little Gerry. The compass at the bottom of the left-hand rail pulses to show the session is still there — click it to bring the browser back exactly as you left it.
+
+**What Gerry can and can't see.** He only ever sees a page you have opened yourself — he can't go browsing on his own, and he can't reach anything you haven't shown him. Page text is handed to him as *material you are showing him*, never as instructions: if a page contains something like "ignore your previous instructions", he'll tell you about it rather than act on it.
+
+**Nothing is stored by Browse with Gerry.** The page is read fresh each time you send a message and forgotten the moment you switch the toggle off. Only **Save to Knowledge Base** keeps anything.
+
+> **Tip:** don't save website passwords anywhere in Little Gerry. Just log in once in the Research Browser — it stays logged in.
 
 ---
 

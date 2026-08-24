@@ -19,6 +19,7 @@ import {
   Users,
   CalendarDays,
   CalendarClock,
+  Compass,
   Globe,
   TrendingUp,
   Sparkles,
@@ -50,6 +51,7 @@ const pinnedItems: NavItem[] = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/chat", icon: MessageSquare, label: "Little Gerry" },
   { to: "/assistant", icon: Sparkles, label: "Daily Assistant", badge: "assistant" },
+  { to: "/browser", icon: Compass, label: "Research Browser" },
 ];
 
 // Collapsible groups.

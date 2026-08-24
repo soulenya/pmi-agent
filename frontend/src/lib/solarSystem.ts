@@ -28,6 +28,7 @@ import {
   Users,
   CalendarDays,
   CalendarClock,
+  Compass,
   Globe,
   TrendingUp,
   Boxes,
@@ -80,6 +81,7 @@ export const SATELLITES: Satellite[] = [
   { id: "dashboard", route: "/dashboard", label: "Dashboard", icon: LayoutDashboard, orbit: 0.3, angle: 200 },
   { id: "assistant", route: "/assistant", label: "Daily Assistant", icon: Sparkles, badge: "assistant", orbit: 0.3, angle: 20 },
   { id: "workrooms", route: "/workrooms", label: "Workrooms", icon: Handshake, orbit: 0.3, angle: 110 },
+  { id: "browser", route: "/browser", label: "Research Browser", icon: Compass, orbit: 0.3, angle: 290 },
 ];
 
 export const PLANETS: Planet[] = [
