@@ -24,6 +24,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       "'Ask Gerry about this page' starts a new conversation with the page already read, so you can ask questions about what you're looking at",
       "'Browse with Gerry' keeps him looking over your shoulder: every message you send includes whatever page you're on, until you switch it off",
       "'Save to Knowledge Base' files the page away permanently so it turns up in search and Gerry can cite it later",
+      "The same buttons ride on a bar in the bottom-left corner of every page you browse, so you can act without clicking back to Little Gerry",
+      "Leave the browser page and the window tucks away instead of falling behind the app — the compass at the foot of the left rail brings it back",
       "Gerry never browses on his own — he only ever sees a page you are looking at, and is told to treat what a page says as material, not as instructions",
     ],
   },
