@@ -4,6 +4,12 @@
 
 ## Changelog
 
+### v3.3.56 — 2026-08-27
+**Emails drafted from the mailbox now know the company facts**
+
+- **Mailbox drafting was writing from memory.** "Draft reply with Gerry", "Compose with Gerry" and the email-draft screen each built their own short prompt that told the model only that it worked at a medical device startup. None of them carried the company context, so anything the model was asked to fill in — the registered address, a title, a date — was invented. Asking chat to write the same email worked, because the chat prompt has always carried the context.
+- All three now include the company context, and are told to write a bracketed placeholder such as `[company address]` rather than guess when a detail is missing from it.
+
 ### v3.3.55 — 2026-08-24
 **A browser inside Little Gerry, and Gerry can look at what you're reading**
 

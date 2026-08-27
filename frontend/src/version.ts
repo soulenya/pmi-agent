@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 217;
-export const BUILD_DATE = "2026-08-24";
+export const BUILD_NUMBER = 218;
+export const BUILD_DATE = "2026-08-27";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 218,
+    date: "2026-08-27",
+    title: "Emails drafted from the mailbox now know the company facts",
+    changes: [
+      "Drafting a reply or a new email from the mailbox now uses your company context, so details like the registered address are the real ones instead of invented",
+      "If a detail is missing from the company context, the draft leaves a placeholder such as [company address] for you to fill in, rather than guessing",
+    ],
+  },
   {
     build: 217,
     date: "2026-08-24",
