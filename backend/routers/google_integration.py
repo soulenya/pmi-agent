@@ -487,6 +487,7 @@ async def _llm_draft_reply(
     voice: str = "",
 ) -> str:
     """Ask the LLM to draft a reply to a Gmail thread. Returns the body text."""
+    from services.company_context import get_company_context_for_prompt
     from services.llm.router import get_llm_client
 
     messages = thread.get("messages", [])
@@ -507,7 +508,8 @@ async def _llm_draft_reply(
     prompt = (
         "You are an executive assistant at Precisian Medical Instruments (PMI), a "
         "medical device startup. Draft a reply to the most recent message in the "
-        "email thread below. Write a professional, concise reply.\n\n"
+        "email thread below. Write a professional, concise reply."
+        f"{await get_company_context_for_prompt(db)}\n\n"
         f"EMAIL THREAD (oldest to newest):\n{transcript}{guidance}{voice}\n\n"
         f"Write ONLY the reply body (salutation through closing). Do not include a "
         f"Subject line. {closing}"
@@ -538,6 +540,7 @@ async def _llm_draft_compose(
     import json
     import re as _re
 
+    from services.company_context import get_company_context_for_prompt
     from services.llm.router import get_llm_client
 
     kp = f"\nKey points to cover:\n{key_points}" if key_points else ""
@@ -555,7 +558,8 @@ async def _llm_draft_compose(
         closing = "Sign off as 'PMI Team' unless a specific name is implied."
     prompt = (
         "You are an executive assistant at Precisian Medical Instruments (PMI), a "
-        f"medical device startup. Write a new {tone} email.\n\n"
+        f"medical device startup. Write a new {tone} email."
+        f"{await get_company_context_for_prompt(db)}\n\n"
         f"Recipient: {recipient}\nWhat the email needs to say: {instruction}{kp}{voice}\n\n"
         f"{subj_line}\n"
         'Return ONLY a JSON object: {"subject": "...", "body": "..."} where "body" '
