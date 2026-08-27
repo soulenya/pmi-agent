@@ -88,10 +88,13 @@ async def _llm_draft_email(
     voice: str = "",
 ) -> str:
     """Call Ollama to write an email draft. Returns the draft body text."""
+    from services.company_context import get_company_context_for_prompt
+
     recipient_line = f"Recipient: {recipient_name}" if recipient_name else "Recipient: (not specified)"
     points_section = f"\nKey points to include:\n{key_points}" if key_points else ""
     prompt = (
         "You are an executive assistant at Precisian Medical Instruments (PMI), a medical device startup.\n"
+        f"{await get_company_context_for_prompt(db)}\n"
         f"Write a {tone} email with the following details:\n\n"
         f"Subject: {subject}\n"
         f"{recipient_line}\n"
