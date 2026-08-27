@@ -92,6 +92,23 @@ async def get_company_context(db: AsyncSession) -> str:
     )
 
 
+async def get_company_context_for_prompt(db: AsyncSession) -> str:
+    """Company facts for one-shot prompts (email drafting, summaries) that have
+    no tools to fall back on, so the fallback is a placeholder, not a guess."""
+    content = (await _read_setting(db, KEY_MD, "")).strip()
+    if not content:
+        return ""
+    content = content[:MAX_COMPANY_CONTEXT_CHARS]
+    return (
+        "\n\n# COMPANY CONTEXT — the only facts you may state about PMI\n"
+        f"{content}\n"
+        "Never invent company details. Addresses, phone numbers, names, titles, "
+        "dates, prices and figures must come from this block or from the material "
+        "you were given. If a detail you need is missing, write a bracketed "
+        "placeholder such as [company address] for the user to fill in.\n"
+    )
+
+
 def _section_title(file_name: str) -> str:
     """Filename → section heading: strip extension and ordering prefix,
     separators → spaces ('02_corporate-structure.md' → 'corporate structure')."""
