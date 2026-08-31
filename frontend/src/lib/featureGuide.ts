@@ -86,6 +86,8 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     tagline: "Organise work into projects.",
     capabilities: [
       "Keep project details, files and linked tasks in one place",
+      "Open a project's space for its overview, tasks, material and conversation",
+      "Choose who can see each project: private, a named member list, or the whole company",
       "Ask Gerry to summarise a project, draft its next steps or report its status",
       "Use \"Ask Gerry\" on any project to start a conversation seeded with its details",
     ],

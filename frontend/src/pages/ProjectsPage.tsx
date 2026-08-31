@@ -9,6 +9,7 @@ import {
   Clock,
   AlertCircle,
   ExternalLink,
+  Layers,
   Pencil,
   X,
   Archive,
@@ -400,6 +401,13 @@ function ProjectCard({
                   `\n\nGive me a status read and suggest what to focus on next.`,
               })}
             />
+            <NavLink
+              to={`/projects/${project.id}/space`}
+              className="flex items-center gap-1 rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              title="Open project space"
+            >
+              <Layers className="h-3.5 w-3.5" />
+            </NavLink>
             <NavLink
               to={`/projects/${project.id}`}
               className="flex items-center gap-1 rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"

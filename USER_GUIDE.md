@@ -447,6 +447,28 @@ These buttons show on the task list, on Kanban cards, and in the task detail pan
 
 Navigate to **Projects** to group related tasks, track milestones, and monitor overall progress.
 
+#### The project space
+
+Every project card has a **layers** button that opens the project's own space. Tabs across the top:
+
+- **Overview** — open and total tasks, pinned material, journal entries, the people on the project, and the visibility control.
+- **Canvas** and **Timeline** — reserved. These arrive in a later release.
+- **Tasks** — a count and a link through to the project's task board.
+- **Material** — the project's pinned documents, files, emails and links, kept in its workroom.
+- **Chat** — the project's conversation with Gerry. If it doesn't have one yet, **Start one** creates it.
+
+#### Who can see a project
+
+Set on the Overview tab. Only the project's owner can change it.
+
+- **Private** — you and nobody else. Other people are not shown the project and are not told it exists.
+- **Shared** — the people on the member list, each at the role you gave them: owner, editor, commenter or viewer.
+- **Company** — everyone signed in to Little Gerry at your organisation. This is a standing setting, so a project you open to the company stays open until you change it.
+
+New projects start private. Sharing controls who can open a project; it is separate from what Gerry is allowed to read.
+
+Your existing workrooms are now projects. Each one kept its title, goal, pinned items, journal and conversation — you now reach them through the project they belong to.
+
 ### Creating tasks from Meeting Notes
 
 After summarizing a meeting, click **Extract Actions** → select action items → **Create N Tasks** to add them directly to the board.
