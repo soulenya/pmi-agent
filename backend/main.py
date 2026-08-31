@@ -454,19 +454,11 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    # CORS — Tauri desktop shell + local dev server only
+    # CORS — Tauri desktop shell + local dev server by default; the hub
+    # overrides settings.cors_origins with its own origin.
     app.add_middleware(
         CORSMiddleware,
-        # IMPORTANT: both localhost AND 127.0.0.1 variants are required —
-        # pywebview opens the frontend on 127.0.0.1:5173, not localhost:5173
-        allow_origins=[
-            "tauri://localhost",
-            "https://tauri.localhost",
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:1420",
-            "http://127.0.0.1:1420",
-        ],
+        allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
@@ -683,7 +675,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app",
-        host="127.0.0.1",  # localhost only — never 0.0.0.0
+        host=settings.host,  # 127.0.0.1 on desktop; the hub sets HOST=0.0.0.0
         port=settings.port,
         reload=settings.debug,
     )
