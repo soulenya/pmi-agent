@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 218;
-export const BUILD_DATE = "2026-08-27";
+export const BUILD_NUMBER = 219;
+export const BUILD_DATE = "2026-08-31";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 219,
+    date: "2026-08-31",
+    title: "Every project now has a space, and the app starts faster",
+    changes: [
+      "New project space: open any project to get its overview, tasks, material and conversation on one screen, with tabs ready for the canvas and timeline coming next",
+      "Each project now carries a goal and a visibility setting — private (only you, and nobody else can even tell it exists), shared with named people, or open to everyone at the company",
+      "Every existing workroom is now a project, so rooms, pins, journals and chats sit inside the project they belong to",
+      "Screens are now loaded as you open them instead of all at once, so Little Gerry starts noticeably faster",
+    ],
+  },
   {
     build: 218,
     date: "2026-08-27",

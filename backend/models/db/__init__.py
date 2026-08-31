@@ -18,6 +18,7 @@ from models.db.google import GoogleCredential, GoogleSyncState
 from models.db.meeting import MeetingNote
 from models.db.notification import Notification
 from models.db.odoo import OdooConnection
+from models.db.project_member import ProjectMember
 from models.db.regulatory import CAPA, RegulatoryDocument, RegulatoryNode, RiskItem
 from models.db.research import ResearchReport, ResearchSource
 from models.db.scheduled_task import ScheduledTask
@@ -42,6 +43,7 @@ __all__ = [
     "ConversationAttachment",
     "ApprovalIntent",
     "Project",
+    "ProjectMember",
     "Task",
     "TaskComment",
     "ResearchReport",

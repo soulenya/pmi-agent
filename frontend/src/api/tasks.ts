@@ -2,6 +2,7 @@ import { apiClient } from "./client";
 import type {
   Project,
   ProjectCreate,
+  ProjectSpace,
   ProjectUpdate,
   Task,
   TaskCreate,
@@ -20,6 +21,18 @@ export async function listProjects(includeArchived = false): Promise<Project[]> 
 
 export async function getProject(id: string): Promise<Project> {
   const resp = await apiClient.get<Project>(`/projects/${id}`);
+  return resp.data;
+}
+
+export async function getProjectSpace(id: string): Promise<ProjectSpace> {
+  const resp = await apiClient.get<ProjectSpace>(`/projects/${id}/space`);
+  return resp.data;
+}
+
+export async function ensureProjectWorkroom(
+  id: string,
+): Promise<{ id: string; title: string; conversation_id: string | null }> {
+  const resp = await apiClient.post(`/projects/${id}/workroom`);
   return resp.data;
 }
 

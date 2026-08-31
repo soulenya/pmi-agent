@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v3.3.57 — 2026-08-31
+**Every project has a space, and the app starts faster**
+
+- **The project space.** Open a project and you now get its own screen: an overview with open work, pinned material and people, plus tabs for Tasks, Material and the project's conversation with Gerry. Canvas and Timeline tabs are there and say what is coming; they are filled in next release.
+- **Projects have a goal and a visibility.** *Private* means personal — nobody else can see the project, or even see that it exists. *Shared* means the people you name, at the role you give them. *Company* means everyone signed in, and it stays that way until you change it; it is a standing setting, not a one-off share. New projects start private. Only the owner can widen one.
+- **Workrooms are now projects.** Every existing workroom has become a project carrying its title, goal and dates, with its pins, journal and conversation attached. Nothing was moved or deleted — the room is now reachable from the project it always belonged to.
+- **Little Gerry starts faster.** The whole app used to be downloaded and parsed before the first screen appeared: one 1.8 MB file for thirty-four screens you had not opened. Screens are now fetched as you open them, which takes about 560 kB off the initial load.
+- **Under the hood:** project membership and role checks are in place ahead of the shared-server work, so every project-scoped feature added from here is permission-checked from the start rather than retrofitted.
+
 ### v3.3.56 — 2026-08-27
 **Emails drafted from the mailbox now know the company facts**
 
