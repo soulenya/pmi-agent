@@ -41,7 +41,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?required}
       FERNET_KEY: ${FERNET_KEY:?required}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?required}
-      CORS_ORIGINS: ${CORS_ORIGINS:-["https://hub.pmi-llc.com"]}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["https://hub.precisianmedical.com"]}
       STORAGE_ROOT: /data/documents
       HOST: 0.0.0.0
       PORT: "8000"
