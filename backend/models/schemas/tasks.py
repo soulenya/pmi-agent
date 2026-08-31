@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +14,7 @@ from pydantic import BaseModel, Field
 class ProjectCreate(BaseModel):
     name: str = Field(max_length=255)
     description: str | None = None
+    goal: str = ""
     color: str | None = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
     start_date: datetime | None = None
     target_date: datetime | None = None
@@ -21,7 +23,9 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     name: str | None = Field(None, max_length=255)
     description: str | None = None
+    goal: str | None = None
     status: str | None = None
+    visibility: Literal["private", "shared", "company"] | None = None
     color: str | None = None
     target_date: datetime | None = None
     is_archived: bool | None = None
@@ -31,12 +35,15 @@ class ProjectOut(BaseModel):
     id: uuid.UUID
     name: str
     description: str | None
+    goal: str
     status: str
+    visibility: str
     owner_id: uuid.UUID | None
     start_date: datetime | None
     target_date: datetime | None
     color: str | None
     is_archived: bool
+    archived_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

@@ -30,16 +30,21 @@ export interface TaskSourceRef {
   url?: string | null;
 }
 
+export type ProjectVisibility = "private" | "shared" | "company";
+
 export interface Project {
   id: string;
   name: string;
   description: string | null;
+  goal: string;
   status: string;
+  visibility: ProjectVisibility;
   owner_id: string | null;
   start_date: string | null;
   target_date: string | null;
   color: string | null;
   is_archived: boolean;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,6 +52,7 @@ export interface Project {
 export interface ProjectCreate {
   name: string;
   description?: string;
+  goal?: string;
   color?: string;
   start_date?: string;
   target_date?: string;
@@ -55,10 +61,33 @@ export interface ProjectCreate {
 export interface ProjectUpdate {
   name?: string;
   description?: string | null;
+  goal?: string;
   status?: string;
+  visibility?: ProjectVisibility;
   color?: string | null;
   target_date?: string | null;
   is_archived?: boolean;
+}
+
+export interface ProjectMember {
+  user_id: string;
+  email: string | null;
+  display_name: string | null;
+  role: "owner" | "editor" | "commenter" | "viewer";
+}
+
+export interface ProjectSpace {
+  project: Project;
+  my_role: ProjectMember["role"];
+  workroom: { id: string; title: string; conversation_id: string | null } | null;
+  members: ProjectMember[];
+  counts: {
+    tasks_total: number;
+    tasks_open: number;
+    items: number;
+    journal: number;
+    members: number;
+  };
 }
 
 export interface Task {

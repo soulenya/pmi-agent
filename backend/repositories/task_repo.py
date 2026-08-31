@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from models.db.project_member import ProjectMember
 from models.db.task import Project, Task, TaskComment
 
 
@@ -16,10 +17,26 @@ class ProjectRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def list(self, *, include_archived: bool = False) -> list[Project]:
+    async def list(
+        self,
+        *,
+        include_archived: bool = False,
+        visible_to: uuid.UUID | None = None,
+    ) -> list[Project]:
         stmt = select(Project).order_by(Project.created_at.desc())
         if not include_archived:
             stmt = stmt.where(Project.is_archived == False)  # noqa: E712
+        if visible_to is not None:
+            member = select(ProjectMember.id).where(
+                ProjectMember.project_id == Project.id,
+                ProjectMember.user_id == visible_to,
+            )
+            stmt = stmt.where(
+                member.exists()
+                | (Project.owner_id == visible_to)
+                | (Project.created_by == visible_to)
+                | (Project.visibility == "company")
+            )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -32,6 +49,11 @@ class ProjectRepository:
     async def create(self, *, created_by: uuid.UUID, **fields: Any) -> Project:
         project = Project(id=uuid.uuid4(), created_by=created_by, owner_id=created_by, **fields)
         self.session.add(project)
+        self.session.add(
+            ProjectMember(
+                id=uuid.uuid4(), project_id=project.id, user_id=created_by, role="owner"
+            )
+        )
         await self.session.flush()
         await self.session.refresh(project)
         return project

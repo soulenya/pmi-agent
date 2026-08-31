@@ -21,7 +21,11 @@ class Project(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    goal: Mapped[str] = mapped_column(Text, nullable=False, default="")
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="active")
+    # Who can see the project at all: "private" (owner only) | "shared"
+    # (the member list) | "company" (everyone signed in).
+    visibility: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     owner_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
@@ -29,6 +33,9 @@ class Project(Base):
     target_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     color: Mapped[str | None] = mapped_column(String(7), nullable=True)  # hex #RRGGBB
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
