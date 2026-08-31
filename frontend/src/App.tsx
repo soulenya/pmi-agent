@@ -1,43 +1,49 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { useState } from "react";
+import { Suspense, lazy, useState, type ReactNode } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { LoginPage } from "@/pages/LoginPage";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { ChatPage } from "@/pages/ChatPage";
-import { ApprovalsPage } from "@/pages/ApprovalsPage";
-import { AssistantPage } from "@/pages/AssistantPage";
-import { DocumentsPage } from "@/pages/DocumentsPage";
-import { SearchPage } from "@/pages/SearchPage";
-import { TasksPage } from "@/pages/TasksPage";
-import { RegulatoryPage } from "@/pages/RegulatoryPage";
-import { NotificationsPage } from "@/pages/NotificationsPage";
-import { ResearchPage } from "@/pages/ResearchPage";
-import { ResearchBrowserPage } from "@/pages/ResearchBrowserPage";
-import { ProjectsPage } from "@/pages/ProjectsPage";
-import { SettingsPage } from "@/pages/SettingsPage";
-import { MeetingsPage } from "@/pages/MeetingsPage";
-import { EmailsPage } from "@/pages/EmailsPage";
-import InboxPage from "@/pages/InboxPage";
-import { ContactsPage } from "@/pages/ContactsPage";
-import { BackupsPage } from "@/pages/BackupsPage";
-import { AuditPage } from "@/pages/AuditPage";
-import { UsersPage } from "@/pages/UsersPage";
-import { ProjectDetailPage } from "@/pages/ProjectDetailPage";
-import { CalendarPage } from "@/pages/CalendarPage";
-import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
-import OdooIntegrationPage from "@/pages/OdooIntegrationPage";
-import { GeneratedFilesPage } from "@/pages/GeneratedFilesPage";
-import { ScheduledTasksPage } from "@/pages/ScheduledTasksPage";
-import InvestorPage from "@/pages/InvestorPage";
 import { SolarSystemPage } from "@/pages/SolarSystemPage";
-import { AgentsPage } from "@/pages/AgentsPage";
-import { WorkroomsPage } from "@/pages/WorkroomsPage";
-import { BudgetsPage } from "@/pages/BudgetsPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
+
+// Login and the solar system are the first two screens anyone sees, so they
+// stay in the entry chunk. Everything else is fetched when its route is first
+// opened — without this the canvas and timeline would land in the same 1.8 MB
+// bundle as the login form.
+const DashboardPage = lazy(() => import("@/pages/DashboardPage").then(m => ({ default: m.DashboardPage })));
+const ChatPage = lazy(() => import("@/pages/ChatPage").then(m => ({ default: m.ChatPage })));
+const ApprovalsPage = lazy(() => import("@/pages/ApprovalsPage").then(m => ({ default: m.ApprovalsPage })));
+const AssistantPage = lazy(() => import("@/pages/AssistantPage").then(m => ({ default: m.AssistantPage })));
+const DocumentsPage = lazy(() => import("@/pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
+const SearchPage = lazy(() => import("@/pages/SearchPage").then(m => ({ default: m.SearchPage })));
+const TasksPage = lazy(() => import("@/pages/TasksPage").then(m => ({ default: m.TasksPage })));
+const RegulatoryPage = lazy(() => import("@/pages/RegulatoryPage").then(m => ({ default: m.RegulatoryPage })));
+const NotificationsPage = lazy(() => import("@/pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
+const ResearchPage = lazy(() => import("@/pages/ResearchPage").then(m => ({ default: m.ResearchPage })));
+const ResearchBrowserPage = lazy(() => import("@/pages/ResearchBrowserPage").then(m => ({ default: m.ResearchBrowserPage })));
+const ProjectsPage = lazy(() => import("@/pages/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
+const ProjectSpacePage = lazy(() => import("@/pages/ProjectSpacePage").then(m => ({ default: m.ProjectSpacePage })));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
+const MeetingsPage = lazy(() => import("@/pages/MeetingsPage").then(m => ({ default: m.MeetingsPage })));
+const EmailsPage = lazy(() => import("@/pages/EmailsPage").then(m => ({ default: m.EmailsPage })));
+const InboxPage = lazy(() => import("@/pages/InboxPage"));
+const ContactsPage = lazy(() => import("@/pages/ContactsPage").then(m => ({ default: m.ContactsPage })));
+const BackupsPage = lazy(() => import("@/pages/BackupsPage").then(m => ({ default: m.BackupsPage })));
+const AuditPage = lazy(() => import("@/pages/AuditPage").then(m => ({ default: m.AuditPage })));
+const UsersPage = lazy(() => import("@/pages/UsersPage").then(m => ({ default: m.UsersPage })));
+const ProjectDetailPage = lazy(() => import("@/pages/ProjectDetailPage").then(m => ({ default: m.ProjectDetailPage })));
+const CalendarPage = lazy(() => import("@/pages/CalendarPage").then(m => ({ default: m.CalendarPage })));
+const GoogleIntegrationPage = lazy(() => import("@/pages/GoogleIntegrationPage"));
+const OdooIntegrationPage = lazy(() => import("@/pages/OdooIntegrationPage"));
+const GeneratedFilesPage = lazy(() => import("@/pages/GeneratedFilesPage").then(m => ({ default: m.GeneratedFilesPage })));
+const ScheduledTasksPage = lazy(() => import("@/pages/ScheduledTasksPage").then(m => ({ default: m.ScheduledTasksPage })));
+const InvestorPage = lazy(() => import("@/pages/InvestorPage"));
+const AgentsPage = lazy(() => import("@/pages/AgentsPage").then(m => ({ default: m.AgentsPage })));
+const WorkroomsPage = lazy(() => import("@/pages/WorkroomsPage").then(m => ({ default: m.WorkroomsPage })));
+const BudgetsPage = lazy(() => import("@/pages/BudgetsPage").then(m => ({ default: m.BudgetsPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +53,23 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+/** Error boundary + lazy-chunk fallback, applied to every route element. */
+function Page({ children }: { children: ReactNode }) {
+  return (
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="flex h-full min-h-[50vh] items-center justify-center text-sm text-muted-foreground">
+            Loading…
+          </div>
+        }
+      >
+        {children}
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
 
 function ThemedApp() {
   const [theme] = useState<ThemeValue>(() => {
@@ -62,40 +85,42 @@ function ThemedApp() {
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
-            <Route index element={<ErrorBoundary><SolarSystemPage /></ErrorBoundary>} />
-            <Route path="gerry" element={<ErrorBoundary><SolarSystemPage /></ErrorBoundary>} />
-            <Route path="planet/:planetId" element={<ErrorBoundary><SolarSystemPage /></ErrorBoundary>} />
-            <Route path="dashboard" element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
-            <Route path="agents" element={<ErrorBoundary><AgentsPage /></ErrorBoundary>} />
-            <Route path="chat" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
-            <Route path="chat/:conversationId" element={<ErrorBoundary><ChatPage /></ErrorBoundary>} />
-            <Route path="approvals" element={<ErrorBoundary><ApprovalsPage /></ErrorBoundary>} />
-            <Route path="assistant" element={<ErrorBoundary><AssistantPage /></ErrorBoundary>} />
-            <Route path="documents" element={<ErrorBoundary><DocumentsPage /></ErrorBoundary>} />
-            <Route path="search" element={<ErrorBoundary><SearchPage /></ErrorBoundary>} />
-            <Route path="tasks" element={<ErrorBoundary><TasksPage /></ErrorBoundary>} />
-            <Route path="scheduled-tasks" element={<ErrorBoundary><ScheduledTasksPage /></ErrorBoundary>} />
-            <Route path="regulatory" element={<ErrorBoundary><RegulatoryPage /></ErrorBoundary>} />
-            <Route path="notifications" element={<ErrorBoundary><NotificationsPage /></ErrorBoundary>} />
-            <Route path="research" element={<ErrorBoundary><ResearchPage /></ErrorBoundary>} />
-            <Route path="browser" element={<ErrorBoundary><ResearchBrowserPage /></ErrorBoundary>} />
-            <Route path="projects" element={<ErrorBoundary><ProjectsPage /></ErrorBoundary>} />
-            <Route path="projects/:id" element={<ErrorBoundary><ProjectDetailPage /></ErrorBoundary>} />
-            <Route path="settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
-            <Route path="meetings" element={<ErrorBoundary><MeetingsPage /></ErrorBoundary>} />
-            <Route path="emails" element={<ErrorBoundary><EmailsPage /></ErrorBoundary>} />
-            <Route path="inbox" element={<ErrorBoundary><InboxPage /></ErrorBoundary>} />
-            <Route path="contacts" element={<ErrorBoundary><ContactsPage /></ErrorBoundary>} />
-            <Route path="backups" element={<ErrorBoundary><BackupsPage /></ErrorBoundary>} />
-            <Route path="audit" element={<ErrorBoundary><AuditPage /></ErrorBoundary>} />
-            <Route path="users" element={<ErrorBoundary><UsersPage /></ErrorBoundary>} />
-            <Route path="calendar" element={<ErrorBoundary><CalendarPage /></ErrorBoundary>} />
-            <Route path="google" element={<ErrorBoundary><GoogleIntegrationPage /></ErrorBoundary>} />
-            <Route path="odoo" element={<ErrorBoundary><OdooIntegrationPage /></ErrorBoundary>} />
-            <Route path="files" element={<ErrorBoundary><GeneratedFilesPage /></ErrorBoundary>} />
-            <Route path="workrooms" element={<ErrorBoundary><WorkroomsPage /></ErrorBoundary>} />
-            <Route path="budgets" element={<ErrorBoundary><BudgetsPage /></ErrorBoundary>} />
-            <Route path="investor" element={<ErrorBoundary><InvestorPage /></ErrorBoundary>} />
+            <Route index element={<Page><SolarSystemPage /></Page>} />
+            <Route path="gerry" element={<Page><SolarSystemPage /></Page>} />
+            <Route path="planet/:planetId" element={<Page><SolarSystemPage /></Page>} />
+            <Route path="dashboard" element={<Page><DashboardPage /></Page>} />
+            <Route path="agents" element={<Page><AgentsPage /></Page>} />
+            <Route path="chat" element={<Page><ChatPage /></Page>} />
+            <Route path="chat/:conversationId" element={<Page><ChatPage /></Page>} />
+            <Route path="approvals" element={<Page><ApprovalsPage /></Page>} />
+            <Route path="assistant" element={<Page><AssistantPage /></Page>} />
+            <Route path="documents" element={<Page><DocumentsPage /></Page>} />
+            <Route path="search" element={<Page><SearchPage /></Page>} />
+            <Route path="tasks" element={<Page><TasksPage /></Page>} />
+            <Route path="scheduled-tasks" element={<Page><ScheduledTasksPage /></Page>} />
+            <Route path="regulatory" element={<Page><RegulatoryPage /></Page>} />
+            <Route path="notifications" element={<Page><NotificationsPage /></Page>} />
+            <Route path="research" element={<Page><ResearchPage /></Page>} />
+            <Route path="browser" element={<Page><ResearchBrowserPage /></Page>} />
+            <Route path="projects" element={<Page><ProjectsPage /></Page>} />
+            <Route path="projects/:id" element={<Page><ProjectDetailPage /></Page>} />
+            <Route path="projects/:id/space" element={<Page><ProjectSpacePage /></Page>} />
+            <Route path="projects/:id/space/:tab" element={<Page><ProjectSpacePage /></Page>} />
+            <Route path="settings" element={<Page><SettingsPage /></Page>} />
+            <Route path="meetings" element={<Page><MeetingsPage /></Page>} />
+            <Route path="emails" element={<Page><EmailsPage /></Page>} />
+            <Route path="inbox" element={<Page><InboxPage /></Page>} />
+            <Route path="contacts" element={<Page><ContactsPage /></Page>} />
+            <Route path="backups" element={<Page><BackupsPage /></Page>} />
+            <Route path="audit" element={<Page><AuditPage /></Page>} />
+            <Route path="users" element={<Page><UsersPage /></Page>} />
+            <Route path="calendar" element={<Page><CalendarPage /></Page>} />
+            <Route path="google" element={<Page><GoogleIntegrationPage /></Page>} />
+            <Route path="odoo" element={<Page><OdooIntegrationPage /></Page>} />
+            <Route path="files" element={<Page><GeneratedFilesPage /></Page>} />
+            <Route path="workrooms" element={<Page><WorkroomsPage /></Page>} />
+            <Route path="budgets" element={<Page><BudgetsPage /></Page>} />
+            <Route path="investor" element={<Page><InvestorPage /></Page>} />
           </Route>
         </Route>
       </Routes>

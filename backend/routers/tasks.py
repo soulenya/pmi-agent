@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, require_project_role
+from models.db.task import Project
 from models.db.user import User
 from models.schemas.tasks import (
     ProjectCreate,
@@ -21,6 +23,7 @@ from models.schemas.tasks import (
     TaskUpdate,
 )
 from repositories.task_repo import ProjectRepository, TaskRepository
+from services.projects.access import resolve_role
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 projects_router = APIRouter(prefix="/projects", tags=["projects"])
@@ -35,7 +38,9 @@ async def list_projects(
     current_user: User = Depends(get_current_user),
 ) -> list[ProjectOut]:
     repo = ProjectRepository(db)
-    projects = await repo.list(include_archived=include_archived)
+    projects = await repo.list(
+        include_archived=include_archived, visible_to=current_user.id
+    )
     return [ProjectOut.model_validate(p) for p in projects]
 
 
@@ -53,31 +58,32 @@ async def create_project(
 
 @projects_router.get("/{project_id}", response_model=ProjectOut)
 async def get_project(
-    project_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    project: Project = Depends(require_project_role("viewer")),
 ) -> ProjectOut:
-    repo = ProjectRepository(db)
-    project = await repo.get(project_id)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
     return ProjectOut.model_validate(project)
 
 
 @projects_router.patch("/{project_id}", response_model=ProjectOut)
 async def update_project(
-    project_id: uuid.UUID,
     body: ProjectUpdate,
+    project: Project = Depends(require_project_role("editor")),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ProjectOut:
-    repo = ProjectRepository(db)
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
-    project = await repo.update(project_id, **updates)
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found.")
+    new_visibility = updates.get("visibility")
+    if new_visibility is not None and new_visibility != project.visibility:
+        # Widening who can see a project is an owner's call, not an editor's.
+        role = await resolve_role(db, project, current_user.id)
+        if role != "owner":
+            raise HTTPException(
+                status_code=403, detail="Only the owner can change who can see a project."
+            )
+    if updates.get("is_archived") is True and project.archived_at is None:
+        updates["archived_at"] = datetime.now(timezone.utc)
+    updated = await ProjectRepository(db).update(project.id, **updates)
     await db.commit()
-    return ProjectOut.model_validate(project)
+    return ProjectOut.model_validate(updated)
 
 
 # ── Tasks ─────────────────────────────────────────────────────────────────────
