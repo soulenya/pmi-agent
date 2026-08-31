@@ -31,6 +31,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from config import settings
 from dependencies import get_current_user, require_regulatory_write
 from models.db.regulatory import RegulatoryNode
 from models.db.user import User
@@ -41,7 +42,8 @@ router = APIRouter(prefix="/regulatory-files", tags=["regulatory-files"])
 
 # ── Local store ────────────────────────────────────────────────────────────────
 
-REG_STORE = Path.home() / ".pmi-agent" / "regulatory"
+# Sits beside the document store, so STORAGE_ROOT moves both together.
+REG_STORE = Path(settings.storage_root).expanduser().parent / "regulatory"
 REG_STORE.mkdir(parents=True, exist_ok=True)
 
 # Extensions whose content can be viewed/edited as plain text in the browser.

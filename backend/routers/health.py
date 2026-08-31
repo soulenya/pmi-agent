@@ -2,6 +2,7 @@
 Health-check router.
 
 GET /health        — full system check (DB, LLM live ping, embedding live ping, disk)
+GET /health/live   — liveness only, for load balancer probes
 """
 
 from __future__ import annotations
@@ -126,6 +127,12 @@ async def _ping_embedding(provider: str, model: str, db: AsyncSession) -> dict:
     except Exception as exc:
         return {"status": "error", "provider": provider, "model": model, "detail": str(exc)}
 
+# ── Liveness ──────────────────────────────────────────────────────────────
+
+@router.get("/live")
+async def liveness() -> dict:
+    """Load balancers poll this every few seconds — it must touch nothing."""
+    return {"status": "ok"}
 
 # ── Full health check ─────────────────────────────────────────────────────────
 
