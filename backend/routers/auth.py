@@ -511,15 +511,20 @@ async def iap_login(
 _GOOGLE_STATE_PURPOSE = "google-connect"
 
 
-def _sign_google_state(user_id: _uuid.UUID) -> str:
+def _sign_google_state(user_id: _uuid.UUID, code_verifier: str) -> str:
     from datetime import datetime, timedelta, timezone
 
+    from cryptography.fernet import Fernet
     from jose import jwt
 
     return jwt.encode(
         {
             "sub": str(user_id),
             "purpose": _GOOGLE_STATE_PURPOSE,
+            # PKCE verifier, encrypted: the whole callback URL — state included —
+            # lands in the access log, and a readable verifier there would undo
+            # the point of PKCE.
+            "cv": Fernet(settings.fernet_key).encrypt(code_verifier.encode()).decode(),
             "nonce": secrets.token_urlsafe(16),
             "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
         },
@@ -528,8 +533,10 @@ def _sign_google_state(user_id: _uuid.UUID) -> str:
     )
 
 
-def _read_google_state(state: str) -> _uuid.UUID:
-    """The user this consent belongs to. Raises ValueError on a bad state."""
+def _read_google_state(state: str) -> tuple[_uuid.UUID, str]:
+    """The user and PKCE verifier this consent belongs to. Raises ValueError on
+    a bad state."""
+    from cryptography.fernet import Fernet, InvalidToken
     from jose import JWTError, jwt
 
     try:
@@ -540,10 +547,14 @@ def _read_google_state(state: str) -> _uuid.UUID:
         raise ValueError("This link has expired. Start again from Settings.") from exc
     if claims.get("purpose") != _GOOGLE_STATE_PURPOSE:
         raise ValueError("This link isn't a Google connection link.")
-    return _uuid.UUID(claims["sub"])
+    try:
+        verifier = Fernet(settings.fernet_key).decrypt(claims["cv"].encode()).decode()
+    except (KeyError, InvalidToken) as exc:
+        raise ValueError("This link is incomplete. Start again from Settings.") from exc
+    return _uuid.UUID(claims["sub"]), verifier
 
 
-def _google_flow():
+def _google_flow(code_verifier: str):
     from google_auth_oauthlib.flow import Flow
 
     from services.google_service import SCOPES
@@ -557,6 +568,11 @@ def _google_flow():
         {"web": google_user_creds.web_client_config()},
         scopes=SCOPES,
         redirect_uri=google_user_creds.redirect_uri(),
+        # The callback runs in a fresh process-less request with its own Flow, so
+        # the verifier is supplied rather than generated; letting the library
+        # invent one here would strand the challenge sent to Google.
+        code_verifier=code_verifier,
+        autogenerate_code_verifier=False,
     )
 
 
@@ -594,14 +610,15 @@ async def google_connect(current_user: User = Depends(get_current_user)) -> dict
             detail="Google isn't configured on this server yet.",
         )
 
-    url, _ = _google_flow().authorization_url(
+    code_verifier = secrets.token_urlsafe(64)
+    url, _ = _google_flow(code_verifier).authorization_url(
         access_type="offline",
         include_granted_scopes="true",
         # Force the consent screen so Google always returns a refresh token —
         # without it a re-connect yields an access token only, and the grant
         # dies an hour later.
         prompt="consent",
-        state=_sign_google_state(current_user.id),
+        state=_sign_google_state(current_user.id, code_verifier),
     )
     return {"authorization_url": url}
 
@@ -630,7 +647,7 @@ async def google_callback(
         return _fail("Google didn't return a sign-in code.")
 
     try:
-        user_id = _read_google_state(state)
+        user_id, code_verifier = _read_google_state(state)
     except ValueError as exc:
         return _fail(str(exc))
 
@@ -638,7 +655,7 @@ async def google_callback(
     if user is None or not user.is_active:
         return _fail("That account is no longer active.")
 
-    flow = _google_flow()
+    flow = _google_flow(code_verifier)
     try:
         await run_in_threadpool(flow.fetch_token, code=code)
     except Exception:  # noqa: BLE001 — any failure here is a failed connect
