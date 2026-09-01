@@ -23,6 +23,7 @@ from models.schemas.tasks import (
     TaskUpdate,
 )
 from repositories.task_repo import ProjectRepository, TaskRepository
+from services.projects import custody
 from services.projects.access import resolve_role
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -137,6 +138,11 @@ async def create_task(
 ) -> TaskOut:
     repo = TaskRepository(db)
     task = await repo.create(created_by=current_user.id, **body.model_dump())
+    if task.project_id is not None:
+        project = await ProjectRepository(db).get(task.project_id)
+        if project is None or not await resolve_role(db, project, current_user.id):
+            raise HTTPException(status_code=404, detail="Project not found.")
+        await custody.take(db, project, "task", task.id, current_user.id)
     await db.commit()
     return TaskOut.model_validate(task)
 
@@ -159,8 +165,18 @@ async def update_task(
     current_user: User = Depends(get_current_user),
 ) -> TaskOut:
     await _visible_task(db, task_id, current_user)
+    held = await custody.assert_may_change(db, "task", task_id, current_user.id)
     repo = TaskRepository(db)
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "project_id" in updates:
+        custody.assert_stays_put(held, updates["project_id"])
+        # Moving work into a shared project makes it that project's, or anyone
+        # could park something there and quietly take it back.
+        if held is None and updates["project_id"] is not None:
+            target = await ProjectRepository(db).get(updates["project_id"])
+            if target is None or not await resolve_role(db, target, current_user.id):
+                raise HTTPException(status_code=404, detail="Project not found.")
+            await custody.take(db, target, "task", task_id, current_user.id)
     task = await repo.update(task_id, **updates)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found.")
@@ -175,6 +191,7 @@ async def delete_task(
     current_user: User = Depends(get_current_user),
 ) -> None:
     await _visible_task(db, task_id, current_user)
+    await custody.assert_may_change(db, "task", task_id, current_user.id)
     repo = TaskRepository(db)
     deleted = await repo.delete(task_id)
     if not deleted:
