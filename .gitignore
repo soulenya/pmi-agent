@@ -103,5 +103,13 @@ update_token.txt
 # token installer handed to teammates privately). NEVER commit.
 local/
 MEETING-ASSIST-PLAN.md 
+PROMPT-CACHING-PLAN.md
+Prompt caching.md
+
+# Internal reference docs and generated PDFs — local working copies only
+VACTOR-standards-matrix.md
+company-context.md
+README.pdf
+SECURITY.pdf
 
 
