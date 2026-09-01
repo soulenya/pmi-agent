@@ -111,6 +111,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?required}
       FERNET_KEY: ${FERNET_KEY:?required}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-["https://hub.precisianmedical.com"]}
       HUB_MODE: "true"
       IAP_AUDIENCE: /projects/200809642986/global/backendServices/3249219135556043655
@@ -138,6 +140,10 @@ umask 077
   echo "JWT_SECRET=$(secret jwt-secret)"
   echo "FERNET_KEY=$(secret fernet-key)"
   echo "ANTHROPIC_API_KEY=$(secret anthropic-api-key || true)"
+  # Embeddings and speech run the same providers as the desktop app, so the hub
+  # keeps the same routing rather than falling back to a different model.
+  echo "VOYAGE_API_KEY=$(secret voyage-api-key || true)"
+  echo "GOOGLE_API_KEY=$(secret google-api-key || true)"
   # One line, no quoting: compose reads .env values literally to end of line.
   echo "GOOGLE_WEB_CLIENT_JSON=$(secret google-oauth-client | tr -d '\n' || true)"
 } > .env
