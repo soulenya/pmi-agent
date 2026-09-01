@@ -17,6 +17,8 @@ from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -376,6 +378,11 @@ async def _model_catalog_loop() -> None:
 
 async def _meeting_monitor_loop() -> None:
     """Watch for active video calls and auto-record + transcribe them."""
+    if settings.hub_mode:
+        # Capture reads this machine's audio devices and running processes,
+        # which on a shared server belong to nobody.
+        logger.info("Meeting capture disabled: hub deployment")
+        return
     from services.meetings.monitor import meeting_monitor
 
     await meeting_monitor.run(get_db)
@@ -661,6 +668,20 @@ def create_app() -> FastAPI:
             finally:
                 notification_manager.disconnect(user_id, websocket)
             break
+
+    # ── Built frontend ───────────────────────────────────────────────────────
+    # Baked into the hub image. Desktop installs run Vite separately, so this
+    # directory is absent there and the app stays API-only.
+    _dist = (Path(__file__).parent / "static").resolve()
+    if _dist.is_dir():
+        app.mount("/assets", StaticFiles(directory=_dist / "assets"), name="assets")
+
+        @app.get("/{spa_path:path}", include_in_schema=False)
+        async def serve_spa(spa_path: str) -> FileResponse:
+            candidate = (_dist / spa_path).resolve()
+            if spa_path and candidate.is_relative_to(_dist) and candidate.is_file():
+                return FileResponse(candidate)
+            return FileResponse(_dist / "index.html")
 
     return app
 

@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from dependencies import require_admin
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,12 @@ async def apply_update(_=Depends(require_admin)) -> UpdateResult:
     restart). Either way the backend is replaced when services restart — the
     client should poll ``/health`` until the API comes back up.
     """
+    if settings.hub_mode:
+        # One admin clicking this would restart the server under everyone else.
+        raise HTTPException(
+            status_code=409,
+            detail="This workspace is updated by its administrator, not from the app.",
+        )
     if _is_installed():
         return await _apply_release()
     return _apply_git()
