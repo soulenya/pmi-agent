@@ -295,6 +295,17 @@ def _seconds_until_hour(now: datetime, hour: int) -> float:
     return max(1.0, (target - now).total_seconds())
 
 
+def _ran_today(stamp) -> bool:
+    """True when an ISO timestamp falls on today's date in its own timezone."""
+    if not stamp:
+        return False
+    try:
+        last = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except Exception:
+        return False
+    return last.date() == datetime.now(last.tzinfo).date()
+
+
 async def _hub_assistant_scan_loop() -> None:
     """Per-person daily scans on the hub.
 
@@ -305,15 +316,6 @@ async def _hub_assistant_scan_loop() -> None:
     """
     from services.assistant import daily_scan
     from services import user_settings
-
-    def _ran_today(stamp) -> bool:
-        if not stamp:
-            return False
-        try:
-            last = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
-        except Exception:
-            return False
-        return last.date() == datetime.now(last.tzinfo).date()
 
     while True:
         try:
@@ -480,6 +482,10 @@ async def _conversation_backup_loop() -> None:
     """
     from services.conversation_backup import DEFAULT_HOUR, get_config, run_backup
 
+    if settings.hub_mode:
+        await _hub_conversation_backup_loop()
+        return
+
     while True:
         try:
             async for db in get_db():
@@ -494,16 +500,55 @@ async def _conversation_backup_loop() -> None:
                 cfg = await get_config(db)
                 if not cfg.get("enabled"):
                     continue
-                if not settings.hub_mode:
-                    await run_backup(db, reason="scheduled")
-                    continue
+                await run_backup(db, reason="scheduled")
+        except Exception:
+            logger.exception("Conversation backup loop error")
+
+
+async def _hub_conversation_backup_loop() -> None:
+    """Back each person up at their own hour, into their own Drive.
+
+    Ticks hourly rather than sleeping to one time, because people no longer
+    share a schedule; a per-user stamp keeps a restart from repeating a backup.
+    """
+    from services import user_settings
+    from services.conversation_backup import (
+        DEFAULT_ENABLED,
+        DEFAULT_HOUR,
+        ENABLED_KEY,
+        HOUR_KEY,
+        LAST_RUN_KEY,
+        _get_for,
+        run_backup,
+    )
+
+    while True:
+        try:
+            due: list = []
+            async for db in get_db():
+                now_hour = datetime.now().hour
                 for user in await _google_users(db):
+                    enabled = await _get_for(db, user.id, ENABLED_KEY, DEFAULT_ENABLED)
+                    hour = int(await _get_for(db, user.id, HOUR_KEY, DEFAULT_HOUR))
+                    stamp = await user_settings.get(db, user.id, LAST_RUN_KEY, None)
+                    if enabled and now_hour >= hour and not _ran_today(stamp):
+                        due.append(user)
+
+            for user in due:
+                async for db in get_db():
                     await _as_google_user(
                         user.id,
                         run_backup(db, reason="scheduled", owner_id=user.id),
                     )
+                    await user_settings.set_value(
+                        db, user.id, LAST_RUN_KEY, datetime.now().astimezone().isoformat()
+                    )
+                    await db.commit()
         except Exception:
             logger.exception("Conversation backup loop error")
+
+        now = datetime.now()
+        await asyncio.sleep(max(60.0, 3600 - (now.minute * 60 + now.second)))
 
 # ── Background model-catalog refresh loop ───────────────────────────────────────
 

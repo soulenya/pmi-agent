@@ -33,6 +33,7 @@ ENABLED_KEY = "backup.enabled"
 HOUR_KEY = "backup.hour"
 DRIVE_FOLDER_KEY = "backup.drive_folder_id"
 LEDGER_KEY = "backup.ledger"
+LAST_RUN_KEY = "backup.last_run"
 
 DEFAULT_ENABLED = False
 DEFAULT_HOUR = 2
@@ -77,11 +78,25 @@ async def _set(db: AsyncSession, key: str, value, user_id=None) -> None:
     await db.flush()
 
 
-async def get_config(db: AsyncSession) -> dict:
+async def _get_for(db: AsyncSession, owner_id, key: str, default):
+    """This person's answer for *key*, falling back to the install-wide value."""
+    fallback = await _get(db, key, default)
+    if owner_id is None:
+        return fallback
+    from services import user_settings
+
+    return await user_settings.get(db, owner_id, key, fallback)
+
+
+async def get_config(db: AsyncSession, owner_id=None) -> dict:
+    """On the hub each person keeps their own schedule and Drive folder — a
+    backup lands in the Drive of whoever it belongs to."""
     return {
-        "enabled": bool(await _get(db, ENABLED_KEY, DEFAULT_ENABLED)),
-        "hour": int(await _get(db, HOUR_KEY, DEFAULT_HOUR)),
-        "drive_folder_id": str(await _get(db, DRIVE_FOLDER_KEY, DEFAULT_DRIVE_FOLDER) or ""),
+        "enabled": bool(await _get_for(db, owner_id, ENABLED_KEY, DEFAULT_ENABLED)),
+        "hour": int(await _get_for(db, owner_id, HOUR_KEY, DEFAULT_HOUR)),
+        "drive_folder_id": str(
+            await _get_for(db, owner_id, DRIVE_FOLDER_KEY, DEFAULT_DRIVE_FOLDER) or ""
+        ),
     }
 
 
@@ -92,7 +107,23 @@ async def set_config(
     hour: int | None = None,
     drive_folder_id: str | None = None,
     user_id=None,
+    owner_id=None,
 ) -> dict:
+    if owner_id is not None:
+        from services import user_settings
+
+        if enabled is not None:
+            await user_settings.set_value(db, owner_id, ENABLED_KEY, bool(enabled))
+        if hour is not None:
+            await user_settings.set_value(
+                db, owner_id, HOUR_KEY, max(0, min(23, int(hour)))
+            )
+        if drive_folder_id is not None:
+            await user_settings.set_value(
+                db, owner_id, DRIVE_FOLDER_KEY, str(drive_folder_id).strip()
+            )
+        await db.commit()
+        return await get_config(db, owner_id)
     if enabled is not None:
         await _set(db, ENABLED_KEY, bool(enabled), user_id)
     if hour is not None:
@@ -250,7 +281,7 @@ async def run_backup(
 
     # Best-effort upload to the configured Drive folder.
     drive_info: dict | None = None
-    config = await get_config(db)
+    config = await get_config(db, owner_id)
     folder_id = config["drive_folder_id"] or None
     try:
         from services.google_service import drive_upload_bytes, get_credentials
