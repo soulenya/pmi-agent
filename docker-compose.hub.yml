@@ -45,6 +45,8 @@ services:
       HUB_MODE: "true"
       # /projects/<project-number>/global/backendServices/<backend-service-id>
       IAP_AUDIENCE: ${IAP_AUDIENCE:?required}
+      # Downloaded "web" OAuth client JSON, for per-user Google connections.
+      GOOGLE_WEB_CLIENT_JSON: ${GOOGLE_WEB_CLIENT_JSON:-}
       STORAGE_ROOT: /data/documents
       HOST: 0.0.0.0
       PORT: "8000"

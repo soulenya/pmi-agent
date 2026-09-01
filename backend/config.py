@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     hub_mode: bool = False
     # Full IAP audience: /projects/<project-number>/global/backendServices/<id>
     iap_audience: str = ""
+    # The downloaded "web" OAuth client, for per-user Google sign-in on the
+    # hub. Supply the JSON directly, or point at the downloaded file. The
+    # desktop keeps using its own installed-app client.
+    google_web_client_json: str = ""
+    google_web_client_file: str = ""
 
     # ── Database ─────────────────────────────────────────────────────────────
     database_url: str = Field(
