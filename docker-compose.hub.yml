@@ -42,6 +42,9 @@ services:
       FERNET_KEY: ${FERNET_KEY:?required}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?required}
       CORS_ORIGINS: ${CORS_ORIGINS:-["https://hub.precisianmedical.com"]}
+      HUB_MODE: "true"
+      # /projects/<project-number>/global/backendServices/<backend-service-id>
+      IAP_AUDIENCE: ${IAP_AUDIENCE:?required}
       STORAGE_ROOT: /data/documents
       HOST: 0.0.0.0
       PORT: "8000"

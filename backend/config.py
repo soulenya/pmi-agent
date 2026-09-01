@@ -59,6 +59,13 @@ class Settings(BaseSettings):
         "http://127.0.0.1:1420",
     ]
 
+    # ── Hub deployment ───────────────────────────────────────────────────────
+    # True only on the shared server. Disables desktop-only machinery (meeting
+    # capture, self-update) and switches sign-in over to IAP.
+    hub_mode: bool = False
+    # Full IAP audience: /projects/<project-number>/global/backendServices/<id>
+    iap_audience: str = ""
+
     # ── Database ─────────────────────────────────────────────────────────────
     database_url: str = Field(
         default="postgresql+asyncpg://pmi_app:pmi_dev_password@localhost:5432/pmi_dev"
