@@ -609,7 +609,7 @@ async def google_callback(
     from fastapi.responses import RedirectResponse
 
     def _fail(message: str) -> RedirectResponse:
-        return RedirectResponse(f"/settings?google_error={quote(message)}")
+        return RedirectResponse(f"/google?google_error={quote(message)}")
 
     if not settings.hub_mode or not google_user_creds.is_configured():
         return _fail("Google isn't configured on this server.")
@@ -663,7 +663,7 @@ async def google_callback(
         payload={"email": email, "scopes": list(creds.scopes or [])},
     )
     await db.commit()
-    return RedirectResponse("/settings?google=connected")
+    return RedirectResponse("/google?google=connected")
 
 
 @router.post("/google/disconnect", status_code=status.HTTP_204_NO_CONTENT)
