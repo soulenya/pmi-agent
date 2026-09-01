@@ -53,6 +53,17 @@ def _doc_out(doc) -> DocumentOut:
     return DocumentOut.model_validate(doc)
 
 
+def _require_owner(doc, user: User) -> None:
+    """The library is readable by everyone; only its uploader or an admin may
+    rename or delete an entry. Documents predating created_by are admin-only."""
+    if user.role == "admin" or (doc.created_by is not None and doc.created_by == user.id):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Only the person who added this document can change it.",
+    )
+
+
 def _duplicate_detail(existing) -> dict:
     """409 payload describing the existing document a new upload duplicates."""
     return {
@@ -491,12 +502,13 @@ async def update_document(
     doc_id: UUID,
     body: DocumentUpdate,
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> ApiResponse[DocumentOut]:
     repo = DocumentRepository(db)
     doc = await repo.get_active(doc_id)
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    _require_owner(doc, current_user)
 
     updates = body.model_dump(exclude_none=True)
     for k, v in updates.items():
@@ -512,6 +524,11 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ApiResponse[None]:
+    doc = await DocumentRepository(db).get_active(doc_id)
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    _require_owner(doc, current_user)
+
     svc = DocumentIngestionService(
         db=db, embedding_svc=EmbeddingService()
     )
