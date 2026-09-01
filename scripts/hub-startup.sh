@@ -29,9 +29,11 @@ TOKEN=$(curl -sf -H "Metadata-Flavor: Google" \
 
 # Prints a secret on stdout. Never log the result.
 secret() {
+  # Keys pasted into a Windows console arrive with a trailing CR, which .env
+  # would keep as part of the value and every auth header would then be wrong.
   curl -sf -H "Authorization: Bearer ${TOKEN}" \
     "https://secretmanager.googleapis.com/v1/projects/${PROJECT}/secrets/$1/versions/latest:access" \
-    | jq -r '.payload.data' | base64 -d
+    | jq -r '.payload.data' | base64 -d | tr -d '\r'
 }
 
 echo "${TOKEN}" | docker login -u oauth2accesstoken --password-stdin "https://${REGISTRY}"
