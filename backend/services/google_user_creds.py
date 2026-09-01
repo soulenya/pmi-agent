@@ -56,6 +56,17 @@ def current_user_id() -> uuid.UUID | None:
     return _current_user_id.get()
 
 
+def reset_user(token) -> None:
+    _current_user_id.reset(token)
+
+
+async def users_with_credentials(db: AsyncSession) -> list[uuid.UUID]:
+    """Everyone who has connected Google. Background jobs iterate this so each
+    person's work runs under their own grant rather than a shared one."""
+    rows = await db.execute(select(GoogleCredential.user_id))
+    return list(rows.scalars())
+
+
 # ── encryption ───────────────────────────────────────────────────────────────
 
 def _fernet() -> Fernet:

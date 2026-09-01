@@ -153,6 +153,39 @@ async def _notification_loop() -> None:
             logger.exception("Notification loop error")
 
 
+# ── Running background work as a named user ──────────────────────────────────
+# Every background job used to run as the single install owner. On the hub each
+# person is a named user with their own Google grant, so the jobs that touch
+# Google run once per person, bound to that person.
+
+async def _google_users(db) -> list:
+    """Users who have connected Google, in a stable order."""
+    from models.db.user import User
+    from services import google_user_creds
+    from sqlalchemy import select
+
+    ids = await google_user_creds.users_with_credentials(db)
+    if not ids:
+        return []
+    rows = await db.execute(
+        select(User).where(User.id.in_(ids), User.is_active.is_(True)).order_by(User.created_at)
+    )
+    return list(rows.scalars())
+
+
+async def _as_google_user(user_id, coro) -> None:
+    """Await *coro* with *user_id* bound, so get_credentials() resolves to them."""
+    from services import google_user_creds
+
+    token = google_user_creds.bind_user(user_id)
+    try:
+        async for db in get_db():
+            await google_user_creds.load_into_cache(db, user_id)
+        await coro
+    finally:
+        google_user_creds.reset_user(token)
+
+
 # ── Background Drive update-check loop ────────────────────────────────────────
 
 # Local clock times (24h) at which to scan Drive-linked documents for updates.
@@ -178,57 +211,80 @@ async def _drive_sync_loop() -> None:
     """Scan Drive-linked documents for updates at 06:00, 12:00, and 18:00 local time."""
     from services.documents.sync import check_document_updates
 
-    while True:
-        delay = _seconds_until_next_check(datetime.now())
-        await asyncio.sleep(delay)
-        try:
-            async for db in get_db():
-                summary = await check_document_updates(db)
-                for item in summary.get("items", []):
-                    if item.get("notify") and item.get("user_id"):
-                        await notification_manager.push(
-                            item["user_id"],
-                            {
-                                "type": "notification",
-                                "entity_id": item["id"],
-                                "title": f"Document update available: {item['title']}",
-                                "notif_type": "system_alert",
-                            },
-                        )
+    async def _check(owner_id=None) -> None:
+        async for db in get_db():
+            summary = await check_document_updates(db, owner_id)
+            for item in summary.get("items", []):
+                if item.get("notify") and item.get("user_id"):
+                    await notification_manager.push(
+                        item["user_id"],
+                        {
+                            "type": "notification",
+                            "entity_id": item["id"],
+                            "title": f"Document update available: {item['title']}",
+                            "notif_type": "system_alert",
+                        },
+                    )
             logger.info(
                 "Drive update check complete: %s document(s) flagged",
                 summary.get("changed", 0),
             )
+
+    while True:
+        delay = _seconds_until_next_check(datetime.now())
+        await asyncio.sleep(delay)
+        try:
+            if not settings.hub_mode:
+                await _check()
+                continue
+            # Each person's linked files are readable only with their own grant.
+            async for db in get_db():
+                users = await _google_users(db)
+            for user in users:
+                await _as_google_user(user.id, _check(user.id))
         except Exception:
             logger.exception("Drive sync loop error")
 
 
 # ── Background daily-assistant scan loop ──────────────────────────────────────
 
-async def _run_assistant_scan() -> None:
-    """Run one daily-assistant scan and push any resulting notifications."""
+async def _push_scan_notifications(notifications) -> None:
+    for n in notifications:
+        await notification_manager.push(
+            n["user_id"],
+            {
+                "type": "notification",
+                "entity_id": n["id"],
+                "title": n["title"],
+                "notif_type": "reminder",
+            },
+        )
+
+
+async def _run_assistant_scan_for(user=None, include_shared: bool = False) -> None:
+    """Run one person's daily scan and push their notifications."""
     from services.assistant import daily_scan
     from services.embeddings.service import get_embedding_service_for_db
 
     async for db in get_db():
         embedding_svc = await get_embedding_service_for_db(db)
-        summary = await daily_scan.run_daily_scan(db, embedding_svc)
-        for n in summary.get("notifications", []):
-            await notification_manager.push(
-                n["user_id"],
-                {
-                    "type": "notification",
-                    "entity_id": n["id"],
-                    "title": n["title"],
-                    "notif_type": "reminder",
-                },
-            )
+        summary = await daily_scan.run_daily_scan(
+            db, embedding_svc, user=user, include_shared=include_shared
+        )
+        await _push_scan_notifications(summary.get("notifications", []))
         logger.info(
-            "Assistant scan: %s suggestion(s), %s import(s)%s",
+            "Assistant scan%s: %s suggestion(s), %s import(s)%s",
+            f" for {user.email}" if user is not None else "",
             summary.get("created", 0),
             summary.get("imported", 0),
             f" (skipped: {summary['skipped']})" if summary.get("skipped") else "",
         )
+
+
+async def _run_assistant_scan() -> None:
+    """Desktop path: one user, one Google grant, one scan including the
+    company-wide half."""
+    await _run_assistant_scan_for(None, include_shared=True)
 
 
 def _seconds_until_hour(now: datetime, hour: int) -> float:
@@ -239,12 +295,93 @@ def _seconds_until_hour(now: datetime, hour: int) -> float:
     return max(1.0, (target - now).total_seconds())
 
 
+async def _hub_assistant_scan_loop() -> None:
+    """Per-person daily scans on the hub.
+
+    People keep different hours, so instead of waking once at one configured
+    time this ticks hourly and runs whoever is due: their own enabled flag,
+    their own hour, their own last-run stamp. The company-wide half — budget
+    nudges and workroom digests — still runs once, at the install's hour.
+    """
+    from services.assistant import daily_scan
+    from services import user_settings
+
+    def _ran_today(stamp) -> bool:
+        if not stamp:
+            return False
+        try:
+            last = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+        except Exception:
+            return False
+        return last.date() == datetime.now(last.tzinfo).date()
+
+    while True:
+        try:
+            due: list = []
+            shared_due = False
+            async for db in get_db():
+                now_hour = datetime.now().hour
+                shared_hour = int(
+                    await daily_scan.get_setting(
+                        db, daily_scan.SETTING_HOUR, daily_scan.DEFAULT_HOUR
+                    )
+                )
+                shared_enabled = await daily_scan.get_setting(
+                    db, daily_scan.SETTING_ENABLED, daily_scan.DEFAULT_ENABLED
+                )
+                shared_stamp = await daily_scan.get_setting(
+                    db, "assistant_scan.shared_last_run", None
+                )
+                shared_due = (
+                    shared_enabled
+                    and now_hour >= shared_hour
+                    and not _ran_today(shared_stamp)
+                )
+
+                for user in await _google_users(db):
+                    enabled = await daily_scan.get_user_setting(
+                        db, user, daily_scan.SETTING_ENABLED, daily_scan.DEFAULT_ENABLED
+                    )
+                    hour = int(
+                        await daily_scan.get_user_setting(
+                            db, user, daily_scan.SETTING_HOUR, daily_scan.DEFAULT_HOUR
+                        )
+                    )
+                    stamp = await user_settings.get(
+                        db, user.id, daily_scan.SETTING_LAST_RUN, None
+                    )
+                    if enabled and now_hour >= hour and not _ran_today(stamp):
+                        due.append(user)
+
+            if shared_due:
+                async for db in get_db():
+                    shared = await daily_scan.run_shared_daily(db)
+                    await daily_scan.set_setting(
+                        db, "assistant_scan.shared_last_run", daily_scan._now_iso()
+                    )
+                    await db.commit()
+                    await _push_scan_notifications(shared.get("notifications", []))
+
+            for user in due:
+                await _as_google_user(user.id, _run_assistant_scan_for(user))
+        except Exception:
+            logger.exception("Assistant scan loop error")
+
+        # Tick at the top of the next hour.
+        now = datetime.now()
+        await asyncio.sleep(max(60.0, 3600 - (now.minute * 60 + now.second)))
+
+
 async def _assistant_scan_loop() -> None:
     """Run the assistant scan once a day at the configured local hour (default 07:00).
 
     Also performs a catch-up run on startup if today's scan has not happened yet.
     """
     from services.assistant import daily_scan
+
+    if settings.hub_mode:
+        await _hub_assistant_scan_loop()
+        return
 
     # Startup catch-up: run now if enabled and we haven't scanned yet today.
     try:
@@ -335,6 +472,10 @@ async def _conversation_backup_loop() -> None:
     """Once a day (configurable hour, default 02:00 local), write a signed,
     tamper-evident backup of every conversation — locally and to Drive.
 
+    On the hub this runs once per person, over their own conversations and into
+    their own Drive: conversations are private, so a single combined file would
+    hand everyone's chats to whoever owned the folder it landed in.
+
     No-op while backups are disabled; the schedule is re-read each cycle.
     """
     from services.conversation_backup import DEFAULT_HOUR, get_config, run_backup
@@ -351,8 +492,16 @@ async def _conversation_backup_loop() -> None:
         try:
             async for db in get_db():
                 cfg = await get_config(db)
-                if cfg.get("enabled"):
+                if not cfg.get("enabled"):
+                    continue
+                if not settings.hub_mode:
                     await run_backup(db, reason="scheduled")
+                    continue
+                for user in await _google_users(db):
+                    await _as_google_user(
+                        user.id,
+                        run_backup(db, reason="scheduled", owner_id=user.id),
+                    )
         except Exception:
             logger.exception("Conversation backup loop error")
 
@@ -398,8 +547,28 @@ async def _company_context_sync_once() -> None:
         from services.company_context import sync_company_context_from_drive
 
         ok = False
-        async for db in get_db():
-            ok = await sync_company_context_from_drive(db)
+        if settings.hub_mode:
+            # The context file is company-wide, but reading it still needs a
+            # real person's Drive access. Use the first connected admin, then
+            # anyone connected.
+            async for db in get_db():
+                users = await _google_users(db)
+            reader = next((u for u in users if u.role == "admin"), None) or (
+                users[0] if users else None
+            )
+            if reader is None:
+                logger.info("Company context startup sync: skipped (nobody connected)")
+                return
+
+            async def _sync() -> None:
+                nonlocal ok
+                async for db in get_db():
+                    ok = await sync_company_context_from_drive(db)
+
+            await _as_google_user(reader.id, _sync())
+        else:
+            async for db in get_db():
+                ok = await sync_company_context_from_drive(db)
         logger.info("Company context startup sync: %s", "ok" if ok else "skipped/failed")
     except Exception:
         logger.exception("Company context startup sync error")

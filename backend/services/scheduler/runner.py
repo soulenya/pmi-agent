@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.enums import MessageRole
 from models.db.scheduled_task import ScheduledTask
+from services import google_user_creds
 from repositories.conversation_repo import (
     ConversationRepository,
     MessageRepository,
@@ -303,7 +304,14 @@ async def scheduled_tasks_loop(get_db, notification_manager) -> None:
                 for task in due:
                     title = task.title
                     user_id = str(task.user_id)
-                    result = await run_scheduled_task(db, task)
+                    # A scheduled task can reach for Gmail, Drive or Calendar,
+                    # so it has to run as the person who scheduled it.
+                    token = google_user_creds.bind_user(task.user_id)
+                    try:
+                        await google_user_creds.load_into_cache(db, task.user_id)
+                        result = await run_scheduled_task(db, task)
+                    finally:
+                        google_user_creds.reset_user(token)
                     try:
                         await notification_manager.push(
                             user_id,
