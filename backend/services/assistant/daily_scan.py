@@ -98,6 +98,24 @@ async def set_setting(db: AsyncSession, key: str, value: Any, user_id=None) -> N
         row.value = value
         if user_id is not None:
             row.updated_by = user_id
+
+
+async def get_user_setting(db: AsyncSession, user: User, key: str, default: Any) -> Any:
+    """This user's answer for *key*, falling back to the install-wide value."""
+    from services import user_settings
+
+    fallback = await get_setting(db, key, default)
+    return await user_settings.get(db, user.id, key, fallback)
+
+
+async def _mark_last_run(db: AsyncSession, user: User | None) -> None:
+    """Record that this person's scan ran, so a restart doesn't repeat it."""
+    from services import user_settings
+
+    stamp = _now_iso()
+    if user is not None:
+        await user_settings.set_value(db, user.id, SETTING_LAST_RUN, stamp)
+    await set_setting(db, SETTING_LAST_RUN, stamp, user.id if user else None)
     await db.flush()
 
 
@@ -251,8 +269,47 @@ async def _analyze_with_llm(
 
 # ── main scan ─────────────────────────────────────────────────────────────────
 
-async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
-    """Run the daily scan. Returns a summary dict including notifications to push."""
+async def run_shared_daily(db: AsyncSession) -> dict:
+    """The company-wide half of the daily scan: budget nudges and workroom
+    digests. These belong to the install rather than to one person, so they run
+    once a day no matter how many people are connected."""
+    out: dict[str, Any] = {"notifications": []}
+
+    # Budget nudges run BEFORE the workroom automations (so morning digests
+    # compare fresh totals) and without any Google gate — threshold checks work
+    # from the cached mirror even without a connected Google account.
+    try:
+        from services.budget_daily import run_budget_daily
+
+        bd = await run_budget_daily(db)
+        out["notifications"].extend(bd.get("notifications", []))
+    except Exception:  # noqa: BLE001 — budget nudges must never block the scan
+        logger.exception("Budget daily automations failed")
+
+    try:
+        from services.workroom_daily import run_workroom_daily
+
+        wr = await run_workroom_daily(db)
+        out["notifications"].extend(wr.get("notifications", []))
+    except Exception:  # noqa: BLE001 — room automations must never block the scan
+        logger.exception("Workroom daily automations failed")
+
+    return out
+
+
+async def run_daily_scan(
+    db: AsyncSession,
+    embedding_svc,
+    user: User | None = None,
+    include_shared: bool = True,
+) -> dict:
+    """Run the daily scan. Returns a summary dict including notifications to push.
+
+    *user* names whose scan this is; without one it falls back to the owning
+    admin, which is what a single-person desktop install wants. *include_shared*
+    covers the company-wide parts (budgets, workrooms) that must run once per
+    day rather than once per person.
+    """
     summary: dict[str, Any] = {
         "created": 0,
         "imported": 0,
@@ -263,23 +320,15 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
     # Budget nudges run BEFORE the workroom automations (so morning digests
     # compare fresh totals) and BEFORE the Google gate — threshold checks work
     # from the cached mirror even without a connected Google account.
-    try:
-        from services.budget_daily import run_budget_daily
+    if include_shared:
+        shared = await run_shared_daily(db)
+        summary["notifications"].extend(shared.get("notifications", []))
 
-        bd = await run_budget_daily(db)
-        summary["notifications"].extend(bd.get("notifications", []))
-    except Exception:  # noqa: BLE001 — budget nudges must never block the scan
-        logger.exception("Budget daily automations failed")
-
-    # Workroom daily automations (digest + proactive to-dos) run BEFORE the
-    # Google gate — rooms work even without a connected Google account.
-    try:
-        from services.workroom_daily import run_workroom_daily
-
-        wr = await run_workroom_daily(db)
-        summary["notifications"].extend(wr.get("notifications", []))
-    except Exception:  # noqa: BLE001 — room automations must never block the scan
-        logger.exception("Workroom daily automations failed")
+    if user is None:
+        user = await _owner_user(db)
+    if user is None:
+        summary["skipped"] = "no_user"
+        return summary
 
     try:
         creds = gs.get_credentials()
@@ -287,13 +336,8 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         creds = None
     if not creds:
         summary["skipped"] = "google_not_connected"
-        await set_setting(db, SETTING_LAST_RUN, _now_iso())
+        await _mark_last_run(db, user)
         await db.commit()
-        return summary
-
-    user = await _owner_user(db)
-    if user is None:
-        summary["skipped"] = "no_user"
         return summary
 
     seen: set[tuple[str, str]] = set()
@@ -735,7 +779,7 @@ async def run_daily_scan(db: AsyncSession, embedding_svc) -> dict:
         except Exception as exc:
             logger.info("Assistant scan: notification create failed (%s)", exc)
 
-    await set_setting(db, SETTING_LAST_RUN, _now_iso(), user.id)
+    await _mark_last_run(db, user)
     await db.commit()
 
     summary["created"] = sum(1 for s in new_suggestions if s.kind != "meeting_import")

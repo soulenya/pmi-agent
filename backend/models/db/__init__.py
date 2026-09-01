@@ -22,7 +22,7 @@ from models.db.project_member import ProjectMember
 from models.db.regulatory import CAPA, RegulatoryDocument, RegulatoryNode, RiskItem
 from models.db.research import ResearchReport, ResearchSource
 from models.db.scheduled_task import ScheduledTask
-from models.db.settings import ModelRoutingRule, SystemSetting
+from models.db.settings import ModelRoutingRule, SystemSetting, UserSetting
 from models.db.task import Project, Task, TaskComment
 from models.db.user import User, UserSession
 from models.db.workroom import Workroom, WorkroomItem, WorkroomJournalEntry
@@ -55,6 +55,7 @@ __all__ = [
     "Notification",
     "Briefing",
     "SystemSetting",
+    "UserSetting",
     "ModelRoutingRule",
     "AuditEvent",
     "MeetingNote",

@@ -103,14 +103,36 @@ async def set_config(
     return await get_config(db)
 
 
-async def _get_ledger(db: AsyncSession) -> list[dict]:
+async def _get_ledger(db: AsyncSession, owner_id=None) -> list[dict]:
+    """The backup chain. On the hub each person has their own, so one person's
+    backups never appear in another's history."""
+    if owner_id is not None:
+        from services import user_settings
+
+        raw = await user_settings.get(db, owner_id, LEDGER_KEY, "")
+        if not raw:
+            return []
+        try:
+            val = json.loads(raw)
+        except ValueError:
+            return []
+        return val if isinstance(val, list) else []
     val = await _get(db, LEDGER_KEY, [])
     return val if isinstance(val, list) else []
 
 
-async def list_backups(db: AsyncSession) -> list[dict]:
+async def _set_ledger(db: AsyncSession, ledger: list[dict], owner_id=None, user_id=None) -> None:
+    if owner_id is not None:
+        from services import user_settings
+
+        await user_settings.set_value(db, owner_id, LEDGER_KEY, json.dumps(ledger))
+        return
+    await _set(db, LEDGER_KEY, ledger, user_id)
+
+
+async def list_backups(db: AsyncSession, owner_id=None) -> list[dict]:
     """Ledger entries, newest first."""
-    return list(reversed(await _get_ledger(db)))
+    return list(reversed(await _get_ledger(db, owner_id)))
 
 
 # ── Tamper-evidence ───────────────────────────────────────────────────────
@@ -141,10 +163,11 @@ def _s(value) -> str | None:
 
 
 # ── Serialization ─────────────────────────────────────────────────────────
-async def _collect_conversations(db: AsyncSession) -> list[dict]:
-    convs = (
-        await db.execute(select(Conversation).order_by(Conversation.created_at))
-    ).scalars().all()
+async def _collect_conversations(db: AsyncSession, owner_id=None) -> list[dict]:
+    stmt = select(Conversation).order_by(Conversation.created_at)
+    if owner_id is not None:
+        stmt = stmt.where(Conversation.user_id == owner_id)
+    convs = (await db.execute(stmt)).scalars().all()
     out: list[dict] = []
     for c in convs:
         msgs = (
@@ -180,11 +203,19 @@ async def _collect_conversations(db: AsyncSession) -> list[dict]:
 
 
 # ── Run + verify ──────────────────────────────────────────────────────────
-async def run_backup(db: AsyncSession, *, reason: str = "scheduled", user_id=None) -> dict:
+async def run_backup(
+    db: AsyncSession, *, reason: str = "scheduled", user_id=None, owner_id=None
+) -> dict:
     """Produce one signed, chained conversation backup. Returns the ledger
-    entry plus the local path and Drive info."""
-    conversations = await _collect_conversations(db)
-    ledger = await _get_ledger(db)
+    entry plus the local path and Drive info.
+
+    *owner_id* limits the backup to one person's conversations and writes to
+    their own ledger and their own Drive. The hub always passes it — a single
+    file holding everyone's chats, uploaded to one person's Drive, would hand
+    every conversation to whoever owned that folder.
+    """
+    conversations = await _collect_conversations(db, owner_id)
+    ledger = await _get_ledger(db, owner_id)
     sequence = (int(ledger[-1].get("sequence", 0)) + 1) if ledger else 1
     previous_hash = ledger[-1].get("record_hash", _GENESIS_HASH) if ledger else _GENESIS_HASH
     created_at = datetime.now(timezone.utc).isoformat()
@@ -212,7 +243,8 @@ async def run_backup(db: AsyncSession, *, reason: str = "scheduled", user_id=Non
     }
     blob = json.dumps(document, ensure_ascii=False, indent=2).encode("utf-8")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    filename = f"conversations_{stamp}_seq{sequence:04d}.json"
+    owner_tag = f"_{str(owner_id)[:8]}" if owner_id is not None else ""
+    filename = f"conversations_{stamp}{owner_tag}_seq{sequence:04d}.json"
     local_path = backup_dir() / filename
     local_path.write_bytes(blob)
 
@@ -245,7 +277,7 @@ async def run_backup(db: AsyncSession, *, reason: str = "scheduled", user_id=Non
         "drive_url": (drive_info or {}).get("url", ""),
     }
     ledger.append(entry)
-    await _set(db, LEDGER_KEY, ledger, user_id)
+    await _set_ledger(db, ledger, owner_id, user_id)
     await db.commit()
     logger.info(
         "Conversation backup #%d written (%d conversations, %d messages, drive=%s)",
@@ -254,10 +286,10 @@ async def run_backup(db: AsyncSession, *, reason: str = "scheduled", user_id=Non
     return {**entry, "local_path": str(local_path), "drive": drive_info}
 
 
-async def verify(db: AsyncSession) -> dict:
+async def verify(db: AsyncSession, owner_id=None) -> dict:
     """Re-walk the backup chain and confirm every link, hash, and signature.
     Returns ``{ok, checked, problems}``."""
-    ledger = await _get_ledger(db)
+    ledger = await _get_ledger(db, owner_id)
     problems: list[str] = []
     prev = _GENESIS_HASH
     for entry in ledger:
