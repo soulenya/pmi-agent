@@ -12,9 +12,11 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 
+from config import settings
 from database import get_db
 from models.db.task import Project
 from models.db.user import User
+from services import google_user_creds
 from services.auth.service import AuthService
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +36,11 @@ async def get_current_user(
             detail="Invalid or expired access token.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if settings.hub_mode:
+        # Every Google call made while serving this request resolves to this
+        # user's own grant, and to nobody's at all outside a request.
+        google_user_creds.bind_user(user.id)
+        await google_user_creds.load_into_cache(db, user.id)
     return user
 
 

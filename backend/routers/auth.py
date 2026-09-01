@@ -6,10 +6,12 @@ import base64
 import json
 import os
 import re
+import secrets
 import threading
 import urllib.request
 import uuid as _uuid
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +28,7 @@ from models.schemas.auth import (
     UserOut,
 )
 from config import settings
+from services import google_user_creds
 from services.auth.service import AuthService
 from services.audit.logger import AuditLogger, get_audit_logger
 
@@ -496,6 +499,188 @@ async def iap_login(
         expires_in=settings.access_token_expire_minutes * 60,
         user=UserOut.model_validate(user),
     )
+
+
+# ── per-user Google connection (hub only) ────────────────────────────────────
+# Each person grants their own Google access. Nothing here is shared: the grant
+# is stored against the user id and read back only for that user's requests.
+
+_GOOGLE_STATE_PURPOSE = "google-connect"
+
+
+def _sign_google_state(user_id: _uuid.UUID) -> str:
+    from datetime import datetime, timedelta, timezone
+
+    from jose import jwt
+
+    return jwt.encode(
+        {
+            "sub": str(user_id),
+            "purpose": _GOOGLE_STATE_PURPOSE,
+            "nonce": secrets.token_urlsafe(16),
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
+        },
+        settings.jwt_secret,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
+def _read_google_state(state: str) -> _uuid.UUID:
+    """The user this consent belongs to. Raises ValueError on a bad state."""
+    from jose import JWTError, jwt
+
+    try:
+        claims = jwt.decode(
+            state, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+        )
+    except JWTError as exc:
+        raise ValueError("This link has expired. Start again from Settings.") from exc
+    if claims.get("purpose") != _GOOGLE_STATE_PURPOSE:
+        raise ValueError("This link isn't a Google connection link.")
+    return _uuid.UUID(claims["sub"])
+
+
+def _google_flow():
+    from google_auth_oauthlib.flow import Flow
+
+    from services.google_service import SCOPES
+
+    return Flow.from_client_config(
+        {"web": google_user_creds.web_client_config()},
+        scopes=SCOPES,
+        redirect_uri=google_user_creds.redirect_uri(),
+    )
+
+
+def _verify_google_email(raw_id_token: str | None) -> str:
+    """The verified address on the id_token Google just issued."""
+    from google.auth.transport import requests as ga_requests
+    from google.oauth2 import id_token as google_id_token
+
+    if not raw_id_token:
+        raise ValueError("Google didn't say which account this is.")
+    cfg = google_user_creds.web_client_config()
+    try:
+        claims = google_id_token.verify_oauth2_token(
+            raw_id_token, ga_requests.Request(), cfg.get("client_id")
+        )
+    except Exception as exc:  # noqa: BLE001 — an unverifiable token is a failure
+        raise ValueError("Couldn't verify the Google account.") from exc
+    email = (claims.get("email") or "").lower()
+    if not email or not claims.get("email_verified"):
+        raise ValueError("That Google account has no verified address.")
+    return email
+
+
+@router.get("/google/connect")
+async def google_connect(current_user: User = Depends(get_current_user)) -> dict:
+    """Where to send this user so they can grant their own Google access."""
+    if not settings.hub_mode:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not available on this install.",
+        )
+    if not google_user_creds.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google isn't configured on this server yet.",
+        )
+
+    url, _ = _google_flow().authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        # Force the consent screen so Google always returns a refresh token —
+        # without it a re-connect yields an access token only, and the grant
+        # dies an hour later.
+        prompt="consent",
+        state=_sign_google_state(current_user.id),
+    )
+    return {"authorization_url": url}
+
+
+@router.get("/google/callback")
+async def google_callback(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    audit: AuditLogger = Depends(get_audit_logger),
+):
+    """Google redirects the browser here. Authenticated by the signed state,
+    because a redirect carries no Authorization header."""
+    from fastapi.responses import RedirectResponse
+
+    def _fail(message: str) -> RedirectResponse:
+        return RedirectResponse(f"/settings?google_error={quote(message)}")
+
+    if not settings.hub_mode or not google_user_creds.is_configured():
+        return _fail("Google isn't configured on this server.")
+
+    params = request.query_params
+    if params.get("error"):
+        return _fail("Google sign-in was cancelled.")
+    code, state = params.get("code"), params.get("state")
+    if not code or not state:
+        return _fail("Google didn't return a sign-in code.")
+
+    try:
+        user_id = _read_google_state(state)
+    except ValueError as exc:
+        return _fail(str(exc))
+
+    user = await db.get(User, user_id)
+    if user is None or not user.is_active:
+        return _fail("That account is no longer active.")
+
+    flow = _google_flow()
+    try:
+        await run_in_threadpool(flow.fetch_token, code=code)
+    except Exception:  # noqa: BLE001 — any failure here is a failed connect
+        return _fail("Google rejected the sign-in. Try again.")
+
+    creds = flow.credentials
+    if not creds.refresh_token:
+        return _fail("Google didn't return a refresh token. Try connecting again.")
+
+    try:
+        email = await run_in_threadpool(_verify_google_email, creds.id_token)
+    except ValueError as exc:
+        return _fail(str(exc))
+
+    if email.split("@")[-1] not in _ALLOWED_DOMAINS:
+        await audit.log(
+            "google.connect.rejected",
+            actor_id=user.id,
+            payload={"email": email, "reason": "domain"},
+        )
+        await db.commit()
+        return _fail("Connect a PMI account, not a personal one.")
+
+    await google_user_creds.store(db, user.id, email, creds)
+    await audit.log(
+        "google.connect.success",
+        actor_id=user.id,
+        entity_type="user",
+        entity_id=user.id,
+        payload={"email": email, "scopes": list(creds.scopes or [])},
+    )
+    await db.commit()
+    return RedirectResponse("/settings?google=connected")
+
+
+@router.post("/google/disconnect", status_code=status.HTTP_204_NO_CONTENT)
+async def google_disconnect(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    audit: AuditLogger = Depends(get_audit_logger),
+) -> None:
+    """Forget this user's Google grant. Only ever their own."""
+    await google_user_creds.clear(db, current_user.id)
+    await audit.log(
+        "google.disconnect",
+        actor_id=current_user.id,
+        entity_type="user",
+        entity_id=current_user.id,
+    )
+    await db.commit()
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)

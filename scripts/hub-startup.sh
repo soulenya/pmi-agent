@@ -114,6 +114,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-["https://hub.precisianmedical.com"]}
       HUB_MODE: "true"
       IAP_AUDIENCE: /projects/200809642986/global/backendServices/3249219135556043655
+      GOOGLE_WEB_CLIENT_JSON: ${GOOGLE_WEB_CLIENT_JSON:-}
       STORAGE_ROOT: /data/documents
       HOST: 0.0.0.0
       PORT: "8000"
@@ -137,6 +138,8 @@ umask 077
   echo "JWT_SECRET=$(secret jwt-secret)"
   echo "FERNET_KEY=$(secret fernet-key)"
   echo "ANTHROPIC_API_KEY=$(secret anthropic-api-key || true)"
+  # One line, no quoting: compose reads .env values literally to end of line.
+  echo "GOOGLE_WEB_CLIENT_JSON=$(secret google-oauth-client | tr -d '\n' || true)"
 } > .env
 chmod 600 .env
 
