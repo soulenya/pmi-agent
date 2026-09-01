@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user, require_project_role
-from models.db.task import Project
+from models.db.task import Project, Task
 from models.db.user import User
 from models.schemas.tasks import (
     ProjectCreate,
@@ -88,6 +88,27 @@ async def update_project(
 
 # ── Tasks ─────────────────────────────────────────────────────────────────────
 
+async def _visible_task(
+    db: AsyncSession, task_id: uuid.UUID, user: User
+) -> Task:
+    """A task the user may act on, or 404.
+
+    Mirrors what ``TaskRepository.list`` will return: your own tasks, tasks
+    assigned to you, and tasks in a project you can see. 404 rather than 403 so
+    the response doesn't confirm that someone else's task id exists.
+    """
+    task = await TaskRepository(db).get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    if task.created_by == user.id or task.assignee_id == user.id:
+        return task
+    if task.project_id is not None:
+        project = await ProjectRepository(db).get(task.project_id)
+        if project is not None and await resolve_role(db, project, user.id):
+            return task
+    raise HTTPException(status_code=404, detail="Task not found.")
+
+
 @router.get("", response_model=list[TaskOut])
 async def list_tasks(
     project_id: uuid.UUID | None = Query(None),
@@ -96,6 +117,10 @@ async def list_tasks(
     current_user: User = Depends(get_current_user),
 ) -> list[TaskOut]:
     repo = TaskRepository(db)
+    if project_id is not None:
+        project = await ProjectRepository(db).get(project_id)
+        if project is None or not await resolve_role(db, project, current_user.id):
+            raise HTTPException(status_code=404, detail="Project not found.")
     tasks = await repo.list(
         user_id=current_user.id,
         project_id=project_id,
@@ -122,10 +147,7 @@ async def get_task(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TaskOut:
-    repo = TaskRepository(db)
-    task = await repo.get(task_id)
-    if task is None:
-        raise HTTPException(status_code=404, detail="Task not found.")
+    task = await _visible_task(db, task_id, current_user)
     return TaskOut.model_validate(task)
 
 
@@ -136,6 +158,7 @@ async def update_task(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TaskOut:
+    await _visible_task(db, task_id, current_user)
     repo = TaskRepository(db)
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     task = await repo.update(task_id, **updates)
@@ -151,6 +174,7 @@ async def delete_task(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
+    await _visible_task(db, task_id, current_user)
     repo = TaskRepository(db)
     deleted = await repo.delete(task_id)
     if not deleted:
@@ -166,6 +190,7 @@ async def list_comments(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[TaskCommentOut]:
+    await _visible_task(db, task_id, current_user)
     repo = TaskRepository(db)
     comments = await repo.list_comments(task_id)
     return [TaskCommentOut.model_validate(c) for c in comments]
@@ -182,9 +207,8 @@ async def add_comment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TaskCommentOut:
+    await _visible_task(db, task_id, current_user)
     task_repo = TaskRepository(db)
-    if await task_repo.get(task_id) is None:
-        raise HTTPException(status_code=404, detail="Task not found.")
     comment = await task_repo.add_comment(task_id, current_user.id, body.content)
     await db.commit()
     return TaskCommentOut.model_validate(comment)
@@ -209,11 +233,7 @@ async def add_attachment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TaskOut:
-    from sqlalchemy import select
-    from models.db.task import Task
-    task = (await db.execute(select(Task).where(Task.id == task_id))).scalar_one_or_none()
-    if task is None:
-        raise HTTPException(404, "Task not found.")
+    task = await _visible_task(db, task_id, current_user)
     att = {
         "id": str(uuid.uuid4()),
         "name": body.name,
@@ -237,11 +257,7 @@ async def remove_attachment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TaskOut:
-    from sqlalchemy import select
-    from models.db.task import Task
-    task = (await db.execute(select(Task).where(Task.id == task_id))).scalar_one_or_none()
-    if task is None:
-        raise HTTPException(404, "Task not found.")
+    task = await _visible_task(db, task_id, current_user)
     task.attachments = [a for a in (task.attachments or []) if a.get("id") != attachment_id]
     from sqlalchemy.orm.attributes import flag_modified
     flag_modified(task, "attachments")
