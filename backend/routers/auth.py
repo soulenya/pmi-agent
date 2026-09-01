@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 import re
 import secrets
@@ -31,6 +32,8 @@ from config import settings
 from services import google_user_creds
 from services.auth.service import AuthService
 from services.audit.logger import AuditLogger, get_audit_logger
+
+logger = logging.getLogger("main")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -545,6 +548,11 @@ def _google_flow():
 
     from services.google_service import SCOPES
 
+    # Google always returns `openid` and `email` alongside userinfo.email, so the
+    # granted set never equals the requested set and oauthlib would call that an
+    # error. The scopes we actually rely on are checked when each API is called.
+    os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
     return Flow.from_client_config(
         {"web": google_user_creds.web_client_config()},
         scopes=SCOPES,
@@ -634,6 +642,7 @@ async def google_callback(
     try:
         await run_in_threadpool(flow.fetch_token, code=code)
     except Exception:  # noqa: BLE001 — any failure here is a failed connect
+        logger.exception("Google connect: token exchange failed")
         return _fail("Google rejected the sign-in. Try again.")
 
     creds = flow.credentials
