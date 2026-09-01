@@ -46,7 +46,7 @@ async def backup_status(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    config = await cb.get_config(db)
+    config = await cb.get_config(db, _owner(user))
     history = await cb.list_backups(db, _owner(user))
     return {
         "config": config,
@@ -76,6 +76,7 @@ async def backup_settings(
         hour=body.hour,
         drive_folder_id=body.drive_folder_id,
         user_id=user.id,
+        owner_id=_owner(user),
     )
 
 
