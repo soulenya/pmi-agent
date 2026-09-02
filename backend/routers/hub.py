@@ -78,6 +78,7 @@ async def hub_status(
     current_user: User = Depends(get_current_user),
 ) -> HubStatus:
     _guard_desktop()
+    await hub.ensure_client_file()
     configured = hub.configured()
     link = await hub.get_link(db, current_user.id)
     return HubStatus(
@@ -139,6 +140,7 @@ async def connect_initiate(
     """Open a browser so this person can sign in to the hub as themselves."""
     _guard_desktop()
     url = _hub_url(body.hub_url if body else None)
+    await hub.ensure_client_file()
     try:
         hub.desktop_client()
     except hub.HubError as exc:

@@ -16,6 +16,7 @@ Two credentials are in play on every call, and they are not the same thing:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -35,9 +36,16 @@ logger = logging.getLogger(__name__)
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 
-# The desktop client as downloaded from Google, placed beside the app after
-# installing — the same arrangement as google_credentials.json.
-_CLIENT_FILE = Path(__file__).parent.parent.parent / "hub_client.json"
+# Where the sign-in client is kept once collected. Nobody places this by hand:
+# it is fetched from the firm's Drive the first time the app runs with Google
+# connected, then reused.
+CLIENT_FILE_NAME = "hub_client.json"
+_CLIENT_FILE = Path(__file__).parent.parent.parent / CLIENT_FILE_NAME
+
+# Drive is only worth asking again occasionally: a missing file usually means
+# an administrator hasn't uploaded it yet, not that this attempt was unlucky.
+_DRIVE_RETRY_SECONDS = 900
+_last_drive_attempt = 0.0
 
 # IAP tokens last an hour. Renew a little early so a call that is already in
 # flight when the clock runs out does not fail for the sake of a few seconds.
@@ -50,6 +58,10 @@ class HubError(Exception):
 
 class HubNotConnected(HubError):
     pass
+
+
+class _NotConnected(Exception):
+    """Google isn't connected on this machine yet, so Drive can't be read."""
 
 
 @dataclass
@@ -108,10 +120,88 @@ def desktop_client() -> tuple[str, str]:
             client_id, client_secret = from_file
     if not client_id or not client_secret:
         raise HubError(
-            "This build has no hub sign-in client, so it cannot reach the hub. "
-            "Ask an administrator for hub_client.json."
+            "This machine hasn't collected the hub sign-in details yet. "
+            "Connect Google in Settings, then try again."
         )
     return client_id, client_secret
+
+
+def _download_client() -> str | None:
+    """Pull the sign-in client out of Drive. Blocking; call in an executor."""
+    from services.google_service import (
+        drive_download_bytes,
+        drive_search_by_name,
+        get_credentials,
+    )
+
+    if get_credentials() is None:
+        raise _NotConnected
+
+    file_id = (settings.hub_client_drive_file_id or "").strip()
+    if not file_id:
+        matches = [
+            f
+            for f in drive_search_by_name(CLIENT_FILE_NAME, max_results=10)
+            if f.get("name") == CLIENT_FILE_NAME
+        ]
+        if not matches:
+            return None
+        file_id = matches[0]["id"]
+
+    raw = drive_download_bytes(file_id).get("content")
+    return raw.decode("utf-8") if isinstance(raw, bytes) else None
+
+
+def _looks_like_a_client(raw: str) -> bool:
+    try:
+        data = json.loads(raw).get("installed", {})
+    except (ValueError, AttributeError):
+        return False
+    return bool(data.get("client_id") and data.get("client_secret"))
+
+
+async def ensure_client_file() -> bool:
+    """Make sure this machine has the sign-in client, fetching it if not.
+
+    Everyone at the firm uses the same client, so it lives in the firm's Drive
+    and each install collects its own copy rather than being handed a file.
+    Needs Google connected, which is the first thing anyone does anyway.
+    """
+    global _last_drive_attempt
+
+    if settings.hub_mode:
+        return False
+    if _CLIENT_FILE.exists():
+        return True
+    if settings.hub_desktop_client_id.strip() and settings.hub_desktop_client_secret.strip():
+        return True
+
+    now = time.monotonic()
+    if _last_drive_attempt and now - _last_drive_attempt < _DRIVE_RETRY_SECONDS:
+        return False
+
+    try:
+        raw = await asyncio.get_running_loop().run_in_executor(None, _download_client)
+    except _NotConnected:
+        return False  # Nothing was asked of Drive, so don't start backing off.
+    except Exception:
+        _last_drive_attempt = now
+        logger.exception("Couldn't fetch the hub sign-in client from Drive")
+        return False
+    _last_drive_attempt = now
+
+    if not raw or not _looks_like_a_client(raw):
+        if raw:
+            logger.warning("%s in Drive isn't a usable OAuth client", CLIENT_FILE_NAME)
+        return False
+
+    try:
+        _CLIENT_FILE.write_text(raw, encoding="utf-8")
+    except OSError:
+        logger.exception("Couldn't save the hub sign-in client to %s", _CLIENT_FILE)
+        return False
+    logger.info("Collected the hub sign-in client from Drive")
+    return True
 
 
 def configured() -> bool:

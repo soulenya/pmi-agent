@@ -98,7 +98,7 @@ async def test_a_request_without_a_link_says_so(db_session: AsyncSession):
         await hub.request(db_session, user.id, "GET", "/projects")
 
 
-def test_the_sign_in_client_is_read_from_the_dropped_in_file(tmp_path, monkeypatch):
+def test_the_sign_in_client_is_read_from_the_collected_file(tmp_path, monkeypatch):
     client_file = tmp_path / "hub_client.json"
     client_file.write_text(
         json.dumps({"installed": {"client_id": "cid.apps.googleusercontent.com",
@@ -121,3 +121,38 @@ def test_without_a_client_the_feature_says_it_is_unconfigured(tmp_path, monkeypa
     with pytest.raises(hub.HubError):
         hub.desktop_client()
     assert hub.configured() is False
+
+
+@pytest.mark.asyncio
+async def test_the_client_is_collected_from_drive(tmp_path, monkeypatch):
+    target = tmp_path / "hub_client.json"
+    monkeypatch.setattr(hub, "_CLIENT_FILE", target)
+    monkeypatch.setattr(hub, "_last_drive_attempt", 0.0)
+    monkeypatch.setattr(hub.settings, "hub_desktop_client_id", "")
+    monkeypatch.setenv("HUB_DESKTOP_CLIENT_SECRET", "")
+    monkeypatch.setattr(
+        hub,
+        "_download_client",
+        lambda: json.dumps(
+            {"installed": {"client_id": "from-drive", "client_secret": "s"}}
+        ),
+    )
+
+    assert await hub.ensure_client_file() is True
+    assert target.exists()
+    assert hub.desktop_client() == ("from-drive", "s")
+
+
+@pytest.mark.asyncio
+async def test_a_machine_without_google_keeps_asking_drive(tmp_path, monkeypatch):
+    def _refuse():
+        raise hub._NotConnected
+
+    monkeypatch.setattr(hub, "_CLIENT_FILE", tmp_path / "absent.json")
+    monkeypatch.setattr(hub, "_last_drive_attempt", 0.0)
+    monkeypatch.setattr(hub.settings, "hub_desktop_client_id", "")
+    monkeypatch.setenv("HUB_DESKTOP_CLIENT_SECRET", "")
+    monkeypatch.setattr(hub, "_download_client", _refuse)
+
+    assert await hub.ensure_client_file() is False
+    assert hub._last_drive_attempt == 0.0

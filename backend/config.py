@@ -76,9 +76,11 @@ class Settings(BaseSettings):
     hub_url: str = "https://hub.precisianmedical.com"
     # A desktop-type OAuth client that the hub's IAP allows through for
     # programmatic access. Not the same client as Google sign-in: IAP only
-    # accepts tokens from clients on its allowlist. Normally supplied by
-    # dropping the downloaded client JSON in at backend/hub_client.json.
+    # accepts tokens from clients on its allowlist. Normally left blank: the
+    # app collects the client from the firm's Drive on first run.
     hub_desktop_client_id: str = ""
+    # The Drive file holding that client. Blank means look it up by name.
+    hub_client_drive_file_id: str = ""
 
     # ── Database ─────────────────────────────────────────────────────────────
     database_url: str = Field(
