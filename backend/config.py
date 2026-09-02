@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     # app collects the client from the firm's Drive on first run.
     hub_desktop_client_id: str = ""
     # The Drive file holding that client. Blank means look it up by name.
-    hub_client_drive_file_id: str = ""
+    hub_client_drive_file_id: str = "1BuvAGSyr7wi-VVTJmFE81dnfDTyQSCsd"
 
     # ── Database ─────────────────────────────────────────────────────────────
     database_url: str = Field(
