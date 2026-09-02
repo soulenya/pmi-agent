@@ -619,6 +619,17 @@ async def _company_context_sync_once() -> None:
     except Exception:
         logger.exception("Company context startup sync error")
 
+
+async def _hub_client_fetch_once() -> None:
+    """Collect the hub sign-in client from Drive so nobody has to place a file."""
+    try:
+        from services.hub import client as hub_client
+
+        await hub_client.ensure_client_file()
+    except Exception:
+        logger.exception("Hub sign-in client startup fetch error")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Verify DB connectivity at startup — retry for up to 30 s so the backend
@@ -643,6 +654,7 @@ async def lifespan(app: FastAPI):
     backup_task = asyncio.create_task(_conversation_backup_loop())
     # One-shot: refresh the company-context cache from Drive (never blocks boot).
     company_ctx_task = asyncio.create_task(_company_context_sync_once())
+    hub_client_task = asyncio.create_task(_hub_client_fetch_once())
     yield
     bg_task.cancel()
     drive_task.cancel()
@@ -653,7 +665,8 @@ async def lifespan(app: FastAPI):
     cleanup_task.cancel()
     backup_task.cancel()
     company_ctx_task.cancel()
-    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, company_ctx_task):
+    hub_client_task.cancel()
+    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, company_ctx_task, hub_client_task):
         try:
             await _t
         except asyncio.CancelledError:

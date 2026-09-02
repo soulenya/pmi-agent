@@ -98,7 +98,7 @@ Source: "..\Spaceman on Black BG.png";      DestDir: "{app}"; Flags: ignoreversi
 Source: "..\.gitignore";                   DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 ; google_credentials.json (OAuth client secret) is intentionally NOT bundled —
 ; users add it after installing (see docs/INSTALL.md "Google OAuth credentials").
-; hub_client.json (the hub's desktop OAuth client) is handled the same way.
+; hub_client.json is fetched from the firm's Drive on first run, not bundled.
 Source: "..\VERSION";                       DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\update_token.txt";              DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 

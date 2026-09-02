@@ -2547,8 +2547,8 @@ function HubSection() {
 
       {status && !status.available && (
         <p className="rounded-md border border-amber-400/60 bg-amber-400/10 p-3 text-sm">
-          This build has no hub address or sign-in client configured, so it cannot
-          reach the hub yet.
+          This computer hasn't collected the hub sign-in details yet. Connect Google
+          above, then reopen Settings.
         </p>
       )}
 
