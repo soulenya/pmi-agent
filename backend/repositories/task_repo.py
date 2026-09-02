@@ -49,6 +49,10 @@ class ProjectRepository:
     async def create(self, *, created_by: uuid.UUID, **fields: Any) -> Project:
         project = Project(id=uuid.uuid4(), created_by=created_by, owner_id=created_by, **fields)
         self.session.add(project)
+        # The project row has to land first: no relationship ties these two
+        # mappers together, so one flush would order the inserts arbitrarily and
+        # the membership's foreign key would fail.
+        await self.session.flush()
         self.session.add(
             ProjectMember(
                 id=uuid.uuid4(), project_id=project.id, user_id=created_by, role="owner"
