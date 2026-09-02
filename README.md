@@ -49,6 +49,7 @@ Key design principles:
 | **Projects & Tasks**       | Kanban board with drag-and-drop, project tracking, due dates, and priority management. Every task remembers what it's about, so it links straight to the email thread, document, meeting, workroom or chat behind it — with **Ask Gerry** and one-click **Gerry draft** for email follow-ups |
 | **Project space**          | Each project has its own screen: overview, tasks, pinned material and its conversation with Gerry, with Canvas and Timeline tabs reserved for the next release. Projects carry a goal, a member list with owner/editor/commenter/viewer roles, and a visibility setting — *private* (invisible to everyone else, including the fact that it exists), *shared* with named people, or *company*-wide as a standing setting. Workrooms are now projects |
 | **Workrooms**              | Persistent co-work spaces for work spanning days or weeks: a goal, a dedicated chat, a progress journal, and pinned artifacts (Drive docs, KB documents, generated files, notes, websites, email threads, tasks, Odoo records, regulatory documents, budgets) that Gerry carries into every message. Goal and title edits are journaled with their previous wording so Gerry tracks how the work has turned; files belonging to another room are flagged before she opens them and blocked before she edits them; and she sees when a document was last saved and by whom, so you can both work in it at once. Standing tasks, a morning digest, and Drive sharing so teammates can join their own mirror |
+| **The hub**                | A shared server at `hub.precisianmedical.com` holding the projects the firm works on together. Connect once per machine from Settings → The hub and you sign in as yourself, so what you see and what you change is recorded under your name. Shared projects appear on the Projects screen under *Shared on the hub* and are read from the server every time — never copied onto your computer. Work created in a shared or company project is held by that project: only someone with editor rights can change it, it cannot be moved elsewhere, and only an owner can release it |
 | **Calendar**               | Scheduled events with meeting integration                                                                                                  |
 | **Knowledge Base**         | Upload and semantically search internal documents (PDFs, DOCX, TXT); auto-chunked and embedded. Little Gerry can also read an entire document in full when asked to summarize or analyze it, including scanned pages and figures — a Gantt chart, timeline or plotted chart is read off the drawing, with each bar's dates reported rather than the labels alone. Long scans are read in sections and paged through to the end, and any section that could not be read completely is named |
 | **Search**                 | Semantic vector search across all uploaded documents with category filtering                                                               |
@@ -118,6 +119,35 @@ Key design principles:
 ```
 
 > **Embedding dimensions are provider-native.** Each embedding provider returns its own vector size. Switching providers requires re-indexing the Knowledge Base (Settings → AI Engine → Re-index Now).
+
+### The hub
+
+Alongside the desktop install there is one shared server — the **hub** — running the same backend and the same React app, served from a single origin at `hub.precisianmedical.com`.
+
+```
+┌──────────────────────┐          ┌──────────────────────┐
+│  Desktop install     │          │  Browser             │
+│  (your machine)      │          │                      │
+└──────────┬───────────┘          └──────────┬───────────┘
+           │ own hub credential              │
+           │ (per user, per machine)         │ Google sign-in
+           ▼                                 ▼
+   ┌───────────────────────────────────────────────────┐
+   │        Identity-Aware Proxy (Google Cloud)        │
+   └────────────────────────┬──────────────────────────┘
+                            ▼
+              ┌──────────────────────────────┐
+              │   hub-backend (FastAPI)       │
+              │   PostgreSQL 16 + pgvector    │
+              │   Cloud VM, nightly backup    │
+              └──────────────────────────────┘
+```
+
+- **Two ways in, one identity.** A browser reaches the hub directly and IAP signs the user in before the request lands. A desktop install connects with its own credential, obtained once per machine from Settings → The hub. Either way the hub knows which person is acting.
+- **Nothing is synced.** The desktop asks the hub for shared projects and tasks each time it draws them. There is no local copy to go stale, and disconnecting leaves nothing behind.
+- **Each user's own Google grant.** The hub does not share one Google token between everyone. Every user connects their own account, and background jobs run under the grant of the person they belong to.
+- **The hub is the authority on shared work.** Custody, project roles and visibility are decided there; a desktop holding the same row sends its change up rather than writing its own.
+- **Desktop-only features stay on the desktop.** Meeting capture, the research browser, local backup and the tray shell are gated off in hub mode.
 
 ---
 

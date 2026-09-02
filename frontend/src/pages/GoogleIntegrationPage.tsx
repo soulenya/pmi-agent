@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
+import { getAuthMode } from "@/api/auth";
+import { connectGoogleOnHub, disconnectGoogle } from "@/api/google";
 
 const GOOGLE_PREFIX = "/api/google";
 
@@ -17,6 +19,7 @@ interface GoogleStatus {
   connected: boolean;
   status: string;
   email?: string;
+  configured?: boolean;
 }
 
 interface Proposal {
@@ -30,6 +33,17 @@ interface Proposal {
 
 export default function GoogleIntegrationPage() {
   const qc = useQueryClient();
+
+  const { data: mode } = useQuery({
+    queryKey: ["auth-mode"],
+    queryFn: getAuthMode,
+    staleTime: Infinity,
+  });
+  const isHub = mode === "iap";
+
+  // The callback redirects back here with the outcome in the query string.
+  const params = new URLSearchParams(window.location.search);
+  const callbackError = params.get("google_error");
 
   const { data: status, isLoading } = useQuery<GoogleStatus>({
     queryKey: ["google-status"],
@@ -46,12 +60,16 @@ export default function GoogleIntegrationPage() {
   });
 
   const startAuth = useMutation({
-    mutationFn: () => apiFetch("/auth/start", { method: "POST" }),
+    // The desktop opens a browser on this machine; the hub can't, so it sends
+    // this browser to Google instead.
+    mutationFn: () =>
+      isHub ? connectGoogleOnHub() : apiFetch("/auth/start", { method: "POST" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["google-status"] }),
   });
 
   const revoke = useMutation({
-    mutationFn: () => apiFetch("/auth/revoke", { method: "DELETE" }),
+    mutationFn: () =>
+      isHub ? disconnectGoogle() : apiFetch("/auth/revoke", { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["google-status"] }),
   });
 
@@ -71,6 +89,19 @@ export default function GoogleIntegrationPage() {
     <div className="max-w-2xl mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-bold text-white">Google Workspace</h1>
 
+      {callbackError && (
+        <div className="rounded-lg border border-red-800 bg-red-950/40 p-3 text-xs text-red-300">
+          Google connection failed: {callbackError}
+        </div>
+      )}
+
+      {isHub && status?.configured === false && (
+        <div className="rounded-lg border border-yellow-800 bg-yellow-950/40 p-3 text-xs text-yellow-300">
+          Google sign-in isn't configured on this server yet. Ask an administrator
+          to add the OAuth client.
+        </div>
+      )}
+
       {/* ── Connection card ── */}
       <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-5 space-y-4">
         <div className="flex items-center justify-between">
@@ -79,7 +110,9 @@ export default function GoogleIntegrationPage() {
             {isLoading ? (
               <p className="text-xs text-zinc-500 mt-0.5">Checking…</p>
             ) : status?.connected ? (
-              <p className="text-xs text-green-400 mt-0.5">● Connected</p>
+              <p className="text-xs text-green-400 mt-0.5">
+                ● Connected{status.email ? ` — ${status.email}` : ""}
+              </p>
             ) : status?.status === "pending" ? (
               <p className="text-xs text-yellow-400 mt-0.5">● Waiting for sign-in…</p>
             ) : status?.status?.startsWith("error") ? (
@@ -99,11 +132,17 @@ export default function GoogleIntegrationPage() {
           ) : (
             <button
               onClick={() => startAuth.mutate()}
-              disabled={startAuth.isPending || status?.status === "pending"}
+              disabled={
+                startAuth.isPending ||
+                status?.status === "pending" ||
+                (isHub && status?.configured === false)
+              }
               className="text-xs px-3 py-1.5 rounded bg-red-700 hover:bg-red-600 text-white disabled:opacity-50 transition-colors"
             >
               {startAuth.isPending || status?.status === "pending"
-                ? "Opening browser…"
+                ? isHub
+                  ? "Redirecting…"
+                  : "Opening browser…"
                 : "Connect Google"}
             </button>
           )}

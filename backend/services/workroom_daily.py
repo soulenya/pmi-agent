@@ -431,67 +431,18 @@ async def run_workroom_daily(db: AsyncSession) -> dict:
     msg_repo = MessageRepository(db)
 
     for user in users:
-        try:
-            rooms = await list_active_workrooms(db, user.id)
-        except Exception:  # noqa: BLE001
-            continue
-        for room in rooms:
-            # Digest
-            try:
-                body = await _digest_for_room(db, room)
-                if body and room.conversation_id:
-                    await msg_repo.create(
-                        conversation_id=room.conversation_id,
-                        role=MessageRole.ASSISTANT,
-                        content=body,
-                    )
-                    await add_journal_entry(db, room, "Morning digest posted")
-                    notif = await notif_repo.create(
-                        user_id=user.id,
-                        type=NotificationType.REMINDER.value,
-                        title=f"Workroom digest: {room.title}",
-                        message="New activity since yesterday — open the room chat.",
-                        entity_type="conversation",
-                        entity_id=room.conversation_id,
-                    )
-                    summary["digests"] += 1
-                    summary["notifications"].append(
-                        {
-                            "user_id": str(user.id),
-                            "id": str(notif.id),
-                            "title": f"Workroom digest: {room.title}",
-                        }
-                    )
-            except Exception:  # noqa: BLE001
-                logger.exception("Room digest failed for %s", room.id)
+        # A room digest can pull the owner's calendar or mail, so build it
+        # under that person's own Google grant rather than a shared one.
+        from services import google_user_creds
 
-            # Proactive to-dos
-            try:
-                room_pending = await _pending_todo_count(db, user.id, room)
-                if room_pending >= _MAX_PENDING_TODOS_PER_ROOM:
-                    continue
-                for todo in await _propose_todos(db, room):
-                    s = await _upsert_todo(db, user.id, room, todo)
-                    if s is None:
-                        continue
-                    await db.flush()
-                    notif = await notif_repo.create(
-                        user_id=user.id,
-                        type=NotificationType.APPROVAL_REQUIRED.value,
-                        title=s.title,
-                        message=s.summary,
-                        entity_type="assistant_suggestion",
-                        entity_id=s.id,
-                    )
-                    summary["todos"] += 1
-                    summary["notifications"].append(
-                        {"user_id": str(user.id), "id": str(notif.id), "title": s.title}
-                    )
-                    room_pending += 1
-                    if room_pending >= _MAX_PENDING_TODOS_PER_ROOM:
-                        break
-            except Exception:  # noqa: BLE001
-                logger.exception("Room todos failed for %s", room.id)
+        token = google_user_creds.bind_user(user.id)
+        try:
+            await google_user_creds.load_into_cache(db, user.id)
+            await _workroom_daily_for_user(
+                db, user, summary, notif_repo, msg_repo
+            )
+        finally:
+            google_user_creds.reset_user(token)
 
     try:
         await _set_setting(db, SETTING_LAST_DATE, today)
@@ -506,3 +457,70 @@ async def run_workroom_daily(db: AsyncSession) -> dict:
             summary["todos"],
         )
     return summary
+
+
+async def _workroom_daily_for_user(
+    db, user, summary: dict, notif_repo, msg_repo
+) -> None:
+    """One person's rooms: post their digests and propose their to-dos."""
+    try:
+        rooms = await list_active_workrooms(db, user.id)
+    except Exception:  # noqa: BLE001
+        return
+    for room in rooms:
+        # Digest
+        try:
+            body = await _digest_for_room(db, room)
+            if body and room.conversation_id:
+                await msg_repo.create(
+                    conversation_id=room.conversation_id,
+                    role=MessageRole.ASSISTANT,
+                    content=body,
+                )
+                await add_journal_entry(db, room, "Morning digest posted")
+                notif = await notif_repo.create(
+                    user_id=user.id,
+                    type=NotificationType.REMINDER.value,
+                    title=f"Workroom digest: {room.title}",
+                    message="New activity since yesterday — open the room chat.",
+                    entity_type="conversation",
+                    entity_id=room.conversation_id,
+                )
+                summary["digests"] += 1
+                summary["notifications"].append(
+                    {
+                        "user_id": str(user.id),
+                        "id": str(notif.id),
+                        "title": f"Workroom digest: {room.title}",
+                    }
+                )
+        except Exception:  # noqa: BLE001
+            logger.exception("Room digest failed for %s", room.id)
+
+        # Proactive to-dos
+        try:
+            room_pending = await _pending_todo_count(db, user.id, room)
+            if room_pending >= _MAX_PENDING_TODOS_PER_ROOM:
+                continue
+            for todo in await _propose_todos(db, room):
+                s = await _upsert_todo(db, user.id, room, todo)
+                if s is None:
+                    continue
+                await db.flush()
+                notif = await notif_repo.create(
+                    user_id=user.id,
+                    type=NotificationType.APPROVAL_REQUIRED.value,
+                    title=s.title,
+                    message=s.summary,
+                    entity_type="assistant_suggestion",
+                    entity_id=s.id,
+                )
+                summary["todos"] += 1
+                summary["notifications"].append(
+                    {"user_id": str(user.id), "id": str(notif.id), "title": s.title}
+                )
+                room_pending += 1
+                if room_pending >= _MAX_PENDING_TODOS_PER_ROOM:
+                    break
+        except Exception:  # noqa: BLE001
+            logger.exception("Room todos failed for %s", room.id)

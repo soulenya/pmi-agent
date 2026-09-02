@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { googleInitiate, googlePoll, getCredentialsStatus, fetchCredentials } from "@/api/auth";
+import { googleInitiate, googlePoll, getCredentialsStatus, fetchCredentials, getAuthMode, iapLogin } from "@/api/auth";
 import type { CredentialsStatus } from "@/api/auth";
+import type { User } from "@/types";
 import { useAuthStore } from "@/stores/authStore";
 import { SetupWizard, ONBOARDING_VERSION } from "@/components/SetupWizard";
 import { cn } from "@/lib/utils";
@@ -72,15 +73,59 @@ export function LoginPage() {
   const [fetchingCreds, setFetchingCreds] = useState(false);
   const [credError, setCredError] = useState<string | null>(null);
 
-  // Once the backend is up, check whether the OAuth client file is present.
+  // "iap" on the shared hub, where the proxy has already signed the user in.
+  const [authMode, setAuthMode] = useState<"iap" | "desktop" | null>(null);
+
   useEffect(() => {
     if (backendStatus !== "ready") return;
+    let cancelled = false;
+    getAuthMode()
+      .then((m) => { if (!cancelled) setAuthMode(m); })
+      .catch(() => { if (!cancelled) setAuthMode("desktop"); });
+    return () => { cancelled = true; };
+  }, [backendStatus]);
+
+  function completeSignIn(accessToken: string, refreshToken: string, user: User) {
+    setTokens(accessToken, refreshToken);
+    setUser(user);
+
+    // Show the setup wizard on first use, and again — with only the new
+    // steps — whenever the wizard has gained steps since this user saw it.
+    const seenVersion = user.onboarding_version ?? 0;
+    if (!user.onboarding_complete || seenVersion < ONBOARDING_VERSION) {
+      setWizardVersion(user.onboarding_complete ? seenVersion : 0);
+      setShowSetup(true);
+      return;
+    }
+    navigate("/");
+  }
+
+  // Hub: exchange the proxy's assertion for a session without asking again.
+  useEffect(() => {
+    if (authMode !== "iap") return;
+    let cancelled = false;
+    setSsoState("waiting");
+    iapLogin()
+      .then((result) => {
+        if (!cancelled) completeSignIn(result.access_token, result.refresh_token, result.user);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setSsoError(credErrorMessage(err));
+        setSsoState("error");
+      });
+    return () => { cancelled = true; };
+  }, [authMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Once the backend is up, check whether the OAuth client file is present.
+  useEffect(() => {
+    if (backendStatus !== "ready" || authMode !== "desktop") return;
     let cancelled = false;
     getCredentialsStatus()
       .then((s) => { if (!cancelled) setCreds(s); })
       .catch(() => { if (!cancelled) setCreds(null); });
     return () => { cancelled = true; };
-  }, [backendStatus]);
+  }, [backendStatus, authMode]);
 
   async function handleDownloadCreds() {
     setCredError(null);
@@ -133,19 +178,7 @@ export function LoginPage() {
           }
 
           // success
-          setTokens(result.access_token, result.refresh_token);
-          setUser(result.user);
-
-          // Show the setup wizard on first use, and again — with only the new
-          // steps — whenever the wizard has gained steps since this user saw it.
-          const seenVersion = result.user.onboarding_version ?? 0;
-          if (!result.user.onboarding_complete || seenVersion < ONBOARDING_VERSION) {
-            setWizardVersion(result.user.onboarding_complete ? seenVersion : 0);
-            setShowSetup(true);
-            return; // don't navigate yet
-          }
-
-          navigate("/");
+          completeSignIn(result.access_token, result.refresh_token, result.user);
         } catch {
           stopPolling();
           setSsoError("Lost connection to backend while waiting for sign-in.");

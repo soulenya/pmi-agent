@@ -11,15 +11,20 @@ import {
   MessageSquare,
   Paperclip,
   PenTool,
+  Unlock,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ensureProjectWorkroom,
   getProjectSpace,
+  listHeldItems,
+  listTasks,
+  releaseHeldItem,
   updateProject,
 } from "@/api/tasks";
-import type { ProjectVisibility } from "@/types/tasks";
+import type { Source } from "@/api/tasks";
+import type { HeldItem, ProjectVisibility } from "@/types/tasks";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Layers },
@@ -62,36 +67,65 @@ function Placeholder({ title, body }: { title: string; body: string }) {
   );
 }
 
-export function ProjectSpacePage() {
+export function ProjectSpacePage({ source = "local" }: { source?: Source } = {}) {
   const { id, tab } = useParams<{ id: string; tab?: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const onHub = source === "hub";
+  const base = onHub ? `/hub/projects/${id}` : `/projects/${id}`;
   const active: TabId = useMemo(() => {
     const found = TABS.find(t => t.id === tab);
     return found ? found.id : "overview";
   }, [tab]);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["project-space", id],
-    queryFn: () => getProjectSpace(id!),
+    queryKey: ["project-space", source, id],
+    queryFn: () => getProjectSpace(id!, source),
     enabled: Boolean(id),
   });
 
   const visibilityMutation = useMutation({
     mutationFn: (visibility: ProjectVisibility) =>
-      updateProject(id!, { visibility }),
+      updateProject(id!, { visibility }, source),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["project-space", id] });
+      qc.invalidateQueries({ queryKey: ["project-space", source, id] });
       qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["hub", "projects"] });
     },
   });
 
   const workroomMutation = useMutation({
-    mutationFn: () => ensureProjectWorkroom(id!),
+    mutationFn: () => ensureProjectWorkroom(id!, source),
     onSuccess: room => {
-      qc.invalidateQueries({ queryKey: ["project-space", id] });
+      qc.invalidateQueries({ queryKey: ["project-space", source, id] });
+      // A hub conversation is held on the hub; this app can only open its own.
+      if (onHub) return;
       if (room.conversation_id) navigate(`/chat/${room.conversation_id}`);
       else navigate("/workrooms");
+    },
+  });
+
+  const { data: held = [] } = useQuery({
+    queryKey: ["project-held", source, id],
+    queryFn: () => listHeldItems(id!, source),
+    enabled: Boolean(id),
+  });
+
+  // The hub has no task board in this window, so the space lists them itself.
+  const { data: hubTasks = [] } = useQuery({
+    queryKey: ["hub", "tasks", id],
+    queryFn: () => listTasks({ project_id: id! }, "hub"),
+    enabled: onHub && Boolean(id),
+  });
+
+  const releaseMutation = useMutation({
+    mutationFn: (item: HeldItem) =>
+      releaseHeldItem(id!, item.item_type, item.item_id, undefined, source),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-held", source, id] });
+      qc.invalidateQueries({ queryKey: ["project-space", source, id] });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["hub", "tasks"] });
     },
   });
 
@@ -103,7 +137,9 @@ export function ProjectSpacePage() {
   if (isError || !data) {
     return (
       <div className="p-8 text-sm text-muted-foreground">
-        That project isn't available to you.
+        {onHub
+          ? "The hub didn't hand that project over. It may not be shared with you, or the hub connection may have lapsed."
+          : "That project isn't available to you."}
       </div>
     );
   }
@@ -135,6 +171,11 @@ export function ProjectSpacePage() {
           <span className="text-xs text-muted-foreground">
             you are {myRole}
           </span>
+          {onHub && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs">
+              On the hub
+            </span>
+          )}
         </div>
         {project.goal ? (
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{project.goal}</p>
@@ -147,7 +188,7 @@ export function ProjectSpacePage() {
               <button
                 key={t.id}
                 type="button"
-                onClick={() => navigate(`/projects/${id}/space/${t.id}`)}
+                onClick={() => navigate(`${base}/space/${t.id}`)}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm",
                   active === t.id
@@ -241,16 +282,80 @@ export function ProjectSpacePage() {
         )}
 
         {active === "tasks" && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               {counts.tasks_open} open of {counts.tasks_total}.
             </p>
-            <NavLink
-              to={`/projects/${id}`}
-              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
-            >
-              <FolderOpen className="h-4 w-4" /> Open the task board
-            </NavLink>
+            {onHub ? (
+              hubTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No tasks on this project yet.
+                </p>
+              ) : (
+                <ul className="divide-y rounded-xl border">
+                  {hubTasks.map(t => (
+                    <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-2">
+                      <span className="truncate text-sm">{t.title}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">
+                        {t.status.replace("_", " ")}
+                        {t.due_date
+                          ? ` \u00b7 due ${new Date(t.due_date).toLocaleDateString()}`
+                          : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : (
+              <NavLink
+                to={`/projects/${id}`}
+                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+              >
+                <FolderOpen className="h-4 w-4" /> Open the task board
+              </NavLink>
+            )}
+
+            {held.length > 0 && (
+              <div className="rounded-xl border p-4">
+                <h3 className="text-sm font-medium">Held by this project</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Made here, so it can only be changed here, by someone on the
+                  project. Releasing it lets it move elsewhere.
+                </p>
+                <ul className="mt-3 divide-y">
+                  {held.map(h => (
+                    <li
+                      key={`${h.item_type}:${h.item_id}`}
+                      className="flex items-center justify-between gap-3 py-2"
+                    >
+                      <span className="truncate text-sm">
+                        {h.label ?? h.item_id}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="text-xs text-muted-foreground">
+                          since {new Date(h.since).toLocaleDateString()}
+                        </span>
+                        {myRole === "owner" && (
+                          <button
+                            type="button"
+                            disabled={releaseMutation.isPending}
+                            onClick={() => releaseMutation.mutate(h)}
+                            className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+                          >
+                            <Unlock className="h-3.5 w-3.5" /> Release
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {myRole !== "owner" && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Only the owner can release work from the project.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -260,18 +365,31 @@ export function ProjectSpacePage() {
               {counts.items} pinned {counts.items === 1 ? "item" : "items"} and{" "}
               {counts.journal} journal {counts.journal === 1 ? "entry" : "entries"}.
             </p>
-            <NavLink
-              to="/workrooms"
-              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
-            >
-              <Paperclip className="h-4 w-4" /> Open the workroom
-            </NavLink>
+            {onHub ? (
+              <p className="text-sm text-muted-foreground">
+                This material sits in the project's workroom on the hub, alongside
+                the rest of the project. Open the hub in a browser to work in it.
+              </p>
+            ) : (
+              <NavLink
+                to="/workrooms"
+                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+              >
+                <Paperclip className="h-4 w-4" /> Open the workroom
+              </NavLink>
+            )}
           </div>
         )}
 
         {active === "chat" && (
           <div className="space-y-3">
-            {workroom?.conversation_id ? (
+            {onHub ? (
+              <p className="text-sm text-muted-foreground">
+                {workroom?.conversation_id
+                  ? "This project's conversation is held on the hub. Open the hub in a browser to read or add to it."
+                  : "This project has no conversation yet. It would be started on the hub, where the project lives."}
+              </p>
+            ) : workroom?.conversation_id ? (
               <NavLink
                 to={`/chat/${workroom.conversation_id}`}
                 className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"

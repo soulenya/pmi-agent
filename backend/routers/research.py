@@ -89,7 +89,7 @@ async def get_report(
 ) -> ResearchReportOut:
     repo = ResearchRepository(db)
     report = await repo.get(report_id)
-    if report is None:
+    if report is None or report.created_by != current_user.id:
         raise HTTPException(status_code=404, detail="Report not found.")
     return ResearchReportOut.model_validate(report)
 
@@ -179,7 +179,7 @@ async def delete_report(
 ) -> None:
     repo = ResearchRepository(db)
     report = await repo.get(report_id)
-    if report is None:
+    if report is None or report.created_by != current_user.id:
         raise HTTPException(status_code=404, detail="Report not found.")
     await db.delete(report)
     await db.commit()

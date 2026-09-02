@@ -31,7 +31,9 @@ from models.db.settings import SystemSetting
 
 logger = logging.getLogger(__name__)
 
-MAX_COMPANY_CONTEXT_CHARS = 12_000
+# Every agent pays for this on every turn, so the ceiling is a real cost, not
+# a formality. Roughly 4k tokens.
+MAX_COMPANY_CONTEXT_CHARS = 16_000
 
 KEY_MD = "company.profile_md"
 KEY_SYNCED_AT = "company.profile_synced_at"

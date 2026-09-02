@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 219;
-export const BUILD_DATE = "2026-08-31";
+export const BUILD_NUMBER = 220;
+export const BUILD_DATE = "2026-09-02";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,21 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 220,
+    date: "2026-09-02",
+    title: "The hub: the work the firm shares, seen from your own machine",
+    changes: [
+      "One shared server now holds the projects the firm works on together — your install stays yours, and the hub holds only what is deliberately shared",
+      "Connect from Settings → The hub, signing in with your work Google account once per computer; there is nothing to download or paste in",
+      "The Projects screen gains a 'Shared on the hub' area — open a shared project and you get its overview, tasks and material, read live from the hub and never copied onto this computer",
+      "You sign in as yourself, so what you see and what you change is recorded under your name; on the hub each person connects their own Google account instead of everyone sharing one",
+      "Work made in a shared or company project is held there: only an editor on that project can change it, it cannot be moved elsewhere, and only an owner can release it",
+      "Your tasks and research reports are now yours alone rather than visible to everyone on the same install, and a document can be renamed or deleted only by whoever uploaded it, or an admin",
+      "The company profile can now be 16,000 characters, up from 12,000 — the current profile was being cut off mid-section",
+      "Fixed two Google sign-in faults: a good sign-in rejected over a scope that was never asked for, and the code tying a sign-in to its browser being lost across the redirect",
+    ],
+  },
   {
     build: 219,
     date: "2026-08-31",

@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listProjects, createProject, updateProject, listTasks } from "@/api/tasks";
+import type { Source } from "@/api/tasks";
+import { getHubStatus } from "@/api/hub";
 import type { Project, Task, TaskStatus, ProjectCreate, ProjectUpdate } from "@/types/tasks";
 import { AskGerryButton } from "@/components/AskGerryButton";
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -325,10 +327,12 @@ function ProjectCard({
   project,
   tasks,
   onEdit,
+  source = "local",
 }: {
   project: Project;
   tasks: Task[];
   onEdit: () => void;
+  source?: Source;
 }) {
   const { done, total, pct } = taskProgress(tasks);
   const activeTasks = tasks.filter((t) => !STATUS_DONE.includes(t.status));
@@ -349,6 +353,12 @@ function ProjectCard({
     new Date(project.target_date) < new Date() &&
     project.status !== "completed";
 
+  // A hub project is opened through the hub space; it has no local detail page.
+  const detailTo =
+    source === "hub" ? `/hub/projects/${project.id}/space` : `/projects/${project.id}`;
+  const spaceTo =
+    source === "hub" ? `/hub/projects/${project.id}/space` : `/projects/${project.id}/space`;
+
   return (
     <div className="group rounded-xl border bg-card shadow-sm hover:shadow-md transition-shadow">
       {/* Color bar */}
@@ -366,20 +376,22 @@ function ProjectCard({
                 style={{ color: project.color ?? "#1e6db5" }}
               />
               <NavLink
-                to={`/projects/${project.id}`}
+                to={detailTo}
                 className="font-semibold text-sm leading-snug truncate hover:underline"
               >
                 {project.name}
               </NavLink>
             </div>
           <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={onEdit}
-              className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-foreground transition-opacity"
-              title="Edit project"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
+            {source === "local" && (
+              <button
+                onClick={onEdit}
+                className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-foreground transition-opacity"
+                title="Edit project"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
             <AskGerryButton
               className="p-1 opacity-0 group-hover:opacity-100"
               build={() => ({
@@ -402,14 +414,14 @@ function ProjectCard({
               })}
             />
             <NavLink
-              to={`/projects/${project.id}/space`}
+              to={spaceTo}
               className="flex items-center gap-1 rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
               title="Open project space"
             >
               <Layers className="h-3.5 w-3.5" />
             </NavLink>
             <NavLink
-              to={`/projects/${project.id}`}
+              to={detailTo}
               className="flex items-center gap-1 rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
               title="View project detail"
             >
@@ -508,6 +520,32 @@ export function ProjectsPage() {
     staleTime: 30_000,
   });
 
+  // The hub holds the work the firm shares. It is read over the wire every
+  // time, never copied down, so what is shown here is what the hub says now.
+  const { data: hubStatus } = useQuery({
+    queryKey: ["hub", "status"],
+    queryFn: getHubStatus,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const hubConnected = hubStatus?.connected === true;
+
+  const { data: hubProjects = [], isLoading: hubLoading } = useQuery({
+    queryKey: ["hub", "projects"],
+    queryFn: () => listProjects(false, "hub"),
+    enabled: hubConnected,
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const { data: hubTasks = [] } = useQuery({
+    queryKey: ["hub", "tasks"],
+    queryFn: () => listTasks(undefined, "hub"),
+    enabled: hubConnected,
+    staleTime: 30_000,
+    retry: false,
+  });
+
   const tasksByProject = (projectId: string) =>
     allTasks.filter((t) => t.project_id === projectId);
 
@@ -588,6 +626,42 @@ export function ProjectsPage() {
               onEdit={() => setEditingProject(p)}
             />
           ))}
+        </div>
+      )}
+
+      {/* What the firm shares, live from the hub */}
+      {hubConnected && (
+        <div className="space-y-4 border-t pt-6">
+          <div className="flex items-baseline justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Shared on the hub</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Signed in as {hubStatus?.email}. This work lives on the hub, not on
+                this computer.
+              </p>
+            </div>
+          </div>
+          {hubLoading ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              Asking the hub…
+            </div>
+          ) : hubProjects.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              Nothing on the hub is shared with you yet.
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {hubProjects.map((p) => (
+                <ProjectCard
+                  key={p.id}
+                  project={p}
+                  tasks={hubTasks.filter((t) => t.project_id === p.id)}
+                  onEdit={() => undefined}
+                  source="hub"
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

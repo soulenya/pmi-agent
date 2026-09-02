@@ -67,24 +67,29 @@ def _evaluate(doc: Document, meta: dict | None) -> tuple[str, str | None]:
     return "current", None
 
 
-async def _linked_documents(db: AsyncSession) -> list[Document]:
+async def _linked_documents(db: AsyncSession, owner_id=None) -> list[Document]:
     stmt = select(Document).where(
         Document.deleted_at.is_(None),
         Document.source_type == "google_drive",
         Document.source_id.isnot(None),
     )
+    if owner_id is not None:
+        stmt = stmt.where(Document.created_by == owner_id)
     result = await db.execute(stmt)
     return list(result.scalars())
 
 
-async def check_document_updates(db: AsyncSession) -> dict:
+async def check_document_updates(db: AsyncSession, owner_id=None) -> dict:
     """
-    Scan every Drive-linked document, flag changes, and notify owners.
+    Scan Drive-linked documents, flag changes, and notify owners.
+
+    *owner_id* narrows the scan to one person's documents, which is what the hub
+    needs: only their own Google grant can read the files they linked.
 
     Returns a summary dict: {checked, changed, errors, items:[...]}.
     Commits the transaction itself.
     """
-    docs = await _linked_documents(db)
+    docs = await _linked_documents(db, owner_id)
     notif_repo = NotificationRepository(db)
     now = datetime.now(timezone.utc)
 

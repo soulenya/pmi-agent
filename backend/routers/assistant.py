@@ -143,9 +143,26 @@ async def get_settings(
     _user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    enabled = await daily_scan.get_setting(db, daily_scan.SETTING_ENABLED, daily_scan.DEFAULT_ENABLED)
-    hour = await daily_scan.get_setting(db, daily_scan.SETTING_HOUR, daily_scan.DEFAULT_HOUR)
-    last_run = await daily_scan.get_setting(db, daily_scan.SETTING_LAST_RUN, None)
+    from config import settings as app_settings
+    from services import user_settings
+
+    if app_settings.hub_mode:
+        # Everyone keeps their own schedule; the system values are the default.
+        enabled = await daily_scan.get_user_setting(
+            db, _user, daily_scan.SETTING_ENABLED, daily_scan.DEFAULT_ENABLED
+        )
+        hour = await daily_scan.get_user_setting(
+            db, _user, daily_scan.SETTING_HOUR, daily_scan.DEFAULT_HOUR
+        )
+        last_run = await user_settings.get(
+            db, _user.id, daily_scan.SETTING_LAST_RUN, None
+        )
+    else:
+        enabled = await daily_scan.get_setting(
+            db, daily_scan.SETTING_ENABLED, daily_scan.DEFAULT_ENABLED
+        )
+        hour = await daily_scan.get_setting(db, daily_scan.SETTING_HOUR, daily_scan.DEFAULT_HOUR)
+        last_run = await daily_scan.get_setting(db, daily_scan.SETTING_LAST_RUN, None)
     return AssistantSettings(enabled=bool(enabled), hour_local=int(hour), last_run=last_run)
 
 
@@ -155,11 +172,25 @@ async def update_settings(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if body.enabled is not None:
-        await daily_scan.set_setting(db, daily_scan.SETTING_ENABLED, bool(body.enabled), user.id)
-    if body.hour_local is not None:
-        hour = max(0, min(23, int(body.hour_local)))
-        await daily_scan.set_setting(db, daily_scan.SETTING_HOUR, hour, user.id)
+    from config import settings as app_settings
+    from services import user_settings
+
+    if app_settings.hub_mode:
+        if body.enabled is not None:
+            await user_settings.set_value(
+                db, user.id, daily_scan.SETTING_ENABLED, bool(body.enabled)
+            )
+        if body.hour_local is not None:
+            hour = max(0, min(23, int(body.hour_local)))
+            await user_settings.set_value(db, user.id, daily_scan.SETTING_HOUR, hour)
+    else:
+        if body.enabled is not None:
+            await daily_scan.set_setting(
+                db, daily_scan.SETTING_ENABLED, bool(body.enabled), user.id
+            )
+        if body.hour_local is not None:
+            hour = max(0, min(23, int(body.hour_local)))
+            await daily_scan.set_setting(db, daily_scan.SETTING_HOUR, hour, user.id)
     await db.commit()
     return await get_settings(_user=user, db=db)
 

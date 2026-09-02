@@ -418,6 +418,8 @@ def _auto_update() -> None:
     Pull the latest code from GitHub at launch so updates reach every user
     automatically. Safety guards:
       * skips silently if this isn't a git checkout,
+      * skips unless the checkout is on ``master`` — the reset below would
+        otherwise throw away committed work on a development branch,
       * skips if the working tree is dirty (protects developer machines with
         uncommitted changes from a destructive reset),
       * only runs the heavier dependency install when the code actually changed.
@@ -427,6 +429,12 @@ def _auto_update() -> None:
         return
     try:
         _set_status("Checking for updates...", 0)
+
+        branch = _run(
+            "git rev-parse --abbrev-ref HEAD", cwd=str(ROOT)
+        ).stdout.decode(errors="ignore").strip()
+        if branch != "master":
+            return
 
         # Don't clobber local work (dev machines / in-progress edits).
         dirty = _run("git status --porcelain", cwd=str(ROOT)).stdout.decode(errors="ignore").strip()

@@ -53,6 +53,7 @@ import {
 } from "@/api/writingVoice";
 import { listExtractionSchemas, saveExtractionSchemas } from "@/api/extractions";
 import { listDriveEditGrants, revokeDriveEdit } from "@/api/google";
+import { connectHub, disconnectHub, getHubStatus } from "@/api/hub";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
@@ -2473,6 +2474,122 @@ function UpdateSection() {
     </Section>
   );
 }
+
+// ── Hub connection ────────────────────────────────────────────────────────────
+
+function HubSection() {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const { data: status, isLoading } = useQuery({
+    queryKey: ["hub", "status"],
+    queryFn: getHubStatus,
+    retry: false,
+  });
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["hub"] });
+  };
+
+  const connect = async () => {
+    setBusy(true);
+    setMessage("A browser window has opened. Sign in there with your work account.");
+    try {
+      const result = await connectHub();
+      setMessage(
+        result.status === "success"
+          ? `Connected as ${result.email}.`
+          : (result.message ?? "Sign-in failed."),
+      );
+      refresh();
+    } catch (err) {
+      setMessage(apiErrorMessage(err, "The hub sign-in could not be started."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async () => {
+    setBusy(true);
+    try {
+      await disconnectHub();
+      setMessage("Disconnected. Nothing from the hub is kept on this computer.");
+      refresh();
+    } catch (err) {
+      setMessage(apiErrorMessage(err, "Could not disconnect."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // On the hub itself the endpoint is absent, and there is nothing to connect to.
+  if (!isLoading && !status) return null;
+
+  return (
+    <Section
+      id="hub"
+      icon={Wifi}
+      title="The hub"
+      description={
+        status?.connected
+          ? `Connected as ${status.email}`
+          : "See the work the firm shares"
+      }
+      revision="1"
+    >
+      <p className="text-sm text-muted-foreground">
+        The hub holds the projects the firm works on together. Connecting signs you
+        in as yourself, so what you see and what you change is recorded under your
+        name. Shared work is read from the hub each time and never copied onto this
+        computer.
+      </p>
+
+      {status && !status.available && (
+        <p className="rounded-md border border-amber-400/60 bg-amber-400/10 p-3 text-sm">
+          This computer hasn't collected the hub sign-in details yet. Connect Google
+          above, then reopen Settings.
+        </p>
+      )}
+
+      {status?.last_error && (
+        <p className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm">
+          {status.last_error}
+        </p>
+      )}
+
+      {message && <p className="text-sm">{message}</p>}
+
+      <div className="flex items-center gap-2">
+        {status?.connected ? (
+          <button
+            type="button"
+            onClick={disconnect}
+            disabled={busy}
+            className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+            Disconnect
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={connect}
+            disabled={busy || !status?.available}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wifi className="h-4 w-4" />}
+            Connect to the hub
+          </button>
+        )}
+        {status?.hub_url && (
+          <span className="truncate text-xs text-muted-foreground">{status.hub_url}</span>
+        )}
+      </div>
+    </Section>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
@@ -2566,6 +2683,7 @@ export function SettingsPage() {
           <TaskModelsSection />
           <ExtractionSchemasSection />
           <DriveEditPermissionsSection />
+          <HubSection />
           <AppearanceSection settings={mergedSettings} onChange={handleChange} />
           <NotificationsSection settings={mergedSettings} onChange={handleChange} />
           <VoiceSection settings={mergedSettings} onChange={handleChange} />
