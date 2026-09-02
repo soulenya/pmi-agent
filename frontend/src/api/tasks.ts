@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type {
+  HeldItem,
   Project,
   ProjectCreate,
   ProjectSpace,
@@ -44,6 +45,22 @@ export async function createProject(body: ProjectCreate): Promise<Project> {
 export async function updateProject(id: string, body: ProjectUpdate): Promise<Project> {
   const resp = await apiClient.patch<Project>(`/projects/${id}`, body);
   return resp.data;
+}
+
+export async function listHeldItems(id: string): Promise<HeldItem[]> {
+  const resp = await apiClient.get<HeldItem[]>(`/projects/${id}/held`);
+  return resp.data;
+}
+
+export async function releaseHeldItem(
+  id: string,
+  itemType: string,
+  itemId: string,
+  note?: string,
+): Promise<void> {
+  await apiClient.post(`/projects/${id}/held/${itemType}/${itemId}/release`, {
+    note: note ?? null,
+  });
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────

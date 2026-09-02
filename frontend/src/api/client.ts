@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000",
@@ -34,6 +35,16 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // A 409 is the server refusing on a rule the person can act on — most often
+    // work held by a shared project. Say so, or it reads as a dead button.
+    if (error.response?.status === 409) {
+      const detail = error.response?.data?.detail;
+      if (typeof detail === "string") {
+        useToastStore.getState().push("error", detail, 9000);
+      }
+      return Promise.reject(error);
+    }
 
     if (error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(error);

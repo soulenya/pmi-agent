@@ -11,15 +11,18 @@ import {
   MessageSquare,
   Paperclip,
   PenTool,
+  Unlock,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   ensureProjectWorkroom,
   getProjectSpace,
+  listHeldItems,
+  releaseHeldItem,
   updateProject,
 } from "@/api/tasks";
-import type { ProjectVisibility } from "@/types/tasks";
+import type { HeldItem, ProjectVisibility } from "@/types/tasks";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Layers },
@@ -92,6 +95,22 @@ export function ProjectSpacePage() {
       qc.invalidateQueries({ queryKey: ["project-space", id] });
       if (room.conversation_id) navigate(`/chat/${room.conversation_id}`);
       else navigate("/workrooms");
+    },
+  });
+
+  const { data: held = [] } = useQuery({
+    queryKey: ["project-held", id],
+    queryFn: () => listHeldItems(id!),
+    enabled: Boolean(id),
+  });
+
+  const releaseMutation = useMutation({
+    mutationFn: (item: HeldItem) =>
+      releaseHeldItem(id!, item.item_type, item.item_id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-held", id] });
+      qc.invalidateQueries({ queryKey: ["project-space", id] });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
 
@@ -241,7 +260,7 @@ export function ProjectSpacePage() {
         )}
 
         {active === "tasks" && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               {counts.tasks_open} open of {counts.tasks_total}.
             </p>
@@ -251,6 +270,48 @@ export function ProjectSpacePage() {
             >
               <FolderOpen className="h-4 w-4" /> Open the task board
             </NavLink>
+
+            {held.length > 0 && (
+              <div className="rounded-xl border p-4">
+                <h3 className="text-sm font-medium">Held by this project</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Made here, so it can only be changed here, by someone on the
+                  project. Releasing it lets it move elsewhere.
+                </p>
+                <ul className="mt-3 divide-y">
+                  {held.map(h => (
+                    <li
+                      key={`${h.item_type}:${h.item_id}`}
+                      className="flex items-center justify-between gap-3 py-2"
+                    >
+                      <span className="truncate text-sm">
+                        {h.label ?? h.item_id}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="text-xs text-muted-foreground">
+                          since {new Date(h.since).toLocaleDateString()}
+                        </span>
+                        {myRole === "owner" && (
+                          <button
+                            type="button"
+                            disabled={releaseMutation.isPending}
+                            onClick={() => releaseMutation.mutate(h)}
+                            className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
+                          >
+                            <Unlock className="h-3.5 w-3.5" /> Release
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {myRole !== "owner" && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Only the owner can release work from the project.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
