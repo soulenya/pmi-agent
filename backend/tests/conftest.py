@@ -10,6 +10,12 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncGenerator
 
+# A test host has no OS keyring, and config reads these at import time. Set them
+# before anything imports config, or every encryption path raises instead of
+# being tested.
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-not-used-outside-tests")
+os.environ.setdefault("FERNET_KEY", "PGvsQoT3H4wJ8vC0KqZ6yQ0k3rY4vJ8pQ2sT7uV9wXk=")
+
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient

@@ -7,19 +7,22 @@ pinned material and its people. The page opens on one request, not six.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user, require_project_role
+from models.db.project_custody import CUSTODY_ITEM_TYPES, ProjectItemCustody
 from models.db.project_member import ProjectMember
 from models.db.task import Project, Task
 from models.db.user import User
 from models.db.workroom import Workroom, WorkroomItem, WorkroomJournalEntry
 from models.schemas.tasks import ProjectOut
+from services.projects import custody
 from services.projects.access import resolve_role
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -38,6 +41,17 @@ class MemberOut(BaseModel):
     email: str | None = None
     display_name: str | None = None
     role: str
+
+
+class HeldItemOut(BaseModel):
+    item_type: str
+    item_id: uuid.UUID
+    label: str | None = None
+    since: datetime
+
+
+class ReleaseRequest(BaseModel):
+    note: str | None = None
 
 
 class ProjectSpaceOut(BaseModel):
@@ -155,3 +169,64 @@ async def ensure_project_workroom(
         await db.commit()
         await db.refresh(room)
     return WorkroomBrief(id=room.id, title=room.title, conversation_id=room.conversation_id)
+
+
+# ── Custody ───────────────────────────────────────────────────────────────────
+
+@router.get("/{project_id}/held", response_model=list[HeldItemOut])
+async def list_held_items(
+    project: Project = Depends(require_project_role("viewer")),
+    db: AsyncSession = Depends(get_db),
+) -> list[HeldItemOut]:
+    """What this project is holding, so the page can say so plainly."""
+    rows = (
+        await db.execute(
+            select(ProjectItemCustody)
+            .where(
+                ProjectItemCustody.project_id == project.id,
+                ProjectItemCustody.released_at.is_(None),
+            )
+            .order_by(ProjectItemCustody.created_at.asc())
+        )
+    ).scalars().all()
+
+    task_ids = [r.item_id for r in rows if r.item_type == "task"]
+    titles: dict[uuid.UUID, str] = {}
+    if task_ids:
+        titles = {
+            t.id: t.title
+            for t in (
+                await db.execute(select(Task).where(Task.id.in_(task_ids)))
+            ).scalars()
+        }
+    return [
+        HeldItemOut(
+            item_type=r.item_type,
+            item_id=r.item_id,
+            label=titles.get(r.item_id),
+            since=r.created_at,
+        )
+        for r in rows
+    ]
+
+
+@router.post("/{project_id}/held/{item_type}/{item_id}/release", status_code=204)
+async def release_held_item(
+    item_type: str,
+    item_id: uuid.UUID,
+    body: ReleaseRequest | None = None,
+    project: Project = Depends(require_project_role("owner")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """Let an item out of the project. Only an owner can give the work away."""
+    if item_type not in CUSTODY_ITEM_TYPES:
+        raise HTTPException(status_code=404, detail="Nothing like that is held here.")
+    held = await custody.holder(db, item_type, item_id)
+    if held is None or held.project_id != project.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This project is not holding that.",
+        )
+    await custody.release(db, held, current_user.id, (body.note if body else None))
+    await db.commit()

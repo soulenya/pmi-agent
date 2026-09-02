@@ -37,21 +37,22 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 12. [Research](#research)
 13. [Research Browser](#research-browser)
 14. [Tasks & Projects](#tasks--projects)
-15. [Calendar](#calendar)
-16. [Gmail (Inbox, Compose & Replies)](#gmail-inbox-compose--replies)
-17. [Email Drafts](#email-drafts)
-18. [Meeting Notes](#meeting-notes)
-19. [Regulatory Documents](#regulatory-documents)
-20. [Slide Decks](#slide-decks)
-21. [Investor Relations](#investor-relations)
-22. [Google Workspace](#google-workspace)
-23. [Odoo ERP](#odoo-erp)
-24. [Manage Budgets](#manage-budgets)
-25. [Approvals Queue](#approvals-queue)
-26. [Notifications](#notifications)
-27. [Settings](#settings)
-28. [Updating Little Gerry](#updating-little-gerry)
-29. [Tips & Example Prompts](#tips--example-prompts)
+15. [The Hub](#the-hub)
+16. [Calendar](#calendar)
+17. [Gmail (Inbox, Compose & Replies)](#gmail-inbox-compose--replies)
+18. [Email Drafts](#email-drafts)
+19. [Meeting Notes](#meeting-notes)
+20. [Regulatory Documents](#regulatory-documents)
+21. [Slide Decks](#slide-decks)
+22. [Investor Relations](#investor-relations)
+23. [Google Workspace](#google-workspace)
+24. [Odoo ERP](#odoo-erp)
+25. [Manage Budgets](#manage-budgets)
+26. [Approvals Queue](#approvals-queue)
+27. [Notifications](#notifications)
+28. [Settings](#settings)
+29. [Updating Little Gerry](#updating-little-gerry)
+30. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -195,6 +196,7 @@ Your profile is **yours alone**. It is stored against your account, never shared
 | **Research** | AI-powered web research with cited reports |
 | **Tasks** | Kanban board for action tracking |
 | **Projects** | Group tasks by project with milestone tracking |
+| **The hub** | Connect once and see the projects the firm shares, live from the shared server — nothing is copied onto your computer |
 | **Calendar** | Local events + Google Calendar side by side |
 | **Gmail** | Full inbox — browse standard folders (Inbox, Sent, Drafts, Starred, etc.), sort your mail, read, search, filter by tag, reply/reply-all/forward, mark read or unread, move to Trash, collapse read parts of a thread behind a Gerry summary, open attachments or add them to the Knowledge Base, and compose & send your own emails |
 | **Email Drafts** | Ask Little Gerry to draft an email, then approve it to send — or write your own from the Gmail composer |
@@ -472,6 +474,44 @@ Your existing workrooms are now projects. Each one kept its title, goal, pinned 
 ### Creating tasks from Meeting Notes
 
 After summarizing a meeting, click **Extract Actions** → select action items → **Create N Tasks** to add them directly to the board.
+
+---
+
+## The Hub
+
+Your Little Gerry install is yours. The **hub** is the one shared server where the firm keeps the projects it works on together. Connecting lets you see that work from your own machine.
+
+### Connecting
+
+Go to **Settings → The hub → Connect to the hub**. A browser window opens; sign in with your work Google account. You do this once per computer.
+
+If the button is greyed out, this machine hasn't collected the hub sign-in details yet — connect Google first (**Settings → Google Workspace**), then reopen Settings. There is nothing to download or paste in; the app fetches what it needs from the firm's Drive by itself.
+
+You sign in as yourself, not as the app. Everything you look at and everything you change on the hub is recorded under your name.
+
+### Seeing shared work
+
+Open **Projects**. Below your own projects, a **Shared on the hub** area lists the projects the firm has shared with you, with the account you're signed in as. Open one and you get the same project space as a local project — overview, tasks and pinned material — marked **On the hub**.
+
+Two things work differently there:
+
+- **The conversation stays on the hub.** A shared project's chat is held on the server, so this app shows the project but doesn't open its chat.
+- **Material lives in the project's workroom on the hub**, not in your Knowledge Base.
+
+If a project you expected isn't listed, either it hasn't been shared with you or your hub connection has lapsed — reconnect from Settings.
+
+### Nothing is copied down
+
+Shared work is read from the hub every time it's drawn on screen. There is no local copy to fall out of date, and **Disconnect** leaves nothing from the hub on your computer.
+
+### Work made in a shared project stays there
+
+Anything created inside a **shared** or **company** project is held by that project from the moment it exists. While it is held:
+
+- only someone with **editor** rights on that project can change it;
+- it can't be moved into another project or pulled out into your personal list.
+
+If you try, Little Gerry refuses and says which project is holding it. Releasing something is the project owner's decision, and the release is recorded. Private projects hold nothing — there is nobody to share custody with.
 
 ---
 
@@ -803,6 +843,9 @@ Click **Check for Updates** to compare your build against the latest on GitHub. 
 
 ### Google Integration
 Connect or disconnect your Google account (see [Google Workspace](#google-workspace)).
+
+### The hub
+Connect this computer to the firm's shared server, or disconnect it (see [The Hub](#the-hub)).
 
 ---
 

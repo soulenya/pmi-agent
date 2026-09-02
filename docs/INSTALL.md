@@ -146,6 +146,20 @@ launch Little Gerry and click **Sign in with Google**.
 
 ---
 
+## Connecting to the hub (PMI team members)
+
+Little Gerry can show you the project spaces the firm shares on the hub. There
+is nothing to install or configure: once you have connected Google, the app
+collects the hub sign-in details from the firm's Drive by itself.
+
+Go to **Settings → Hub → Connect to the hub** and sign in with your work Google
+account. You do this once per machine.
+
+If the Connect button is greyed out, connect Google first (see above) and
+reopen Settings.
+
+---
+
 ## Troubleshooting
 
 - **Windows — installer flagged by antivirus:** run `Trust-Little-Gerry.bat`

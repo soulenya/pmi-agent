@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 import re
+import secrets
 import threading
 import urllib.request
 import uuid as _uuid
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from database import get_db
 from dependencies import get_current_user
@@ -25,8 +29,11 @@ from models.schemas.auth import (
     UserOut,
 )
 from config import settings
+from services import google_user_creds
 from services.auth.service import AuthService
 from services.audit.logger import AuditLogger, get_audit_logger
+
+logger = logging.getLogger("main")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -188,6 +195,12 @@ async def login(
     )
 
 
+@router.get("/mode")
+async def auth_mode() -> dict:
+    """Tell the frontend which sign-in flow this deployment uses."""
+    return {"mode": "iap" if settings.hub_mode else "desktop"}
+
+
 @router.post("/google/initiate")
 async def google_initiate() -> dict:
     """
@@ -195,6 +208,12 @@ async def google_initiate() -> dict:
     Opens a browser window for the user to sign in.
     Returns an auth_id — poll /auth/google/poll/{auth_id} for the result.
     """
+    if settings.hub_mode:
+        # run_local_server needs a browser on the backend's own machine.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This server signs you in automatically. Reload the page.",
+        )
     auth_id = str(_uuid.uuid4())
     with _sso_lock:
         _sso_sessions[auth_id] = {"status": "pending"}
@@ -347,6 +366,347 @@ async def google_poll(
         "expires_in": settings.access_token_expire_minutes * 60,
         "user": UserOut.model_validate(user).model_dump(mode="json"),
     }
+
+
+# ── IAP sign-in (hub only) ────────────────────────────────────────────────────
+
+_IAP_HEADER = "x-goog-iap-jwt-assertion"
+_IAP_CERTS_URL = "https://www.gstatic.com/iap/verify/public_key"
+_IAP_ISSUER = "https://cloud.google.com/iap"
+
+
+def _verify_iap_assertion(assertion: str) -> tuple[str, str]:
+    """Return (email, google_subject) from a cryptographically verified IAP JWT.
+
+    Raises ValueError on any failure. The signature check is what makes the
+    header trustworthy — without it anyone who reaches the VM directly could
+    forge an identity.
+    """
+    from google.auth.transport import requests as ga_requests
+    from google.oauth2 import id_token
+
+    claims = id_token.verify_token(
+        assertion,
+        ga_requests.Request(),
+        audience=settings.iap_audience,
+        certs_url=_IAP_CERTS_URL,
+    )
+    if claims.get("iss") != _IAP_ISSUER:
+        raise ValueError("Assertion was not issued by Identity-Aware Proxy.")
+
+    email = (claims.get("email") or "").lower()
+    subject = claims.get("sub") or ""
+    if not email or not subject:
+        raise ValueError("Assertion did not carry an identity.")
+    return email, subject
+
+
+@router.post("/iap", response_model=LoginResponse)
+async def iap_login(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    audit: AuditLogger = Depends(get_audit_logger),
+) -> LoginResponse:
+    """Exchange the Identity-Aware Proxy assertion for an application session.
+
+    IAP has already authenticated the user against Google and checked org
+    membership before the request reached us, so no second sign-in is needed.
+    """
+    if not settings.hub_mode:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+    if not settings.iap_audience:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="IAP sign-in is not configured on this server.",
+        )
+
+    assertion = request.headers.get(_IAP_HEADER)
+    if not assertion:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Request did not come through Identity-Aware Proxy.",
+        )
+
+    try:
+        email, subject = await run_in_threadpool(_verify_iap_assertion, assertion)
+    except Exception as exc:
+        await audit.log(
+            "auth.iap.rejected",
+            payload={"reason": str(exc)[:200]},
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not verify your identity.",
+        ) from exc
+
+    domain = email.split("@")[-1] if "@" in email else ""
+    if domain not in _ALLOWED_DOMAINS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"The account '{email}' is not authorised for this workspace.",
+        )
+
+    auth_service = AuthService(db)
+    user = await auth_service.user_repo.get_by_email(email)
+
+    if user is None:
+        import secrets as _secrets
+        from services.auth.service import hash_password
+
+        role = "admin" if email == settings.admin_email.lower() else "member"
+        user = User(
+            email=email,
+            display_name=email.split("@")[0],
+            hashed_password=hash_password(_secrets.token_urlsafe(32)),
+            role=role,
+            is_active=True,
+            can_write_regulatory=True,
+            onboarding_complete=False,
+        )
+        db.add(user)
+        await db.flush()
+        await db.refresh(user)
+        await audit.log(
+            "user.auto_provisioned",
+            actor_id=user.id,
+            entity_type="user",
+            entity_id=user.id,
+            payload={"email": email, "role": role, "via": "iap"},
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is inactive. Contact your administrator.",
+        )
+
+    access_token, refresh_token = await auth_service.create_session(user)
+
+    await audit.log(
+        "auth.login.success",
+        actor_id=user.id,
+        entity_type="user",
+        entity_id=user.id,
+        payload={"method": "iap", "google_sub": subject},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    await db.commit()
+
+    return LoginResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_in=settings.access_token_expire_minutes * 60,
+        user=UserOut.model_validate(user),
+    )
+
+
+# ── per-user Google connection (hub only) ────────────────────────────────────
+# Each person grants their own Google access. Nothing here is shared: the grant
+# is stored against the user id and read back only for that user's requests.
+
+_GOOGLE_STATE_PURPOSE = "google-connect"
+
+
+def _sign_google_state(user_id: _uuid.UUID, code_verifier: str) -> str:
+    from datetime import datetime, timedelta, timezone
+
+    from cryptography.fernet import Fernet
+    from jose import jwt
+
+    return jwt.encode(
+        {
+            "sub": str(user_id),
+            "purpose": _GOOGLE_STATE_PURPOSE,
+            # PKCE verifier, encrypted: the whole callback URL — state included —
+            # lands in the access log, and a readable verifier there would undo
+            # the point of PKCE.
+            "cv": Fernet(settings.fernet_key).encrypt(code_verifier.encode()).decode(),
+            "nonce": secrets.token_urlsafe(16),
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
+        },
+        settings.jwt_secret,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
+def _read_google_state(state: str) -> tuple[_uuid.UUID, str]:
+    """The user and PKCE verifier this consent belongs to. Raises ValueError on
+    a bad state."""
+    from cryptography.fernet import Fernet, InvalidToken
+    from jose import JWTError, jwt
+
+    try:
+        claims = jwt.decode(
+            state, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
+        )
+    except JWTError as exc:
+        raise ValueError("This link has expired. Start again from Settings.") from exc
+    if claims.get("purpose") != _GOOGLE_STATE_PURPOSE:
+        raise ValueError("This link isn't a Google connection link.")
+    try:
+        verifier = Fernet(settings.fernet_key).decrypt(claims["cv"].encode()).decode()
+    except (KeyError, InvalidToken) as exc:
+        raise ValueError("This link is incomplete. Start again from Settings.") from exc
+    return _uuid.UUID(claims["sub"]), verifier
+
+
+def _google_flow(code_verifier: str):
+    from google_auth_oauthlib.flow import Flow
+
+    from services.google_service import SCOPES
+
+    # Google always returns `openid` and `email` alongside userinfo.email, so the
+    # granted set never equals the requested set and oauthlib would call that an
+    # error. The scopes we actually rely on are checked when each API is called.
+    os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+
+    return Flow.from_client_config(
+        {"web": google_user_creds.web_client_config()},
+        scopes=SCOPES,
+        redirect_uri=google_user_creds.redirect_uri(),
+        # The callback runs in a fresh process-less request with its own Flow, so
+        # the verifier is supplied rather than generated; letting the library
+        # invent one here would strand the challenge sent to Google.
+        code_verifier=code_verifier,
+        autogenerate_code_verifier=False,
+    )
+
+
+def _verify_google_email(raw_id_token: str | None) -> str:
+    """The verified address on the id_token Google just issued."""
+    from google.auth.transport import requests as ga_requests
+    from google.oauth2 import id_token as google_id_token
+
+    if not raw_id_token:
+        raise ValueError("Google didn't say which account this is.")
+    cfg = google_user_creds.web_client_config()
+    try:
+        claims = google_id_token.verify_oauth2_token(
+            raw_id_token, ga_requests.Request(), cfg.get("client_id")
+        )
+    except Exception as exc:  # noqa: BLE001 — an unverifiable token is a failure
+        raise ValueError("Couldn't verify the Google account.") from exc
+    email = (claims.get("email") or "").lower()
+    if not email or not claims.get("email_verified"):
+        raise ValueError("That Google account has no verified address.")
+    return email
+
+
+@router.get("/google/connect")
+async def google_connect(current_user: User = Depends(get_current_user)) -> dict:
+    """Where to send this user so they can grant their own Google access."""
+    if not settings.hub_mode:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not available on this install.",
+        )
+    if not google_user_creds.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google isn't configured on this server yet.",
+        )
+
+    code_verifier = secrets.token_urlsafe(64)
+    url, _ = _google_flow(code_verifier).authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        # Force the consent screen so Google always returns a refresh token —
+        # without it a re-connect yields an access token only, and the grant
+        # dies an hour later.
+        prompt="consent",
+        state=_sign_google_state(current_user.id, code_verifier),
+    )
+    return {"authorization_url": url}
+
+
+@router.get("/google/callback")
+async def google_callback(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    audit: AuditLogger = Depends(get_audit_logger),
+):
+    """Google redirects the browser here. Authenticated by the signed state,
+    because a redirect carries no Authorization header."""
+    from fastapi.responses import RedirectResponse
+
+    def _fail(message: str) -> RedirectResponse:
+        return RedirectResponse(f"/google?google_error={quote(message)}")
+
+    if not settings.hub_mode or not google_user_creds.is_configured():
+        return _fail("Google isn't configured on this server.")
+
+    params = request.query_params
+    if params.get("error"):
+        return _fail("Google sign-in was cancelled.")
+    code, state = params.get("code"), params.get("state")
+    if not code or not state:
+        return _fail("Google didn't return a sign-in code.")
+
+    try:
+        user_id, code_verifier = _read_google_state(state)
+    except ValueError as exc:
+        return _fail(str(exc))
+
+    user = await db.get(User, user_id)
+    if user is None or not user.is_active:
+        return _fail("That account is no longer active.")
+
+    flow = _google_flow(code_verifier)
+    try:
+        await run_in_threadpool(flow.fetch_token, code=code)
+    except Exception:  # noqa: BLE001 — any failure here is a failed connect
+        logger.exception("Google connect: token exchange failed")
+        return _fail("Google rejected the sign-in. Try again.")
+
+    creds = flow.credentials
+    if not creds.refresh_token:
+        return _fail("Google didn't return a refresh token. Try connecting again.")
+
+    try:
+        email = await run_in_threadpool(_verify_google_email, creds.id_token)
+    except ValueError as exc:
+        return _fail(str(exc))
+
+    if email.split("@")[-1] not in _ALLOWED_DOMAINS:
+        await audit.log(
+            "google.connect.rejected",
+            actor_id=user.id,
+            payload={"email": email, "reason": "domain"},
+        )
+        await db.commit()
+        return _fail("Connect a PMI account, not a personal one.")
+
+    await google_user_creds.store(db, user.id, email, creds)
+    await audit.log(
+        "google.connect.success",
+        actor_id=user.id,
+        entity_type="user",
+        entity_id=user.id,
+        payload={"email": email, "scopes": list(creds.scopes or [])},
+    )
+    await db.commit()
+    return RedirectResponse("/google?google=connected")
+
+
+@router.post("/google/disconnect", status_code=status.HTTP_204_NO_CONTENT)
+async def google_disconnect(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    audit: AuditLogger = Depends(get_audit_logger),
+) -> None:
+    """Forget this user's Google grant. Only ever their own."""
+    await google_user_creds.clear(db, current_user.id)
+    await audit.log(
+        "google.disconnect",
+        actor_id=current_user.id,
+        entity_type="user",
+        entity_id=current_user.id,
+    )
+    await db.commit()
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)

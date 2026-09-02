@@ -1,10 +1,14 @@
 """
 Application settings — reads from environment variables / .env file.
-Secrets (JWT, Fernet) are stored in the OS keyring, never in files or env vars.
+
+Secrets (JWT, Fernet, provider API keys) come from the OS keyring on desktop
+installs. The hub has no keyring, so each one falls back to an environment
+variable populated from Secret Manager.
 """
 
 from __future__ import annotations
 
+import os
 import secrets
 from functools import lru_cache
 
@@ -16,6 +20,23 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _KEYRING_SERVICE = "pmi-agent"
 
 
+def _keyring_get(key: str) -> str | None:
+    """Read from the OS keyring, tolerating hosts that have none."""
+    try:
+        return keyring.get_password(_KEYRING_SERVICE, key)
+    except Exception:
+        return None
+
+
+def _keyring_set(key: str, value: str) -> bool:
+    """Write to the OS keyring; False when the host has none."""
+    try:
+        keyring.set_password(_KEYRING_SERVICE, key, value)
+        return True
+    except Exception:
+        return False
+
+
 class Settings(BaseSettings):
     # ── Application ──────────────────────────────────────────────────────────
     app_name: str = "PMI AI Assistant"
@@ -25,6 +46,41 @@ class Settings(BaseSettings):
     # ── Server ───────────────────────────────────────────────────────────────
     host: str = "127.0.0.1"
     port: int = 8000
+    # Origins allowed to call the API. Desktop shell + local dev by default;
+    # the hub replaces this with its own origin via CORS_ORIGINS.
+    # pywebview opens the frontend on 127.0.0.1:5173, not localhost:5173, so
+    # both spellings are required.
+    cors_origins: list[str] = [
+        "tauri://localhost",
+        "https://tauri.localhost",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:1420",
+        "http://127.0.0.1:1420",
+    ]
+
+    # ── Hub deployment ───────────────────────────────────────────────────────
+    # True only on the shared server. Disables desktop-only machinery (meeting
+    # capture, self-update) and switches sign-in over to IAP.
+    hub_mode: bool = False
+    # Full IAP audience: /projects/<project-number>/global/backendServices/<id>
+    iap_audience: str = ""
+    # The downloaded "web" OAuth client, for per-user Google sign-in on the
+    # hub. Supply the JSON directly, or point at the downloaded file. The
+    # desktop keeps using its own installed-app client.
+    google_web_client_json: str = ""
+    google_web_client_file: str = ""
+
+    # ── Reaching the hub from a desktop install ──────────────────────────────
+    # Where the shared project spaces live. Blank turns the feature off.
+    hub_url: str = "https://hub.precisianmedical.com"
+    # A desktop-type OAuth client that the hub's IAP allows through for
+    # programmatic access. Not the same client as Google sign-in: IAP only
+    # accepts tokens from clients on its allowlist. Normally left blank: the
+    # app collects the client from the firm's Drive on first run.
+    hub_desktop_client_id: str = ""
+    # The Drive file holding that client. Blank means look it up by name.
+    hub_client_drive_file_id: str = "1BuvAGSyr7wi-VVTJmFE81dnfDTyQSCsd"
 
     # ── Database ─────────────────────────────────────────────────────────────
     database_url: str = Field(
@@ -162,33 +218,61 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── Secret properties (OS keyring) ───────────────────────────────────────
+    # ── Secret properties (env var on the hub, OS keyring on desktop) ────────
 
     @property
     def jwt_secret(self) -> str:
-        """Return JWT signing secret from OS keyring; generate on first call."""
-        value = keyring.get_password(_KEYRING_SERVICE, "jwt_secret")
-        if not value:
-            value = secrets.token_urlsafe(64)
-            keyring.set_password(_KEYRING_SERVICE, "jwt_secret", value)
+        """JWT signing secret. Shared across a hub, per-install on desktop."""
+        env = os.environ.get("JWT_SECRET")
+        if env:
+            return env
+        value = _keyring_get("jwt_secret")
+        if value:
+            return value
+        value = secrets.token_urlsafe(64)
+        if not _keyring_set("jwt_secret", value):
+            # Returning a fresh secret per call would invalidate every token.
+            raise RuntimeError(
+                "No JWT secret available: set JWT_SECRET, or run on a host with "
+                "an OS keyring."
+            )
         return value
 
     @property
     def fernet_key(self) -> str:
-        """Return Fernet encryption key from OS keyring; generate on first call."""
-        value = keyring.get_password(_KEYRING_SERVICE, "fernet_key")
-        if not value:
-            value = Fernet.generate_key().decode()
-            keyring.set_password(_KEYRING_SERVICE, "fernet_key", value)
+        """Document encryption key. Losing it makes stored documents unreadable."""
+        env = os.environ.get("FERNET_KEY")
+        if env:
+            return env
+        value = _keyring_get("fernet_key")
+        if value:
+            return value
+        value = Fernet.generate_key().decode()
+        if not _keyring_set("fernet_key", value):
+            raise RuntimeError(
+                "No Fernet key available: set FERNET_KEY, or run on a host with "
+                "an OS keyring. Generating a new one would orphan every "
+                "existing document."
+            )
         return value
 
     def get_api_key(self, provider: str) -> str | None:
-        """Retrieve a cloud provider API key from the OS keyring."""
-        return keyring.get_password(_KEYRING_SERVICE, f"{provider}_api_key")
+        """Provider API key, e.g. ANTHROPIC_API_KEY then keyring."""
+        env = os.environ.get(f"{provider.upper()}_API_KEY")
+        if env:
+            return env
+        return _keyring_get(f"{provider}_api_key")
 
     def set_api_key(self, provider: str, key: str) -> None:
         """Store a cloud provider API key in the OS keyring."""
         keyring.set_password(_KEYRING_SERVICE, f"{provider}_api_key", key)
+
+    @property
+    def hub_desktop_client_secret(self) -> str:
+        """Secret half of the hub sign-in client. Never leaves this machine."""
+        return os.environ.get("HUB_DESKTOP_CLIENT_SECRET") or _keyring_get(
+            "hub_desktop_client_secret"
+        ) or ""
 
 
 @lru_cache(maxsize=1)

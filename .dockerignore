@@ -1,0 +1,35 @@
+# Build context is the repo root (docker build -f backend/Dockerfile .).
+
+.git/
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+
+# Never bake credentials into the image — the hub reads these from
+# Secret Manager at runtime.
+backend/google_credentials.json
+backend/google_token.json
+backend/google_stt_sa.json
+backend/.env
+backend/.env.*
+
+backend/logs/
+backend/generated_files/
+backend/assets/
+backend/tests/
+
+frontend/node_modules/
+frontend/dist/
+frontend/src-tauri/
+
+# Desktop packaging and ops tooling — not part of the server image.
+installer/
+docs/
+live/
+localStorage/
+AuditPage/
+*.pdf

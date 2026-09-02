@@ -17,6 +17,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
+from config import settings
+
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.send",
@@ -75,6 +77,13 @@ def get_credentials():
     from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
 
+    if settings.hub_mode:
+        # Shared server: this request's user, or nobody. Never the token file,
+        # which on a hub would be one identity borrowed by everyone.
+        from services import google_user_creds
+
+        return google_user_creds.credentials_for_current_user()
+
     if not TOKEN_FILE.exists():
         return None
     # Load with the token's OWN granted scopes (scopes=None). Forcing the
@@ -106,6 +115,11 @@ def granted_scopes() -> set[str]:
     """
     import json
 
+    if settings.hub_mode:
+        from services import google_user_creds
+
+        return google_user_creds.granted_scopes_for_current_user()
+
     if not TOKEN_FILE.exists():
         return set()
     try:
@@ -115,6 +129,21 @@ def granted_scopes() -> set[str]:
 
 
 def get_status() -> dict:
+    if settings.hub_mode:
+        from services import google_user_creds
+
+        if google_user_creds.credentials_for_current_user():
+            return {
+                "connected": True,
+                "status": "connected",
+                "email": google_user_creds.cached_email(),
+            }
+        return {
+            "connected": False,
+            "status": "disconnected",
+            "configured": google_user_creds.is_configured(),
+        }
+
     creds = get_credentials()
     if creds:
         import json

@@ -2,6 +2,7 @@
 # CRLF in these files breaks execution on macOS/Linux ("bad interpreter: /bin/bash^M").
 *.sh        text eol=lf
 *.command   text eol=lf
+Dockerfile  text eol=lf
 
 # Windows scripts stay CRLF.
 *.bat       text eol=crlf

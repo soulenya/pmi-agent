@@ -87,6 +87,10 @@ backend/migrations/__pycache__/
 backend/google_token.json 
 backend/google_credentials.json
 
+# Desktop OAuth client for the hub, collected from the firm's Drive on first
+# run. A local cache, never a source file.
+backend/hub_client.json
+
 # Google Cloud service-account key for Speech-to-Text — NEVER commit (GitHub
 # secret scanning auto-revokes leaked keys). Bundled into the installer locally.
 backend/google_stt_sa.json
@@ -103,5 +107,13 @@ update_token.txt
 # token installer handed to teammates privately). NEVER commit.
 local/
 MEETING-ASSIST-PLAN.md 
+PROMPT-CACHING-PLAN.md
+Prompt caching.md
+
+# Internal reference docs and generated PDFs — local working copies only
+VACTOR-standards-matrix.md
+company-context.md
+README.pdf
+SECURITY.pdf
 
 

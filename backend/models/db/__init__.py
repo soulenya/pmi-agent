@@ -15,14 +15,16 @@ from models.db.drive_grant import DriveEditGrant
 from models.db.email_draft import EmailDraft
 from models.db.feedback import Feedback
 from models.db.google import GoogleCredential, GoogleSyncState
+from models.db.hub_link import HubLink
 from models.db.meeting import MeetingNote
 from models.db.notification import Notification
 from models.db.odoo import OdooConnection
+from models.db.project_custody import ProjectItemCustody
 from models.db.project_member import ProjectMember
 from models.db.regulatory import CAPA, RegulatoryDocument, RegulatoryNode, RiskItem
 from models.db.research import ResearchReport, ResearchSource
 from models.db.scheduled_task import ScheduledTask
-from models.db.settings import ModelRoutingRule, SystemSetting
+from models.db.settings import ModelRoutingRule, SystemSetting, UserSetting
 from models.db.task import Project, Task, TaskComment
 from models.db.user import User, UserSession
 from models.db.workroom import Workroom, WorkroomItem, WorkroomJournalEntry
@@ -34,6 +36,7 @@ __all__ = [
     "BrowserBookmark",
     "GoogleCredential",
     "GoogleSyncState",
+    "HubLink",
     "DocumentCategory",
     "Document",
     "DocumentChunk",
@@ -43,6 +46,7 @@ __all__ = [
     "ConversationAttachment",
     "ApprovalIntent",
     "Project",
+    "ProjectItemCustody",
     "ProjectMember",
     "Task",
     "TaskComment",
@@ -55,6 +59,7 @@ __all__ = [
     "Notification",
     "Briefing",
     "SystemSetting",
+    "UserSetting",
     "ModelRoutingRule",
     "AuditEvent",
     "MeetingNote",

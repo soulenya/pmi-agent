@@ -32,6 +32,16 @@ export async function googleInitiate(): Promise<{ auth_id: string }> {
   return resp.data;
 }
 
+export async function getAuthMode(): Promise<"iap" | "desktop"> {
+  const resp = await apiClient.get<{ mode: "iap" | "desktop" }>("/auth/mode");
+  return resp.data.mode;
+}
+
+export async function iapLogin(): Promise<LoginResponse> {
+  const resp = await apiClient.post<LoginResponse>("/auth/iap");
+  return resp.data;
+}
+
 export type GooglePollResult =
   | { status: "pending" }
   | { status: "error"; message: string }

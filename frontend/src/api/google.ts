@@ -6,16 +6,32 @@ export interface GoogleStatus {
   connected: boolean;
   status: string;
   email?: string;
+  configured?: boolean;
 }
 
 export async function getGoogleStatus(): Promise<GoogleStatus> {
-  const r = await apiClient.get<{ connected: boolean; status: string; email?: string }>(`${G}/status`);
-  return { connected: r.data.status === "connected", status: r.data.status, email: r.data.email };
+  const r = await apiClient.get<{ connected: boolean; status: string; email?: string; configured?: boolean }>(`${G}/status`);
+  return {
+    connected: r.data.status === "connected",
+    status: r.data.status,
+    email: r.data.email,
+    configured: r.data.configured,
+  };
 }
 
 /** Launch the Google OAuth flow in the system browser. */
 export async function startGoogleAuth(): Promise<void> {
   await apiClient.post(`${G}/auth/start`, {});
+}
+
+/** Hub: send this browser to Google to grant this user's own access. */
+export async function connectGoogleOnHub(): Promise<void> {
+  const r = await apiClient.get<{ authorization_url: string }>("/auth/google/connect");
+  window.location.assign(r.data.authorization_url);
+}
+
+export async function disconnectGoogle(): Promise<void> {
+  await apiClient.post("/auth/google/disconnect");
 }
 
 export interface DriveItem {

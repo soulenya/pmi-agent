@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import services.google_service as gs
+from config import settings
 from models.db.enums import NotificationType
 from models.db.regulatory import RegulatoryNode
 from repositories.conversation_repo import NotificationRepository
@@ -32,7 +33,7 @@ from repositories.conversation_repo import NotificationRepository
 logger = logging.getLogger(__name__)
 
 # File bytes live under the same local store the router uses.
-REG_STORE = Path.home() / ".pmi-agent" / "regulatory"
+REG_STORE = Path(settings.storage_root).expanduser().parent / "regulatory"
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 

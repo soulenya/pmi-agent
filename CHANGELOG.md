@@ -4,6 +4,21 @@
 
 ## Changelog
 
+### v3.3.58 — 2026-09-02
+**The hub: the work the firm shares, seen from your own machine**
+
+- **There is now a hub.** One shared server holds the projects the firm works on together. Your install stays yours — your documents, your mail, your conversations, all still on your own machine — and the hub holds only what is deliberately shared.
+- **Connecting takes one click.** **Settings → The hub → Connect to the hub**, sign in with your work Google account, once per computer. There is nothing to download, paste in or configure: the app collects the sign-in details from the firm's Drive by itself. If the button is greyed out, connect Google first and reopen Settings.
+- **Shared projects appear under your own.** The Projects screen gains a **Shared on the hub** area listing what has been shared with you. Open one and you get the project space you already know — overview, tasks, pinned material — marked **On the hub**. The project's conversation stays on the hub, so this window shows the project without opening its chat.
+- **Nothing is copied down.** Shared work is read from the hub each time it is drawn. There is no local copy to go stale, and **Disconnect** leaves nothing from the hub behind on your computer.
+- **You sign in as yourself.** What you see and what you change is recorded under your name, not the app's. On the hub, each person connects their own Google account rather than everyone sharing one — and the overnight jobs that read your mail run under your grant, not somebody else's. Each user gets their own backup schedule and their own Drive folder.
+- **Work made in a shared project stays there.** Anything created inside a shared or company project is held by that project: only someone with editor rights can change it, and it cannot be moved into another project or pulled out into a personal list. If an edit is refused, Little Gerry says which project is holding the item and that only an owner can release it. Releases are recorded. Private projects hold nothing.
+- **A workroom is judged by the project, not by who opened it.** Access to a shared room now follows your role on its project.
+- **Your tasks and your research reports are yours.** Both were visible to anyone signed in to the same install. They are now scoped to the person who owns them. A knowledge-base document can be renamed or deleted only by whoever uploaded it, or by an admin.
+- **The company profile ceiling is now 16,000 characters**, up from 12,000. The current profile came to just over 12,000 and was being cut off mid-section.
+- **Two Google sign-in faults fixed.** A good sign-in was being rejected when Google returned a scope that hadn't been asked for, and the security code that ties a sign-in to the browser that started it was being lost across the redirect.
+- **Under the hood:** the launcher's automatic update compared against `master` but reset whatever branch was checked out, which could roll a development machine back to the last release. It now leaves anything that isn't `master` alone.
+
 ### v3.3.57 — 2026-08-31
 **Every project has a space, and the app starts faster**
 

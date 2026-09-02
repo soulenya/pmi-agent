@@ -1,0 +1,75 @@
+# Hub deployment on Compute Engine. Local desktop installs use
+# docker-compose.yml (Postgres alone) and run the backend from source.
+#
+# Every value below comes from an .env file the VM writes at boot by reading
+# Secret Manager. Nothing here holds a secret.
+#
+#   docker compose -f docker-compose.hub.yml up -d
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+    container_name: pmi_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pmi
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?required}
+      POSTGRES_DB: pmi_dev
+      PMI_APP_PASSWORD: ${PMI_APP_PASSWORD:?required}
+      PMI_AUDIT_PASSWORD: ${PMI_AUDIT_PASSWORD:?required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./scripts/init_db_hub.sh:/docker-entrypoint-initdb.d/02_passwords.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pmi -d pmi_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No ports section: Postgres is reachable only on the compose network.
+
+  api:
+    image: ${API_IMAGE:-us-central1-docker.pkg.dev/pmi-littlegerry-hub/littlegerry/backend:latest}
+    container_name: pmi_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pmi_app:${PMI_APP_PASSWORD}@postgres:5432/pmi_dev
+      DATABASE_URL_SYNC: postgresql://pmi_app:${PMI_APP_PASSWORD}@postgres:5432/pmi_dev
+      JWT_SECRET: ${JWT_SECRET:?required}
+      FERNET_KEY: ${FERNET_KEY:?required}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?required}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["https://hub.precisianmedical.com"]}
+      HUB_MODE: "true"
+      # /projects/<project-number>/global/backendServices/<backend-service-id>
+      IAP_AUDIENCE: ${IAP_AUDIENCE:?required}
+      # Downloaded "web" OAuth client JSON, for per-user Google connections.
+      GOOGLE_WEB_CLIENT_JSON: ${GOOGLE_WEB_CLIENT_JSON:-}
+      STORAGE_ROOT: /data/documents
+      HOST: 0.0.0.0
+      PORT: "8000"
+    volumes:
+      # Whole tree, not just documents: the regulatory store and conversation
+      # backups are siblings under STORAGE_ROOT's parent.
+      - appdata:/data
+    # Published on the VM only; the load balancer reaches it over the VPC.
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live').read()"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:
+    driver: local
+  appdata:
+    driver: local

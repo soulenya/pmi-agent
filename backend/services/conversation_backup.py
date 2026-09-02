@@ -33,6 +33,7 @@ ENABLED_KEY = "backup.enabled"
 HOUR_KEY = "backup.hour"
 DRIVE_FOLDER_KEY = "backup.drive_folder_id"
 LEDGER_KEY = "backup.ledger"
+LAST_RUN_KEY = "backup.last_run"
 
 DEFAULT_ENABLED = False
 DEFAULT_HOUR = 2
@@ -77,11 +78,25 @@ async def _set(db: AsyncSession, key: str, value, user_id=None) -> None:
     await db.flush()
 
 
-async def get_config(db: AsyncSession) -> dict:
+async def _get_for(db: AsyncSession, owner_id, key: str, default):
+    """This person's answer for *key*, falling back to the install-wide value."""
+    fallback = await _get(db, key, default)
+    if owner_id is None:
+        return fallback
+    from services import user_settings
+
+    return await user_settings.get(db, owner_id, key, fallback)
+
+
+async def get_config(db: AsyncSession, owner_id=None) -> dict:
+    """On the hub each person keeps their own schedule and Drive folder — a
+    backup lands in the Drive of whoever it belongs to."""
     return {
-        "enabled": bool(await _get(db, ENABLED_KEY, DEFAULT_ENABLED)),
-        "hour": int(await _get(db, HOUR_KEY, DEFAULT_HOUR)),
-        "drive_folder_id": str(await _get(db, DRIVE_FOLDER_KEY, DEFAULT_DRIVE_FOLDER) or ""),
+        "enabled": bool(await _get_for(db, owner_id, ENABLED_KEY, DEFAULT_ENABLED)),
+        "hour": int(await _get_for(db, owner_id, HOUR_KEY, DEFAULT_HOUR)),
+        "drive_folder_id": str(
+            await _get_for(db, owner_id, DRIVE_FOLDER_KEY, DEFAULT_DRIVE_FOLDER) or ""
+        ),
     }
 
 
@@ -92,7 +107,23 @@ async def set_config(
     hour: int | None = None,
     drive_folder_id: str | None = None,
     user_id=None,
+    owner_id=None,
 ) -> dict:
+    if owner_id is not None:
+        from services import user_settings
+
+        if enabled is not None:
+            await user_settings.set_value(db, owner_id, ENABLED_KEY, bool(enabled))
+        if hour is not None:
+            await user_settings.set_value(
+                db, owner_id, HOUR_KEY, max(0, min(23, int(hour)))
+            )
+        if drive_folder_id is not None:
+            await user_settings.set_value(
+                db, owner_id, DRIVE_FOLDER_KEY, str(drive_folder_id).strip()
+            )
+        await db.commit()
+        return await get_config(db, owner_id)
     if enabled is not None:
         await _set(db, ENABLED_KEY, bool(enabled), user_id)
     if hour is not None:
@@ -103,14 +134,36 @@ async def set_config(
     return await get_config(db)
 
 
-async def _get_ledger(db: AsyncSession) -> list[dict]:
+async def _get_ledger(db: AsyncSession, owner_id=None) -> list[dict]:
+    """The backup chain. On the hub each person has their own, so one person's
+    backups never appear in another's history."""
+    if owner_id is not None:
+        from services import user_settings
+
+        raw = await user_settings.get(db, owner_id, LEDGER_KEY, "")
+        if not raw:
+            return []
+        try:
+            val = json.loads(raw)
+        except ValueError:
+            return []
+        return val if isinstance(val, list) else []
     val = await _get(db, LEDGER_KEY, [])
     return val if isinstance(val, list) else []
 
 
-async def list_backups(db: AsyncSession) -> list[dict]:
+async def _set_ledger(db: AsyncSession, ledger: list[dict], owner_id=None, user_id=None) -> None:
+    if owner_id is not None:
+        from services import user_settings
+
+        await user_settings.set_value(db, owner_id, LEDGER_KEY, json.dumps(ledger))
+        return
+    await _set(db, LEDGER_KEY, ledger, user_id)
+
+
+async def list_backups(db: AsyncSession, owner_id=None) -> list[dict]:
     """Ledger entries, newest first."""
-    return list(reversed(await _get_ledger(db)))
+    return list(reversed(await _get_ledger(db, owner_id)))
 
 
 # ── Tamper-evidence ───────────────────────────────────────────────────────
@@ -141,10 +194,11 @@ def _s(value) -> str | None:
 
 
 # ── Serialization ─────────────────────────────────────────────────────────
-async def _collect_conversations(db: AsyncSession) -> list[dict]:
-    convs = (
-        await db.execute(select(Conversation).order_by(Conversation.created_at))
-    ).scalars().all()
+async def _collect_conversations(db: AsyncSession, owner_id=None) -> list[dict]:
+    stmt = select(Conversation).order_by(Conversation.created_at)
+    if owner_id is not None:
+        stmt = stmt.where(Conversation.user_id == owner_id)
+    convs = (await db.execute(stmt)).scalars().all()
     out: list[dict] = []
     for c in convs:
         msgs = (
@@ -180,11 +234,19 @@ async def _collect_conversations(db: AsyncSession) -> list[dict]:
 
 
 # ── Run + verify ──────────────────────────────────────────────────────────
-async def run_backup(db: AsyncSession, *, reason: str = "scheduled", user_id=None) -> dict:
+async def run_backup(
+    db: AsyncSession, *, reason: str = "scheduled", user_id=None, owner_id=None
+) -> dict:
     """Produce one signed, chained conversation backup. Returns the ledger
-    entry plus the local path and Drive info."""
-    conversations = await _collect_conversations(db)
-    ledger = await _get_ledger(db)
+    entry plus the local path and Drive info.
+
+    *owner_id* limits the backup to one person's conversations and writes to
+    their own ledger and their own Drive. The hub always passes it — a single
+    file holding everyone's chats, uploaded to one person's Drive, would hand
+    every conversation to whoever owned that folder.
+    """
+    conversations = await _collect_conversations(db, owner_id)
+    ledger = await _get_ledger(db, owner_id)
     sequence = (int(ledger[-1].get("sequence", 0)) + 1) if ledger else 1
     previous_hash = ledger[-1].get("record_hash", _GENESIS_HASH) if ledger else _GENESIS_HASH
     created_at = datetime.now(timezone.utc).isoformat()
@@ -212,13 +274,14 @@ async def run_backup(db: AsyncSession, *, reason: str = "scheduled", user_id=Non
     }
     blob = json.dumps(document, ensure_ascii=False, indent=2).encode("utf-8")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    filename = f"conversations_{stamp}_seq{sequence:04d}.json"
+    owner_tag = f"_{str(owner_id)[:8]}" if owner_id is not None else ""
+    filename = f"conversations_{stamp}{owner_tag}_seq{sequence:04d}.json"
     local_path = backup_dir() / filename
     local_path.write_bytes(blob)
 
     # Best-effort upload to the configured Drive folder.
     drive_info: dict | None = None
-    config = await get_config(db)
+    config = await get_config(db, owner_id)
     folder_id = config["drive_folder_id"] or None
     try:
         from services.google_service import drive_upload_bytes, get_credentials
@@ -245,7 +308,7 @@ async def run_backup(db: AsyncSession, *, reason: str = "scheduled", user_id=Non
         "drive_url": (drive_info or {}).get("url", ""),
     }
     ledger.append(entry)
-    await _set(db, LEDGER_KEY, ledger, user_id)
+    await _set_ledger(db, ledger, owner_id, user_id)
     await db.commit()
     logger.info(
         "Conversation backup #%d written (%d conversations, %d messages, drive=%s)",
@@ -254,10 +317,10 @@ async def run_backup(db: AsyncSession, *, reason: str = "scheduled", user_id=Non
     return {**entry, "local_path": str(local_path), "drive": drive_info}
 
 
-async def verify(db: AsyncSession) -> dict:
+async def verify(db: AsyncSession, owner_id=None) -> dict:
     """Re-walk the backup chain and confirm every link, hash, and signature.
     Returns ``{ok, checked, problems}``."""
-    ledger = await _get_ledger(db)
+    ledger = await _get_ledger(db, owner_id)
     problems: list[str] = []
     prev = _GENESIS_HASH
     for entry in ledger:
