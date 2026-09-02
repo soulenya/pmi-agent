@@ -90,6 +90,14 @@ export interface ProjectSpace {
   };
 }
 
+/** Work the project is holding: made here, and only changeable here until released. */
+export interface HeldItem {
+  item_type: "task";
+  item_id: string;
+  label: string | null;
+  since: string;
+}
+
 export interface Task {
   id: string;
   project_id: string | null;
