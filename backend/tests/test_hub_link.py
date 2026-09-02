@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -94,3 +96,28 @@ async def test_a_request_without_a_link_says_so(db_session: AsyncSession):
     user = await _user(db_session, "hub-none@pmi.local")
     with pytest.raises(hub.HubNotConnected):
         await hub.request(db_session, user.id, "GET", "/projects")
+
+
+def test_the_sign_in_client_is_read_from_the_dropped_in_file(tmp_path, monkeypatch):
+    client_file = tmp_path / "hub_client.json"
+    client_file.write_text(
+        json.dumps({"installed": {"client_id": "cid.apps.googleusercontent.com",
+                                  "client_secret": "csecret"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(hub, "_CLIENT_FILE", client_file)
+    monkeypatch.setattr(hub.settings, "hub_desktop_client_id", "")
+    monkeypatch.setenv("HUB_DESKTOP_CLIENT_SECRET", "")
+
+    assert hub.desktop_client() == ("cid.apps.googleusercontent.com", "csecret")
+    assert hub.configured() is True
+
+
+def test_without_a_client_the_feature_says_it_is_unconfigured(tmp_path, monkeypatch):
+    monkeypatch.setattr(hub, "_CLIENT_FILE", tmp_path / "absent.json")
+    monkeypatch.setattr(hub.settings, "hub_desktop_client_id", "")
+    monkeypatch.setenv("HUB_DESKTOP_CLIENT_SECRET", "")
+
+    with pytest.raises(hub.HubError):
+        hub.desktop_client()
+    assert hub.configured() is False

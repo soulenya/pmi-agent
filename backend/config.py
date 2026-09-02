@@ -73,10 +73,11 @@ class Settings(BaseSettings):
 
     # ── Reaching the hub from a desktop install ──────────────────────────────
     # Where the shared project spaces live. Blank turns the feature off.
-    hub_url: str = ""
+    hub_url: str = "https://hub.precisianmedical.com"
     # A desktop-type OAuth client that the hub's IAP allows through for
     # programmatic access. Not the same client as Google sign-in: IAP only
-    # accepts tokens from clients on its allowlist.
+    # accepts tokens from clients on its allowlist. Normally supplied by
+    # dropping the downloaded client JSON in at backend/hub_client.json.
     hub_desktop_client_id: str = ""
 
     # ── Database ─────────────────────────────────────────────────────────────

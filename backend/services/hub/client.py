@@ -16,10 +16,12 @@ Two credentials are in play on every call, and they are not the same thing:
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
@@ -32,6 +34,10 @@ from models.db.hub_link import HubLink
 logger = logging.getLogger(__name__)
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+# The desktop client as downloaded from Google, placed beside the app after
+# installing — the same arrangement as google_credentials.json.
+_CLIENT_FILE = Path(__file__).parent.parent.parent / "hub_client.json"
 
 # IAP tokens last an hour. Renew a little early so a call that is already in
 # flight when the clock runs out does not fail for the sake of a few seconds.
@@ -76,6 +82,18 @@ def decrypt(raw: str) -> str:
         ) from exc
 
 
+def _client_from_file() -> tuple[str, str] | None:
+    if not _CLIENT_FILE.exists():
+        return None
+    try:
+        data = json.loads(_CLIENT_FILE.read_text(encoding="utf-8")).get("installed", {})
+    except (OSError, ValueError) as exc:
+        raise HubError(f"The hub sign-in client file couldn't be read: {exc}") from exc
+    client_id = (data.get("client_id") or "").strip()
+    client_secret = (data.get("client_secret") or "").strip()
+    return (client_id, client_secret) if client_id and client_secret else None
+
+
 def desktop_client() -> tuple[str, str]:
     """The OAuth client the hub's IAP accepts for programmatic access.
 
@@ -84,12 +102,27 @@ def desktop_client() -> tuple[str, str]:
     """
     client_id = settings.hub_desktop_client_id.strip()
     client_secret = settings.hub_desktop_client_secret.strip()
+    if not (client_id and client_secret):
+        from_file = _client_from_file()
+        if from_file is not None:
+            client_id, client_secret = from_file
     if not client_id or not client_secret:
         raise HubError(
-            "This build has no hub sign-in client configured, so it cannot reach "
-            "the hub. Ask an administrator to set the hub desktop client."
+            "This build has no hub sign-in client, so it cannot reach the hub. "
+            "Ask an administrator for hub_client.json."
         )
     return client_id, client_secret
+
+
+def configured() -> bool:
+    """Whether connecting is possible at all on this install."""
+    if not (settings.hub_url or "").strip():
+        return False
+    try:
+        desktop_client()
+    except HubError:
+        return False
+    return True
 
 
 async def get_link(db: AsyncSession, user_id: uuid.UUID) -> HubLink | None:
