@@ -13,8 +13,20 @@ import type {
 
 // ── Projects ──────────────────────────────────────────────────────────────────
 
-export async function listProjects(includeArchived = false): Promise<Project[]> {
-  const resp = await apiClient.get<Project[]>("/projects", {
+/** Where a project lives. Hub work is never copied down; it is asked for. */
+export type Source = "local" | "hub";
+
+// The desktop reaches the hub through its own backend, so the hub credential
+// never touches the renderer.
+function at(source: Source, path: string): string {
+  return source === "hub" ? `/hub/api${path}` : path;
+}
+
+export async function listProjects(
+  includeArchived = false,
+  source: Source = "local",
+): Promise<Project[]> {
+  const resp = await apiClient.get<Project[]>(at(source, "/projects"), {
     params: { include_archived: includeArchived },
   });
   return resp.data;
@@ -25,15 +37,19 @@ export async function getProject(id: string): Promise<Project> {
   return resp.data;
 }
 
-export async function getProjectSpace(id: string): Promise<ProjectSpace> {
-  const resp = await apiClient.get<ProjectSpace>(`/projects/${id}/space`);
+export async function getProjectSpace(
+  id: string,
+  source: Source = "local",
+): Promise<ProjectSpace> {
+  const resp = await apiClient.get<ProjectSpace>(at(source, `/projects/${id}/space`));
   return resp.data;
 }
 
 export async function ensureProjectWorkroom(
   id: string,
+  source: Source = "local",
 ): Promise<{ id: string; title: string; conversation_id: string | null }> {
-  const resp = await apiClient.post(`/projects/${id}/workroom`);
+  const resp = await apiClient.post(at(source, `/projects/${id}/workroom`));
   return resp.data;
 }
 
@@ -42,13 +58,20 @@ export async function createProject(body: ProjectCreate): Promise<Project> {
   return resp.data;
 }
 
-export async function updateProject(id: string, body: ProjectUpdate): Promise<Project> {
-  const resp = await apiClient.patch<Project>(`/projects/${id}`, body);
+export async function updateProject(
+  id: string,
+  body: ProjectUpdate,
+  source: Source = "local",
+): Promise<Project> {
+  const resp = await apiClient.patch<Project>(at(source, `/projects/${id}`), body);
   return resp.data;
 }
 
-export async function listHeldItems(id: string): Promise<HeldItem[]> {
-  const resp = await apiClient.get<HeldItem[]>(`/projects/${id}/held`);
+export async function listHeldItems(
+  id: string,
+  source: Source = "local",
+): Promise<HeldItem[]> {
+  const resp = await apiClient.get<HeldItem[]>(at(source, `/projects/${id}/held`));
   return resp.data;
 }
 
@@ -57,34 +80,42 @@ export async function releaseHeldItem(
   itemType: string,
   itemId: string,
   note?: string,
+  source: Source = "local",
 ): Promise<void> {
-  await apiClient.post(`/projects/${id}/held/${itemType}/${itemId}/release`, {
+  await apiClient.post(at(source, `/projects/${id}/held/${itemType}/${itemId}/release`), {
     note: note ?? null,
   });
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
-export async function listTasks(params?: {
-  project_id?: string;
-  status?: string;
-}): Promise<Task[]> {
-  const resp = await apiClient.get<Task[]>("/tasks", { params });
+export async function listTasks(
+  params?: {
+    project_id?: string;
+    status?: string;
+  },
+  source: Source = "local",
+): Promise<Task[]> {
+  const resp = await apiClient.get<Task[]>(at(source, "/tasks"), { params });
   return resp.data;
 }
 
-export async function createTask(body: TaskCreate): Promise<Task> {
-  const resp = await apiClient.post<Task>("/tasks", body);
+export async function createTask(body: TaskCreate, source: Source = "local"): Promise<Task> {
+  const resp = await apiClient.post<Task>(at(source, "/tasks"), body);
   return resp.data;
 }
 
-export async function updateTask(id: string, body: TaskUpdate): Promise<Task> {
-  const resp = await apiClient.patch<Task>(`/tasks/${id}`, body);
+export async function updateTask(
+  id: string,
+  body: TaskUpdate,
+  source: Source = "local",
+): Promise<Task> {
+  const resp = await apiClient.patch<Task>(at(source, `/tasks/${id}`), body);
   return resp.data;
 }
 
-export async function deleteTask(id: string): Promise<void> {
-  await apiClient.delete(`/tasks/${id}`);
+export async function deleteTask(id: string, source: Source = "local"): Promise<void> {
+  await apiClient.delete(at(source, `/tasks/${id}`));
 }
 
 export async function listTaskComments(taskId: string): Promise<TaskComment[]> {

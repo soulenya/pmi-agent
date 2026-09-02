@@ -71,6 +71,14 @@ class Settings(BaseSettings):
     google_web_client_json: str = ""
     google_web_client_file: str = ""
 
+    # ── Reaching the hub from a desktop install ──────────────────────────────
+    # Where the shared project spaces live. Blank turns the feature off.
+    hub_url: str = ""
+    # A desktop-type OAuth client that the hub's IAP allows through for
+    # programmatic access. Not the same client as Google sign-in: IAP only
+    # accepts tokens from clients on its allowlist.
+    hub_desktop_client_id: str = ""
+
     # ── Database ─────────────────────────────────────────────────────────────
     database_url: str = Field(
         default="postgresql+asyncpg://pmi_app:pmi_dev_password@localhost:5432/pmi_dev"
@@ -255,6 +263,13 @@ class Settings(BaseSettings):
     def set_api_key(self, provider: str, key: str) -> None:
         """Store a cloud provider API key in the OS keyring."""
         keyring.set_password(_KEYRING_SERVICE, f"{provider}_api_key", key)
+
+    @property
+    def hub_desktop_client_secret(self) -> str:
+        """Secret half of the hub sign-in client. Never leaves this machine."""
+        return os.environ.get("HUB_DESKTOP_CLIENT_SECRET") or _keyring_get(
+            "hub_desktop_client_secret"
+        ) or ""
 
 
 @lru_cache(maxsize=1)
