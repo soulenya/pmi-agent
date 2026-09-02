@@ -87,6 +87,10 @@ backend/migrations/__pycache__/
 backend/google_token.json 
 backend/google_credentials.json
 
+# Desktop OAuth client that the hub's IAP allows through. Dropped in per
+# install, like google_credentials.json.
+backend/hub_client.json
+
 # Google Cloud service-account key for Speech-to-Text — NEVER commit (GitHub
 # secret scanning auto-revokes leaked keys). Bundled into the installer locally.
 backend/google_stt_sa.json

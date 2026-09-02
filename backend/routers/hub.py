@@ -78,7 +78,7 @@ async def hub_status(
     current_user: User = Depends(get_current_user),
 ) -> HubStatus:
     _guard_desktop()
-    configured = bool((settings.hub_url or "").strip() and settings.hub_desktop_client_id)
+    configured = hub.configured()
     link = await hub.get_link(db, current_user.id)
     return HubStatus(
         available=configured,

@@ -146,6 +146,24 @@ launch Little Gerry and click **Sign in with Google**.
 
 ---
 
+## Connecting to the hub (PMI team members)
+
+Little Gerry can show you the project spaces the firm shares on the hub. To
+reach it the app needs a second OAuth client file named **`hub_client.json`**,
+which sits beside `google_credentials.json`:
+
+| Platform | Location |
+|---|---|
+| Windows | `<install folder>\backend\hub_client.json` |
+| macOS | `~/Applications/Little Gerry/backend/hub_client.json` |
+
+Ask your administrator for it — it is the same file for everyone at the firm,
+so there is nothing to create. Copy it in, restart Little Gerry, then go to
+**Settings → Hub → Connect to the hub** and sign in with your work Google
+account. You only do this once per machine.
+
+---
+
 ## Troubleshooting
 
 - **Windows — installer flagged by antivirus:** run `Trust-Little-Gerry.bat`
