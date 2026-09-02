@@ -106,6 +106,9 @@ function ThemedApp() {
             <Route path="projects/:id" element={<Page><ProjectDetailPage /></Page>} />
             <Route path="projects/:id/space" element={<Page><ProjectSpacePage /></Page>} />
             <Route path="projects/:id/space/:tab" element={<Page><ProjectSpacePage /></Page>} />
+            {/* The same space, rendered against the hub's copy rather than this one's. */}
+            <Route path="hub/projects/:id/space" element={<Page><ProjectSpacePage source="hub" /></Page>} />
+            <Route path="hub/projects/:id/space/:tab" element={<Page><ProjectSpacePage source="hub" /></Page>} />
             <Route path="settings" element={<Page><SettingsPage /></Page>} />
             <Route path="meetings" element={<Page><MeetingsPage /></Page>} />
             <Route path="emails" element={<Page><EmailsPage /></Page>} />

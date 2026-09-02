@@ -15,6 +15,7 @@ from models.db.drive_grant import DriveEditGrant
 from models.db.email_draft import EmailDraft
 from models.db.feedback import Feedback
 from models.db.google import GoogleCredential, GoogleSyncState
+from models.db.hub_link import HubLink
 from models.db.meeting import MeetingNote
 from models.db.notification import Notification
 from models.db.odoo import OdooConnection
@@ -35,6 +36,7 @@ __all__ = [
     "BrowserBookmark",
     "GoogleCredential",
     "GoogleSyncState",
+    "HubLink",
     "DocumentCategory",
     "Document",
     "DocumentChunk",

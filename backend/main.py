@@ -46,6 +46,7 @@ from routers.odoo_integration import router as odoo_router
 from routers.files import router as files_router
 from routers.feedback import router as feedback_router
 from routers.workrooms import router as workrooms_router
+from routers.hub import router as hub_router
 from routers.budgets import router as budgets_router
 from routers.assistant import router as assistant_router
 from routers.extractions import router as extractions_router
@@ -718,6 +719,7 @@ def create_app() -> FastAPI:
     app.include_router(files_router)
     app.include_router(feedback_router)
     app.include_router(workrooms_router)
+    app.include_router(hub_router)
     app.include_router(budgets_router)
     app.include_router(assistant_router)
     app.include_router(scheduled_tasks_router)
