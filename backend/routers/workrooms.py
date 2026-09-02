@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user
+from models.db.task import Project
 from models.db.user import User
 from models.db.workroom import (
     WORKROOM_ITEM_KINDS,
@@ -27,6 +28,7 @@ from models.db.workroom import (
     WorkroomJournalEntry,
 )
 from repositories.conversation_repo import ConversationRepository
+from services.projects.access import resolve_role, role_at_least
 
 logger = logging.getLogger(__name__)
 
@@ -97,14 +99,35 @@ class WorkroomDetailOut(WorkroomOut):
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 
-async def _get_owned_room(db: AsyncSession, room_id: uuid.UUID, user_id: uuid.UUID) -> Workroom:
+async def _get_room(
+    db: AsyncSession, room_id: uuid.UUID, user_id: uuid.UUID, minimum: str = "editor"
+) -> Workroom:
+    """A room the user may act on at ``minimum`` authority.
+
+    A room attached to a project belongs to the project, not to whoever happened
+    to open it first, so its members are judged by their project role. A room
+    with no project is personal and stays that way.
+    """
     room = (
-        await db.execute(
-            select(Workroom).where(Workroom.id == room_id, Workroom.user_id == user_id)
-        )
+        await db.execute(select(Workroom).where(Workroom.id == room_id))
     ).scalar_one_or_none()
     if room is None:
         raise HTTPException(404, "Workroom not found")
+
+    if room.project_id is None:
+        if room.user_id != user_id:
+            raise HTTPException(404, "Workroom not found")
+        return room
+
+    project = (
+        await db.execute(select(Project).where(Project.id == room.project_id))
+    ).scalar_one_or_none()
+    role = await resolve_role(db, project, user_id) if project is not None else None
+    # A private project must not confirm it exists, so refuse as 404 not 403.
+    if role is None:
+        raise HTTPException(404, "Workroom not found")
+    if not role_at_least(role, minimum):
+        raise HTTPException(403, f"This needs {minimum} rights on the project.")
     return room
 
 
@@ -165,7 +188,7 @@ async def get_workroom(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> WorkroomDetailOut:
-    room = await _get_owned_room(db, room_id, current_user.id)
+    room = await _get_room(db, room_id, current_user.id, "viewer")
     items = list(
         (
             await db.execute(
@@ -201,7 +224,7 @@ async def update_workroom(
 ) -> WorkroomOut:
     from services.workroom_context import add_journal_entry, record_goal_change
 
-    room = await _get_owned_room(db, room_id, current_user.id)
+    room = await _get_room(db, room_id, current_user.id, "editor")
     # Journal edits made here: Gerry only ever sees the current row, so an
     # unrecorded goal change leaves her insisting the goal never moved.
     actor = f"{current_user.display_name or current_user.email} (edited directly in the app, not through you)"
@@ -227,7 +250,7 @@ async def delete_workroom(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    room = await _get_owned_room(db, room_id, current_user.id)
+    room = await _get_room(db, room_id, current_user.id, "owner")
     await db.delete(room)
     await db.commit()
     return {"deleted": str(room_id)}
@@ -240,7 +263,7 @@ async def add_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ItemOut:
-    room = await _get_owned_room(db, room_id, current_user.id)
+    room = await _get_room(db, room_id, current_user.id, "editor")
     kind = body.kind.strip().lower()
     if kind not in WORKROOM_ITEM_KINDS:
         raise HTTPException(422, f"kind must be one of: {', '.join(WORKROOM_ITEM_KINDS)}")
@@ -264,7 +287,7 @@ async def upload_room_file(
     """Upload a file into the room: stored in generated_files and pinned as an item."""
     from services.file_uploads import MAX_UPLOAD_BYTES, store_upload
 
-    room = await _get_owned_room(db, room_id, current_user.id)
+    room = await _get_room(db, room_id, current_user.id, "editor")
 
     raw = await file.read()
     if not raw:
@@ -291,7 +314,7 @@ async def remove_item(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    room = await _get_owned_room(db, room_id, current_user.id)
+    room = await _get_room(db, room_id, current_user.id, "editor")
     item = (
         await db.execute(
             select(WorkroomItem).where(
@@ -315,7 +338,7 @@ async def add_journal_entry(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JournalOut:
-    room = await _get_owned_room(db, room_id, current_user.id)
+    room = await _get_room(db, room_id, current_user.id, "commenter")
     entry = WorkroomJournalEntry(workroom_id=room.id, entry=body.entry.strip())
     db.add(entry)
     await db.flush()
@@ -364,7 +387,7 @@ async def share_room(
 ) -> dict:
     from services.workroom_share import ShareError, push_room
 
-    room = await _get_owned_room(db, room_id, current_user.id)
+    room = await _get_room(db, room_id, current_user.id, "editor")
     try:
         result = await push_room(db, room)
     except ShareError as exc:
@@ -381,7 +404,7 @@ async def pull_shared_room(
 ) -> dict:
     from services.workroom_share import ShareError, pull_room
 
-    room = await _get_owned_room(db, room_id, current_user.id)
+    room = await _get_room(db, room_id, current_user.id, "editor")
     try:
         result = await pull_room(db, room)
     except ShareError as exc:
