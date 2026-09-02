@@ -25,6 +25,13 @@ import { AskGerryButton } from "@/components/AskGerryButton";
 
 const STATUS_DONE: TaskStatus[] = ["done", "cancelled"];
 
+function errorMessage(err: unknown): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === "string" && detail) return detail;
+  if (err instanceof Error && err.message) return err.message;
+  return "Please try again.";
+}
+
 function taskProgress(tasks: Task[]): { done: number; total: number; pct: number } {
   const total = tasks.length;
   const done = tasks.filter((t) => t.status === "done").length;
@@ -311,6 +318,13 @@ function NewProjectForm({ onClose }: { onClose: () => void }) {
           Cancel
         </button>
       </div>
+
+      {mutation.isError && (
+        // Without this a failed save looks exactly like nothing happening.
+        <p className="text-sm text-destructive">
+          Could not create the project. {errorMessage(mutation.error)}
+        </p>
+      )}
     </form>
   );
 }
