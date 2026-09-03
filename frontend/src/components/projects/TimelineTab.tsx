@@ -17,7 +17,7 @@ import {
   updateTask,
   type Source,
 } from "@/api/tasks";
-import type { ScheduledTask, Task, Timeline } from "@/types/tasks";
+import type { Gate, ScheduledTask, Task, Timeline } from "@/types/tasks";
 
 const ROW_HEIGHT = 36;
 const BAR_HEIGHT = 20;
@@ -263,6 +263,11 @@ export function TimelineTab({
         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
           <span className="h-2 w-4 rounded-sm bg-rose-500" /> critical path
         </span>
+        {model.gates.length > 0 && (
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="h-3 w-0.5 bg-amber-500" /> gate in another project
+          </span>
+        )}
         {linkFrom && (
           <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs">
             <Link2 className="h-3 w-3" />
@@ -330,6 +335,35 @@ export function TimelineTab({
                 style={{ left: todayOffset * pxPerDay, height: rows.length * ROW_HEIGHT }}
               />
             )}
+
+            {/* Gates — a milestone in another project that this one waits on. */}
+            {model.gates.map(gate => (
+              <div
+                key={gate.link_id}
+                className="absolute top-10 z-10 flex"
+                style={{ left: gate.offset * pxPerDay, height: rows.length * ROW_HEIGHT }}
+                title={`${gate.from_project_name}: ${gate.gate_task_title || "gate"}${
+                  gate.note ? `\n${gate.note}` : ""
+                }`}
+              >
+                <div
+                  className={cn(
+                    "w-0.5",
+                    gate.status === "open" ? "bg-amber-500" : "bg-emerald-500/50",
+                  )}
+                />
+                <span
+                  className={cn(
+                    "pointer-events-none ml-1 h-4 self-start whitespace-nowrap rounded-sm px-1 text-[10px] leading-4",
+                    gate.status === "open"
+                      ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                      : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+                  )}
+                >
+                  {gate.gate_task_title || gate.from_project_name}
+                </span>
+              </div>
+            ))}
 
             {/* Dependency arrows */}
             <svg
@@ -406,6 +440,7 @@ export function TimelineTab({
                           ? "bg-rose-500/20 ring-1 ring-rose-500"
                           : "bg-primary/20 ring-1 ring-primary/50",
                         row.sched?.is_late && "ring-2 ring-destructive",
+                        row.gate && "ring-2 ring-amber-500",
                         canEdit && "cursor-grab",
                         linkFrom && linkFrom !== row.task.id && "ring-2 ring-primary",
                       )}
@@ -495,6 +530,7 @@ interface Row {
   depth: number;
   bar: { start: Date; end: Date };
   sched: ScheduledTask | undefined;
+  gate: Gate | undefined;
   tooltip: string;
 }
 
@@ -514,23 +550,34 @@ function buildModel(data: Timeline | undefined, pxPerDay: number) {
     );
     const bar = { start, end: end < start ? start : end };
     const slack = sched ? `${sched.slack_days} days slack` : "";
+    const gate = sched?.blocked_by_gate
+      ? (data.gates ?? []).find(g => g.link_id === sched.blocked_by_gate)
+      : undefined;
     return {
       task,
       depth,
       bar,
       sched,
+      gate,
       tooltip: [
         task.title,
         `${bar.start.toDateString()} → ${bar.end.toDateString()}`,
         sched?.is_critical ? "on the critical path" : slack,
         sched?.is_late ? "finishes after it is due" : "",
+        gate
+          ? `starts before ${gate.from_project_name} clears ${gate.gate_task_title || "its gate"}`
+          : "",
       ]
         .filter(Boolean)
         .join("\n"),
     };
   });
 
-  const allDates = rows.flatMap(r => [r.bar.start, r.bar.end]);
+  const openGates = (data.gates ?? []).filter(g => g.opens_on);
+  const allDates = [
+    ...rows.flatMap(r => [r.bar.start, r.bar.end]),
+    ...openGates.map(g => parseDay(g.opens_on!)),
+  ];
   const today = startOfToday();
   const min = new Date(Math.min(...allDates.map(d => d.getTime()), today.getTime()));
   const max = new Date(Math.max(...allDates.map(d => d.getTime()), today.getTime()));
@@ -578,6 +625,10 @@ function buildModel(data: Timeline | undefined, pxPerDay: number) {
     totalDays,
     months,
     links,
+    gates: openGates.map(g => ({
+      ...g,
+      offset: daysBetween(rangeStart, parseDay(g.opens_on!)),
+    })),
     todayOffset: daysBetween(rangeStart, today),
   };
 }

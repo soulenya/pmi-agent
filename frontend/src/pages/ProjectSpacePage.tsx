@@ -27,6 +27,7 @@ import type { Source } from "@/api/tasks";
 import type { HeldItem, ProjectVisibility } from "@/types/tasks";
 import { TimelineTab } from "@/components/projects/TimelineTab";
 import { CanvasTab } from "@/components/projects/CanvasTab";
+import { ProjectLinksPanel } from "@/components/projects/ProjectLinksPanel";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Layers },
@@ -257,6 +258,8 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
                 ))}
               </ul>
             </div>
+
+            <ProjectLinksPanel projectId={id!} source={source} canEdit={canEdit} />
           </div>
         )}
 

@@ -46,6 +46,19 @@ class DependencyIn:
     lag_days: int = 0
 
 
+@dataclass(frozen=True)
+class GateIn:
+    """A milestone in another project that this project is waiting on.
+
+    ``opens_on`` is when that milestone lands. An undated milestone flags
+    nothing: a gate with no date cannot say which work starts too early.
+    """
+
+    id: uuid.UUID
+    opens_on: date | None
+    is_open: bool = True
+
+
 @dataclass
 class Scheduled:
     id: uuid.UUID
@@ -57,6 +70,8 @@ class Scheduled:
     is_critical: bool
     # True when the computed finish is later than the date the task is due.
     is_late: bool = False
+    # The open gate this task is scheduled to start ahead of, if any.
+    blocked_by_gate: uuid.UUID | None = None
     predecessors: list[uuid.UUID] = field(default_factory=list)
     successors: list[uuid.UUID] = field(default_factory=list)
 
@@ -148,12 +163,20 @@ def _bounds(task: TaskIn, fallback: date) -> tuple[date, date]:
 
 
 def schedule(
-    tasks: list[TaskIn], deps: list[DependencyIn], *, today: date
+    tasks: list[TaskIn],
+    deps: list[DependencyIn],
+    *,
+    today: date,
+    gates: list[GateIn] | None = None,
 ) -> dict[uuid.UUID, Scheduled]:
     """Forward and backward pass over the dependency graph.
 
     Returns one Scheduled per task. Raises CycleError if the graph loops, so
     callers can refuse the write rather than render a chart that cannot exist.
+
+    Gates do not move any dates. A gate belongs to another project and its
+    milestone may slip or be waived, so it flags work that starts too early
+    rather than silently pushing this project's schedule out.
     """
     if not tasks:
         return {}
@@ -216,10 +239,19 @@ def schedule(
         late_finish[tid] = finish
         late_start[tid] = finish - timedelta(days=duration[tid])
 
+    blocking = sorted(
+        (g for g in (gates or []) if g.is_open and g.opens_on is not None),
+        key=lambda g: g.opens_on,  # type: ignore[arg-type,return-value]
+    )
+
     out: dict[uuid.UUID, Scheduled] = {}
     for tid in order:
         slack = (late_finish[tid] - early_finish[tid]).days
         task = by_id[tid]
+        # The last gate this task starts ahead of is the one that binds it.
+        gate = next(
+            (g.id for g in reversed(blocking) if early_start[tid] <= g.opens_on), None
+        )
         out[tid] = Scheduled(
             id=tid,
             early_start=early_start[tid],
@@ -229,6 +261,7 @@ def schedule(
             slack_days=slack,
             is_critical=slack <= 0,
             is_late=bool(task.due_date and early_finish[tid] > task.due_date),
+            blocked_by_gate=gate,
             predecessors=[d.predecessor_id for d in incoming[tid]],
             successors=[d.successor_id for d in outgoing[tid]],
         )

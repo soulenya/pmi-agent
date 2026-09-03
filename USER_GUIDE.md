@@ -505,6 +505,39 @@ Freehand ink is decorative. It is stored and drawn and nothing more — never se
 
 **Gerry can work on both.** Ask her for a project's timeline, to schedule a task, to make one task wait on another, or to put notes on the canvas and link them. Asking her to link two task cards sends her to the dependency tool instead, so the loop check always runs.
 
+#### How a project fits with other work
+
+Projects rarely stand alone. On the **Overview** tab, under *How this fits with other work*, link this project to another. Four relationships are available, and each reads as a sentence:
+
+| Link | Meaning |
+|------|---------|
+| **Depends on** | This project waits for the other one |
+| **Gates** | The other project waits for this one, and specifically for a milestone in it |
+| **Runs alongside** | The two happen at the same time, with no order between them |
+| **Is part of** | This project is contained by the other |
+
+A link shows on both projects, worded from each one's point of view. You need editor rights on the project you are linking from, and access to the project you are linking to.
+
+**Gates.** A gate is the only link that carries a condition. When you create one, pick a milestone in this project; the other project is waiting for it. The gate closes on its own the moment that milestone is marked done, and the owner of the waiting project is notified. Reopen the milestone and the gate reopens. Cancelling the milestone does **not** close the gate — the thing being waited for is never going to happen, so the gate stays open for you to deal with.
+
+If the wait no longer applies, **waive** the gate. A waived gate stops flagging anything and is left alone by the automatic checks until you reinstate it.
+
+**On the timeline,** each gate draws as a vertical line on the day it opens, labelled with the milestone. Any task scheduled to start before it is outlined in amber. Gates never move your dates: the milestone belongs to somebody else's project and may slip or be waived, so the timeline shows you the clash and leaves the decision to you.
+
+**Loops are refused.** If a link would make a project wait, however many steps round, on itself, Little Gerry rejects it and names the projects in the loop.
+
+**A link is not access.** It does widen what Gerry may read: working in this project's conversation, she can see a linked project's goal, its next milestone and whether its gates are clear. She cannot read its tasks, documents or conversations. If you need something from inside a linked project, open that project.
+
+#### The Portfolio
+
+**Projects → Portfolio**, or the Portfolio moon in the Work planet.
+
+Every project you can see, drawn as a card and laid out left to right by what waits on what. Each card carries the project's goal, how much work is open, how much is late, how many gates are still open, and the next milestone with its date. Dependencies and gates are arrows; parallel work is a dashed line; an open gate's arrow moves. Double-click a card to open that project.
+
+A project you cannot see is not on the graph at all. A link running into one is shown without a name, and the header counts them: the kind of relationship is not a secret, but the name of the project on the other end is.
+
+The Portfolio is a view, not an editor. Links are made inside a project, where the person making one has the rights and the context.
+
 #### Who can see a project
 
 Set on the Overview tab. Only the project's owner can change it.

@@ -62,8 +62,13 @@ async def get_workroom_for_conversation(
     ).scalar_one_or_none()
 
 
-async def build_workroom_context(db: AsyncSession, conversation_id) -> str:
-    """WORKROOM CONTEXT block for injection, or "" (never raises)."""
+async def build_workroom_context(db: AsyncSession, conversation_id, user_id=None) -> str:
+    """WORKROOM CONTEXT block for injection, or "" (never raises).
+
+    With a ``user_id``, and when the room's project has links to other
+    projects, a LINKED PROJECTS block is appended. Links are what widen the
+    agent's view across projects; visibility only decides who may open one.
+    """
     try:
         room = await get_workroom_for_conversation(db, conversation_id)
         if room is None:
@@ -139,7 +144,12 @@ async def build_workroom_context(db: AsyncSession, conversation_id) -> str:
             "a GOAL CHANGED line is present, use it to say what actually differs."
         )
         body = "\n".join(lines)[: MAX_WORKROOM_CONTEXT_CHARS - len(closing) - 2]
-        return f"{body}\n{closing}\n"
+        block = f"{body}\n{closing}\n"
+        if user_id is not None and room.project_id is not None:
+            from services.projects.links import build_link_context
+
+            block += await build_link_context(db, room.project_id, user_id)
+        return block
     except Exception:  # noqa: BLE001 — context must never break a turn
         logger.exception("Failed to build workroom context for %s", conversation_id)
         return ""

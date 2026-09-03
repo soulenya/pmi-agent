@@ -5,8 +5,16 @@
 ## Changelog
 
 ### v4.1.0 — 2026-09-03
-**Projects gain a timeline and a whiteboard**
+**Projects gain a timeline, a whiteboard, and links to each other**
 
+- **Projects can now say how they fit together.** On a project's Overview, link it to another: this one *waits for* that one, *gates* it, *runs alongside* it, or *is part of* it. The sentence reads the same from both ends, so the other project shows the link too.
+- **A gate waits on a milestone.** Choose a milestone in the gating project and the gate closes itself the moment that milestone is marked done — and the owner of the waiting project is told. Reopen the milestone and the gate reopens. A cancelled milestone does not satisfy a gate: the thing being waited for is never going to happen.
+- **A gate can be waived.** If the wait no longer applies, waive it and it stops flagging anything. Waived gates are left alone by the automatic checks, and can be reinstated.
+- **Gates show on the timeline** as a marker on the day they open, and any task scheduled to start before one is outlined in amber. Gates do not move your dates: the milestone belongs to another project and may slip or be waived, so the timeline flags the clash rather than silently pushing your work out.
+- **Loops between projects are refused.** A link that would make a project wait, however indirectly, on itself is rejected and the loop is named project by project. Containment is checked separately from precedence, so a subproject can still gate its parent's neighbour.
+- **The new Portfolio view** draws every project you can see as a card, laid out by what waits on what. Each card shows open work, late work, open gates and the next milestone. Dependencies and gates are arrows, parallel work is dashed, and an open gate's arrow moves.
+- **A link is not access.** A project you may not see stays absent from the portfolio, and a link into it is drawn without its name. The kind of relationship is not a secret; the name of the project on the other end is.
+- **Gerry reads across links, narrowly.** In a project's workroom she is now told which projects it is linked to, their goals, their next milestones and whether their gates are clear — and told plainly that she may not read their tasks, documents or conversations.
 - **The Timeline tab.** Every task in a project draws as a bar on a day, week or month scale. Drag a bar to move the work, drag its edge to change how long it takes, drag from one bar's handle to another to say which waits on which. Milestones draw as diamonds and today has its own line.
 - **Tasks now have a start and an end.** Alongside the due date, which keeps its old meaning — the date the work must be done by — a task now carries the dates it is actually worked on, how far along it is, and whether it is a milestone.
 - **The schedule is worked out for you.** Little Gerry runs a forward and backward pass over the dependencies: earliest and latest possible dates, how much slack each task has, and which tasks are on the critical path, where a day's slip costs the project a day. Work that has run past its date turns red.
