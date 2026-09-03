@@ -15,6 +15,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
   Background,
   BackgroundVariant,
@@ -51,14 +52,18 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Source } from "@/api/tasks";
+import { getProjectSpace, listTasks } from "@/api/tasks";
+import { getWorkroom, type WorkroomItemKind } from "@/api/workrooms";
 import {
   createEdge,
   createNode,
   deleteEdge,
   deleteNode,
+  fetchCanvasImage,
   getDefaultCanvas,
   resolveNodes,
   saveNodes,
+  uploadCanvasImage,
 } from "@/api/canvas";
 import type {
   CanvasFull,
@@ -69,6 +74,21 @@ import type {
 } from "@/types/canvas";
 
 const SAVE_DEBOUNCE_MS = 700;
+
+/** What a Material rail entry puts on the drag. */
+const DRAG_MIME = "application/x-littlegerry-item";
+
+// Workroom pins whose kind the canvas can draw as a reference node.
+const RAIL_KINDS: WorkroomItemKind[] = [
+  "kb_doc",
+  "drive_doc",
+  "regulatory_doc",
+  "budget",
+  "website",
+  "generated_file",
+  "email_thread",
+  "task",
+];
 
 const STICKY_COLORS = [
   "#fde68a",
@@ -85,6 +105,7 @@ type NodeData = {
   node: ApiNode;
   resolved?: ResolvedRef;
   canEdit: boolean;
+  ctx: { projectId: string; canvasId: string; source: Source };
 };
 
 // ── Ink ───────────────────────────────────────────────────────────────────────
@@ -216,17 +237,41 @@ function FrameNode({ data, selected }: NodeProps) {
 }
 
 function ImageNode({ data, selected }: NodeProps) {
-  const { node, canEdit } = data as unknown as NodeData;
+  const { node, canEdit, ctx } = data as unknown as NodeData;
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let url: string | null = null;
+    let live = true;
+    fetchCanvasImage(ctx.projectId, ctx.canvasId, node.id, ctx.source)
+      .then((objectUrl) => {
+        url = objectUrl;
+        if (live) setSrc(objectUrl);
+        else URL.revokeObjectURL(objectUrl);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [ctx.projectId, ctx.canvasId, ctx.source, node.id]);
+
   return (
     <>
       <NodeResizer isVisible={Boolean(selected) && canEdit} minWidth={60} minHeight={60} />
       {handles()}
-      <img
-        src={node.content}
-        alt={node.label || "Image"}
-        draggable={false}
-        className="h-full w-full rounded-sm object-contain"
-      />
+      {src ? (
+        <img
+          src={src}
+          alt={node.label || "Image"}
+          draggable={false}
+          className="h-full w-full rounded-sm object-contain"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center rounded-sm border border-dashed text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+        </div>
+      )}
     </>
   );
 }
@@ -315,6 +360,8 @@ interface Props {
 function Board({ projectId, source = "local", canEdit }: Props) {
   const queryClient = useQueryClient();
   const flow = useReactFlow();
+  const navigate = useNavigate();
+  const base = source === "hub" ? `/hub/projects/${projectId}` : `/projects/${projectId}`;
   const wrapper = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<Tool>("select");
   const [color, setColor] = useState(STICKY_COLORS[0]);
@@ -364,7 +411,12 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         draggable: canEdit && n.kind !== "ink",
         selectable: true,
         parentId: n.parent_node_id ?? undefined,
-        data: { node: n, resolved: resolvedByNode.get(n.id), canEdit },
+        data: {
+          node: n,
+          resolved: resolvedByNode.get(n.id),
+          canEdit,
+          ctx: { projectId, canvasId: data.id, source },
+        },
       })),
     );
     setEdges(
@@ -376,7 +428,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         animated: e.kind === "depends_on",
       })),
     );
-  }, [data, resolvedByNode, canEdit, setNodes, setEdges]);
+  }, [data, resolvedByNode, canEdit, setNodes, setEdges, projectId, source]);
 
   // ── Saving ────────────────────────────────────────────────────────────────
   const pending = useRef<Map<string, Record<string, unknown>>>(new Map());
@@ -552,32 +604,158 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   }, [stroke, penColor, addNode]);
 
   // ── Images ────────────────────────────────────────────────────────────────
+  const addImage = useMutation({
+    mutationFn: ({ file, at }: { file: File; at: { x: number; y: number } }) =>
+      uploadCanvasImage(
+        projectId,
+        canvasId,
+        file,
+        { ...at, width: 280, height: 200 },
+        source,
+      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+    onError: (err: unknown) => {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response
+        ?.data?.detail;
+      setError(detail ?? "That image could not be added.");
+    },
+  });
+
   useEffect(() => {
     if (!editable) return;
     const onPaste = (event: ClipboardEvent) => {
+      if (!wrapper.current?.contains(document.activeElement) && document.activeElement !== document.body) {
+        return;
+      }
       const file = Array.from(event.clipboardData?.files ?? [])[0];
       if (!file || !file.type.startsWith("image/")) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const center = flow.screenToFlowPosition({
-          x: window.innerWidth / 2,
-          y: window.innerHeight / 2,
-        });
-        addNode.mutate({
-          kind: "image",
-          x: center.x,
-          y: center.y,
-          width: 280,
-          height: 200,
-          content: String(reader.result),
-          label: file.name,
-        });
-      };
-      reader.readAsDataURL(file);
+      event.preventDefault();
+      const box = wrapper.current?.getBoundingClientRect();
+      const at = flow.screenToFlowPosition({
+        x: (box?.left ?? 0) + (box?.width ?? 0) / 2,
+        y: (box?.top ?? 0) + (box?.height ?? 0) / 2,
+      });
+      addImage.mutate({ file, at });
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [editable, flow, addNode]);
+  }, [editable, flow, addImage]);
+
+  // ── Material rail ─────────────────────────────────────────────────────────
+  const { data: space } = useQuery({
+    queryKey: ["project-space", source, projectId],
+    queryFn: () => getProjectSpace(projectId, source),
+  });
+  const workroomId = space?.workroom?.id ?? null;
+
+  const { data: railTasks } = useQuery({
+    queryKey: ["tasks", { project_id: projectId }, source],
+    queryFn: () => listTasks({ project_id: projectId }, source),
+  });
+  const { data: room } = useQuery({
+    queryKey: ["workroom", workroomId],
+    queryFn: () => getWorkroom(workroomId!),
+    // The workroom behind a hub project lives on the hub, not here.
+    enabled: Boolean(workroomId) && source === "local",
+  });
+
+  const placed = useMemo(
+    () => new Set((data?.nodes ?? []).map((n) => n.ref_id).filter(Boolean) as string[]),
+    [data?.nodes],
+  );
+
+  const rail = useMemo(() => {
+    const items: { kind: NodeKind; refId: string; label: string }[] = [];
+    (railTasks ?? []).forEach((t) =>
+      items.push({ kind: "task", refId: t.id, label: t.title }),
+    );
+    (room?.items ?? [])
+      .filter((i) => RAIL_KINDS.includes(i.kind))
+      .forEach((i) =>
+        items.push({ kind: i.kind as NodeKind, refId: i.ref_id, label: i.label }),
+      );
+    return items.filter((i) => !placed.has(i.refId));
+  }, [railTasks, room?.items, placed]);
+
+  const dropRef = useCallback(
+    (kind: NodeKind, refId: string, label: string, clientX: number, clientY: number) => {
+      const point = flow.screenToFlowPosition({ x: clientX, y: clientY });
+      addNode.mutate({
+        kind,
+        ref_id: refId,
+        label,
+        x: point.x,
+        y: point.y,
+        width: 200,
+        height: 96,
+      });
+    },
+    [flow, addNode],
+  );
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const raw = event.dataTransfer.getData(DRAG_MIME);
+      if (raw) {
+        try {
+          const item = JSON.parse(raw) as { kind: NodeKind; refId: string; label: string };
+          dropRef(item.kind, item.refId, item.label, event.clientX, event.clientY);
+        } catch {
+          setError("That item could not be read.");
+        }
+        return;
+      }
+      const file = Array.from(event.dataTransfer.files ?? [])[0];
+      if (file?.type.startsWith("image/")) {
+        addImage.mutate({
+          file,
+          at: flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }),
+        });
+      }
+    },
+    [editable, dropRef, addImage, flow],
+  );
+
+  /** Double-clicking a reference node opens the real thing it points at. */
+  const openNode = useCallback(
+    (nodeId: string) => {
+      const node = (data?.nodes ?? []).find((n) => n.id === nodeId);
+      if (!node?.ref_id) return;
+      switch (node.kind) {
+        case "website":
+          window.open(node.ref_id, "_blank", "noopener,noreferrer");
+          break;
+        case "task":
+          navigate(`${base}/space/tasks`);
+          break;
+        case "kb_doc":
+          navigate("/documents");
+          break;
+        case "budget":
+          navigate("/budgets");
+          break;
+        case "regulatory_doc":
+          navigate("/regulatory");
+          break;
+        case "generated_file":
+          navigate("/files");
+          break;
+        case "email_thread":
+          navigate("/inbox");
+          break;
+        case "conversation":
+          navigate(`/chat/${node.ref_id}`);
+          break;
+        case "project":
+          navigate(`/projects/${node.ref_id}/space`);
+          break;
+        default:
+          break;
+      }
+    },
+    [data?.nodes, navigate, base],
+  );
 
   if (isLoading) {
     return (
@@ -600,6 +778,10 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   return (
     <div
       ref={wrapper}
+      onDrop={onDrop}
+      onDragOver={(e) => {
+        if (editable) e.preventDefault();
+      }}
       className="relative h-[70vh] w-full overflow-hidden rounded-lg border border-border bg-background"
     >
       <ReactFlow
@@ -627,10 +809,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         onNodeClick={(_, node) => {
           if (tool === "eraser" && editable) removeNode.mutate(node.id);
         }}
-        onNodeDoubleClick={(_, node) => {
-          const ref = resolvedByNode.get(node.id);
-          if (ref?.kind === "website" && ref.ref_id) window.open(ref.ref_id, "_blank");
-        }}
+        onNodeDoubleClick={(_, node) => openNode(node.id)}
         nodesDraggable={editable && tool === "select"}
         nodesConnectable={editable}
         elementsSelectable
@@ -701,6 +880,48 @@ function Board({ projectId, source = "local", canEdit }: Props) {
               <path d={strokePath(stroke, 6)} fill={penColor} />
             </g>
           </svg>
+        ) : null}
+
+        {editable && rail.length > 0 ? (
+          <Panel
+            position="top-right"
+            className="max-h-[60%] w-56 overflow-y-auto rounded-md border border-border bg-card/95 p-2 shadow-sm"
+          >
+            <p className="mb-1.5 text-xs font-medium text-foreground">Material</p>
+            <p className="mb-2 text-[11px] leading-snug text-muted-foreground">
+              Drag onto the board, or click to drop it in the middle.
+            </p>
+            <ul className="space-y-1">
+              {rail.map((item) => (
+                <li key={`${item.kind}-${item.refId}`}>
+                  <button
+                    type="button"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(DRAG_MIME, JSON.stringify(item));
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    onClick={() => {
+                      const box = wrapper.current?.getBoundingClientRect();
+                      dropRef(
+                        item.kind,
+                        item.refId,
+                        item.label,
+                        (box?.left ?? 0) + (box?.width ?? 0) / 2,
+                        (box?.top ?? 0) + (box?.height ?? 0) / 2,
+                      );
+                    }}
+                    className="w-full cursor-grab rounded border border-border bg-background px-2 py-1 text-left text-xs hover:bg-muted active:cursor-grabbing"
+                  >
+                    <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {item.kind.replace("_", " ")}
+                    </span>
+                    <span className="line-clamp-2 text-foreground">{item.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Panel>
         ) : null}
       </ReactFlow>
 

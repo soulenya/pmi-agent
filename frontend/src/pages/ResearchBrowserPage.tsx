@@ -15,6 +15,7 @@ import {
   Pin,
   Plus,
   RotateCw,
+  Shapes,
   Star,
   Trash2,
   X,
@@ -45,6 +46,8 @@ import {
   toUrl,
 } from "@/api/browser";
 import { addWorkroomItem, listWorkrooms } from "@/api/workrooms";
+import { listProjects } from "@/api/tasks";
+import { createNode, getDefaultCanvas } from "@/api/canvas";
 import { useAskGerry } from "@/hooks/useAskGerry";
 import { useBrowserSessionStore } from "@/stores/browserSessionStore";
 import { cn } from "@/lib/utils";
@@ -71,6 +74,7 @@ export function ResearchBrowserPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pinOpen, setPinOpen] = useState(false);
+  const [canvasOpen, setCanvasOpen] = useState(false);
   const addressFocused = useRef(false);
   const slotRef = useRef<HTMLDivElement>(null);
   const setSession = useBrowserSessionStore((s) => s.setSession);
@@ -89,6 +93,11 @@ export function ResearchBrowserPage() {
     queryKey: ["workrooms"],
     queryFn: () => listWorkrooms(),
     enabled: pinOpen,
+  });
+  const { data: canvasProjects = [] } = useQuery({
+    queryKey: ["projects", false, "local"],
+    queryFn: () => listProjects(),
+    enabled: canvasOpen,
   });
   const following = state?.following ?? false;
 
@@ -282,6 +291,25 @@ export function ResearchBrowserPage() {
       void showBrowser();
     });
 
+  const handleSendToCanvas = (projectId: string, projectName: string) =>
+    withBusy("canvas", async () => {
+      setCanvasOpen(false);
+      const canvas = await getDefaultCanvas(projectId);
+      // Lay new arrivals out in a grid rather than stacking them on the origin.
+      const n = canvas.nodes.length;
+      await createNode(projectId, canvas.id, {
+        kind: "website",
+        ref_id: active.url,
+        label: active.title || hostOf(active.url),
+        x: 40 + (n % 5) * 220,
+        y: 40 + Math.floor(n / 5) * 130,
+        width: 200,
+        height: 96,
+      });
+      setMessage(`Sent to the ${projectName} canvas.`);
+      void showBrowser();
+    });
+
   // The bar floating over the browsed page can only queue a request; the work
   // happens here, on the side that holds the login token.
   const runAction = useRef<(action: string) => void>(() => {});
@@ -293,6 +321,9 @@ export function ResearchBrowserPage() {
       // The picker lives in the main window, which is behind the browser.
       void hideBrowser();
       setPinOpen(true);
+    } else if (action === "canvas") {
+      void hideBrowser();
+      setCanvasOpen(true);
     }
   };
 
@@ -393,6 +424,38 @@ export function ResearchBrowserPage() {
                       className="block w-full truncate rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
                     >
                       {room.title}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setCanvasOpen((v) => !v)}
+              disabled={!opened || busy !== null}
+              className={actionClass}
+            >
+              {busy === "canvas" ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <Shapes className="h-4 w-4 shrink-0" />
+              )}
+              Send to canvas
+            </button>
+            {canvasOpen && (
+              <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-lg">
+                {canvasProjects.length === 0 ? (
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground">No projects yet.</p>
+                ) : (
+                  canvasProjects.map((project) => (
+                    <button
+                      key={project.id}
+                      onClick={() => handleSendToCanvas(project.id, project.name)}
+                      className="block w-full truncate rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
+                    >
+                      {project.name}
                     </button>
                   ))
                 )}

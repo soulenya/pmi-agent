@@ -210,6 +210,10 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "upload_to_drive": "Uploading to Google Drive…",
 }
 
+from services.agent.project_tools import RUNNING_LABELS as _PROJECT_LABELS  # noqa: E402
+
+_TOOL_RUNNING_LABELS.update(_PROJECT_LABELS)
+
 
 def _tool_running_label(tool_name: str, args: dict) -> str:
     label = _TOOL_RUNNING_LABELS.get(tool_name, f"Running {tool_name}...")

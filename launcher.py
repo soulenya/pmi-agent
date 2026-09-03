@@ -836,6 +836,7 @@ _TOOLBAR_JS = r"""
   wrap.appendChild(button('Ask Gerry', 'ask', false));
   wrap.appendChild(button('Save to KB', 'kb', false));
   wrap.appendChild(button('Pin', 'pin', false));
+  wrap.appendChild(button('Canvas', 'canvas', false));
   (document.body || document.documentElement).appendChild(wrap);
   window.__lgBar = wrap;
   return true;
@@ -909,7 +910,7 @@ class _JsApi:
 
     def browser_action(self, action: str) -> bool:
         """Queue a button press from the in-page bar for the React app to run."""
-        if action in ("ask", "kb", "pin", "follow"):
+        if action in ("ask", "kb", "pin", "canvas", "follow"):
             _browser_actions.append(action)
         return True
 
