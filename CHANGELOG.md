@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v4.5.2 — 2026-09-03
+**The dependency check is now quick, and tells you what it is doing**
+
+- **It no longer asks the internet what it already knows.** The check was making four kinds of network request it did not need — a security audit, a funding lookup, and re-resolving two lock files that shipped with the app. On this connection that was the difference between **not finishing at all** and **finishing in under a second**.
+- **The start-up screen counts the time.** If the check does have work to do, the splash now shows how long it has been going and says it is only needed after an update, instead of sitting on one line looking frozen.
+- **A failed check no longer repeats on every launch.** If a bad connection defeats it, the app waits a day before trying again rather than spending several minutes on it every single time you start.
+
 ### v4.5.1 — 2026-09-03
 **The start-up screen can no longer hang on "Checking dependencies"**
 
