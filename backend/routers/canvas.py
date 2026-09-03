@@ -629,10 +629,8 @@ async def resolve_nodes(
                     ResolvedRef(
                         node_id=node.id, kind="budget", ref_id=str(ref),
                         title=budget.title,
-                        subtitle=(
-                            f"allotment {budget.allotment:,.0f}"
-                            if budget.allotment is not None else ""
-                        ),
+                        subtitle=_budget_line(budget),
+                        state=_budget_state(budget),
                     )
                 )
 
@@ -758,3 +756,31 @@ def _task_state(task: Task) -> str:
     if task.due_date and task.due_date < datetime.now(timezone.utc):
         return "late"
     return "ok"
+
+
+def _budget_line(budget: Budget) -> str:
+    """Spend against allotment, from the cached mirror — never a sheet call."""
+    summary = budget.cached_summary or {}
+    spent = summary.get("total_spent")
+    allotment = summary.get("allotment", budget.allotment)
+    if spent is None and allotment is None:
+        return ""
+    currency = budget.currency or ""
+    if allotment is None:
+        return f"{currency} {float(spent or 0):,.0f} spent".strip()
+    pct = (float(spent or 0) / float(allotment) * 100) if float(allotment) else 0
+    return (
+        f"{currency} {float(spent or 0):,.0f} of {float(allotment):,.0f} "
+        f"({pct:.0f}%)"
+    ).strip()
+
+
+def _budget_state(budget: Budget) -> str:
+    summary = budget.cached_summary or {}
+    allotment = summary.get("allotment", budget.allotment)
+    if allotment is None or not float(allotment):
+        return "ok"
+    share = float(summary.get("total_spent") or 0) / float(allotment)
+    if share > 1:
+        return "late"
+    return "warn" if share >= 0.9 else "ok"
