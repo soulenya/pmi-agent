@@ -25,6 +25,7 @@ const NotificationsPage = lazy(() => import("@/pages/NotificationsPage").then(m 
 const ResearchPage = lazy(() => import("@/pages/ResearchPage").then(m => ({ default: m.ResearchPage })));
 const ResearchBrowserPage = lazy(() => import("@/pages/ResearchBrowserPage").then(m => ({ default: m.ResearchBrowserPage })));
 const ProjectsPage = lazy(() => import("@/pages/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
+const PortfolioPage = lazy(() => import("@/pages/PortfolioPage").then(m => ({ default: m.PortfolioPage })));
 const ProjectSpacePage = lazy(() => import("@/pages/ProjectSpacePage").then(m => ({ default: m.ProjectSpacePage })));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const MeetingsPage = lazy(() => import("@/pages/MeetingsPage").then(m => ({ default: m.MeetingsPage })));
@@ -103,6 +104,7 @@ function ThemedApp() {
             <Route path="research" element={<Page><ResearchPage /></Page>} />
             <Route path="browser" element={<Page><ResearchBrowserPage /></Page>} />
             <Route path="projects" element={<Page><ProjectsPage /></Page>} />
+            <Route path="projects/portfolio" element={<Page><PortfolioPage /></Page>} />
             <Route path="projects/:id" element={<Page><ProjectDetailPage /></Page>} />
             <Route path="projects/:id/space" element={<Page><ProjectSpacePage /></Page>} />
             <Route path="projects/:id/space/:tab" element={<Page><ProjectSpacePage /></Page>} />

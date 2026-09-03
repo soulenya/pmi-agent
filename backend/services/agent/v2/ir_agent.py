@@ -72,6 +72,7 @@ _TOOLS = [
     "search_drive_content",
     "generate_file",
     "create_task",
+    "get_project_timeline",
     "request_approval",
 ]
 

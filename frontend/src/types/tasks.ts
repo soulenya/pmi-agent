@@ -108,6 +108,11 @@ export interface Task {
   priority: TaskPriority;
   assignee_id: string | null;
   due_date: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  progress_pct: number;
+  is_milestone: boolean;
+  sort_order: number;
   completed_at: string | null;
   tags: string[];
   attachments: TaskAttachment[];
@@ -125,6 +130,9 @@ export interface TaskCreate {
   parent_task_id?: string;
   priority?: TaskPriority;
   due_date?: string;
+  start_date?: string;
+  end_date?: string;
+  is_milestone?: boolean;
   tags?: string[];
   source_ref?: TaskSourceRef;
 }
@@ -135,8 +143,128 @@ export interface TaskUpdate {
   status?: TaskStatus;
   priority?: TaskPriority;
   due_date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  progress_pct?: number;
+  is_milestone?: boolean;
+  sort_order?: number;
   tags?: string[];
   project_id?: string | null;
+}
+
+// ── Timeline ────────────────────────────────────────────────────────────
+
+/** Finish-to-start, start-to-start, finish-to-finish, start-to-finish. */
+export type DependencyKind = "FS" | "SS" | "FF" | "SF";
+
+export interface Dependency {
+  id: string;
+  predecessor_id: string;
+  successor_id: string;
+  kind: DependencyKind;
+  lag_days: number;
+}
+
+export interface ScheduledTask {
+  task_id: string;
+  early_start: string;
+  early_finish: string;
+  late_start: string;
+  late_finish: string;
+  slack_days: number;
+  is_critical: boolean;
+  is_late: boolean;
+  /** The open gate this task is scheduled to start ahead of. */
+  blocked_by_gate: string | null;
+}
+
+/** A milestone in another project that this one is waiting on. */
+export interface Gate {
+  link_id: string;
+  from_project_id: string;
+  from_project_name: string;
+  gate_task_id: string | null;
+  gate_task_title: string;
+  opens_on: string | null;
+  status: ProjectLinkStatus;
+  note: string;
+}
+
+export interface Timeline {
+  project_id: string;
+  tasks: Task[];
+  dependencies: Dependency[];
+  schedule: ScheduledTask[];
+  gates: Gate[];
+  my_role: string;
+}
+
+// ── Project links ─────────────────────────────────────────────────────────────
+
+export type ProjectLinkKind = "depends_on" | "gates" | "parallel" | "subproject_of";
+export type ProjectLinkStatus = "open" | "satisfied" | "waived";
+
+export interface ProjectLink {
+  id: string;
+  from_project_id: string;
+  to_project_id: string;
+  kind: ProjectLinkKind;
+  gate_task_id: string | null;
+  gate_task_title: string;
+  note: string;
+  status: ProjectLinkStatus;
+  satisfied_at: string | null;
+  /** Empty when the viewer cannot see the project on the other end. */
+  other_project_id: string | null;
+  other_project_name: string;
+  other_project_status: string;
+  other_visible: boolean;
+  /** "out" when this project is the `from` end of the sentence. */
+  direction: "out" | "in";
+  created_at: string;
+}
+
+export interface ProjectLinkCreate {
+  to_project_id: string;
+  kind: ProjectLinkKind;
+  gate_task_id?: string | null;
+  note?: string;
+}
+
+export interface ProjectLinkUpdate {
+  kind?: ProjectLinkKind;
+  gate_task_id?: string | null;
+  note?: string;
+  status?: ProjectLinkStatus;
+}
+
+export interface PortfolioNode {
+  id: string;
+  name: string;
+  status: string;
+  color: string | null;
+  goal: string;
+  open_tasks: number;
+  late_tasks: number;
+  open_gates: number;
+  next_milestone: string;
+  next_milestone_date: string | null;
+}
+
+export interface PortfolioEdge {
+  id: string;
+  from_project_id: string;
+  to_project_id: string;
+  kind: ProjectLinkKind;
+  status: ProjectLinkStatus;
+  note: string;
+  /** One end is a project this viewer cannot see. */
+  dangling: boolean;
+}
+
+export interface Portfolio {
+  projects: PortfolioNode[];
+  links: PortfolioEdge[];
 }
 
 export interface TaskComment {

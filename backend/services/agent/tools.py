@@ -2326,6 +2326,12 @@ TOOL_DEFINITIONS: list[dict] = [
     },
 ]
 
+# Project timeline and canvas tools live in their own module because they need
+# the project access rules; their schemas belong in the same list as the rest.
+from services.agent import project_tools as _project_tools  # noqa: E402
+
+TOOL_DEFINITIONS.extend(_project_tools.TOOL_DEFINITIONS)
+
 
 # ── Tool implementations ───────────────────────────────────────────────────────
 
@@ -5939,6 +5945,7 @@ TOOL_EXECUTORS = {
 from services.agent.custodian_tools import CUSTODIAN_EXECUTORS  # noqa: E402
 
 TOOL_EXECUTORS.update(CUSTODIAN_EXECUTORS)
+TOOL_EXECUTORS.update(_project_tools.TOOL_EXECUTORS)
 
 
 # When a model passes its single string argument as plain text instead of a
@@ -5995,6 +6002,8 @@ _PRIMARY_ARG = {
     "update_task": "task_id",
     "manage_scheduled_task": "action",
 }
+
+_PRIMARY_ARG.update(_project_tools.PRIMARY_ARGS)
 
 
 def _db_error_hint(exc: BaseException) -> str:
