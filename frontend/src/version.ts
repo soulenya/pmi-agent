@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 220;
-export const BUILD_DATE = "2026-09-02";
+export const BUILD_NUMBER = 221;
+export const BUILD_DATE = "2026-09-03";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 221,
+    date: "2026-09-03",
+    title: "Projects can be created again, and the hub connects",
+    changes: [
+      "Creating a project has failed since v3.3.57 — the project and its owner record were written in the wrong order, so the database rejected every new project",
+      "The New Project form threw the error away and sat there, which is why the fault went unreported for two releases; it now says what went wrong",
+      "Connecting to the hub failed because Google returns a slightly different name for the sign-in permission than the one asked for, and the connection was refused over the difference",
+    ],
+  },
   {
     build: 220,
     date: "2026-09-02",
