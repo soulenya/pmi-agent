@@ -8,6 +8,7 @@ says. The desktop is a window onto it, not a second master.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import uuid as _uuid
 
@@ -94,6 +95,10 @@ def _run_connect_flow(auth_id: str, hub_url: str) -> None:
     """Sign in to Google in a browser and keep the refresh token."""
     try:
         from google_auth_oauthlib.flow import InstalledAppFlow
+
+        # Asking for `email` gets userinfo.email back, so the granted set never
+        # equals the requested set and oauthlib would call that an error.
+        os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
         client_id, client_secret = hub.desktop_client()
         flow = InstalledAppFlow.from_client_config(

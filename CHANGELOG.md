@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v4.0.0 — 2026-09-03
+**Projects can be created again, and the hub connects**
+
+- **Creating a project failed, silently.** Since v3.3.57 every new project was rejected by the database the moment it was saved: the project and its owner record were written in the wrong order, so the owner record pointed at a project that did not exist yet. Fixed.
+- **A failed save no longer looks like nothing happening.** The New Project form discarded the error and simply sat there, which is why the fault above went unreported for two releases. It now says what went wrong.
+- **Connecting to the hub failed.** Google returns a slightly different name for the sign-in permission than the one asked for, and the connection was being refused over the difference. The same fault was fixed for signing in to the hub itself last release; the desktop's own connection has its own sign-in and was missed. Fixed.
+
 ### v3.3.58 — 2026-09-02
 **The hub: the work the firm shares, seen from your own machine**
 
