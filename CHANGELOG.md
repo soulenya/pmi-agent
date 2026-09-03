@@ -4,6 +4,22 @@
 
 ## Changelog
 
+### v4.1.0 — 2026-09-03
+**Projects gain a timeline and a whiteboard**
+
+- **The Timeline tab.** Every task in a project draws as a bar on a day, week or month scale. Drag a bar to move the work, drag its edge to change how long it takes, drag from one bar's handle to another to say which waits on which. Milestones draw as diamonds and today has its own line.
+- **Tasks now have a start and an end.** Alongside the due date, which keeps its old meaning — the date the work must be done by — a task now carries the dates it is actually worked on, how far along it is, and whether it is a milestone.
+- **The schedule is worked out for you.** Little Gerry runs a forward and backward pass over the dependencies: earliest and latest possible dates, how much slack each task has, and which tasks are on the critical path, where a day's slip costs the project a day. Work that has run past its date turns red.
+- **Loops are refused.** A dependency that would make two tasks wait on each other is rejected and named, rather than being saved and hanging the chart.
+- **The Canvas tab.** An endless whiteboard: sticky notes, text, shapes, frames, a pressure-sensitive freehand pen, and images pasted or dropped straight in. Pan, zoom, a minimap and fit-to-view.
+- **Real work goes on the board.** Drag knowledge-base documents, Drive files, budgets, bookmarks, generated files, email threads and tasks from the Material list onto the canvas. Each card shows live state — a task card turns red when it is overdue, a budget card shows what has been spent against its allotment and turns amber near the limit — and double-clicking a card opens the real thing behind it.
+- **The canvas and the timeline are one plan, not two.** Draw a line between two task cards and it becomes a real dependency; the timeline reschedules and the critical path moves. Delete the line and the dependency goes with it.
+- **Send a page to a canvas.** The Research Browser's in-page bar gains a **Canvas** button beside **Pin**, so a page you are reading can be dropped onto a project's board without leaving it.
+- **Proper editing tools.** Undo and redo, align six ways, even out the spacing, snap to nearby items or to an 8-pixel grid with guide lines while you drag, bring to front, send to back, duplicate, copy and paste, and single-key shortcuts for each tool.
+- **Canvas images are encrypted at rest** in the same store as your documents, under the same key, rather than being carried inside the board itself. Deleting a picture deletes its file.
+- **Gerry can plan too.** She can read a project's timeline, set a task's dates and progress, make one task wait on another, add notes to the canvas and link them. Asking her to link two task cards sends her to the dependency tool instead, so the loop check always runs.
+- **Ink stays decorative.** Freehand strokes are stored and drawn and nothing else: never indexed, never read back to Gerry. A drawing is for the people in the room.
+
 ### v4.0.0 — 2026-09-03
 **Projects can be created again, and the hub connects**
 

@@ -195,7 +195,7 @@ Your profile is **yours alone**. It is stored against your account, never shared
 | **Search** | Natural language search across all uploaded documents |
 | **Research** | AI-powered web research with cited reports |
 | **Tasks** | Kanban board for action tracking |
-| **Projects** | Group tasks by project with milestone tracking |
+| **Projects** | Group tasks by project, with a Gantt timeline, an infinite canvas and milestone tracking |
 | **The hub** | Connect once and see the projects the firm shares, live from the shared server — nothing is copied onto your computer |
 | **Calendar** | Local events + Google Calendar side by side |
 | **Gmail** | Full inbox — browse standard folders (Inbox, Sent, Drafts, Starred, etc.), sort your mail, read, search, filter by tag, reply/reply-all/forward, mark read or unread, move to Trash, collapse read parts of a thread behind a Gerry summary, open attachments or add them to the Knowledge Base, and compose & send your own emails |
@@ -411,6 +411,7 @@ Things you can do with the page you're on:
 | **Browse with Gerry** | A toggle. While it's on, whatever page you're on goes along with every message you send, and updates as you move around. Ask "what do you make of this?" without capturing anything. Turn it off when you're done. |
 | **Save to Knowledge Base** | Files the page away permanently under *Web Research*, with a link back to where it came from. It turns up in search and Gerry can cite it, even if the site later changes or disappears. |
 | **Pin to workroom** | Adds the page to a workroom's pinned items, so it's part of that room's context from then on. |
+| **Send to canvas** | Drops the page onto a project's canvas as a card. Pick the project and the card lands on the board with the page's title, ready to be moved and linked. |
 | **Fit to window** | Sizes the browser to the page area, clear of the left rail and the chat panel. |
 
 **The buttons follow you onto the page.** As well as the rail beside the tabs, a faded dark bar sits in the bottom-left corner of every page you browse. Hover it and it comes up solid. Use it and you don't have to click back to the Little Gerry window at all. It hands the request over to Little Gerry to carry out, so give it a second.
@@ -454,10 +455,55 @@ Navigate to **Projects** to group related tasks, track milestones, and monitor o
 Every project card has a **layers** button that opens the project's own space. Tabs across the top:
 
 - **Overview** — open and total tasks, pinned material, journal entries, the people on the project, and the visibility control.
-- **Canvas** and **Timeline** — reserved. These arrive in a later release.
+- **Canvas** — an endless whiteboard for the project.
+- **Timeline** — the project's schedule as a Gantt chart.
 - **Tasks** — a count and a link through to the project's task board.
 - **Material** — the project's pinned documents, files, emails and links, kept in its workroom.
 - **Chat** — the project's conversation with Gerry. If it doesn't have one yet, **Start one** creates it.
+
+#### The Timeline
+
+Every task in the project draws as a bar on a time scale. Switch between **month**, **week** and **day** with the zoom buttons.
+
+- **Move work** — drag a bar sideways.
+- **Change how long something takes** — drag either end of a bar.
+- **Say what waits on what** — drag from the handle on the right of one bar onto another bar. The second task now waits for the first, and the chart reschedules.
+- **Mark a milestone** — a milestone has no length and draws as a diamond.
+
+A task now has a **start** and an **end** as well as a **due date**. The due date keeps its old meaning: the date the work must be done by. The start and end are when it is actually worked on.
+
+From those dates and links Little Gerry works out the schedule: the earliest and latest each task could run, how much **slack** it has, and which tasks are on the **critical path** — the chain where a day lost is a day lost to the whole project. Critical tasks are highlighted; anything that has run past its date turns red.
+
+A link that would make two tasks wait on each other is refused rather than saved, with a message saying so. Viewers see the chart but cannot change it.
+
+#### The Canvas
+
+An endless whiteboard for thinking a project through. Pick a tool from the bar in the top-left, then click the board to place something.
+
+- **Sticky note**, **Text**, **Shape** and **Frame** for your own material. Pick a colour from the same bar.
+- **Draw** for freehand pen, pressure-sensitive if your device reports it. **Erase** removes whatever you click.
+- **Images** — paste one with Ctrl+V or drop the file onto the board. Pictures are encrypted on your machine like every other document.
+
+**Real work goes on the board too.** The **Material** panel on the right lists the project's tasks, documents, budgets, bookmarks, files and email threads. Drag one onto the canvas, or click it to drop it in the middle. Those cards are live: a task card turns red when it is overdue, a budget card shows what has been spent against its allotment and turns amber as it nears the limit, and a card whose item has been deleted says so. **Double-click a card** to open the real thing behind it.
+
+**The canvas and the timeline are one plan.** Drag a line between two task cards and it becomes a real dependency — the timeline reschedules and the critical path moves. Delete the line and the dependency goes with it.
+
+Editing:
+
+| Action | How |
+| --- | --- |
+| Undo / redo | Ctrl+Z / Ctrl+Shift+Z, or the arrows in the toolbar |
+| Duplicate | Ctrl+D |
+| Copy / paste | Ctrl+C / Ctrl+V |
+| Delete | Delete or Backspace |
+| Fit everything on screen | Ctrl+0 |
+| Pick a tool | V select, S sticky, T text, R shape, F frame, P pen, E erase |
+| Align, even out spacing, bring to front, send to back | Select two or more items; a bar appears at the bottom |
+| Snap | On by default: a dragged item lines up with its neighbours and a pink guide shows where. The grid button switches to an 8-pixel grid instead |
+
+Freehand ink is decorative. It is stored and drawn and nothing more — never searched, and never read back to Gerry. A drawing is for the people in the room.
+
+**Gerry can work on both.** Ask her for a project's timeline, to schedule a task, to make one task wait on another, or to put notes on the canvas and link them. Asking her to link two task cards sends her to the dependency tool instead, so the loop check always runs.
 
 #### Who can see a project
 

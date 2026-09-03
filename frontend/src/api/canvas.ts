@@ -50,6 +50,8 @@ export async function createNode(
     y: number;
     width?: number;
     height?: number;
+    z?: number;
+    parent_node_id?: string | null;
     style?: Record<string, unknown>;
   },
   source: Source = "local",

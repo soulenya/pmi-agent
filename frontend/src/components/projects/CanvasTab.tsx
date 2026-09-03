@@ -40,15 +40,29 @@ import {
 import "@xyflow/react/dist/style.css";
 import getStroke from "perfect-freehand";
 import {
+  AlignCenterHorizontal,
+  AlignCenterVertical,
+  AlignEndHorizontal,
+  AlignEndVertical,
+  AlignHorizontalDistributeCenter,
+  AlignStartHorizontal,
+  AlignStartVertical,
+  AlignVerticalDistributeCenter,
+  BringToFront,
+  Copy,
   Eraser,
   Frame,
+  Grid3x3,
   Image as ImageIcon,
   Loader2,
   MousePointer2,
   PenLine,
+  Redo2,
+  SendToBack,
   Square,
   StickyNote,
   Type,
+  Undo2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Source } from "@/api/tasks";
@@ -66,14 +80,31 @@ import {
   uploadCanvasImage,
 } from "@/api/canvas";
 import type {
+  CanvasEdge as ApiEdge,
   CanvasFull,
   CanvasNode as ApiNode,
   InkStroke,
   NodeKind,
   ResolvedRef,
 } from "@/types/canvas";
+import {
+  alignBoxes,
+  diffSnapshots,
+  distributeBoxes,
+  remapSnapshot,
+  snapToObjects,
+  type AlignMode,
+  type Axis,
+  type Box,
+  type Snapshot,
+} from "./canvasOps";
 
 const SAVE_DEBOUNCE_MS = 700;
+
+/** How close a dragged node has to come before it snaps to a neighbour. */
+const SNAP_PX = 6;
+const GRID = 8;
+const UNDO_DEPTH = 40;
 
 /** What a Material rail entry puts on the drag. */
 const DRAG_MIME = "application/x-littlegerry-item";
@@ -408,6 +439,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         position: { x: n.x, y: n.y },
         width: n.width,
         height: n.height,
+        zIndex: n.z,
         draggable: canEdit && n.kind !== "ink",
         selectable: true,
         parentId: n.parent_node_id ?? undefined,
@@ -518,13 +550,245 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     },
   });
 
+  // ── Undo and redo ─────────────────────────────────────────────────────────
+  // The board is the server's, so undo replays the difference between the
+  // saved state and the snapshot rather than keeping a local shadow copy.
+  const past = useRef<Snapshot[]>([]);
+  const future = useRef<Snapshot[]>([]);
+  const [depths, setDepths] = useState({ past: 0, future: 0 });
+  const [busy, setBusy] = useState(false);
+
+  const currentSnapshot = useCallback((): Snapshot => {
+    const live = new Map(nodes.map((n) => [n.id, n]));
+    return {
+      nodes: (data?.nodes ?? []).map((n) => {
+        const l = live.get(n.id);
+        if (!l) return n;
+        return {
+          ...n,
+          x: l.position.x,
+          y: l.position.y,
+          width: l.width ?? n.width,
+          height: l.height ?? n.height,
+        };
+      }),
+      edges: (data?.edges ?? []) as ApiEdge[],
+    };
+  }, [nodes, data]);
+
+  const remember = useCallback(() => {
+    past.current = [...past.current, currentSnapshot()].slice(-UNDO_DEPTH);
+    future.current = [];
+    setDepths({ past: past.current.length, future: 0 });
+  }, [currentSnapshot]);
+
+  const restore = useCallback(
+    async (target: Snapshot) => {
+      if (!canvasId) return;
+      setBusy(true);
+      try {
+        await flushSave();
+        const diff = diffSnapshots(currentSnapshot(), target);
+        const remap = new Map<string, string>();
+        let lostImage = false;
+
+        // Parents before children, so a frame exists before what sits in it.
+        const toCreate = [...diff.createNodes].sort(
+          (a, b) => Number(Boolean(a.parent_node_id)) - Number(Boolean(b.parent_node_id)),
+        );
+        for (const n of toCreate) {
+          if (n.kind === "image") {
+            // The picture's bytes went with the node; there is nothing to put back.
+            lostImage = true;
+            continue;
+          }
+          const made = await createNode(
+            projectId,
+            canvasId,
+            {
+              kind: n.kind,
+              ref_id: n.ref_id,
+              label: n.label,
+              content: n.content,
+              x: n.x,
+              y: n.y,
+              width: n.width,
+              height: n.height,
+              z: n.z,
+              style: n.style,
+              parent_node_id: n.parent_node_id
+                ? remap.get(n.parent_node_id) ?? n.parent_node_id
+                : null,
+            },
+            source,
+          );
+          remap.set(n.id, made.id);
+        }
+
+        if (diff.patchNodes.length) {
+          await saveNodes(projectId, canvasId, diff.patchNodes as never, source);
+        }
+        for (const e of diff.createEdges) {
+          await createEdge(
+            projectId,
+            canvasId,
+            {
+              source_node_id: remap.get(e.source_node_id) ?? e.source_node_id,
+              target_node_id: remap.get(e.target_node_id) ?? e.target_node_id,
+              kind: e.kind,
+              label: e.label,
+            },
+            source,
+          );
+        }
+        for (const id of diff.removeEdgeIds) {
+          await deleteEdge(projectId, canvasId, id, source);
+        }
+        for (const id of diff.removeNodeIds) {
+          await deleteNode(projectId, canvasId, id, source);
+        }
+
+        if (remap.size) {
+          past.current = past.current.map((s) => remapSnapshot(s, remap));
+          future.current = future.current.map((s) => remapSnapshot(s, remap));
+        }
+        if (lostImage) {
+          setError("Everything came back except the image — its file was deleted.");
+        }
+        await queryClient.invalidateQueries({ queryKey: key });
+        await queryClient.invalidateQueries({
+          queryKey: ["project-timeline", source, projectId],
+        });
+      } catch {
+        setError("That could not be undone. The board has been reloaded.");
+        await queryClient.invalidateQueries({ queryKey: key });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [canvasId, projectId, source, flushSave, currentSnapshot, queryClient, key],
+  );
+
+  const undo = useCallback(async () => {
+    const target = past.current.pop();
+    if (!target) return;
+    future.current = [...future.current, currentSnapshot()].slice(-UNDO_DEPTH);
+    setDepths({ past: past.current.length, future: future.current.length });
+    await restore(target);
+  }, [currentSnapshot, restore]);
+
+  const redo = useCallback(async () => {
+    const target = future.current.pop();
+    if (!target) return;
+    past.current = [...past.current, currentSnapshot()].slice(-UNDO_DEPTH);
+    setDepths({ past: past.current.length, future: future.current.length });
+    await restore(target);
+  }, [currentSnapshot, restore]);
+
+  // ── Arranging a selection ─────────────────────────────────────────────────
+  const selection = useMemo(() => nodes.filter((n) => n.selected), [nodes]);
+
+  const boxes = useMemo<Box[]>(
+    () =>
+      selection.map((n) => ({
+        id: n.id,
+        x: n.position.x,
+        y: n.position.y,
+        width: n.width ?? (n.data as unknown as NodeData).node.width,
+        height: n.height ?? (n.data as unknown as NodeData).node.height,
+      })),
+    [selection],
+  );
+
+  const applyMoves = useCallback(
+    (moves: Map<string, { x?: number; y?: number }>) => {
+      if (!editable || moves.size === 0) return;
+      remember();
+      setNodes((ns) =>
+        ns.map((n) => {
+          const move = moves.get(n.id);
+          if (!move) return n;
+          return {
+            ...n,
+            position: { x: move.x ?? n.position.x, y: move.y ?? n.position.y },
+          };
+        }),
+      );
+      moves.forEach((move, id) => queueSave(id, { ...move }));
+    },
+    [editable, remember, setNodes, queueSave],
+  );
+
+  const align = useCallback(
+    (mode: AlignMode) => applyMoves(alignBoxes(boxes, mode)),
+    [boxes, applyMoves],
+  );
+
+  const distribute = useCallback(
+    (axis: Axis) => applyMoves(distributeBoxes(boxes, axis)),
+    [boxes, applyMoves],
+  );
+
+  const restack = useCallback(
+    (direction: "front" | "back") => {
+      if (!editable || selection.length === 0) return;
+      remember();
+      const all = data?.nodes ?? [];
+      const top = Math.max(0, ...all.map((n) => n.z));
+      const bottom = Math.min(0, ...all.map((n) => n.z));
+      selection.forEach((n, i) => {
+        const z = direction === "front" ? top + 1 + i : bottom - 1 - i;
+        queueSave(n.id, { z });
+      });
+    },
+    [editable, selection, remember, data?.nodes, queueSave],
+  );
+
+  /** Copy the picked nodes to a private clipboard; the OS one holds text. */
+  const clipboard = useRef<ApiNode[]>([]);
+
+  const copySelection = useCallback(() => {
+    const picked = (data?.nodes ?? []).filter((n) =>
+      selection.some((s) => s.id === n.id),
+    );
+    if (picked.length) clipboard.current = picked;
+  }, [data?.nodes, selection]);
+
+  const duplicateNodes = useCallback(
+    (originals: ApiNode[], offset = 24) => {
+      if (!editable || originals.length === 0) return;
+      remember();
+      originals.forEach((n) => {
+        if (n.kind === "image") return; // the bytes belong to one node id
+        addNode.mutate({
+          kind: n.kind,
+          ref_id: n.ref_id,
+          label: n.label,
+          content: n.content,
+          x: n.x + offset,
+          y: n.y + offset,
+          width: n.width,
+          height: n.height,
+          z: n.z,
+          style: n.style,
+        });
+      });
+    },
+    [editable, remember, addNode],
+  );
+
+  // ── Snapping ──────────────────────────────────────────────────────────────
+  const [snapGrid, setSnapGrid] = useState(false);
+  const [guides, setGuides] = useState<{ axis: Axis; at: number }[]>([]);
+
   const onConnect: OnConnect = useCallback(
     (connection) => {
       if (!editable || !connection.source || !connection.target) return;
+      remember();
       setEdges((eds) => addEdge(connection, eds));
       addEdgeMutation.mutate(connection);
     },
-    [editable, setEdges, addEdgeMutation],
+    [editable, setEdges, addEdgeMutation, remember],
   );
 
   // ── Placing new things ────────────────────────────────────────────────────
@@ -538,6 +802,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         frame: { w: 320, h: 240 },
       };
       const size = defaults[tool] ?? { w: 180, h: 120 };
+      remember();
       addNode.mutate({
         kind: tool as NodeKind,
         x: point.x,
@@ -549,7 +814,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       });
       setTool("select");
     },
-    [flow, tool, color, addNode],
+    [flow, tool, color, addNode, remember],
   );
 
   const onPaneClick = useCallback(
@@ -593,6 +858,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       ([x, y, p]) => [x - b.minX, y - b.minY, p] as [number, number, number],
     );
     // Ink commits on pen-up, never per sample.
+    remember();
     addNode.mutate({
       kind: "ink",
       x: b.minX,
@@ -601,7 +867,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       height: Math.max(b.maxY - b.minY, 1),
       style: { points: local, color: penColor, size: 6 },
     });
-  }, [stroke, penColor, addNode]);
+  }, [stroke, penColor, addNode, remember]);
 
   // ── Images ────────────────────────────────────────────────────────────────
   const addImage = useMutation({
@@ -680,6 +946,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   const dropRef = useCallback(
     (kind: NodeKind, refId: string, label: string, clientX: number, clientY: number) => {
       const point = flow.screenToFlowPosition({ x: clientX, y: clientY });
+      remember();
       addNode.mutate({
         kind,
         ref_id: refId,
@@ -690,7 +957,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         height: 96,
       });
     },
-    [flow, addNode],
+    [flow, addNode, remember],
   );
 
   const onDrop = useCallback(
@@ -757,6 +1024,120 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     [data?.nodes, navigate, base],
   );
 
+  // ── Dragging with snap ────────────────────────────────────────────────────
+  const boxFor = useCallback(
+    (n: Node): Box => ({
+      id: n.id,
+      x: n.position.x,
+      y: n.position.y,
+      width: n.width ?? (n.data as unknown as NodeData).node.width,
+      height: n.height ?? (n.data as unknown as NodeData).node.height,
+    }),
+    [],
+  );
+
+  const onNodeDrag = useCallback(
+    (_: unknown, node: Node) => {
+      if (snapGrid) return; // the grid is doing the work
+      const others = nodes.filter((n) => n.id !== node.id).map(boxFor);
+      const snapped = snapToObjects(boxFor(node), others, SNAP_PX);
+      setGuides(snapped.guides);
+    },
+    [snapGrid, nodes, boxFor],
+  );
+
+  const onNodeDragStart = useCallback(() => remember(), [remember]);
+
+  const onNodeDragStop = useCallback(
+    (_: unknown, node: Node) => {
+      setGuides([]);
+      let { x, y } = node.position;
+      if (!snapGrid) {
+        const others = nodes.filter((n) => n.id !== node.id).map(boxFor);
+        const snapped = snapToObjects(boxFor(node), others, SNAP_PX);
+        x = snapped.x;
+        y = snapped.y;
+        if (x !== node.position.x || y !== node.position.y) {
+          setNodes((ns) =>
+            ns.map((n) => (n.id === node.id ? { ...n, position: { x, y } } : n)),
+          );
+        }
+      }
+      queueSave(node.id, { x, y });
+    },
+    [snapGrid, nodes, boxFor, setNodes, queueSave],
+  );
+
+  // ── Keyboard ──────────────────────────────────────────────────────────────
+  const SHORTCUT_TOOLS: Record<string, Tool> = useMemo(
+    () => ({ v: "select", s: "sticky", t: "text", r: "shape", f: "frame", p: "pen", e: "eraser" }),
+    [],
+  );
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (!wrapper.current?.contains(target) && target !== document.body) return;
+
+      const meta = event.ctrlKey || event.metaKey;
+      if (meta && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        void (event.shiftKey ? redo() : undo());
+        return;
+      }
+      if (meta && event.key.toLowerCase() === "y") {
+        event.preventDefault();
+        void redo();
+        return;
+      }
+      if (!editable) return;
+      if (meta && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        duplicateNodes(
+          (data?.nodes ?? []).filter((n) => selection.some((s) => s.id === n.id)),
+        );
+        return;
+      }
+      if (meta && event.key.toLowerCase() === "c") {
+        copySelection();
+        return;
+      }
+      if (meta && event.key.toLowerCase() === "v") {
+        // An image on the clipboard is handled by the paste listener instead.
+        if (clipboard.current.length) duplicateNodes(clipboard.current);
+        return;
+      }
+      if (meta && event.key === "0") {
+        event.preventDefault();
+        flow.fitView({ padding: 0.2 });
+        return;
+      }
+      if (!meta && SHORTCUT_TOOLS[event.key.toLowerCase()]) {
+        setTool(SHORTCUT_TOOLS[event.key.toLowerCase()]);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [
+    editable,
+    undo,
+    redo,
+    duplicateNodes,
+    copySelection,
+    selection,
+    data?.nodes,
+    flow,
+    SHORTCUT_TOOLS,
+  ]);
+
   if (isLoading) {
     return (
       <div className="flex h-96 items-center justify-center text-muted-foreground">
@@ -795,24 +1176,31 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onNodeDragStop={(_, node) =>
-          queueSave(node.id, { x: node.position.x, y: node.position.y })
-        }
+        onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         onNodesDelete={(deleted) => {
           if (!editable) return;
+          remember();
           deleted.forEach((n) => removeNode.mutate(n.id));
         }}
         onEdgesDelete={(deleted) => {
           if (!editable) return;
+          remember();
           deleted.forEach((e) => removeEdgeMutation.mutate(e.id));
         }}
         onNodeClick={(_, node) => {
-          if (tool === "eraser" && editable) removeNode.mutate(node.id);
+          if (tool === "eraser" && editable) {
+            remember();
+            removeNode.mutate(node.id);
+          }
         }}
         onNodeDoubleClick={(_, node) => openNode(node.id)}
         nodesDraggable={editable && tool === "select"}
         nodesConnectable={editable}
         elementsSelectable
+        snapToGrid={snapGrid}
+        snapGrid={[GRID, GRID]}
         panOnDrag={tool === "select"}
         selectionOnDrag={false}
         fitView
@@ -865,6 +1253,36 @@ function Board({ projectId, source = "local", canEdit }: Props) {
             >
               <ImageIcon className="h-4 w-4" />
             </button>
+            <div className="mx-1 h-5 w-px bg-border" />
+            <button
+              type="button"
+              title="Undo (Ctrl+Z)"
+              disabled={depths.past === 0 || busy}
+              onClick={() => void undo()}
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              title="Redo (Ctrl+Shift+Z)"
+              disabled={depths.future === 0 || busy}
+              onClick={() => void redo()}
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              title={snapGrid ? "Snapping to the grid" : "Snapping to nearby items"}
+              onClick={() => setSnapGrid((s) => !s)}
+              className={cn(
+                "rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground",
+                snapGrid && "bg-primary/10 text-primary",
+              )}
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </button>
           </Panel>
         ) : (
           <Panel position="top-left" className="rounded-md border border-border bg-card/95 px-2 py-1 text-xs text-muted-foreground">
@@ -880,6 +1298,119 @@ function Board({ projectId, source = "local", canEdit }: Props) {
               <path d={strokePath(stroke, 6)} fill={penColor} />
             </g>
           </svg>
+        ) : null}
+
+        {guides.length > 0 ? (
+          <svg className="pointer-events-none absolute inset-0 h-full w-full">
+            <g
+              transform={`translate(${flow.getViewport().x} ${flow.getViewport().y}) scale(${flow.getViewport().zoom})`}
+            >
+              {guides.map((g) =>
+                g.axis === "x" ? (
+                  <line
+                    key={`x-${g.at}`}
+                    x1={g.at}
+                    x2={g.at}
+                    y1={-10000}
+                    y2={10000}
+                    stroke="#ec4899"
+                    strokeWidth={1 / flow.getViewport().zoom}
+                  />
+                ) : (
+                  <line
+                    key={`y-${g.at}`}
+                    x1={-10000}
+                    x2={10000}
+                    y1={g.at}
+                    y2={g.at}
+                    stroke="#ec4899"
+                    strokeWidth={1 / flow.getViewport().zoom}
+                  />
+                ),
+              )}
+            </g>
+          </svg>
+        ) : null}
+
+        {editable && selection.length > 1 ? (
+          <Panel
+            position="bottom-center"
+            className="mb-2 flex items-center gap-1 rounded-md border border-border bg-card/95 p-1 shadow-sm"
+          >
+            <span className="px-1 text-xs text-muted-foreground">
+              {selection.length} picked
+            </span>
+            {(
+              [
+                ["left", AlignStartVertical, "Align left"],
+                ["center", AlignCenterVertical, "Align centres"],
+                ["right", AlignEndVertical, "Align right"],
+                ["top", AlignStartHorizontal, "Align top"],
+                ["middle", AlignCenterHorizontal, "Align middles"],
+                ["bottom", AlignEndHorizontal, "Align bottom"],
+              ] as [AlignMode, typeof AlignStartVertical, string][]
+            ).map(([mode, Icon, label]) => (
+              <button
+                key={mode}
+                type="button"
+                title={label}
+                onClick={() => align(mode)}
+                className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Icon className="h-4 w-4" />
+              </button>
+            ))}
+            <div className="mx-1 h-5 w-px bg-border" />
+            <button
+              type="button"
+              title="Even out the horizontal gaps"
+              disabled={selection.length < 3}
+              onClick={() => distribute("x")}
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+            >
+              <AlignHorizontalDistributeCenter className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              title="Even out the vertical gaps"
+              disabled={selection.length < 3}
+              onClick={() => distribute("y")}
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+            >
+              <AlignVerticalDistributeCenter className="h-4 w-4" />
+            </button>
+            <div className="mx-1 h-5 w-px bg-border" />
+            <button
+              type="button"
+              title="Bring to front"
+              onClick={() => restack("front")}
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <BringToFront className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              title="Send to back"
+              onClick={() => restack("back")}
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <SendToBack className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              title="Duplicate (Ctrl+D)"
+              onClick={() =>
+                duplicateNodes(
+                  (data?.nodes ?? []).filter((n) =>
+                    selection.some((s) => s.id === n.id),
+                  ),
+                )
+              }
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          </Panel>
         ) : null}
 
         {editable && rail.length > 0 ? (
