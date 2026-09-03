@@ -100,6 +100,7 @@ def _no_window_kwargs() -> dict:
 GITHUB_RELEASES_API = "https://api.github.com/repos/soulenya/pmi-agent/releases/latest"
 VERSION_FILE        = ROOT / "VERSION"
 UPDATE_TOKEN_FILE   = ROOT / "update_token.txt"
+_DEPS_TIMEOUT       = 300    # seconds, per dependency command
 
 _procs: list[subprocess.Popen] = []
 _status_text = "Initializing..."
@@ -469,27 +470,60 @@ def _sync_dependencies() -> None:
     stale dependencies cost a feature, a hung launcher costs the whole app.
     """
     manifests = [BACKEND_DIR / "pyproject.toml", FRONTEND_DIR / "package.json"]
+    stamp_path = BACKEND_DIR / "logs" / "deps.stamp"
+    stamp = None
     try:
         digest = hashlib.sha256()
         for path in manifests:
             digest.update(path.read_bytes())
-        stamp_path = BACKEND_DIR / "logs" / "deps.stamp"
         stamp = digest.hexdigest()
-        if stamp_path.exists() and stamp_path.read_text(encoding="utf-8").strip() == stamp:
-            return
+        previous = stamp_path.read_text(encoding="utf-8").strip()
+        try:
+            record = json.loads(previous)
+        except ValueError:
+            record = {"hash": previous, "ok": True}  # the original bare-hash stamp
+        if record.get("hash") == stamp:
+            # A failed attempt is worth retrying, but not on every single launch:
+            # on a bad line it costs minutes each time and never gets further.
+            if record.get("ok") or time.time() - record.get("at", 0) < 86400:
+                return
     except Exception:
-        _log_error()
-        stamp_path, stamp = None, None
+        pass
 
+    _set_status("Checking dependencies — this can take a few minutes after an update...", 0)
+    finished = threading.Event()
+
+    def _tick() -> None:
+        started = time.time()
+        while not finished.wait(5):
+            elapsed = int(time.time() - started)
+            _set_status(
+                f"Checking dependencies — {elapsed // 60}m {elapsed % 60:02d}s "
+                "(only needed after an update)", 0
+            )
+
+    threading.Thread(target=_tick, daemon=True).start()
     ok = True
-    for cmd, cwd in (("uv sync", BACKEND_DIR), ("npm install --silent", FRONTEND_DIR)):
-        if _run(cmd, cwd=str(cwd), timeout=300).returncode != 0:
-            ok = False
+    try:
+        # --frozen skips re-resolving a lock file that shipped with the code, and
+        # the npm flags drop the audit and funding round-trips and answer from the
+        # local cache first. All four are network requests we already know the
+        # answer to.
+        for cmd, cwd in (
+            ("uv sync --frozen", BACKEND_DIR),
+            ("npm install --silent --prefer-offline --no-audit --no-fund", FRONTEND_DIR),
+        ):
+            if _run(cmd, cwd=str(cwd), timeout=_DEPS_TIMEOUT).returncode != 0:
+                ok = False
+    finally:
+        finished.set()
 
-    if ok and stamp_path is not None:
+    if stamp is not None:
         try:
             stamp_path.parent.mkdir(exist_ok=True)
-            stamp_path.write_text(stamp, encoding="utf-8")
+            stamp_path.write_text(
+                json.dumps({"hash": stamp, "ok": ok, "at": time.time()}), encoding="utf-8"
+            )
         except Exception:
             _log_error()
 
@@ -507,7 +541,6 @@ def _start_services() -> None:
         # updates replace the code but never touched the Python venv or node_modules,
         # so a release that adds a dependency would silently break (e.g. the ddgs
         # search package). Both commands are fast no-ops when already in sync.
-        _set_status("Checking dependencies...", 0)
         _sync_dependencies()
 
         # 1. Docker
