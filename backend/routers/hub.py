@@ -7,16 +7,13 @@ says. The desktop is a window onto it, not a second master.
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import json
 import logging
 import os
 import threading
 import uuid as _uuid
 
-import websockets
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -280,81 +277,26 @@ async def hub_proxy(
     )
 
 
-@router.websocket("/ws/chat/{conversation_id}")
-async def hub_chat_relay(websocket: WebSocket, conversation_id: str) -> None:
-    """Carry the chat socket through to the hub, so hub projects chat in place.
+@router.post("/conversations/{conversation_id}/sync")
+async def sync_conversation(
+    conversation_id: _uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Make a local copy of a shared project's chat, and bring it up to date.
 
-    The renderer cannot talk to the hub itself: IAP wants a header no browser
-    will send on an upgrade, and the hub session token is minted here. So this
-    authenticates the local user exactly as the local chat socket does, opens
-    the matching socket on the hub, and pumps frames both ways untouched.
+    This replaces relaying the chat socket to the hub. Running the turn there
+    put Gerry in the one place with no knowledge base, no Drive token and no
+    Gmail; she works here instead, on this copy, and the hub is reconciled
+    around each turn. Call it before opening the conversation.
     """
-    from services.auth.service import AuthService
+    _guard_desktop()
+    from services.hub import conv_sync
 
-    if settings.hub_mode:
-        await websocket.close(code=4404, reason="This is the hub.")
-        return
-
-    token = websocket.query_params.get("token", "")
-    if not token:
-        await websocket.close(code=4401, reason="Missing token")
-        return
-
-    try:
-        _uuid.UUID(conversation_id)
-    except ValueError:
-        await websocket.close(code=4400, reason="Invalid conversation id")
-        return
-
-    async for db in get_db():
-        user = await AuthService(db).get_user_from_access_token(token)
-        if user is None:
-            await websocket.close(code=4401, reason="Invalid token")
-            return
-        try:
-            url, headers = await hub.ws_target(
-                db, user.id, f"/ws/chat/{conversation_id}"
-            )
-        except hub.HubError as exc:
-            await websocket.close(code=4402, reason=str(exc)[:120])
-            return
-        break
-
-    await websocket.accept()
-    try:
-        async with websockets.connect(
-            url, additional_headers=headers, max_size=None
-        ) as upstream:
-            await _pump(websocket, upstream)
-    except Exception as exc:  # noqa: BLE001 — any failure ends as a closed socket
-        logger.warning("Hub chat relay failed: %s", exc)
-        with contextlib.suppress(Exception):
-            await websocket.send_text(
-                json.dumps({"type": "error", "detail": "The hub connection dropped."})
-            )
-    with contextlib.suppress(Exception):
-        await websocket.close()
-
-
-async def _pump(browser: WebSocket, upstream) -> None:
-    """Shuttle text frames until either side stops."""
-
-    async def to_hub() -> None:
-        while True:
-            await upstream.send(await browser.receive_text())
-
-    async def to_browser() -> None:
-        async for frame in upstream:
-            await browser.send_text(
-                frame if isinstance(frame, str) else frame.decode("utf-8")
-            )
-
-    first, pending = await asyncio.wait(
-        {asyncio.create_task(to_hub()), asyncio.create_task(to_browser())},
-        return_when=asyncio.FIRST_COMPLETED,
-    )
-    for task in pending:
-        task.cancel()
-    for task in first:
-        with contextlib.suppress(Exception):
-            task.result()
+    conv = await conv_sync.sync(db, current_user.id, conversation_id)
+    if conv is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="That conversation is not on the hub, or is not yours to read.",
+        )
+    return {"id": str(conv.id), "title": conv.title}

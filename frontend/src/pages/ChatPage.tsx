@@ -24,6 +24,7 @@ import {
   updateConversation,
   type MessagePage,
 } from "@/api/chat";
+import { syncHubConversation } from "@/api/hub";
 import { listWorkrooms } from "@/api/workrooms";
 import type { Source } from "@/api/tasks";
 import { getSettings } from "@/api/settings";
@@ -164,6 +165,10 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [wsRetry, setWsRetry] = useState(0);
+  // A shared project's chat is kept on the hub but answered here, so a local
+  // copy has to be in place before anything is read or sent.
+  const [synced, setSynced] = useState(!onHub);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const [turnArtifacts, setTurnArtifacts] = useState<ArtifactLink[]>([]);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -344,8 +349,8 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
   // â”€â”€ Messages for active conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: messagePage, isLoading: messagesLoading } = useQuery({
     queryKey: ["messages", source, conversationId],
-    queryFn: () => listMessagePage(conversationId!, { source }),
-    enabled: !!conversationId,
+    queryFn: () => listMessagePage(conversationId!),
+    enabled: !!conversationId && synced,
     // While a turn is running with a dead socket, the answer still completes in
     // the background — poll so it appears without a manual refresh.
     refetchInterval: busySince && !wsConnected ? 5_000 : false,
@@ -371,7 +376,6 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
     try {
       const older = await listMessagePage(conversationId, {
         beforeId: messages[0].id,
-        source,
       });
       if (older.messages.length === 0) return;
       const el = scrollRef.current;
@@ -461,18 +465,19 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
     },
   });
 
-  // â”€â”€ WebSocket connection for this conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── WebSocket connection for this conversation ──────────────────────────────
   useEffect(() => {
     if (!conversationId) return;
+    if (!synced) return;
 
     let disposed = false;
     const token = useAuthStore.getState().accessToken;
-    // A hub conversation is relayed by the local backend, which alone can hold
-    // the IAP credential the hub's door wants.
-    const path = onHub ? "/hub/ws/chat" : "/ws/chat";
+    // Always the local socket, hub project or not: Gerry answers from this
+    // machine, which is the only one holding the knowledge base and the Google
+    // account. The hub keeps the record, and is reconciled around each turn.
     const wsUrl = token
-      ? `${WS_BASE}${path}/${conversationId}?token=${encodeURIComponent(token)}`
-      : `${WS_BASE}${path}/${conversationId}`;
+      ? `${WS_BASE}/ws/chat/${conversationId}?token=${encodeURIComponent(token)}`
+      : `${WS_BASE}/ws/chat/${conversationId}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -564,6 +569,17 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
         } else if (msg.type === "done") {
           // Flush streamed message into real message list
           queryClient.invalidateQueries({ queryKey: ["messages", source, conversationId] });
+          // The answer has to reach the hub before the rest of the project can
+          // read it, and this is where anything they wrote meanwhile arrives.
+          if (onHub && conversationId) {
+            void syncHubConversation(conversationId)
+              .then(() =>
+                queryClient.invalidateQueries({
+                  queryKey: ["messages", source, conversationId],
+                }),
+              )
+              .catch(() => undefined);
+          }
           // Refresh conversations to pick up auto-title if set
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
           // Gerry may have raised an approval during this turn — surface it inline
@@ -622,7 +638,27 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
       setWsConnected(false);
       setToolActivities([]);
     };
-  }, [conversationId, queryClient, wsRetry, onHub, source]);
+  }, [conversationId, queryClient, wsRetry, onHub, source, synced]);
+
+  // ── Keep a shared project's chat in step with the hub ────────────────────────
+  useEffect(() => {
+    if (!onHub || !conversationId) return;
+    let cancelled = false;
+    setSynced(false);
+    setSyncError(null);
+    syncHubConversation(conversationId)
+      .then(() => {
+        if (cancelled) return;
+        setSynced(true);
+        queryClient.invalidateQueries({ queryKey: ["messages", source, conversationId] });
+      })
+      .catch(() => {
+        if (!cancelled) setSyncError("Couldn't reach the hub, so this conversation may be out of date.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, onHub, queryClient, source]);
 
   // â”€â”€ Auto-scroll to bottom â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Fire pendingMessage once conversation + WebSocket are both ready
@@ -720,7 +756,7 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
     if (!conversationId) return;
     setStopping(true);
     try {
-      const { stopping: accepted } = await stopTurn(conversationId, source);
+      const { stopping: accepted } = await stopTurn(conversationId);
       if (!accepted) {
         // Nothing was running server-side — the UI was stuck, so clear it.
         setBusySince(null);
@@ -1054,6 +1090,9 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
         {/* Reference-file attachments (not part of the Knowledge Base) */}
         {dropNotice && (
           <p className="mb-1 px-1 text-xs text-destructive">{dropNotice}</p>
+        )}
+        {syncError && (
+          <p className="mb-1 px-1 text-xs text-destructive">{syncError}</p>
         )}
         {conversationId && !onHub && <AttachmentBar conversationId={conversationId} />}
 

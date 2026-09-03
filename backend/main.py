@@ -818,6 +818,15 @@ def create_app() -> FastAPI:
                     if incoming.type != "human" or not incoming.content.strip():
                         continue
 
+                    # A shared project's chat is a local copy of a hub one. Read
+                    # what colleagues have added before answering, so the turn is
+                    # not built on a stale record.
+                    if conv.hub_mirror:
+                        from services.hub import conv_sync
+
+                        await conv_sync.pull(db, user.id, conv_uuid)
+                        await db.commit()
+
                     # Feature flag: llm.use_langgraph = "true" enables v2 supervisor.
                     # Conversations pinned to the House Manager (voice sessions)
                     # always use the v2 path, since that agent only exists there.
@@ -847,6 +856,15 @@ def create_app() -> FastAPI:
                         if frame is None:
                             break
                         await websocket.send_text(frame)
+
+                    if conv.hub_mirror:
+                        # End this session's transaction first, or the rows the
+                        # detached run committed are outside our snapshot.
+                        await db.commit()
+                        from services.hub import conv_sync
+
+                        await conv_sync.push_pending(db, user.id, conv_uuid)
+                        await db.commit()
 
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected: user=%s conversation=%s", user.id, conversation_id)

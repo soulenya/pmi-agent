@@ -38,6 +38,17 @@ export async function disconnectHub(): Promise<void> {
 }
 
 /**
+ * Take a local copy of a shared project's chat and bring it up to date.
+ *
+ * Gerry answers from this machine, where the knowledge base and the Google
+ * account are; the hub only keeps the record. Call this before opening the
+ * conversation, and it is answered again after each turn.
+ */
+export async function syncHubConversation(conversationId: string): Promise<void> {
+  await apiClient.post(`/hub/conversations/${conversationId}/sync`);
+}
+
+/**
  * Sign in to the hub in a browser window and wait for it to finish.
  *
  * The browser is opened by the desktop backend, which is also what holds the

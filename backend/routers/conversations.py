@@ -28,6 +28,7 @@ from models.schemas.conversations import (
     ConversationOut,
     ConversationUpdate,
     EditApprovalRequest,
+    MessageAppend,
     MessageOut,
     NotificationOut,
     ResolveApprovalRequest,
@@ -158,6 +159,60 @@ async def list_messages(
     has_more = bool(messages) and await msg_repo.has_before(conv_id, messages[0].id)
     response.headers["X-Has-More"] = "true" if has_more else "false"
     return messages
+
+
+@router.post(
+    "/{conv_id}/messages",
+    response_model=MessageOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def append_message(
+    conv_id: uuid.UUID,
+    body: MessageAppend,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageOut:
+    """Store a message a desktop has already produced.
+
+    Only the hub is asked this. Chat in a shared project runs on the member's
+    own machine, where the knowledge base and their Google account are, and the
+    answer is offered here afterwards so the rest of the project can read it.
+    Editing rights are required for the same reason writing a message is: it
+    joins the project's record.
+    """
+    conv = await conversation_for(db, conv_id, current_user.id, need="editor")
+    if conv is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found.")
+
+    from models.db.conversation import Message
+
+    existing = await db.get(Message, body.id)
+    if existing is not None:
+        # A push retried after a dropped reply must not say it twice.
+        if existing.conversation_id != conv_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="That message id belongs to another conversation.",
+            )
+        return existing
+
+    msg = Message(
+        id=body.id,
+        conversation_id=conv_id,
+        role=MessageRole(body.role),
+        content=body.content,
+        agent_type=body.agent_type,
+        model_name=body.model_name,
+        cited_chunk_ids=[],
+        tool_calls=[],
+        tool_results=[],
+    )
+    if body.created_at is not None:
+        msg.created_at = body.created_at
+    db.add(msg)
+    await db.commit()
+    await db.refresh(msg)
+    return msg
 
 
 @router.post("/{conv_id}/stop")

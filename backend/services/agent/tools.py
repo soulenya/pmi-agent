@@ -154,13 +154,23 @@ TOOL_DEFINITIONS: list[dict] = [
             "name": "create_task",
             "description": (
                 "Create a task in the PMI task tracker. "
-                "Use this when the user explicitly asks to create, add, or track a task or action item."
+                "Use this when the user explicitly asks to create, add, or track a task or action item. "
+                "Pass 'project' to file the task under a project. If the user named a "
+                "project and you do not know its id, call list_projects first — a "
+                "shared project exists only on the hub and will otherwise look missing."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "title": {"type": "string", "description": "Short task title (max 200 chars)."},
                     "description": {"type": "string", "description": "Optional longer description."},
+                    "project": {
+                        "type": "string",
+                        "description": (
+                            "Optional project name or id to file this task under. "
+                            "Works for shared projects on the hub as well as local ones."
+                        ),
+                    },
                     "priority": {
                         "type": "string",
                         "enum": ["low", "medium", "high", "critical"],
@@ -2542,12 +2552,32 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
         except ValueError:
             pass
 
+    project = None
+    wanted_project = str(args.get("project") or "").strip()
+    if wanted_project:
+        project, problem = await _project_tools._resolve_project(
+            ctx.db, ctx.user_id, wanted_project, "editor"
+        )
+        if project is None:
+            # Not here. A shared project lives only on the hub, so the task has
+            # to be made there too — a local row would be invisible to everyone
+            # else on it, which is the opposite of what was asked for.
+            shared = await _project_tools.find_hub_project(
+                ctx.db, ctx.user_id, wanted_project
+            )
+            if shared is not None:
+                return await _create_task_on_hub(
+                    ctx, shared, title, description, priority, due_date
+                )
+            return problem
+
     task = Task(
         title=title,
         description=description,
         status=TaskStatus.TODO,
         priority=TaskPriority(priority),
         due_date=due_date,
+        project_id=project.id if project is not None else None,
         source_conversation_id=ctx.conversation_id,
         source_ref=(
             {
@@ -2567,9 +2597,45 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
     await ctx.db.refresh(task)
 
     due_str = f", due {due_date.date()}" if due_date else ""
+    where = f' in "{project.name}"' if project is not None else ""
     return (
-        f"Task created: \"{task.title}\" "
+        f"Task created{where}: \"{task.title}\" "
         f"[priority={priority}{due_str}, id={task.id}]"
+    )
+
+
+async def _create_task_on_hub(
+    ctx: ToolContext,
+    project: dict[str, Any],
+    title: str,
+    description: str | None,
+    priority: str,
+    due_date: datetime | None,
+) -> str:
+    """Make the task in the shared project, where the rest of it lives."""
+    from services.hub import client as hub
+
+    body = {
+        "title": title,
+        "description": description,
+        "project_id": str(project.get("id")),
+        "priority": priority,
+        "due_date": due_date.isoformat() if due_date else None,
+    }
+    try:
+        resp = await hub.request(ctx.db, ctx.user_id, "POST", "/tasks", json_body=body)
+    except hub.HubError as exc:
+        return f'Error: could not reach the hub to add the task to "{project.get("name")}": {exc}'
+    if resp.status_code not in (200, 201):
+        return (
+            f'Error: the hub refused the task for "{project.get("name")}" '
+            f"({resp.status_code}). {resp.text[:200]}"
+        )
+    created = resp.json()
+    due_str = f", due {due_date.date()}" if due_date else ""
+    return (
+        f'Task created in the shared project "{project.get("name")}": "{title}" '
+        f"[priority={priority}{due_str}, id={created.get('id')}]"
     )
 
 
