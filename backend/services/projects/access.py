@@ -68,6 +68,30 @@ async def resolve_role(
     return None
 
 
+async def conversation_role(
+    db: AsyncSession, conv_id: uuid.UUID, user_id: uuid.UUID
+) -> str | None:
+    """This person's role on the project whose workroom owns this conversation.
+
+    A conversation otherwise belongs to whoever started it, which for a project
+    means whoever happened to create the project. Everyone working on the
+    project needs the same conversation, so membership decides here.
+    """
+    from models.db.workroom import Workroom
+
+    room = (
+        await db.execute(
+            select(Workroom).where(Workroom.conversation_id == conv_id).limit(1)
+        )
+    ).scalar_one_or_none()
+    if room is None or room.project_id is None:
+        return None
+    project = await db.get(Project, room.project_id)
+    if project is None:
+        return None
+    return await resolve_role(db, project, user_id)
+
+
 async def visible_project_ids(db: AsyncSession, user_id: uuid.UUID) -> list[uuid.UUID]:
     """Every project id the user may see. Use to scope list queries."""
     rows = (

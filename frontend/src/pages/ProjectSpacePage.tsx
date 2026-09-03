@@ -96,10 +96,11 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
     mutationFn: () => ensureProjectWorkroom(id!, source),
     onSuccess: room => {
       qc.invalidateQueries({ queryKey: ["project-space", source, id] });
-      // A hub conversation is held on the hub; this app can only open its own.
-      if (onHub) return;
-      if (room.conversation_id) navigate(`/chat/${room.conversation_id}`);
-      else navigate("/workrooms");
+      if (room.conversation_id) {
+        navigate(onHub ? `/hub/chat/${room.conversation_id}` : `/chat/${room.conversation_id}`);
+      } else if (!onHub) {
+        navigate("/workrooms");
+      }
     },
   });
 
@@ -180,9 +181,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
         ) : null}
 
         <nav className="mt-4 flex flex-wrap gap-1">
-          {/* Budgets are Drive sheets held on this machine, so a hub project
-              has none to show. */}
-          {TABS.filter(t => !(onHub && t.id === "budget")).map(t => {
+          {TABS.map(t => {
             const Icon = t.icon;
             return (
               <button
@@ -376,21 +375,15 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
           </div>
         )}
 
-        {active === "budget" && !onHub && (
-          <ProjectBudgetTab projectId={id!} canEdit={canEdit} />
+        {active === "budget" && (
+          <ProjectBudgetTab projectId={id!} canEdit={canEdit} source={source} />
         )}
 
         {active === "chat" && (
           <div className="space-y-3">
-            {onHub ? (
-              <p className="text-sm text-muted-foreground">
-                {workroom?.conversation_id
-                  ? "This project's conversation is held on the hub. Open the hub in a browser to read or add to it."
-                  : "This project has no conversation yet. It would be started on the hub, where the project lives."}
-              </p>
-            ) : workroom?.conversation_id ? (
+            {workroom?.conversation_id ? (
               <NavLink
-                to={`/chat/${workroom.conversation_id}`}
+                to={onHub ? `/hub/chat/${workroom.conversation_id}` : `/chat/${workroom.conversation_id}`}
                 className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
               >
                 <MessageSquare className="h-4 w-4" /> Continue the project conversation

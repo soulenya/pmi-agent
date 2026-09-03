@@ -23,6 +23,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
@@ -369,6 +370,30 @@ async def request(
     link.last_ok_at = _now()
     link.last_error = None
     return resp
+
+
+async def ws_target(
+    db: AsyncSession, user_id: uuid.UUID, path: str
+) -> tuple[str, dict[str, str]]:
+    """The hub WebSocket URL and headers to open it as this user.
+
+    The hub authenticates a socket by query-string token, because browsers
+    cannot set headers on an upgrade. We are not a browser, so IAP still gets
+    its header — only the application token has to travel in the URL.
+    """
+    link = await get_link(db, user_id)
+    if link is None:
+        raise HubNotConnected("This machine is not connected to the hub.")
+
+    session = await _session_token(link)
+    ws_url = link.hub_url.replace("https://", "wss://", 1).replace("http://", "ws://", 1)
+    url = f"{ws_url}{path}?token={quote(session, safe='')}"
+    return url, {"Proxy-Authorization": f"Bearer {await _id_token(link)}"}
+
+
+def forget_session(user_id: uuid.UUID) -> None:
+    """Drop the cached hub session so the next call mints a fresh one."""
+    _session_tokens.pop(user_id, None)
 
 
 def _now():

@@ -11,11 +11,24 @@ import { ExternalLink, Plus, Wallet, X } from "lucide-react";
 import { useState } from "react";
 
 import {
+  linkBudget,
   listBudgets,
   listProjectBudgets,
   updateBudget,
   type ProjectBudget,
 } from "@/api/budgets";
+import type { Source } from "@/api/tasks";
+
+/** Pulls the file id out of a pasted Drive link, or accepts a bare id. */
+function driveFileId(input: string): string | null {
+  const text = input.trim();
+  if (!text) return null;
+  const inUrl = text.match(/\/d\/([a-zA-Z0-9_-]{20,})/);
+  if (inUrl) return inUrl[1];
+  const inQuery = text.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
+  if (inQuery) return inQuery[1];
+  return /^[a-zA-Z0-9_-]{20,}$/.test(text) ? text : null;
+}
 
 function money(value: number | null | undefined, currency: string): string {
   if (value === null || value === undefined) return "—";
@@ -34,10 +47,12 @@ function BudgetCard({
   budget,
   projectId,
   canEdit,
+  source,
 }: {
   budget: ProjectBudget;
   projectId: string;
   canEdit: boolean;
+  source: Source;
 }) {
   const qc = useQueryClient();
   const spent = budget.cached_summary?.total_spent ?? 0;
@@ -46,10 +61,10 @@ function BudgetCard({
   const over = pct !== null && pct > 1;
 
   const detach = useMutation({
-    mutationFn: () => updateBudget(budget.id, { clear_project: true }),
+    mutationFn: () => updateBudget(budget.id, { clear_project: true }, source),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["project-budgets", projectId] });
-      qc.invalidateQueries({ queryKey: ["budgets"] });
+      qc.invalidateQueries({ queryKey: ["project-budgets", source, projectId] });
+      qc.invalidateQueries({ queryKey: ["budgets", source] });
     },
   });
 
@@ -117,32 +132,50 @@ function BudgetCard({
 export function ProjectBudgetTab({
   projectId,
   canEdit,
+  source = "local",
 }: {
   projectId: string;
   canEdit: boolean;
+  source?: Source;
 }) {
   const qc = useQueryClient();
   const [picking, setPicking] = useState(false);
+  const [driveLink, setDriveLink] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const { data: budgets = [], isLoading } = useQuery({
-    queryKey: ["project-budgets", projectId],
-    queryFn: () => listProjectBudgets(projectId),
+    queryKey: ["project-budgets", source, projectId],
+    queryFn: () => listProjectBudgets(projectId, source),
   });
 
   // Only budgets this person owns can be attached, so the picker is their own list.
   const { data: mine = [] } = useQuery({
-    queryKey: ["budgets"],
-    queryFn: listBudgets,
+    queryKey: ["budgets", source],
+    queryFn: () => listBudgets(source),
     enabled: picking,
   });
 
+  const done = () => {
+    setPicking(false);
+    setDriveLink("");
+    setLinkError(null);
+    qc.invalidateQueries({ queryKey: ["project-budgets", source, projectId] });
+    qc.invalidateQueries({ queryKey: ["budgets", source] });
+  };
+
   const attach = useMutation({
-    mutationFn: (budgetId: string) => updateBudget(budgetId, { project_id: projectId }),
-    onSuccess: () => {
-      setPicking(false);
-      qc.invalidateQueries({ queryKey: ["project-budgets", projectId] });
-      qc.invalidateQueries({ queryKey: ["budgets"] });
+    mutationFn: (budgetId: string) =>
+      updateBudget(budgetId, { project_id: projectId }, source),
+    onSuccess: done,
+  });
+
+  // Linking a sheet where the project lives, so everyone on it sees the figures.
+  const linkAndAttach = useMutation({
+    mutationFn: async (fileId: string) => {
+      const created = await linkBudget(fileId, source);
+      return updateBudget(created.id, { project_id: projectId }, source);
     },
+    onSuccess: done,
   });
 
   const available = mine.filter(b => b.project_id !== projectId);
@@ -174,7 +207,13 @@ export function ProjectBudgetTab({
       {budgets.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2">
           {budgets.map(b => (
-            <BudgetCard key={b.id} budget={b} projectId={projectId} canEdit={canEdit} />
+            <BudgetCard
+              key={b.id}
+              budget={b}
+              projectId={projectId}
+              canEdit={canEdit}
+              source={source}
+            />
           ))}
         </div>
       )}
@@ -205,7 +244,9 @@ export function ProjectBudgetTab({
           </div>
           {available.length === 0 ? (
             <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-              You have no budget to add. Make one on the Budget page first.
+              {source === "hub"
+                ? "You have not linked a budget here yet. Paste the Drive link below."
+                : "You have no budget to add. Make one on the Budget page first."}
             </p>
           ) : (
             <ul className="mt-3 space-y-1">
@@ -226,6 +267,46 @@ export function ProjectBudgetTab({
               ))}
             </ul>
           )}
+
+          <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+              Or link a Google Sheet
+            </label>
+            <div className="mt-1.5 flex gap-2">
+              <input
+                value={driveLink}
+                onChange={e => {
+                  setDriveLink(e.target.value);
+                  setLinkError(null);
+                }}
+                placeholder="Paste the Drive link"
+                className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-800"
+              />
+              <button
+                type="button"
+                disabled={linkAndAttach.isPending}
+                onClick={() => {
+                  const fileId = driveFileId(driveLink);
+                  if (!fileId) {
+                    setLinkError("That does not look like a Drive link.");
+                    return;
+                  }
+                  linkAndAttach.mutate(fileId);
+                }}
+                className="shrink-0 rounded-md bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+              >
+                {linkAndAttach.isPending ? "Linking…" : "Link"}
+              </button>
+            </div>
+            {linkError && <p className="mt-1.5 text-sm text-rose-600">{linkError}</p>}
+            {linkAndAttach.isError && (
+              <p className="mt-1.5 text-sm text-rose-600">
+                That sheet could not be linked. Check that Google is connected and that
+                you can open it.
+              </p>
+            )}
+          </div>
+
           {attach.isError && (
             <p className="mt-2 text-sm text-rose-600">
               That budget could not be added to this project.

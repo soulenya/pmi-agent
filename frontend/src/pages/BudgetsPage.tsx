@@ -70,7 +70,7 @@ export function BudgetsPage() {
 
   const { data: budgets = [], isLoading } = useQuery({
     queryKey: ["budgets"],
-    queryFn: listBudgets,
+    queryFn: () => listBudgets(),
   });
 
   const { data: budget } = useQuery({
@@ -1111,7 +1111,7 @@ function ReferencesSection({ budget, onChanged }: { budget: BudgetDetail; onChan
   const [asLineItem, setAsLineItem] = useState(!budget.external_readonly);
   const [busy, setBusy] = useState(false);
 
-  const all = useQuery({ queryKey: ["budgets"], queryFn: listBudgets });
+  const all = useQuery({ queryKey: ["budgets"], queryFn: () => listBudgets() });
   const alreadyRefd = new Set(budget.references.map((r) => r.ref_budget_id));
   const candidates = (all.data ?? []).filter((b) => b.id !== budget.id && !alreadyRefd.has(b.id));
 

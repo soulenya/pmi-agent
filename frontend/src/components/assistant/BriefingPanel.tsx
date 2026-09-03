@@ -200,7 +200,7 @@ export function BriefingPanel() {
   // Personal budgets (cached mirror — no sheet calls)
   const budgets = useQuery({
     queryKey: ["briefing", "budgets"],
-    queryFn: listBudgets,
+    queryFn: () => listBudgets(),
     enabled: open,
     refetchInterval: 15 * 60_000,
     retry: false,

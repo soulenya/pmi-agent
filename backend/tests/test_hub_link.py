@@ -29,7 +29,15 @@ async def _user(db: AsyncSession, email: str) -> User:
 
 @pytest.mark.parametrize(
     "path",
-    ["projects", "/projects", "projects/123/space", "tasks", "workrooms/1/items"],
+    [
+        "projects",
+        "/projects",
+        "projects/123/space",
+        "tasks",
+        "workrooms/1/items",
+        "conversations/123",
+        "budgets",
+    ],
 )
 def test_shared_workspace_paths_are_allowed(path: str):
     assert _check_path(path).startswith("/")
@@ -41,7 +49,6 @@ def test_shared_workspace_paths_are_allowed(path: str):
         "auth/iap",
         "users",
         "documents",
-        "conversations",
         "projectsecret",
         "../auth/iap",
         "backups",

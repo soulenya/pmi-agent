@@ -7,12 +7,16 @@ says. The desktop is a window onto it, not a second master.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import json
 import logging
 import os
 import threading
 import uuid as _uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+import websockets
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,7 +33,19 @@ router = APIRouter(prefix="/hub", tags=["hub"])
 # Scopes IAP tokens to the shared workspace. The desktop has no business
 # proxying a person's private hub data, and an open proxy would hand the
 # renderer a way to call anything at all on the far side.
-_ALLOWED_PREFIXES = ("/projects", "/tasks", "/workrooms", "/portfolio")
+#
+# ``/conversations`` and ``/budgets`` are here because a shared project's
+# conversation and its budget live on the hub with the rest of it. Both routers
+# scope every read to the calling user or to project membership, so widening the
+# proxy does not widen what anyone can see.
+_ALLOWED_PREFIXES = (
+    "/projects",
+    "/tasks",
+    "/workrooms",
+    "/portfolio",
+    "/conversations",
+    "/budgets",
+)
 
 _SCOPES = ["openid", "email"]
 
@@ -262,3 +278,83 @@ async def hub_proxy(
         status_code=resp.status_code,
         media_type=resp.headers.get("content-type"),
     )
+
+
+@router.websocket("/ws/chat/{conversation_id}")
+async def hub_chat_relay(websocket: WebSocket, conversation_id: str) -> None:
+    """Carry the chat socket through to the hub, so hub projects chat in place.
+
+    The renderer cannot talk to the hub itself: IAP wants a header no browser
+    will send on an upgrade, and the hub session token is minted here. So this
+    authenticates the local user exactly as the local chat socket does, opens
+    the matching socket on the hub, and pumps frames both ways untouched.
+    """
+    from services.auth.service import AuthService
+
+    if settings.hub_mode:
+        await websocket.close(code=4404, reason="This is the hub.")
+        return
+
+    token = websocket.query_params.get("token", "")
+    if not token:
+        await websocket.close(code=4401, reason="Missing token")
+        return
+
+    try:
+        _uuid.UUID(conversation_id)
+    except ValueError:
+        await websocket.close(code=4400, reason="Invalid conversation id")
+        return
+
+    async for db in get_db():
+        user = await AuthService(db).get_user_from_access_token(token)
+        if user is None:
+            await websocket.close(code=4401, reason="Invalid token")
+            return
+        try:
+            url, headers = await hub.ws_target(
+                db, user.id, f"/ws/chat/{conversation_id}"
+            )
+        except hub.HubError as exc:
+            await websocket.close(code=4402, reason=str(exc)[:120])
+            return
+        break
+
+    await websocket.accept()
+    try:
+        async with websockets.connect(
+            url, additional_headers=headers, max_size=None
+        ) as upstream:
+            await _pump(websocket, upstream)
+    except Exception as exc:  # noqa: BLE001 — any failure ends as a closed socket
+        logger.warning("Hub chat relay failed: %s", exc)
+        with contextlib.suppress(Exception):
+            await websocket.send_text(
+                json.dumps({"type": "error", "detail": "The hub connection dropped."})
+            )
+    with contextlib.suppress(Exception):
+        await websocket.close()
+
+
+async def _pump(browser: WebSocket, upstream) -> None:
+    """Shuttle text frames until either side stops."""
+
+    async def to_hub() -> None:
+        while True:
+            await upstream.send(await browser.receive_text())
+
+    async def to_browser() -> None:
+        async for frame in upstream:
+            await browser.send_text(
+                frame if isinstance(frame, str) else frame.decode("utf-8")
+            )
+
+    first, pending = await asyncio.wait(
+        {asyncio.create_task(to_hub()), asyncio.create_task(to_browser())},
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+    for task in pending:
+        task.cancel()
+    for task in first:
+        with contextlib.suppress(Exception):
+            task.result()

@@ -1,4 +1,10 @@
 import { apiClient } from "./client";
+import type { Source } from "./tasks";
+
+/** A hub project's budget lives on the hub, so its reads go through the proxy. */
+function at(source: Source, path: string): string {
+  return source === "hub" ? `/hub/api${path}` : path;
+}
 
 // ── Budgets — personal Drive-backed budgets (Sheet = system of record) ──────
 
@@ -107,8 +113,13 @@ export interface ProjectBudget {
   is_mine: boolean;
 }
 
-export async function listProjectBudgets(projectId: string): Promise<ProjectBudget[]> {
-  const { data } = await apiClient.get<ProjectBudget[]>(`/projects/${projectId}/budgets`);
+export async function listProjectBudgets(
+  projectId: string,
+  source: Source = "local",
+): Promise<ProjectBudget[]> {
+  const { data } = await apiClient.get<ProjectBudget[]>(
+    at(source, `/projects/${projectId}/budgets`),
+  );
   return data;
 }
 
@@ -119,8 +130,8 @@ export interface BudgetDetail extends Budget {
   references: BudgetReference[];
 }
 
-export async function listBudgets(): Promise<Budget[]> {
-  const { data } = await apiClient.get<Budget[]>("/budgets");
+export async function listBudgets(source: Source = "local"): Promise<Budget[]> {
+  const { data } = await apiClient.get<Budget[]>(at(source, "/budgets"));
   return data;
 }
 
@@ -134,8 +145,13 @@ export async function createBudget(body: {
   return data;
 }
 
-export async function linkBudget(fileId: string): Promise<BudgetDetail> {
-  const { data } = await apiClient.post<BudgetDetail>("/budgets/link", { file_id: fileId });
+export async function linkBudget(
+  fileId: string,
+  source: Source = "local",
+): Promise<BudgetDetail> {
+  const { data } = await apiClient.post<BudgetDetail>(at(source, "/budgets/link"), {
+    file_id: fileId,
+  });
   return data;
 }
 
@@ -160,8 +176,9 @@ export async function updateBudget(
     project_id?: string | null;
     clear_project?: boolean;
   },
+  source: Source = "local",
 ): Promise<BudgetDetail> {
-  const { data } = await apiClient.patch<BudgetDetail>(`/budgets/${id}`, body);
+  const { data } = await apiClient.patch<BudgetDetail>(at(source, `/budgets/${id}`), body);
   return data;
 }
 

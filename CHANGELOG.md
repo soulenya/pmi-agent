@@ -4,6 +4,15 @@
 
 ## Changelog
 
+### v4.4.0 — 2026-09-03
+**Chat and Budget now work on hub projects too**
+
+- **A hub project's Chat tab opens the conversation in the app.** It used to tell you the conversation was "held on the hub" and leave you to find it in a browser. The app now relays the conversation to the hub over its own connection, so a shared project is worked in one place.
+- **A project's conversation belongs to the project, not to whoever made it.** Until now a conversation could only be opened by the person who started it, so a colleague who opened a shared project's Chat tab was told the conversation did not exist. Anyone who can see the project can now read it, and anyone who can edit the project can write in it.
+- **Hub projects have a Budget tab.** Its budgets are held on the hub, beside the project, so everyone on the project sees the same figures.
+- **You can link a Google Sheet straight from the Budget tab.** Paste the sheet's Drive link and it is linked and attached to the project in one step. This is how you put a budget on a hub project, since a budget kept on this computer stays on this computer.
+- **What is not shown on a hub conversation.** Attachments and the conversation list on the left are for this computer's chats, so they are hidden there.
+
 ### v4.3.0 — 2026-09-03
 **A company project is now a project the company can work in**
 

@@ -1,5 +1,5 @@
-﻿; ============================================================
-;  Little Gerry â€” Windows Installer
+; ============================================================
+;  Little Gerry — Windows Installer
 ;  Precisian Medical Instruments / VACTOR Program
 ;
 ;  Compile with Inno Setup 6:
@@ -16,7 +16,7 @@
 
 #define AppName       "Little Gerry"
 #define AppPublisher  "Precisian Medical Instruments"
-#define AppVersion    "4.3.0"
+#define AppVersion    "4.4.0"
 #define AppURL        "https://github.com/soulenya/pmi-agent"
 #define AppExeName    "Start Little Gerry.bat"
 #define AppDescription "AI Executive Assistant for the VACTOR Program"
@@ -82,7 +82,7 @@ Name: "desktopicon";    Description: "Create a &desktop shortcut";   GroupDescri
 Name: "startmenuicon";  Description: "Create a &Start Menu entry";   GroupDescription: "Additional icons:"
 Name: "runonstartup";   Description: "Launch Little Gerry on &Windows startup"; GroupDescription: "Startup:"; Flags: unchecked
 
-; â”€â”€ Files to install â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+; ── Files to install ────────────────────────────────────────────────────────
 ; NOTE: The source paths below are relative to this .iss file (installer\).
 ;       Adjust if you move the .iss or build from a different working directory.
 [Files]
@@ -96,13 +96,13 @@ Source: "..\README.md";                     DestDir: "{app}"; Flags: ignoreversi
 Source: "..\launcher.py";                   DestDir: "{app}"; Flags: ignoreversion
 Source: "..\Spaceman on Black BG.png";      DestDir: "{app}"; Flags: ignoreversion
 Source: "..\.gitignore";                   DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-; google_credentials.json (OAuth client secret) is intentionally NOT bundled —
+; google_credentials.json (OAuth client secret) is intentionally NOT bundled �
 ; users add it after installing (see docs/INSTALL.md "Google OAuth credentials").
 ; hub_client.json is fetched from the firm's Drive on first run, not bundled.
 Source: "..\VERSION";                       DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "..\update_token.txt";              DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
-; Icon â€” used by installer .exe and all shortcuts
+; Icon — used by installer .exe and all shortcuts
 Source: "LittleGerry.ico";             DestDir: "{app}\installer"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; Backend
@@ -110,7 +110,7 @@ Source: "..\backend\*"; DestDir: "{app}\backend"; \
     Excludes: "*.pyc,__pycache__,*.egg-info,.venv,*.log,google_token.json,google_credentials.json,google_stt_sa.json,hub_client.json,.env"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Frontend source (without node_modules â€” npm install runs during setup)
+; Frontend source (without node_modules — npm install runs during setup)
 Source: "..\frontend\*"; DestDir: "{app}\frontend"; \
     Excludes: "node_modules,dist,src-tauri\target"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
@@ -118,7 +118,7 @@ Source: "..\frontend\*"; DestDir: "{app}\frontend"; \
 ; Scripts
 Source: "..\scripts\*"; DestDir: "{app}\scripts"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; â”€â”€ Shortcuts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+; ── Shortcuts ───────────────────────────────────────────────────────────────
 [Icons]
 ; Desktop shortcut
 Name: "{autodesktop}\{#AppName}"; \
@@ -159,7 +159,7 @@ Name: "{autostartup}\{#AppName}"; \
     IconFilename: "{app}\installer\LittleGerry.ico"; \
     Tasks: runonstartup
 
-; â”€â”€ Run setup script after install â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+; ── Run setup script after install ──────────────────────────────────────────
 [Run]
 ; Install winget prerequisites (Docker, Ollama, Python, Node) via install.ps1
 ; NOTE: uv sync / npm install / migrations run on first launch via Start bat
@@ -180,7 +180,7 @@ Filename: "{app}\{#AppExeName}"; \
     Flags: nowait postinstall skipifsilent; \
     Description: "Launch {#AppName} now"
 
-; â”€â”€ Uninstall cleanup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+; ── Uninstall cleanup ────────────────────────────────────────────────────────
 [UninstallRun]
 ; Stop all services before uninstalling
 Filename: "{app}\Stop Little Gerry.bat"; \
@@ -198,7 +198,7 @@ Filename: "cmd.exe"; \
 ; Remove the install directory entirely after uninstall
 Type: filesandordirs; Name: "{app}"
 
-; â”€â”€ Pre-install cleanup (removes stale files before overwrite) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+; ── Pre-install cleanup (removes stale files before overwrite) ────────────────
 [InstallDelete]
 ; Remove old scripts folder so installer can write fresh copies without conflict
 Type: filesandordirs; Name: "{app}\scripts"
@@ -207,12 +207,12 @@ Type: files; Name: "{app}\*.bat"
 Type: files; Name: "{app}\*.py"
 Type: files; Name: "{app}\*.yml"
 
-; â”€â”€ Custom wizard pages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+; ── Custom wizard pages ──────────────────────────────────────────────────────
 [Code]
 // Display a pre-install info page summarising what will be downloaded/installed.
 procedure InitializeWizard;
 begin
-  // Nothing custom needed â€” standard Inno wizard is sufficient.
+  // Nothing custom needed — standard Inno wizard is sufficient.
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;

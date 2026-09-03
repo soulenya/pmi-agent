@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import type { Source } from "./tasks";
 import type {
   Conversation,
   ConversationCreate,
@@ -7,6 +8,11 @@ import type {
   Notification,
   ResolveApprovalRequest,
 } from "@/types/chat";
+
+/** A hub project's conversation lives on the hub, so its reads go through the proxy. */
+function at(source: Source, path: string): string {
+  return source === "hub" ? `/hub/api${path}` : path;
+}
 
 // ── Conversations ─────────────────────────────────────────────────────────────
 
@@ -20,16 +26,17 @@ export async function createConversation(body: ConversationCreate = {}): Promise
   return resp.data;
 }
 
-export async function getConversation(id: string): Promise<Conversation> {
-  const resp = await apiClient.get<Conversation>(`/conversations/${id}`);
+export async function getConversation(id: string, source: Source = "local"): Promise<Conversation> {
+  const resp = await apiClient.get<Conversation>(at(source, `/conversations/${id}`));
   return resp.data;
 }
 
 export async function updateConversation(
   id: string,
-  body: import("@/types/chat").ConversationUpdate
+  body: import("@/types/chat").ConversationUpdate,
+  source: Source = "local"
 ): Promise<Conversation> {
-  const resp = await apiClient.patch<Conversation>(`/conversations/${id}`, body);
+  const resp = await apiClient.patch<Conversation>(at(source, `/conversations/${id}`), body);
   return resp.data;
 }
 
@@ -42,10 +49,10 @@ export interface MessagePage {
 /** A page of messages, newest last. Omit `beforeId` for the latest page. */
 export async function listMessagePage(
   conversationId: string,
-  opts?: { beforeId?: string; limit?: number }
+  opts?: { beforeId?: string; limit?: number; source?: Source }
 ): Promise<MessagePage> {
   const resp = await apiClient.get<Message[]>(
-    `/conversations/${conversationId}/messages`,
+    at(opts?.source ?? "local", `/conversations/${conversationId}/messages`),
     { params: { limit: opts?.limit ?? 100, before_id: opts?.beforeId } }
   );
   return {
@@ -59,9 +66,12 @@ export async function listMessages(conversationId: string): Promise<Message[]> {
 }
 
 /** Ask the running turn to stop. `stopping` is false when nothing was running. */
-export async function stopTurn(conversationId: string): Promise<{ stopping: boolean }> {
+export async function stopTurn(
+  conversationId: string,
+  source: Source = "local"
+): Promise<{ stopping: boolean }> {
   const resp = await apiClient.post<{ stopping: boolean }>(
-    `/conversations/${conversationId}/stop`
+    at(source, `/conversations/${conversationId}/stop`)
   );
   return resp.data;
 }
