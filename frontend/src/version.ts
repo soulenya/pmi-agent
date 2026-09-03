@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 223;
+export const BUILD_NUMBER = 224;
 export const BUILD_DATE = "2026-09-03";
 
 export interface ChangelogEntry {
@@ -14,6 +14,21 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 224,
+    date: "2026-09-03",
+    title: "Share a project with the people you work with",
+    changes: [
+      "A project's Overview has a People panel. The owner can add someone by their work email, set what they can do, change it later, or take them off.",
+      "Three roles: can view, can comment, can edit. Ownership is not handed over here.",
+      "Adding the first person to a private project opens it to Shared, so the people you named can actually reach it.",
+      "You can add someone who has never opened Little Gerry. Their role is waiting for them the first time they sign in.",
+      "Only addresses at the firm can be added. A project cannot be left without its owner, and the owner cannot be removed or demoted from the list.",
+      "New Project now asks where the project should live \u2014 on this computer or on the hub \u2014 whenever you are connected to the hub, and who should be able to see it.",
+      "The person you add is told about it.",
+      "A shared project carries its tasks, canvas, timeline, links and workroom. Attached documents stay on the computer they were added to.",
+    ],
+  },
   {
     build: 223,
     date: "2026-09-03",

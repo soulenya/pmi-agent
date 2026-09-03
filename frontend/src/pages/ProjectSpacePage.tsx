@@ -28,6 +28,7 @@ import type { HeldItem, ProjectVisibility } from "@/types/tasks";
 import { TimelineTab } from "@/components/projects/TimelineTab";
 import { CanvasTab } from "@/components/projects/CanvasTab";
 import { ProjectLinksPanel } from "@/components/projects/ProjectLinksPanel";
+import { ProjectPeoplePanel } from "@/components/projects/PeoplePanel";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Layers },
@@ -249,15 +250,14 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
                   Only the owner can change this.
                 </p>
               )}
-              <ul className="mt-4 space-y-1 text-sm">
-                {members.map(m => (
-                  <li key={m.user_id} className="flex justify-between gap-3">
-                    <span className="truncate">{m.display_name || m.email || m.user_id}</span>
-                    <span className="text-xs text-muted-foreground">{m.role}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
+
+            <ProjectPeoplePanel
+              projectId={id!}
+              source={source}
+              members={members}
+              isOwner={myRole === "owner"}
+            />
 
             <ProjectLinksPanel projectId={id!} source={source} canEdit={canEdit} />
           </div>

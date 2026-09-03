@@ -548,6 +548,39 @@ Set on the Overview tab. Only the project's owner can change it.
 
 New projects start private. Sharing controls who can open a project; it is separate from what Gerry is allowed to read.
 
+#### Sharing a project with someone
+
+On the **Overview** tab, the **People** panel lists everyone on the project. If you own it, you can change that list.
+
+**To add someone,** type their work email address, choose what they should be able to do, and click **Add**:
+
+| Role | What it allows |
+|------|----------------|
+| **Can view** | Open the project and read it. Change nothing. |
+| **Can comment** | Read it, and leave comments. |
+| **Can edit** | Do the work: tasks, canvas, timeline, material, notes. |
+
+Ownership is not on that list. Handing a project over is a different act from sharing it, and it is not done from a dropdown.
+
+**A private project opens to Shared** the moment you add the first person. A project that stayed private while carrying a list of members would just be a list of people who cannot get in.
+
+**You can add someone who has never opened Little Gerry.** Their role is written down and waiting for them the first time they sign in with their own account.
+
+**Adding someone grants a role. It does not grant a way in.** They still sign in as themselves, and are still checked at sign-in, every time. For that reason only addresses at your firm can be added — the same list of domains that governs signing in governs sharing, so the two can never drift apart.
+
+To change what someone can do, use the dropdown beside their name. To take them off, click the **✕**; they lose access immediately. The owner cannot be removed or demoted here: a project is never left without one.
+
+**What a shared project carries.** Tasks, canvas, timeline, links and the workroom conversation all travel with it. **Attached documents do not.** Documents are encrypted on the computer they were added to, under a key held by that computer, and cannot be read from another install. If someone else needs a document, send it to them the way you normally would. This is a deliberate limit, not an oversight.
+
+#### Creating a project on the hub
+
+If this computer is connected to the hub (**Settings → The hub**), **New Project** asks where the project should live:
+
+- **On this computer** — yours alone. Nobody else can reach it.
+- **On the hub** — others at the firm can be brought in.
+
+The same form asks who should be able to see it. A project made on the hub is the one to use for work you intend to share; a project made on this computer stays here, and adding people to it only reaches people who use this machine.
+
 Your existing workrooms are now projects. Each one kept its title, goal, pinned items, journal and conversation — you now reach them through the project they belong to.
 
 ### Creating tasks from Meeting Notes

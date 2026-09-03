@@ -1,10 +1,12 @@
 import { apiClient } from "./client";
 import type {
+  AssignableRole,
   Dependency,
   DependencyKind,
   HeldItem,
   Project,
   ProjectCreate,
+  ProjectMember,
   ProjectSpace,
   ProjectUpdate,
   Task,
@@ -56,9 +58,52 @@ export async function ensureProjectWorkroom(
   return resp.data;
 }
 
-export async function createProject(body: ProjectCreate): Promise<Project> {
-  const resp = await apiClient.post<Project>("/projects", body);
+export async function createProject(
+  body: ProjectCreate,
+  source: Source = "local",
+): Promise<Project> {
+  const resp = await apiClient.post<Project>(at(source, "/projects"), body);
   return resp.data;
+}
+
+// ── People ────────────────────────────────────────────────────────────────────
+
+/**
+ * Adding someone grants a role. It does not grant a way in: they still have to
+ * be able to sign in on their own account before the role means anything.
+ */
+export async function addProjectMember(
+  projectId: string,
+  email: string,
+  role: AssignableRole,
+  source: Source = "local",
+): Promise<ProjectMember> {
+  const resp = await apiClient.post<ProjectMember>(
+    at(source, `/projects/${projectId}/members`),
+    { email, role },
+  );
+  return resp.data;
+}
+
+export async function updateProjectMember(
+  projectId: string,
+  userId: string,
+  role: AssignableRole,
+  source: Source = "local",
+): Promise<ProjectMember> {
+  const resp = await apiClient.patch<ProjectMember>(
+    at(source, `/projects/${projectId}/members/${userId}`),
+    { role },
+  );
+  return resp.data;
+}
+
+export async function removeProjectMember(
+  projectId: string,
+  userId: string,
+  source: Source = "local",
+): Promise<void> {
+  await apiClient.delete(at(source, `/projects/${projectId}/members/${userId}`));
 }
 
 export async function updateProject(

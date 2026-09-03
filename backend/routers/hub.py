@@ -29,7 +29,7 @@ router = APIRouter(prefix="/hub", tags=["hub"])
 # Scopes IAP tokens to the shared workspace. The desktop has no business
 # proxying a person's private hub data, and an open proxy would hand the
 # renderer a way to call anything at all on the far side.
-_ALLOWED_PREFIXES = ("/projects", "/tasks", "/workrooms")
+_ALLOWED_PREFIXES = ("/projects", "/tasks", "/workrooms", "/portfolio")
 
 _SCOPES = ["openid", "email"]
 

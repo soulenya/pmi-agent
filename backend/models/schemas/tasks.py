@@ -15,6 +15,7 @@ class ProjectCreate(BaseModel):
     name: str = Field(max_length=255)
     description: str | None = None
     goal: str = ""
+    visibility: Literal["private", "shared", "company"] = "private"
     color: str | None = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$")
     start_date: datetime | None = None
     target_date: datetime | None = None

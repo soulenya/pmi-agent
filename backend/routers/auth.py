@@ -39,7 +39,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # ── Google SSO ────────────────────────────────────────────────────────────────
 
-_ALLOWED_DOMAINS = {"pmi-llc.com", "precisianmedical.com"}
+from services.projects.access import ALLOWED_DOMAINS as _ALLOWED_DOMAINS
+
 _SSO_SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
