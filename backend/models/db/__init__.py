@@ -7,6 +7,7 @@ from models.db.base import Base
 from models.db.briefing import Briefing
 from models.db.browser import BrowserBookmark
 from models.db.budget import Budget, BudgetFolder, BudgetReference
+from models.db.canvas import CanvasEdge, CanvasNode, ProjectCanvas
 from models.db.conversation import AgentRun, Conversation, ConversationAttachment, Message
 from models.db.device_token import DeviceToken
 from models.db.document import Document, DocumentCategory, DocumentChunk
@@ -25,7 +26,7 @@ from models.db.regulatory import CAPA, RegulatoryDocument, RegulatoryNode, RiskI
 from models.db.research import ResearchReport, ResearchSource
 from models.db.scheduled_task import ScheduledTask
 from models.db.settings import ModelRoutingRule, SystemSetting, UserSetting
-from models.db.task import Project, Task, TaskComment
+from models.db.task import Project, Task, TaskComment, TaskDependency
 from models.db.user import User, UserSession
 from models.db.workroom import Workroom, WorkroomItem, WorkroomJournalEntry
 
@@ -50,6 +51,10 @@ __all__ = [
     "ProjectMember",
     "Task",
     "TaskComment",
+    "TaskDependency",
+    "ProjectCanvas",
+    "CanvasNode",
+    "CanvasEdge",
     "ResearchReport",
     "ResearchSource",
     "RegulatoryDocument",
