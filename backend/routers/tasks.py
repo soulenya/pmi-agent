@@ -17,6 +17,7 @@ from models.db.user import User
 from models.schemas.tasks import (
     DependencyCreate,
     DependencyOut,
+    GateOut,
     ProjectCreate,
     ProjectOut,
     ProjectUpdate,
@@ -30,8 +31,9 @@ from models.schemas.tasks import (
     TimelineOut,
 )
 from repositories.task_repo import ProjectRepository, TaskRepository
-from services.projects import custody, schedule as sched
-from services.projects.access import resolve_role
+from services.projects import custody, links as link_svc, schedule as sched
+from services.projects.access import resolve_role, visible_project_ids
+from services.projects.links import announce_closed_gates
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 projects_router = APIRouter(prefix="/projects", tags=["projects"])
@@ -148,19 +150,79 @@ def _to_schedule_inputs(
     return task_in, dep_in
 
 
+async def _project_gates(
+    db: AsyncSession, project_id: uuid.UUID, user_id: uuid.UUID
+) -> tuple[list[GateOut], list[sched.GateIn]]:
+    """The gates this project waits on, drawn from the linked projects' milestones.
+
+    The gate is on your own timeline, so you always see that it is there. The
+    name of the project holding it is only filled in if you can see that
+    project.
+    """
+    gate_links = await link_svc.gates_into(db, project_id)
+    if not gate_links:
+        return [], []
+    closed = await link_svc.refresh_gates(db, gate_links)
+    if closed:
+        await announce_closed_gates(db, closed)
+        await db.commit()
+
+    task_ids = [lk.gate_task_id for lk in gate_links if lk.gate_task_id]
+    milestones = {}
+    if task_ids:
+        rows = (await db.execute(select(Task).where(Task.id.in_(task_ids)))).scalars()
+        milestones = {t.id: t for t in rows}
+    visible = set(await visible_project_ids(db, user_id))
+    upstream_ids = {lk.from_project_id for lk in gate_links} & visible
+    upstream = {}
+    if upstream_ids:
+        rows = (
+            await db.execute(select(Project).where(Project.id.in_(list(upstream_ids))))
+        ).scalars()
+        upstream = {p.id: p for p in rows}
+
+    out: list[GateOut] = []
+    inputs: list[sched.GateIn] = []
+    for link in gate_links:
+        milestone = milestones.get(link.gate_task_id) if link.gate_task_id else None
+        opens_on = link_svc.gate_date(milestone)
+        known = link.from_project_id in upstream
+        out.append(
+            GateOut(
+                link_id=link.id,
+                from_project_id=link.from_project_id,
+                from_project_name=(
+                    upstream[link.from_project_id].name if known else "another project"
+                ),
+                gate_task_id=link.gate_task_id if known else None,
+                gate_task_title=(
+                    milestone.title if known and milestone is not None else ""
+                ),
+                opens_on=opens_on,
+                status=link.status,
+                note=link.note if known else "",
+            )
+        )
+        inputs.append(
+            sched.GateIn(id=link.id, opens_on=opens_on, is_open=link.status == "open")
+        )
+    return out, inputs
+
+
 @projects_router.get("/{project_id}/timeline", response_model=TimelineOut)
 async def get_project_timeline(
     project: Project = Depends(require_project_role("viewer")),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TimelineOut:
-    """Tasks, dependencies and the computed schedule in one payload."""
+    """Tasks, dependencies, gates and the computed schedule in one payload."""
     tasks = await _project_tasks(db, project.id)
     deps = await _project_dependencies(db, [t.id for t in tasks])
     task_in, dep_in = _to_schedule_inputs(tasks, deps)
+    gates, gate_in = await _project_gates(db, project.id, current_user.id)
     try:
         computed = sched.schedule(
-            task_in, dep_in, today=datetime.now(timezone.utc).date()
+            task_in, dep_in, today=datetime.now(timezone.utc).date(), gates=gate_in
         )
     except sched.CycleError:
         # Stored data should never loop, but a chart that cannot be drawn is
@@ -181,9 +243,11 @@ async def get_project_timeline(
                 slack_days=s.slack_days,
                 is_critical=s.is_critical,
                 is_late=s.is_late,
+                blocked_by_gate=s.blocked_by_gate,
             )
             for s in computed.values()
         ],
+        gates=gates,
         my_role=role or "viewer",
     )
 
@@ -278,6 +342,11 @@ async def update_task(
     task = await repo.update(task_id, **updates)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found.")
+    if task.is_milestone:
+        # Finishing a milestone is what closes a gate somewhere downstream.
+        await announce_closed_gates(
+            db, await link_svc.refresh_gates(db, await link_svc.gates_on_task(db, task.id))
+        )
     await db.commit()
     return TaskOut.model_validate(task)
 

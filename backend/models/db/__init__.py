@@ -21,6 +21,7 @@ from models.db.meeting import MeetingNote
 from models.db.notification import Notification
 from models.db.odoo import OdooConnection
 from models.db.project_custody import ProjectItemCustody
+from models.db.project_link import ProjectLink
 from models.db.project_member import ProjectMember
 from models.db.regulatory import CAPA, RegulatoryDocument, RegulatoryNode, RiskItem
 from models.db.research import ResearchReport, ResearchSource
@@ -48,6 +49,7 @@ __all__ = [
     "ApprovalIntent",
     "Project",
     "ProjectItemCustody",
+    "ProjectLink",
     "ProjectMember",
     "Task",
     "TaskComment",

@@ -718,7 +718,9 @@ class AgentExecutor:
         # the room's goal, pinned artifacts, and recent journal every turn.
         try:
             from services.workroom_context import build_workroom_context
-            room_ctx = await build_workroom_context(self.db, self.conversation_id)
+            room_ctx = await build_workroom_context(
+                self.db, self.conversation_id, self.user_id
+            )
             if room_ctx:
                 messages[0]["content"] += room_ctx
         except Exception:  # noqa: BLE001 — workroom is best-effort context

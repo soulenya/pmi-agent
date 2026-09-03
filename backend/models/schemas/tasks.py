@@ -140,6 +140,20 @@ class ScheduleOut(BaseModel):
     slack_days: int
     is_critical: bool
     is_late: bool
+    blocked_by_gate: uuid.UUID | None = None
+
+
+class GateOut(BaseModel):
+    """A gate as the downstream timeline needs to draw it."""
+
+    link_id: uuid.UUID
+    from_project_id: uuid.UUID
+    from_project_name: str
+    gate_task_id: uuid.UUID | None = None
+    gate_task_title: str = ""
+    opens_on: date | None = None
+    status: str = "open"
+    note: str = ""
 
 
 class TimelineOut(BaseModel):
@@ -147,7 +161,78 @@ class TimelineOut(BaseModel):
     tasks: list[TaskOut]
     dependencies: list[DependencyOut]
     schedule: list[ScheduleOut]
+    gates: list[GateOut] = []
     my_role: str
+
+
+# ── Project links ─────────────────────────────────────────────────────────────
+
+ProjectLinkKind = Literal["depends_on", "gates", "parallel", "subproject_of"]
+ProjectLinkStatus = Literal["open", "satisfied", "waived"]
+
+
+class ProjectLinkCreate(BaseModel):
+    to_project_id: uuid.UUID
+    kind: ProjectLinkKind = "depends_on"
+    gate_task_id: uuid.UUID | None = None
+    note: str = ""
+
+
+class ProjectLinkUpdate(BaseModel):
+    kind: ProjectLinkKind | None = None
+    gate_task_id: uuid.UUID | None = None
+    note: str | None = None
+    status: ProjectLinkStatus | None = None
+
+
+class ProjectLinkOut(BaseModel):
+    id: uuid.UUID
+    from_project_id: uuid.UUID
+    to_project_id: uuid.UUID
+    kind: str
+    gate_task_id: uuid.UUID | None = None
+    gate_task_title: str = ""
+    note: str = ""
+    status: str = "open"
+    satisfied_at: datetime | None = None
+    # The end of the link that is not the project being asked about. Empty when
+    # the viewer cannot see it: a private project stays absent, not greyed out.
+    other_project_id: uuid.UUID | None = None
+    other_project_name: str = ""
+    other_project_status: str = ""
+    other_visible: bool = True
+    direction: str = "out"  # out = this project is the `from` end
+    created_at: datetime
+
+
+class PortfolioNode(BaseModel):
+    id: uuid.UUID
+    name: str
+    status: str
+    color: str | None = None
+    goal: str = ""
+    open_tasks: int = 0
+    late_tasks: int = 0
+    open_gates: int = 0
+    next_milestone: str = ""
+    next_milestone_date: date | None = None
+
+
+class PortfolioEdge(BaseModel):
+    id: uuid.UUID
+    from_project_id: uuid.UUID
+    to_project_id: uuid.UUID
+    kind: str
+    status: str = "open"
+    note: str = ""
+    # True when one end is a project this viewer cannot see. The edge is drawn
+    # dangling and carries no name.
+    dangling: bool = False
+
+
+class PortfolioOut(BaseModel):
+    projects: list[PortfolioNode] = []
+    links: list[PortfolioEdge] = []
 
 
 class ReorderItem(BaseModel):

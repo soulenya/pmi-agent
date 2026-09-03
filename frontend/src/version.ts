@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 222;
+export const BUILD_NUMBER = 223;
 export const BUILD_DATE = "2026-09-03";
 
 export interface ChangelogEntry {
@@ -14,6 +14,21 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 223,
+    date: "2026-09-03",
+    title: "Projects can be linked to each other",
+    changes: [
+      "A project's Overview now says how it fits with other work: it can wait for another project, gate one, run alongside one, or be part of one.",
+      "A gate waits on a named milestone. Finish that milestone and the gate closes on its own, and the owner of the waiting project is told.",
+      "A gate can be waived when the wait no longer applies, and reinstated if it does again.",
+      "Gates appear on the timeline as a marker on the day they open, and any task scheduled to start before one is flagged. Gates never move your dates.",
+      "New Portfolio view: every project you can see, laid out by what waits on what, with open work, late work, open gates and the next milestone on each card.",
+      "Links cannot be made in a circle. If a link would close a loop, Little Gerry refuses it and names the projects in the loop.",
+      "Gerry can read a linked project's goal, milestones and gate status when working in a project workroom \u2014 and nothing else. A link is not access.",
+      "A link to a project you cannot see still shows, but without the name.",
+    ],
+  },
   {
     build: 222,
     date: "2026-09-03",
