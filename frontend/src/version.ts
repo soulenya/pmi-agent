@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 228;
+export const BUILD_NUMBER = 229;
 export const BUILD_DATE = "2026-09-03";
 
 export interface ChangelogEntry {

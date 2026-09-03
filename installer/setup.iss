@@ -16,7 +16,7 @@
 
 #define AppName       "Little Gerry"
 #define AppPublisher  "Precisian Medical Instruments"
-#define AppVersion    "4.5.0"
+#define AppVersion    "4.5.1"
 #define AppURL        "https://github.com/soulenya/pmi-agent"
 #define AppExeName    "Start Little Gerry.bat"
 #define AppDescription "AI Executive Assistant for the VACTOR Program"
@@ -96,7 +96,7 @@ Source: "..\README.md";                     DestDir: "{app}"; Flags: ignoreversi
 Source: "..\launcher.py";                   DestDir: "{app}"; Flags: ignoreversion
 Source: "..\Spaceman on Black BG.png";      DestDir: "{app}"; Flags: ignoreversion
 Source: "..\.gitignore";                   DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-; google_credentials.json (OAuth client secret) is intentionally NOT bundled —
+; google_credentials.json (OAuth client secret) is intentionally NOT bundled ï¿½
 ; users add it after installing (see docs/INSTALL.md "Google OAuth credentials").
 ; hub_client.json is fetched from the firm's Drive on first run, not bundled.
 Source: "..\VERSION";                       DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist

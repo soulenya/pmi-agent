@@ -9,6 +9,7 @@ Little Gerry — silent launcher.
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import os
 import shutil
@@ -441,7 +442,7 @@ def _auto_update() -> None:
         if dirty:
             return
 
-        _run("git fetch origin", cwd=str(ROOT))
+        _run("git fetch origin", cwd=str(ROOT), timeout=120)
         local = _run("git rev-parse HEAD", cwd=str(ROOT)).stdout.decode(errors="ignore").strip()
         remote = _run("git rev-parse origin/master", cwd=str(ROOT)).stdout.decode(errors="ignore").strip()
         if not local or not remote or local == remote:
@@ -450,11 +451,47 @@ def _auto_update() -> None:
         _set_status("Installing the latest update...", 0)
         _run("git reset --hard origin/master", cwd=str(ROOT))
         # Refresh dependencies to match the new code.
-        _run("uv sync", cwd=str(BACKEND_DIR))
-        _run("npm install --silent", cwd=str(FRONTEND_DIR))
+        _run("uv sync", cwd=str(BACKEND_DIR), timeout=300)
+        _run("npm install --silent", cwd=str(FRONTEND_DIR), timeout=300)
         _set_status("Update installed.", 0)
     except Exception:
         _log_error()
+
+
+def _sync_dependencies() -> None:
+    """Reconcile the venv and node_modules with the current code.
+
+    Both commands reach the network, and `npm install` on a slow line can sit
+    for many minutes without a single byte of progress. Startup used to wait on
+    that with no bound, so a bad connection left the splash on "Checking
+    dependencies..." forever. Skip the work entirely unless the manifests
+    actually changed, and never wait more than a few minutes when they have —
+    stale dependencies cost a feature, a hung launcher costs the whole app.
+    """
+    manifests = [BACKEND_DIR / "pyproject.toml", FRONTEND_DIR / "package.json"]
+    try:
+        digest = hashlib.sha256()
+        for path in manifests:
+            digest.update(path.read_bytes())
+        stamp_path = BACKEND_DIR / "logs" / "deps.stamp"
+        stamp = digest.hexdigest()
+        if stamp_path.exists() and stamp_path.read_text(encoding="utf-8").strip() == stamp:
+            return
+    except Exception:
+        _log_error()
+        stamp_path, stamp = None, None
+
+    ok = True
+    for cmd, cwd in (("uv sync", BACKEND_DIR), ("npm install --silent", FRONTEND_DIR)):
+        if _run(cmd, cwd=str(cwd), timeout=300).returncode != 0:
+            ok = False
+
+    if ok and stamp_path is not None:
+        try:
+            stamp_path.parent.mkdir(exist_ok=True)
+            stamp_path.write_text(stamp, encoding="utf-8")
+        except Exception:
+            _log_error()
 
 
 def _start_services() -> None:
@@ -471,11 +508,7 @@ def _start_services() -> None:
         # so a release that adds a dependency would silently break (e.g. the ddgs
         # search package). Both commands are fast no-ops when already in sync.
         _set_status("Checking dependencies...", 0)
-        try:
-            _run("uv sync", cwd=str(BACKEND_DIR))
-            _run("npm install --silent", cwd=str(FRONTEND_DIR))
-        except Exception:
-            _log_error()
+        _sync_dependencies()
 
         # 1. Docker
         _set_status("Checking Docker...", 1)
