@@ -782,7 +782,6 @@ def create_app() -> FastAPI:
             logger.info("WebSocket connected: user=%s conversation=%s", user.id, conversation_id)
 
             # Verify conversation belongs to user
-            from repositories.conversation_repo import ConversationRepository
             import uuid as uuid_mod
             try:
                 conv_uuid = uuid_mod.UUID(conversation_id)
@@ -791,8 +790,11 @@ def create_app() -> FastAPI:
                 await websocket.close()
                 return
 
-            conv_repo = ConversationRepository(db)
-            conv = await conv_repo.get(conv_uuid, user.id)
+            # A project's conversation belongs to whoever created the project,
+            # so membership decides, not ownership.
+            from routers.conversations import conversation_for
+
+            conv = await conversation_for(db, conv_uuid, user.id, need="editor")
             if conv is None:
                 await websocket.send_text(WSError(detail="Conversation not found.").model_dump_json())
                 await websocket.close()

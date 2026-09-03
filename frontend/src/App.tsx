@@ -93,6 +93,7 @@ function ThemedApp() {
             <Route path="agents" element={<Page><AgentsPage /></Page>} />
             <Route path="chat" element={<Page><ChatPage /></Page>} />
             <Route path="chat/:conversationId" element={<Page><ChatPage /></Page>} />
+            <Route path="hub/chat/:conversationId" element={<Page><ChatPage source="hub" /></Page>} />
             <Route path="approvals" element={<Page><ApprovalsPage /></Page>} />
             <Route path="assistant" element={<Page><AssistantPage /></Page>} />
             <Route path="documents" element={<Page><DocumentsPage /></Page>} />

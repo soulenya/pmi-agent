@@ -25,6 +25,7 @@ import {
   type MessagePage,
 } from "@/api/chat";
 import { listWorkrooms } from "@/api/workrooms";
+import type { Source } from "@/api/tasks";
 import { getSettings } from "@/api/settings";
 import { deleteDocument } from "@/api/documents";
 import { grantDriveEdit } from "@/api/google";
@@ -148,8 +149,9 @@ function ConversationItem({
 
 // â”€â”€ Tool activity strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-export function ChatPage() {
+export function ChatPage({ source = "local" }: { source?: Source } = {}) {
   const { conversationId } = useParams<{ conversationId?: string }>();
+  const onHub = source === "hub";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -191,7 +193,7 @@ export function ChatPage() {
     },
     {
       accept: CHAT_ATTACHMENT_EXTS,
-      disabled: !conversationId,
+      disabled: !conversationId || onHub,
       onRejected: (rejected) =>
         setDropNotice(
           `Skipped (PDF, DOCX, TXT, MD, CSV, or images only): ${rejected.map((f) => f.name).join(", ")}`,
@@ -341,8 +343,8 @@ export function ChatPage() {
 
   // â”€â”€ Messages for active conversation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: messagePage, isLoading: messagesLoading } = useQuery({
-    queryKey: ["messages", conversationId],
-    queryFn: () => listMessagePage(conversationId!),
+    queryKey: ["messages", source, conversationId],
+    queryFn: () => listMessagePage(conversationId!, { source }),
     enabled: !!conversationId,
     // While a turn is running with a dead socket, the answer still completes in
     // the background — poll so it appears without a manual refresh.
@@ -353,12 +355,12 @@ export function ChatPage() {
 
   const appendMessage = useCallback(
     (msg: Message) => {
-      queryClient.setQueryData<MessagePage>(["messages", conversationId], (prev) => ({
+      queryClient.setQueryData<MessagePage>(["messages", source, conversationId], (prev) => ({
         messages: [...(prev?.messages ?? []), msg],
         hasMore: prev?.hasMore ?? false,
       }));
     },
-    [conversationId, queryClient],
+    [conversationId, queryClient, source],
   );
 
   // Fetch the page before the oldest message on screen and prepend it.
@@ -369,20 +371,21 @@ export function ChatPage() {
     try {
       const older = await listMessagePage(conversationId, {
         beforeId: messages[0].id,
+        source,
       });
       if (older.messages.length === 0) return;
       const el = scrollRef.current;
       // Anchor on distance from the bottom: prepending changes scrollHeight, so
       // holding scrollTop would jump the view.
       if (el) restoreScrollRef.current = el.scrollHeight - el.scrollTop;
-      queryClient.setQueryData<MessagePage>(["messages", conversationId], (prev) => ({
+      queryClient.setQueryData<MessagePage>(["messages", source, conversationId], (prev) => ({
         messages: [...older.messages, ...(prev?.messages ?? [])],
         hasMore: older.hasMore,
       }));
     } finally {
       setLoadingOlder(false);
     }
-  }, [conversationId, loadingOlder, messages, queryClient]);
+  }, [conversationId, loadingOlder, messages, queryClient, source]);
 
   // Tick the elapsed clock while a turn is in flight.
   useEffect(() => {
@@ -464,16 +467,19 @@ export function ChatPage() {
 
     let disposed = false;
     const token = useAuthStore.getState().accessToken;
+    // A hub conversation is relayed by the local backend, which alone can hold
+    // the IAP credential the hub's door wants.
+    const path = onHub ? "/hub/ws/chat" : "/ws/chat";
     const wsUrl = token
-      ? `${WS_BASE}/ws/chat/${conversationId}?token=${encodeURIComponent(token)}`
-      : `${WS_BASE}/ws/chat/${conversationId}`;
+      ? `${WS_BASE}${path}/${conversationId}?token=${encodeURIComponent(token)}`
+      : `${WS_BASE}${path}/${conversationId}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
       setWsConnected(true);
       // Reconnected — pull anything that finished while we were away.
-      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["messages", source, conversationId] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     };
     ws.onclose = () => {
@@ -557,7 +563,7 @@ export function ChatPage() {
           if (req.file_id) setPendingDriveEdit(req);
         } else if (msg.type === "done") {
           // Flush streamed message into real message list
-          queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+          queryClient.invalidateQueries({ queryKey: ["messages", source, conversationId] });
           // Refresh conversations to pick up auto-title if set
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
           // Gerry may have raised an approval during this turn — surface it inline
@@ -616,7 +622,7 @@ export function ChatPage() {
       setWsConnected(false);
       setToolActivities([]);
     };
-  }, [conversationId, queryClient, wsRetry]);
+  }, [conversationId, queryClient, wsRetry, onHub, source]);
 
   // â”€â”€ Auto-scroll to bottom â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Fire pendingMessage once conversation + WebSocket are both ready
@@ -714,20 +720,20 @@ export function ChatPage() {
     if (!conversationId) return;
     setStopping(true);
     try {
-      const { stopping: accepted } = await stopTurn(conversationId);
+      const { stopping: accepted } = await stopTurn(conversationId, source);
       if (!accepted) {
         // Nothing was running server-side — the UI was stuck, so clear it.
         setBusySince(null);
         setToolActivities([]);
         setStreamingContent(null);
-        queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+        queryClient.invalidateQueries({ queryKey: ["messages", source, conversationId] });
       }
     } catch {
       /* leave the busy state alone; the turn may still land */
     } finally {
       setStopping(false);
     }
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, source]);
 
   useEffect(() => {
     if (!busySince) setStopping(false);
@@ -736,6 +742,9 @@ export function ChatPage() {
   return (
     <div className="flex h-full gap-4">
       {/* â”€â”€ Conversation sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* The rail lists this machine's conversations; a hub project's belongs to
+          the project, so it is reached from there. */}
+      {!onHub && (
       <aside className="flex w-56 flex-col gap-2 border-r pr-4">
         <button
           onClick={() => createConvMutation.mutate()}
@@ -791,6 +800,7 @@ export function ChatPage() {
           ))}
         </div>
       </aside>
+      )}
 
       {/* â”€â”€ Message thread â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="relative flex flex-1 flex-col overflow-hidden" {...dropProps}>
@@ -1045,7 +1055,7 @@ export function ChatPage() {
         {dropNotice && (
           <p className="mb-1 px-1 text-xs text-destructive">{dropNotice}</p>
         )}
-        {conversationId && <AttachmentBar conversationId={conversationId} />}
+        {conversationId && !onHub && <AttachmentBar conversationId={conversationId} />}
 
         {/* Input */}
         <ChatInput

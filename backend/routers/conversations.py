@@ -40,8 +40,29 @@ from repositories.conversation_repo import (
     NotificationRepository,
 )
 from services.audit.logger import AuditLogger, get_audit_logger
+from services.projects.access import conversation_role, role_at_least
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
+
+
+async def conversation_for(
+    db: AsyncSession,
+    conv_id: uuid.UUID,
+    user_id: uuid.UUID,
+    *,
+    need: str = "viewer",
+):
+    """The conversation, if this person may use it. Owner, or on its project."""
+    repo = ConversationRepository(db)
+    conv = await repo.get(conv_id, user_id)
+    if conv is not None:
+        return conv
+    role = await conversation_role(db, conv_id, user_id)
+    if role is None or not role_at_least(role, need):
+        return None
+    from models.db.conversation import Conversation
+
+    return await db.get(Conversation, conv_id)
 approvals_router = APIRouter(prefix="/approvals", tags=["approvals"])
 notifications_router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -88,8 +109,7 @@ async def get_conversation(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ConversationOut:
-    repo = ConversationRepository(db)
-    conv = await repo.get(conv_id, current_user.id)
+    conv = await conversation_for(db, conv_id, current_user.id)
     if conv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found.")
     return conv
@@ -103,7 +123,7 @@ async def update_conversation(
     db: AsyncSession = Depends(get_db),
 ) -> ConversationOut:
     repo = ConversationRepository(db)
-    conv = await repo.get(conv_id, current_user.id)
+    conv = await conversation_for(db, conv_id, current_user.id, need="editor")
     if conv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found.")
     updates = body.model_dump(exclude_none=True)
@@ -127,8 +147,7 @@ async def list_messages(
     this used to have made every message past the limit invisible, which read as
     the conversation having been truncated.
     """
-    conv_repo = ConversationRepository(db)
-    conv = await conv_repo.get(conv_id, current_user.id)
+    conv = await conversation_for(db, conv_id, current_user.id)
     if conv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found.")
     msg_repo = MessageRepository(db)

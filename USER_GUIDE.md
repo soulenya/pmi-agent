@@ -460,13 +460,13 @@ Every project card has a **layers** button that opens the project's own space. T
 - **Tasks** — a count and a link through to the project's task board.
 - **Budget** — the money on this project. See below.
 - **Material** — the project's pinned documents, files, emails and links, kept in its workroom.
-- **Chat** — the project's conversation with Gerry. Every new project is given one the moment it is created, so this tab is ready straight away. Older projects made before this got a **Start one** button instead.
+- **Chat** — the project's conversation with Gerry, shared by everyone on the project. Every new project is given one the moment it is created, so this tab is ready straight away. Older projects made before this got a **Start one** button instead. A shared project on the hub opens its conversation in the app just the same; attachments and the conversation list on the left are for this computer's chats, so they are not shown there.
 
 #### The Budget tab
 
 A budget is a Google Sheet you keep on the **Budget** page. This tab attaches one to a project so that everyone working on the project can see where the money is.
 
-**To attach one,** open the Budget tab and click **Add a budget**. You are shown your own budgets; pick one. You must be able to edit the project to attach anything to it.
+**To attach one,** open the Budget tab and click **Add a budget**. You are shown your own budgets; pick one. Or paste a Drive link to a sheet and it is linked and attached in one go. You must be able to edit the project to attach anything to it.
 
 **What everyone on the project sees:** the title, what has been spent, the allotment, how much is left or how far over it has gone, and a link to the sheet on Drive. That is a view, not a handover — the sheet on Drive keeps its own sharing, so a teammate can only open it if you have given them access there too.
 
@@ -474,7 +474,7 @@ A budget is a Google Sheet you keep on the **Budget** page. This tab attaches on
 
 Taking a budget off a project, or deleting the project, never touches the budget or the sheet. The sheet exists whether or not a project claims it.
 
-Budgets live on the computer they were made on, so hub projects have no Budget tab.
+A shared project on the hub has a Budget tab of its own. Its budgets are held on the hub, beside the project, so everyone on the project sees the same figures. A budget you keep on this computer stays on this computer; to put one on a hub project, paste the sheet's Drive link into that project's Budget tab and it is linked there.
 
 #### The Timeline
 
