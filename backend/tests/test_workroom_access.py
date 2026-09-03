@@ -141,18 +141,21 @@ async def test_outsider_cannot_see_a_private_projects_room(db_session: AsyncSess
 
 
 @pytest.mark.asyncio
-async def test_company_project_room_is_readable_by_anyone_signed_in(
+async def test_company_project_room_is_workable_by_anyone_signed_in(
     db_session: AsyncSession,
 ):
+    """Opening a project to the firm invites the firm to work in it.
+
+    A passer-by gets editor, not viewer: a company project people could only
+    watch was the complaint that prompted this.
+    """
     creator = await _user(db_session, "wr-creator6@pmi.local")
     passer_by = await _user(db_session, "wr-passerby@pmi.local")
     project = await _project(db_session, creator, "company")
     room = await _room(db_session, creator, project)
 
     assert await _get_room(db_session, room.id, passer_by.id, "viewer") is room
-    with pytest.raises(HTTPException) as err:
-        await _get_room(db_session, room.id, passer_by.id, "editor")
-    assert err.value.status_code == 403
+    assert await _get_room(db_session, room.id, passer_by.id, "editor") is room
 
 
 @pytest.mark.asyncio

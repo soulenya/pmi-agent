@@ -458,8 +458,23 @@ Every project card has a **layers** button that opens the project's own space. T
 - **Canvas** — an endless whiteboard for the project.
 - **Timeline** — the project's schedule as a Gantt chart.
 - **Tasks** — a count and a link through to the project's task board.
+- **Budget** — the money on this project. See below.
 - **Material** — the project's pinned documents, files, emails and links, kept in its workroom.
-- **Chat** — the project's conversation with Gerry. If it doesn't have one yet, **Start one** creates it.
+- **Chat** — the project's conversation with Gerry. Every new project is given one the moment it is created, so this tab is ready straight away. Older projects made before this got a **Start one** button instead.
+
+#### The Budget tab
+
+A budget is a Google Sheet you keep on the **Budget** page. This tab attaches one to a project so that everyone working on the project can see where the money is.
+
+**To attach one,** open the Budget tab and click **Add a budget**. You are shown your own budgets; pick one. You must be able to edit the project to attach anything to it.
+
+**What everyone on the project sees:** the title, what has been spent, the allotment, how much is left or how far over it has gone, and a link to the sheet on Drive. That is a view, not a handover — the sheet on Drive keeps its own sharing, so a teammate can only open it if you have given them access there too.
+
+**Only the person who linked a budget can take it off again** (the **✕**) or change it. Others see the figures and nothing else.
+
+Taking a budget off a project, or deleting the project, never touches the budget or the sheet. The sheet exists whether or not a project claims it.
+
+Budgets live on the computer they were made on, so hub projects have no Budget tab.
 
 #### The Timeline
 
@@ -544,7 +559,7 @@ Set on the Overview tab. Only the project's owner can change it.
 
 - **Private** — you and nobody else. Other people are not shown the project and are not told it exists.
 - **Shared** — the people on the member list, each at the role you gave them: owner, editor, commenter or viewer.
-- **Company** — everyone signed in to Little Gerry at your organisation. This is a standing setting, so a project you open to the company stays open until you change it.
+- **Company** — everyone signed in to Little Gerry at your organisation, and **they can edit it**. Opening a project to the firm invites the firm to work in it: anyone can change the canvas, the tasks and the timeline, and can take custody of work. It is a standing setting, so it stays open until you change it. If you want the firm to read a project without touching it, share it with named people as viewers instead. Owner-only decisions — visibility, the member list, releasing held work — stay yours.
 
 New projects start private. Sharing controls who can open a project; it is separate from what Gerry is allowed to read.
 

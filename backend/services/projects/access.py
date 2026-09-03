@@ -5,8 +5,10 @@ The rule, in one place because everything else will depend on it:
 - ``private``  — the owner and nobody else. Not listed, not linkable, not
   visible as a placeholder. Other people cannot tell it exists.
 - ``shared``   — the explicit member list, at the role each member was given.
-- ``company``  — every signed-in user gets ``viewer``; members keep their own,
-  higher role. A standing setting, not a one-off share.
+- ``company``  — every signed-in user gets ``editor``; members keep their own
+  role where it is higher. Opening a project to the firm is meant to invite
+  the firm to work in it, not to watch it. A standing setting, not a one-off
+  share.
 
 There is no admin bypass. "Personal" has to mean personal or it means nothing.
 Nothing here governs what the agent may read across projects — that is decided
@@ -62,7 +64,7 @@ async def resolve_role(
     if project.owner_id == user_id or project.created_by == user_id:
         return "owner"
     if project.visibility == "company":
-        return "viewer"
+        return "editor"
     return None
 
 

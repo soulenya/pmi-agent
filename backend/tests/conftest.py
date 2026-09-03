@@ -53,7 +53,9 @@ async def create_test_tables():
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Each test gets a transaction that is rolled back at the end."""
     async with test_engine.begin() as conn:
-        session = AsyncSession(bind=conn)
+        # Match production (database.py): expiring on commit makes the next
+        # attribute read a lazy refresh, which cannot run on an async engine.
+        session = AsyncSession(bind=conn, expire_on_commit=False)
         try:
             yield session
         finally:

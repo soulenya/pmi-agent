@@ -27,6 +27,10 @@ class Budget(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    # The sheet outlives any project that claims it, so this clears rather than cascades.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     drive_file_id: Mapped[str] = mapped_column(String(255), nullable=False)
     drive_url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")

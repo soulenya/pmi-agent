@@ -34,6 +34,7 @@ from repositories.task_repo import ProjectRepository, TaskRepository
 from services.projects import custody, links as link_svc, schedule as sched
 from services.projects.access import resolve_role, visible_project_ids
 from services.projects.links import announce_closed_gates
+from services.projects.workroom import ensure_workroom
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 projects_router = APIRouter(prefix="/projects", tags=["projects"])
@@ -62,6 +63,7 @@ async def create_project(
 ) -> ProjectOut:
     repo = ProjectRepository(db)
     project = await repo.create(created_by=current_user.id, **body.model_dump())
+    await ensure_workroom(db, project, current_user.id)
     await db.commit()
     return ProjectOut.model_validate(project)
 

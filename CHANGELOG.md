@@ -4,6 +4,17 @@
 
 ## Changelog
 
+### v4.3.0 — 2026-09-03
+**A company project is now a project the company can work in**
+
+- **Company-wide projects are editable, not read-only.** Anyone signed in at the firm now opens a company project as an **editor**: canvas, tasks, timeline and material. Until now they were given viewer rights, which made the canvas read-only for everybody except the owner — the opposite of what opening a project to the firm is for.
+  **Read this before you use it:** this means any signed-in colleague can change any company-visible project, and can take custody of work in it. If you want the firm to read a project without touching it, share it with named people as viewers instead. The owner's decisions stay the owner's: visibility, the member list, and releasing held work are unchanged.
+- **Every new project starts with a conversation with Gerry.** Creating a project now creates its workroom and its conversation at the same time, so the Chat tab works the moment the project exists.
+- **The Chat tab is no longer a dead end.** Pressing **Start one** used to make a workroom with no conversation attached, so the button simply reappeared. It now creates the conversation and opens it. Older projects that already have a workroom without a conversation are repaired the first time the tab is opened.
+- **Anyone who can edit a project can start its conversation.** The button was disabled for everyone but owners and editors, which — combined with the bug above — put company projects out of reach entirely.
+- **A new Budget tab on every project.** Attach one of your budgets to a project and everyone working on it can see what has been spent, the allotment, and how much is left. Only the person who linked a budget can attach, detach or change it; everyone else sees the figures. The sheet on Drive keeps its own sharing, so a teammate can open the sheet itself only if you have given them access there too.
+- **Detaching a budget, or deleting a project, never touches the budget or the sheet.** A budget is a link to a sheet that exists whether or not any project claims it.
+
 ### v4.2.0 — 2026-09-03
 **Share a project with the people you work with**
 
