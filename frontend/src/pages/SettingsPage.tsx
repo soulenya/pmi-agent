@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -103,6 +104,17 @@ function Section({
 }) {
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<string | undefined>(() => readReviewed()[id]);
+  const [params] = useSearchParams();
+  const wrapper = useRef<HTMLDivElement>(null);
+
+  // `/settings?section=hub` — how the status bar hands someone straight to the
+  // service they clicked.
+  const targeted = params.get("section") === id;
+  useEffect(() => {
+    if (!targeted) return;
+    setOpen(true);
+    wrapper.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [targeted]);
 
   // Falling back to the reviewed value keeps a settled section from flashing a
   // highlight while its revision is still loading.
@@ -122,8 +134,9 @@ function Section({
 
   return (
     <div
+      ref={wrapper}
       className={cn(
-        "rounded-xl border bg-card shadow-sm transition-colors",
+        "rounded-xl border bg-card shadow-sm transition-colors scroll-mt-4",
         review && "border-amber-400/70 ring-1 ring-amber-400/30"
       )}
     >
