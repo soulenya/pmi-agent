@@ -212,6 +212,8 @@ Your profile is **yours alone**. It is stored against your account, never shared
 
 > **Finding your way around.** The home screen is a **solar system**: Little Gerry is the sun (click her to chat), **Dashboard**, the **Daily Assistant** and **Workrooms** orbit close in, and five planets group the modules — **Work**, **Knowledge**, **Communications**, **Odoo**, and **Compliance** — with each feature page as a moon. The narrow **left rail** shows the sun and the five planets from anywhere in the app: click a planet to zoom into it, or simply **hover over it** and a menu glides out listing its moons so you can jump straight to any page in one click. The **chat bubble under the sun** returns you to your last open Gerry conversation from any page. Esc zooms back out a level.
 
+> **Going back.** The **‹ ›** arrows at the top left retrace your steps, exactly as a browser's back and forward do. Leave a project for the chat and one press of **‹** puts you back where you were. **Alt+←** and **Alt+→** do the same from the keyboard (**⌘[** and **⌘]** on a Mac).
+
 ---
 
 ## Talking to Little Gerry
@@ -454,7 +456,7 @@ Navigate to **Projects** to group related tasks, track milestones, and monitor o
 
 Every project card has a **layers** button that opens the project's own space. Tabs across the top:
 
-- **Overview** — open and total tasks, pinned material, journal entries, the people on the project, and the visibility control.
+- **Overview** — open and total tasks, pinned material, journal entries, the people on the project, the visibility control, and the archive/delete controls.
 - **Canvas** — an endless whiteboard for the project.
 - **Timeline** — the project's schedule as a Gantt chart.
 - **Tasks** — a count and a link through to the project's task board.
@@ -475,6 +477,18 @@ A budget is a Google Sheet you keep on the **Budget** page. This tab attaches on
 Taking a budget off a project, or deleting the project, never touches the budget or the sheet. The sheet exists whether or not a project claims it.
 
 A shared project on the hub has a Budget tab of its own. Its budgets are held on the hub, beside the project, so everyone on the project sees the same figures. A budget you keep on this computer stays on this computer; to put one on a hub project, paste the sheet's Drive link into that project's Budget tab and it is linked there.
+
+#### Archiving and deleting a project
+
+Both live on the **Overview** tab, under **Archive or delete**.
+
+**Archive** hides the project from the project list without losing anything. Anyone who can edit the project can archive it, and the same button reads **Bring it back** afterwards.
+
+**Delete** cannot be undone. You must type the project's name to confirm. It removes the project, its tasks, its canvas, its timeline, its links, its member list, its pinned material and its conversation with Gerry — for everyone on the project, not just for you.
+
+**Only the owner can delete a project.** A company-visible project makes everyone at the firm an editor, and destroying everyone's work is not an editing decision.
+
+**Budgets survive a delete.** A budget is a link to a Google Sheet that exists whether or not a project claims it, so the project lets go of it and the sheet is untouched.
 
 #### The Timeline
 

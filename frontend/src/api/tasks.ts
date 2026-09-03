@@ -115,6 +115,13 @@ export async function updateProject(
   return resp.data;
 }
 
+export async function deleteProject(
+  id: string,
+  source: Source = "local",
+): Promise<void> {
+  await apiClient.delete(at(source, `/projects/${id}`));
+}
+
 export async function listHeldItems(
   id: string,
   source: Source = "local",

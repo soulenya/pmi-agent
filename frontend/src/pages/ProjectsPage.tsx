@@ -79,9 +79,11 @@ const PROJECT_STATUSES = [
 
 function EditProjectModal({
   project,
+  source,
   onClose,
 }: {
   project: Project;
+  source: Source;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -101,20 +103,21 @@ function EditProjectModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // The hub's list is cached under its own key, so refresh whichever this was.
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["projects"] });
+    qc.invalidateQueries({ queryKey: ["hub", "projects"] });
+    onClose();
+  };
+
   const saveMutation = useMutation({
-    mutationFn: (body: ProjectUpdate) => updateProject(project.id, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      onClose();
-    },
+    mutationFn: (body: ProjectUpdate) => updateProject(project.id, body, source),
+    onSuccess: refresh,
   });
 
   const archiveMutation = useMutation({
-    mutationFn: () => updateProject(project.id, { is_archived: true }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
-      onClose();
-    },
+    mutationFn: () => updateProject(project.id, { is_archived: true }, source),
+    onSuccess: refresh,
   });
 
   function handleSubmit(e: React.FormEvent) {
@@ -494,15 +497,13 @@ function ProjectCard({
               </NavLink>
             </div>
           <div className="flex items-center gap-1 shrink-0">
-            {source === "local" && (
-              <button
-                onClick={onEdit}
-                className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-foreground transition-opacity"
-                title="Edit project"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-            )}
+            <button
+              onClick={onEdit}
+              className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent hover:text-foreground transition-opacity"
+              title="Edit project"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
             <AskGerryButton
               className="p-1 opacity-0 group-hover:opacity-100"
               build={() => ({
@@ -619,6 +620,7 @@ function ProjectCard({
 export function ProjectsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editingHubProject, setEditingHubProject] = useState<Project | null>(null);
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery({
     queryKey: ["projects"],
@@ -668,7 +670,15 @@ export function ProjectsPage() {
       {editingProject && (
         <EditProjectModal
           project={editingProject}
+          source="local"
           onClose={() => setEditingProject(null)}
+        />
+      )}
+      {editingHubProject && (
+        <EditProjectModal
+          project={editingHubProject}
+          source="hub"
+          onClose={() => setEditingHubProject(null)}
         />
       )}
 
@@ -778,7 +788,7 @@ export function ProjectsPage() {
                   key={p.id}
                   project={p}
                   tasks={hubTasks.filter((t) => t.project_id === p.id)}
-                  onEdit={() => undefined}
+                  onEdit={() => setEditingHubProject(p)}
                   source="hub"
                 />
               ))}

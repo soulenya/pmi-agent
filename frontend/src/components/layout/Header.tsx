@@ -13,6 +13,7 @@ import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { ServiceMenu } from "@/components/ServiceMenu";
 import { ChatSidebarToggle } from "./ChatSidebar";
 import { FeedbackButton } from "./FeedbackButton";
+import { HistoryNav } from "./HistoryNav";
 import { MeetingRecorderIndicator } from "./MeetingRecorderIndicator";
 import { cn } from "@/lib/utils";
 import { modLabel } from "@/lib/platform";
@@ -72,6 +73,8 @@ export function Header({ onOpenPalette }: HeaderProps) {
   return (
     <header className="flex h-16 items-center justify-between border-b bg-card px-6">
       <div className="flex items-center gap-2">
+        <HistoryNav />
+
         {/* ⌘K palette trigger */}
         <button
           onClick={onOpenPalette}

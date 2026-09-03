@@ -34,6 +34,7 @@ from repositories.task_repo import ProjectRepository, TaskRepository
 from services.projects import custody, links as link_svc, schedule as sched
 from services.projects.access import resolve_role, visible_project_ids
 from services.projects.links import announce_closed_gates
+from services.projects.removal import delete_project as remove_project
 from services.projects.workroom import ensure_workroom
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -96,6 +97,17 @@ async def update_project(
     updated = await ProjectRepository(db).update(project.id, **updates)
     await db.commit()
     return ProjectOut.model_validate(updated)
+
+
+@projects_router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project: Project = Depends(require_project_role("owner")),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Owner only: a company project gives editor rights to the whole firm, and
+    destroying everyone's work is not an editing decision."""
+    await remove_project(db, project)
+    await db.commit()
 
 
 # ── Tasks ─────────────────────────────────────────────────────────────────────
