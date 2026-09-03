@@ -108,6 +108,11 @@ export interface Task {
   priority: TaskPriority;
   assignee_id: string | null;
   due_date: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  progress_pct: number;
+  is_milestone: boolean;
+  sort_order: number;
   completed_at: string | null;
   tags: string[];
   attachments: TaskAttachment[];
@@ -125,6 +130,9 @@ export interface TaskCreate {
   parent_task_id?: string;
   priority?: TaskPriority;
   due_date?: string;
+  start_date?: string;
+  end_date?: string;
+  is_milestone?: boolean;
   tags?: string[];
   source_ref?: TaskSourceRef;
 }
@@ -135,8 +143,45 @@ export interface TaskUpdate {
   status?: TaskStatus;
   priority?: TaskPriority;
   due_date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  progress_pct?: number;
+  is_milestone?: boolean;
+  sort_order?: number;
   tags?: string[];
   project_id?: string | null;
+}
+
+// ── Timeline ────────────────────────────────────────────────────────────
+
+/** Finish-to-start, start-to-start, finish-to-finish, start-to-finish. */
+export type DependencyKind = "FS" | "SS" | "FF" | "SF";
+
+export interface Dependency {
+  id: string;
+  predecessor_id: string;
+  successor_id: string;
+  kind: DependencyKind;
+  lag_days: number;
+}
+
+export interface ScheduledTask {
+  task_id: string;
+  early_start: string;
+  early_finish: string;
+  late_start: string;
+  late_finish: string;
+  slack_days: number;
+  is_critical: boolean;
+  is_late: boolean;
+}
+
+export interface Timeline {
+  project_id: string;
+  tasks: Task[];
+  dependencies: Dependency[];
+  schedule: ScheduledTask[];
+  my_role: string;
 }
 
 export interface TaskComment {

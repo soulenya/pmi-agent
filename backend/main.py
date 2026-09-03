@@ -28,6 +28,7 @@ from database import engine, get_db
 from routers import audit, auth, documents, health, search, users
 from routers.conversations import approvals_router, notifications_router, router as conversations_router
 from routers.tasks import projects_router, router as tasks_router
+from routers.canvas import router as canvas_router
 from routers.project_space import router as project_space_router
 from routers.regulatory import capa_router, router as regulatory_router
 from routers.regulatory_files import router as regulatory_files_router
@@ -711,6 +712,7 @@ def create_app() -> FastAPI:
     app.include_router(notifications_router)
     app.include_router(tasks_router)
     app.include_router(projects_router)
+    app.include_router(canvas_router)
     app.include_router(project_space_router)
     app.include_router(regulatory_router)
     app.include_router(capa_router)

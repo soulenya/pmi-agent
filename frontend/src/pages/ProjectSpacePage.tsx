@@ -25,6 +25,8 @@ import {
 } from "@/api/tasks";
 import type { Source } from "@/api/tasks";
 import type { HeldItem, ProjectVisibility } from "@/types/tasks";
+import { TimelineTab } from "@/components/projects/TimelineTab";
+import { CanvasTab } from "@/components/projects/CanvasTab";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Layers },
@@ -57,15 +59,6 @@ const VISIBILITY: Record<
     icon: Globe2,
   },
 };
-
-function Placeholder({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-10 text-center">
-      <p className="text-sm font-medium">{title}</p>
-      <p className="max-w-md text-sm text-muted-foreground">{body}</p>
-    </div>
-  );
-}
 
 export function ProjectSpacePage({ source = "local" }: { source?: Source } = {}) {
   const { id, tab } = useParams<{ id: string; tab?: string }>();
@@ -268,17 +261,11 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
         )}
 
         {active === "canvas" && (
-          <Placeholder
-            title="Canvas"
-            body="The infinite canvas — bubbles, links, ink and images — arrives in the next release. The project it hangs off exists now."
-          />
+          <CanvasTab projectId={id!} source={source} canEdit={canEdit} />
         )}
 
         {active === "timeline" && (
-          <Placeholder
-            title="Timeline"
-            body="The Gantt view arrives with the canvas. Tasks need start dates and dependencies first."
-          />
+          <TimelineTab projectId={id!} source={source} canEdit={canEdit} />
         )}
 
         {active === "tasks" && (

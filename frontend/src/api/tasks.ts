@@ -1,5 +1,7 @@
 import { apiClient } from "./client";
 import type {
+  Dependency,
+  DependencyKind,
   HeldItem,
   Project,
   ProjectCreate,
@@ -9,6 +11,7 @@ import type {
   TaskCreate,
   TaskComment,
   TaskUpdate,
+  Timeline,
 } from "@/types/tasks";
 
 // ── Projects ──────────────────────────────────────────────────────────────────
@@ -147,4 +150,47 @@ export async function removeTaskAttachment(
 ): Promise<Task> {
   const resp = await apiClient.delete<Task>(`/tasks/${taskId}/attachments/${attachmentId}`);
   return resp.data;
+}
+
+// ── Timeline ────────────────────────────────────────────────────────────
+
+export async function getProjectTimeline(
+  projectId: string,
+  source: Source = "local",
+): Promise<Timeline> {
+  const resp = await apiClient.get<Timeline>(
+    at(source, `/projects/${projectId}/timeline`),
+  );
+  return resp.data;
+}
+
+export async function addDependency(
+  taskId: string,
+  predecessorId: string,
+  kind: DependencyKind = "FS",
+  lagDays = 0,
+  source: Source = "local",
+): Promise<Dependency> {
+  const resp = await apiClient.post<Dependency>(
+    at(source, `/tasks/${taskId}/dependencies`),
+    { predecessor_id: predecessorId, kind, lag_days: lagDays },
+  );
+  return resp.data;
+}
+
+export async function removeDependency(
+  taskId: string,
+  predecessorId: string,
+  source: Source = "local",
+): Promise<void> {
+  await apiClient.delete(
+    at(source, `/tasks/${taskId}/dependencies/${predecessorId}`),
+  );
+}
+
+export async function reorderTasks(
+  items: { task_id: string; sort_order: number }[],
+  source: Source = "local",
+): Promise<void> {
+  await apiClient.post(at(source, "/tasks/reorder"), { items });
 }
