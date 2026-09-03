@@ -5,8 +5,12 @@
 ## Changelog
 
 ### v4.5.0 — 2026-09-03
-**A way back, and a way to get rid of a project**
+**Gerry works from your desk, a way back, and a way to get rid of a project**
 
+- **Gerry can see your shared projects now.** She could not before: every one of her tools read this computer only, and a shared project exists on the hub, so asking her about one got an honest "it doesn't exist yet". She has a new **list_projects** that reads both places.
+- **She can file a task under a project.** The task tracker had no project field at all, so every task she made came out loose. Name a project and the task goes there — including a shared one, where it is created on the hub so the rest of the project can see it.
+- **A shared project's chat runs on your machine.** It used to run on the hub, which has no Knowledge Base, no Google account and none of your files — so Gerry answered from an empty desk and told you Drive was not connected. She now answers from here, with everything she normally has, and the hub keeps the record.
+- **Be aware of what that means.** Her answers in a shared project can draw on your Knowledge Base and your Google account, and those answers are then stored on the hub for everyone on the project to read. Nothing is copied there except the messages themselves.
 - **Back and Forward buttons, top left.** Leaving a project for the chat used to be a one-way trip — there was no way to return except starting again from the sidebar. The app now keeps its own history. **Alt+←** and **Alt+→** work too (**⌘[** and **⌘]** on a Mac).
 - **Projects can be deleted.** Open the project, then **Overview → Archive or delete**. You must type the project's name to confirm, because this cannot be undone.
 - **Only the owner can delete a project.** A company-visible project makes everyone at the firm an editor; destroying everyone's work is not an editing decision.

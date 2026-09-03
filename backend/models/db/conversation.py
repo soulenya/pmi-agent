@@ -26,6 +26,8 @@ class Conversation(Base):
     agent_type: Mapped[AgentType | None] = mapped_column(String(50), nullable=True)
     is_pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # A local copy of a shared project's chat, carrying the hub's own id.
+    hub_mirror: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -107,6 +109,8 @@ class Message(Base):
     )
     role: Mapped[MessageRole] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # The hub already has this one — pulled from it, or pushed to it.
+    hub_synced: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     agent_type: Mapped[AgentType | None] = mapped_column(String(50), nullable=True)
     agent_run_id: Mapped[uuid.UUID | None] = mapped_column(

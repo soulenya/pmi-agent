@@ -490,6 +490,14 @@ Both live on the **Overview** tab, under **Archive or delete**.
 
 **Budgets survive a delete.** A budget is a link to a Google Sheet that exists whether or not a project claims it, so the project lets go of it and the sheet is untouched.
 
+#### Asking Gerry about a project
+
+Gerry can see every project you can open, on this computer and shared on the hub, and she can file a task under one — just name the project when you ask.
+
+**In a shared project's Chat tab, Gerry works from your machine.** She has your Knowledge Base, your Google account, your files and your budgets, exactly as she does anywhere else in the app. The hub keeps the conversation so the rest of the project can read it, and it is brought up to date each time you open the chat and after every answer.
+
+> **What this means for what you share.** An answer Gerry gives inside a shared project can draw on your Knowledge Base and your Google account, and that answer is then stored on the hub where everyone on the project can read it. The documents themselves are never copied to the hub — only the messages. If something should not be repeated to the project, do not ask about it there.
+
 #### The Timeline
 
 Every task in the project draws as a bar on a time scale. Switch between **month**, **week** and **day** with the zoom buttons.

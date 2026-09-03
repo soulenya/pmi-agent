@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -67,6 +67,23 @@ class MessageOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class MessageAppend(BaseModel):
+    """One message a desktop has already stored, offered to the hub.
+
+    The id comes from the caller so that a copy and its original share one
+    identity: that is what lets a retried push be recognised rather than
+    duplicated, and what lets a desktop tell its own messages apart from a
+    colleague's when it reads the conversation back.
+    """
+
+    id: uuid.UUID
+    role: Literal["user", "assistant"]
+    content: str
+    agent_type: str | None = None
+    model_name: str | None = None
+    created_at: datetime | None = None
 
 
 # ── Approvals ─────────────────────────────────────────────────────────────────

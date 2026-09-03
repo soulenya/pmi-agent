@@ -18,13 +18,53 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.db.canvas import CanvasEdge, CanvasNode, ProjectCanvas
 from models.db.task import Project, Task, TaskDependency
 from services.projects import schedule as sched
-from services.projects.access import resolve_role, role_at_least
+from services.projects.access import resolve_role, role_at_least, visible_project_ids
 
 # A node the model places has no pointer to aim at, so it lands in a tidy grid
 # near the origin rather than on top of whatever is already there.
 _GRID_X = 240
 _GRID_Y = 150
 _GRID_COLS = 5
+
+
+async def hub_projects(db: AsyncSession, user_id: uuid.UUID) -> list[dict[str, Any]]:
+    """Shared projects, read from the hub. Empty if there is no hub to ask.
+
+    A project someone shared with the firm lives only on the hub, so a tool
+    that reads the local database alone will honestly report that it does not
+    exist — which is what used to happen, and read as Gerry being broken.
+    """
+    from services.hub import client as hub
+
+    if not hub.configured():
+        return []
+    try:
+        resp = await hub.request(db, user_id, "GET", "/projects")
+    except hub.HubError:
+        return []
+    if resp.status_code != 200:
+        return []
+    payload = resp.json()
+    return payload if isinstance(payload, list) else []
+
+
+async def find_hub_project(
+    db: AsyncSession, user_id: uuid.UUID, text: str
+) -> dict[str, Any] | None:
+    """One shared project matching a name or id, or None. Ambiguity is None."""
+    text = str(text or "").strip()
+    if not text:
+        return None
+    projects = await hub_projects(db, user_id)
+    for item in projects:
+        if str(item.get("id")) == text:
+            return item
+    lowered = text.lower()
+    exact = [p for p in projects if str(p.get("name", "")).lower() == lowered]
+    if len(exact) == 1:
+        return exact[0]
+    near = [p for p in projects if lowered in str(p.get("name", "")).lower()]
+    return near[0] if len(near) == 1 else None
 
 
 async def _resolve_project(
@@ -188,6 +228,74 @@ async def _project_schedule_inputs(
 
 
 # ── tools ─────────────────────────────────────────────────────────────────────
+
+async def execute_list_projects(ctx: Any, args: dict[str, Any]) -> str:
+    """Name every project this person can open, here and on the hub."""
+    wanted = str(args.get("query") or "").strip().lower()
+    include_archived = bool(args.get("include_archived"))
+
+    ids = await visible_project_ids(ctx.db, ctx.user_id)
+    local: list[Project] = []
+    if ids:
+        rows = (
+            await ctx.db.execute(select(Project).where(Project.id.in_(ids)))
+        ).scalars().all()
+        local = [p for p in rows if include_archived or not p.is_archived]
+
+    lines: list[str] = []
+    for project in sorted(local, key=lambda p: p.name.lower()):
+        if wanted and wanted not in project.name.lower():
+            continue
+        lines.append(_project_line("on this computer", project.name, project.id, project.status, project.goal, project.is_archived))
+
+    seen = {p.id for p in local}
+    for item in await hub_projects(ctx.db, ctx.user_id):
+        try:
+            pid = uuid.UUID(str(item.get("id")))
+        except (TypeError, ValueError):
+            continue
+        if pid in seen:
+            continue
+        if not include_archived and item.get("is_archived"):
+            continue
+        name = str(item.get("name") or "")
+        if wanted and wanted not in name.lower():
+            continue
+        lines.append(
+            _project_line(
+                "shared, on the hub",
+                name,
+                pid,
+                str(item.get("status") or ""),
+                str(item.get("goal") or ""),
+                bool(item.get("is_archived")),
+            )
+        )
+
+    if not lines:
+        if wanted:
+            return f"No project matches '{args.get('query')}'."
+        return "There are no projects yet."
+    return "\n".join(sorted(lines))
+
+
+def _project_line(
+    where: str,
+    name: str,
+    project_id: uuid.UUID,
+    status: str,
+    goal: str,
+    archived: bool,
+) -> str:
+    parts = [f'"{name}" ({where}) — id {project_id}']
+    if status:
+        parts.append(f"status {status}")
+    if archived:
+        parts.append("archived")
+    if goal:
+        parts.append(f"goal: {goal[:160]}")
+    return ", ".join(parts)
+
 
 async def execute_get_project_timeline(ctx: Any, args: dict[str, Any]) -> str:
     project, problem = await _resolve_project(
@@ -484,6 +592,34 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "list_projects",
+            "description": (
+                "Name every project the user can open, both on this computer and "
+                "shared on the hub, with their ids. Use this FIRST whenever a "
+                "project is mentioned by name and you do not already know its id \u2014 "
+                "a shared project exists only on the hub and no other tool will "
+                "find it for you."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Optional: only projects whose name contains this.",
+                    },
+                    "include_archived": {
+                        "type": "boolean",
+                        "description": "Include archived projects. False by default.",
+                        "default": False,
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_project_timeline",
             "description": (
                 "Read a project's schedule: every task's worked-out start and finish, "
@@ -627,6 +763,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
 ]
 
 TOOL_EXECUTORS = {
+    "list_projects": execute_list_projects,
     "get_project_timeline": execute_get_project_timeline,
     "set_task_schedule": execute_set_task_schedule,
     "add_task_dependency": execute_add_task_dependency,
@@ -635,6 +772,7 @@ TOOL_EXECUTORS = {
 }
 
 PRIMARY_ARGS = {
+    "list_projects": "query",
     "get_project_timeline": "project",
     "set_task_schedule": "task",
     "add_task_dependency": "task",
@@ -642,8 +780,7 @@ PRIMARY_ARGS = {
     "link_canvas_nodes": "from_node",
 }
 
-RUNNING_LABELS = {
-    "get_project_timeline": "Working out the timeline…",
+RUNNING_LABELS = {    "list_projects": "Looking through the projects\u2026",    "get_project_timeline": "Working out the timeline…",
     "set_task_schedule": "Scheduling the task…",
     "add_task_dependency": "Linking the tasks…",
     "create_canvas_node": "Adding to the canvas…",
@@ -651,6 +788,11 @@ RUNNING_LABELS = {
 }
 
 TOOL_DOCS = {
+    "list_projects": (
+        "Every project the user can open, on this computer and shared on the hub, "
+        "with ids. Call it before any other project tool when you only have a name. "
+        "JSON: {\"query\": str optional, \"include_archived\": bool}."
+    ),
     "get_project_timeline": (
         "Read a project's computed schedule: per-task start/finish, slack, critical "
         "path and late flags. JSON: {\"project\": str (name or id)}."

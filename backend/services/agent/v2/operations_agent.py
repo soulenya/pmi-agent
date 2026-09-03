@@ -40,6 +40,7 @@ Today's date: {today}
 _TOOLS = [
     "create_task",
     "get_tasks",
+    "list_projects",
     "get_project_timeline",
     "set_task_schedule",
     "add_task_dependency",
