@@ -86,7 +86,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     tagline: "Organise work into projects.",
     capabilities: [
       "Keep project details, files and linked tasks in one place",
-      "Open a project's space for its overview, timeline, canvas, tasks, material and conversation",
+      "Open a project's space for its overview, timeline, canvas, tasks, budget, material and conversation",
       "Plan on the timeline: drag bars to reschedule, link tasks so one waits on another, mark milestones, and see the critical path and anything running late",
       "Think on the canvas: an endless whiteboard with sticky notes, shapes, freehand pen and images, plus cards for real documents, budgets, tasks and pages that show their live state",
       "A line drawn between two task cards on the canvas becomes a real dependency on the timeline",
@@ -95,6 +95,9 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Gates show on the timeline as a marker and flag any task scheduled to start before them, without moving your dates",
       "Links are checked for loops, so a project can never end up waiting on itself",
       "Choose who can see each project: private, a named member list, or the whole company",
+      "A company-wide project can be edited by anyone at the firm, not just read \u2014 share with named viewers instead if you want it read-only",
+      "Every new project starts with its own conversation with Gerry, ready on the Chat tab",
+      "Attach a budget to a project so everyone working on it sees spend against the allotment; only the person who linked it can change it",
       "Add people to a project by their work email on the Overview, and set whether each can view, comment or edit",
       "Someone who has never opened Little Gerry can still be added; their role is waiting at their first sign-in",
       "Create a project on this computer or on the firm's hub, where the people you add can reach it",

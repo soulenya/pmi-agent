@@ -86,12 +86,30 @@ export interface Budget {
   drive_url: string;
   allotment: number | null;
   currency: string;
+  project_id: string | null;
   gerry_write_enabled: boolean;
   gmail_check_enabled: boolean;
   external_readonly: boolean;
   cached_summary: BudgetSummary;
   cached_at: string | null;
   created_at: string;
+}
+
+/** A budget as the project shows it: the figures, without the owner's controls. */
+export interface ProjectBudget {
+  id: string;
+  title: string;
+  currency: string;
+  allotment: number | null;
+  drive_url: string;
+  cached_summary: BudgetSummary;
+  cached_at: string | null;
+  is_mine: boolean;
+}
+
+export async function listProjectBudgets(projectId: string): Promise<ProjectBudget[]> {
+  const { data } = await apiClient.get<ProjectBudget[]>(`/projects/${projectId}/budgets`);
+  return data;
 }
 
 export interface BudgetDetail extends Budget {
@@ -139,6 +157,8 @@ export async function updateBudget(
     clear_allotment?: boolean;
     gerry_write_enabled?: boolean;
     gmail_check_enabled?: boolean;
+    project_id?: string | null;
+    clear_project?: boolean;
   },
 ): Promise<BudgetDetail> {
   const { data } = await apiClient.patch<BudgetDetail>(`/budgets/${id}`, body);

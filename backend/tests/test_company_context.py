@@ -63,6 +63,9 @@ async def test_sync_success_writes_cache_and_returns_true(db_session, monkeypatc
 
     await _seed(db_session, cc.KEY_DRIVE_FILE_ID, "file123")
     monkeypatch.setattr(gs, "get_credentials", lambda: object())
+    # The sync checks the file's type before reading it; without this the real
+    # call runs, throws, and the failure is swallowed into a bare False.
+    monkeypatch.setattr(gs, "drive_get_file_meta", lambda fid: {"mime_type": "text/markdown"})
     monkeypatch.setattr(
         gs,
         "drive_get_content",

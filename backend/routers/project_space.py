@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user, require_project_role
+from models.db.budget import Budget
 from models.db.project_custody import CUSTODY_ITEM_TYPES, ProjectItemCustody
 from models.db.project_member import ProjectMember
 from models.db.task import Project, Task
@@ -28,6 +29,7 @@ from models.schemas.tasks import ProjectOut
 from services.auth.service import hash_password
 from services.projects import custody
 from services.projects.access import ALLOWED_DOMAINS, resolve_role
+from services.projects.workroom import ensure_workroom
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +161,53 @@ async def get_project_space(
             "members": len(members),
         },
     )
+
+
+# ── Budgets ───────────────────────────────────────────────────────────────────
+
+class ProjectBudgetOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    currency: str
+    allotment: float | None
+    drive_url: str
+    cached_summary: dict
+    cached_at: datetime | None
+    is_mine: bool
+
+
+@router.get("/{project_id}/budgets", response_model=list[ProjectBudgetOut])
+async def list_project_budgets(
+    project: Project = Depends(require_project_role("viewer")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[ProjectBudgetOut]:
+    """The budgets attached to this project.
+
+    Everyone on the project sees the figures. Only the person who linked the
+    sheet can change it: the numbers belong to the project, the sheet on Drive
+    still belongs to them.
+    """
+    rows = (
+        await db.execute(
+            select(Budget)
+            .where(Budget.project_id == project.id)
+            .order_by(Budget.title)
+        )
+    ).scalars()
+    return [
+        ProjectBudgetOut(
+            id=b.id,
+            title=b.title,
+            currency=b.currency,
+            allotment=float(b.allotment) if b.allotment is not None else None,
+            drive_url=b.drive_url,
+            cached_summary=b.cached_summary or {},
+            cached_at=b.cached_at,
+            is_mine=b.user_id == current_user.id,
+        )
+        for b in rows
+    ]
 
 
 # ── People ────────────────────────────────────────────────────────────────────
@@ -341,25 +390,9 @@ async def ensure_project_workroom(
     current_user: User = Depends(get_current_user),
 ) -> WorkroomBrief:
     """Return the project's workroom, creating it on first use."""
-    room = (
-        await db.execute(
-            select(Workroom)
-            .where(Workroom.project_id == project.id)
-            .order_by(Workroom.created_at.asc())
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-    if room is None:
-        room = Workroom(
-            id=uuid.uuid4(),
-            user_id=current_user.id,
-            project_id=project.id,
-            title=project.name[:200],
-            goal=project.goal or "",
-        )
-        db.add(room)
-        await db.commit()
-        await db.refresh(room)
+    room = await ensure_workroom(db, project, current_user.id)
+    await db.commit()
+    await db.refresh(room)
     return WorkroomBrief(id=room.id, title=room.title, conversation_id=room.conversation_id)
 
 

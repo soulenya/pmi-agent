@@ -20,10 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from dependencies import get_current_user
 from models.db.budget import Budget, BudgetFolder, BudgetReference
+from models.db.task import Project
 from models.db.user import User
 from services import budget_folder_service, budget_service
 from services.budget_folder_service import BudgetFolderError, folder_extracted_total
 from services.budget_service import BudgetError
+from services.projects.access import resolve_role, role_at_least
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,8 @@ class BudgetUpdate(BaseModel):
     clear_allotment: bool = False
     gerry_write_enabled: bool | None = None
     gmail_check_enabled: bool | None = None
+    project_id: uuid.UUID | None = None
+    clear_project: bool = False
 
 
 class FolderLink(BaseModel):
@@ -125,6 +129,7 @@ class BudgetOut(BaseModel):
     drive_url: str
     allotment: float | None
     currency: str
+    project_id: uuid.UUID | None = None
     gerry_write_enabled: bool
     gmail_check_enabled: bool = False
     external_readonly: bool
@@ -273,6 +278,20 @@ async def update_budget(
         budget.gerry_write_enabled = body.gerry_write_enabled
     if body.gmail_check_enabled is not None:
         budget.gmail_check_enabled = body.gmail_check_enabled
+    if body.clear_project:
+        budget.project_id = None
+    elif body.project_id is not None:
+        # Attaching shows the budget to everyone on the project, so the person
+        # doing it has to be entitled to work there.
+        project = (
+            await db.execute(select(Project).where(Project.id == body.project_id))
+        ).scalar_one_or_none()
+        if project is None:
+            raise HTTPException(404, "Project not found")
+        role = await resolve_role(db, project, current_user.id)
+        if role is None or not role_at_least(role, "editor"):
+            raise HTTPException(403, "You cannot add a budget to that project.")
+        budget.project_id = project.id
     try:
         if body.title or body.allotment is not None or body.clear_allotment:
             await budget_service.update_settings(

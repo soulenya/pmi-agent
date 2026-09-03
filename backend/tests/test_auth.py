@@ -49,7 +49,7 @@ async def test_get_me(client: AsyncClient, auth_headers: dict) -> None:
 @pytest.mark.asyncio
 async def test_get_me_unauthenticated(client: AsyncClient) -> None:
     resp = await client.get("/auth/me")
-    assert resp.status_code == 403  # HTTPBearer returns 403 when no token
+    assert resp.status_code == 401  # no credentials at all is not authenticated
 
 
 @pytest.mark.asyncio

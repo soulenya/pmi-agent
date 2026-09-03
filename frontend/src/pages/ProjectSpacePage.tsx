@@ -13,6 +13,7 @@ import {
   PenTool,
   Unlock,
   Users,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -29,12 +30,14 @@ import { TimelineTab } from "@/components/projects/TimelineTab";
 import { CanvasTab } from "@/components/projects/CanvasTab";
 import { ProjectLinksPanel } from "@/components/projects/ProjectLinksPanel";
 import { ProjectPeoplePanel } from "@/components/projects/PeoplePanel";
+import { ProjectBudgetTab } from "@/components/projects/ProjectBudgetTab";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Layers },
   { id: "canvas", label: "Canvas", icon: PenTool },
   { id: "timeline", label: "Timeline", icon: CalendarRange },
   { id: "tasks", label: "Tasks", icon: FolderOpen },
+  { id: "budget", label: "Budget", icon: Wallet },
   { id: "material", label: "Material", icon: Paperclip },
   { id: "chat", label: "Chat", icon: MessageSquare },
 ] as const;
@@ -177,7 +180,9 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
         ) : null}
 
         <nav className="mt-4 flex flex-wrap gap-1">
-          {TABS.map(t => {
+          {/* Budgets are Drive sheets held on this machine, so a hub project
+              has none to show. */}
+          {TABS.filter(t => !(onHub && t.id === "budget")).map(t => {
             const Icon = t.icon;
             return (
               <button
@@ -371,6 +376,10 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
           </div>
         )}
 
+        {active === "budget" && !onHub && (
+          <ProjectBudgetTab projectId={id!} canEdit={canEdit} />
+        )}
+
         {active === "chat" && (
           <div className="space-y-3">
             {onHub ? (
@@ -393,12 +402,18 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
                 </p>
                 <button
                   type="button"
-                  disabled={!canEdit || workroomMutation.isPending}
+                  disabled={workroomMutation.isPending}
                   onClick={() => workroomMutation.mutate()}
                   className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
                 >
-                  <MessageSquare className="h-4 w-4" /> Start one
+                  <MessageSquare className="h-4 w-4" />
+                  {workroomMutation.isPending ? "Starting…" : "Start one"}
                 </button>
+                {workroomMutation.isError && (
+                  <p className="text-sm text-rose-600">
+                    The conversation could not be started.
+                  </p>
+                )}
               </>
             )}
           </div>
