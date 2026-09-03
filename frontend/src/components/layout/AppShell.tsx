@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AncestorRail } from "@/components/solar/AncestorRail";
 import { Header } from "./Header";
+import { ServiceStatusBar } from "./ServiceStatusBar";
 import { StatusBar } from "./StatusBar";
 import { ChatSidebar } from "./ChatSidebar";
 import { WhatsNewModal } from "./WhatsNewModal";
@@ -103,6 +104,7 @@ export function AppShell() {
         <AncestorRail />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header onOpenPalette={() => setPaletteOpen(true)} />
+          <ServiceStatusBar />
           <div className="flex flex-1 overflow-hidden">
             <main
               className={cn(
