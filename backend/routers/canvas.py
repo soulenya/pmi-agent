@@ -6,7 +6,8 @@ import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +37,7 @@ from models.schemas.canvas import (
     ResolveResponse,
     Viewport,
 )
-from services.projects import schedule as sched
+from services.projects import canvas_images, schedule as sched
 from services.projects.access import resolve_role
 
 router = APIRouter(prefix="/projects", tags=["canvas"])
@@ -230,6 +231,15 @@ async def delete_canvas(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     canvas = await _get_canvas(db, project.id, canvas_id)
+    images = (
+        await db.execute(
+            select(CanvasNode.id).where(
+                CanvasNode.canvas_id == canvas.id, CanvasNode.kind == "image"
+            )
+        )
+    ).scalars()
+    for node_id in images:
+        canvas_images.delete(node_id)
     await db.delete(canvas)
     await db.commit()
 
@@ -311,8 +321,64 @@ async def delete_node(
 ) -> None:
     canvas = await _get_canvas(db, project.id, canvas_id)
     node = await _get_node(db, canvas.id, node_id)
+    if node.kind == "image":
+        canvas_images.delete(node.id)
     await db.delete(node)
     await db.commit()
+
+
+# ── Images ────────────────────────────────────────────────────────────────────
+
+@router.post("/{project_id}/canvas/{canvas_id}/images", response_model=CanvasNodeOut,
+             status_code=status.HTTP_201_CREATED)
+async def upload_image(
+    canvas_id: uuid.UUID,
+    file: UploadFile = File(...),
+    x: float = Form(0),
+    y: float = Form(0),
+    width: float = Form(280),
+    height: float = Form(200),
+    project: Project = Depends(require_project_role("editor")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CanvasNodeOut:
+    canvas = await _get_canvas(db, project.id, canvas_id)
+    if file.content_type not in canvas_images.ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="That file is not an image the canvas can hold.",
+        )
+    raw = await file.read()
+    if len(raw) > canvas_images.MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=400, detail="That image is larger than 10 MB.")
+
+    node = CanvasNode(
+        canvas_id=canvas.id, kind="image", label=file.filename or "Image",
+        content="", x=x, y=y, width=width, height=height,
+        style={"mime": file.content_type}, created_by=current_user.id,
+    )
+    db.add(node)
+    await db.flush()
+    canvas_images.store(node.id, raw)
+    await db.commit()
+    await db.refresh(node)
+    return CanvasNodeOut.model_validate(node)
+
+
+@router.get("/{project_id}/canvas/{canvas_id}/nodes/{node_id}/image")
+async def get_image(
+    canvas_id: uuid.UUID,
+    node_id: uuid.UUID,
+    project: Project = Depends(require_project_role("viewer")),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    canvas = await _get_canvas(db, project.id, canvas_id)
+    node = await _get_node(db, canvas.id, node_id)
+    raw = canvas_images.read(node.id)
+    if raw is None:
+        raise HTTPException(status_code=404, detail="That image is no longer stored.")
+    mime = str(node.style.get("mime") or "application/octet-stream")
+    return Response(content=raw, media_type=mime)
 
 
 # ── Edges ─────────────────────────────────────────────────────────────────────

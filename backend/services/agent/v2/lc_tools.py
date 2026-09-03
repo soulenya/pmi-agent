@@ -134,6 +134,10 @@ _TOOL_DOCS = {
     ),
 }
 
+from services.agent.project_tools import TOOL_DOCS as _PROJECT_TOOL_DOCS  # noqa: E402
+
+_TOOL_DOCS.update(_PROJECT_TOOL_DOCS)
+
 
 def make_lc_tools(ctx) -> list:
     """

@@ -128,3 +128,37 @@ export async function resolveNodes(
   );
   return resp.data.items;
 }
+
+export async function uploadCanvasImage(
+  projectId: string,
+  canvasId: string,
+  file: File,
+  at_: { x: number; y: number; width: number; height: number },
+  source: Source = "local",
+): Promise<CanvasNode> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("x", String(at_.x));
+  form.append("y", String(at_.y));
+  form.append("width", String(at_.width));
+  form.append("height", String(at_.height));
+  const resp = await apiClient.post<CanvasNode>(
+    at(source, `/projects/${projectId}/canvas/${canvasId}/images`),
+    form,
+  );
+  return resp.data;
+}
+
+/** Images are encrypted at rest and need the session, so they come as a blob. */
+export async function fetchCanvasImage(
+  projectId: string,
+  canvasId: string,
+  nodeId: string,
+  source: Source = "local",
+): Promise<string> {
+  const resp = await apiClient.get<Blob>(
+    at(source, `/projects/${projectId}/canvas/${canvasId}/nodes/${nodeId}/image`),
+    { responseType: "blob" },
+  );
+  return URL.createObjectURL(resp.data);
+}
