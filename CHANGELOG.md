@@ -4,6 +4,13 @@
 
 ## Changelog
 
+### v4.5.1 — 2026-09-03
+**The start-up screen can no longer hang on "Checking dependencies"**
+
+- **A slow connection used to freeze start-up indefinitely.** Every launch re-checked the app's own dependencies, and that check waits on the internet. On a slow line it could sit for many minutes without a single byte of progress, leaving the splash screen on **Checking dependencies...** with nothing to do but kill the app.
+- **The check is now skipped unless it is needed.** It only runs when an update actually changes what the app depends on, which is rarely. Ordinary launches go straight past it.
+- **And it can no longer wait forever.** If it does run and the connection is bad, it gives up after a few minutes and carries on starting. Out-of-date dependencies cost you a feature; a hung launcher costs you the whole app.
+
 ### v4.5.0 — 2026-09-03
 **Gerry works from your desk, a way back, and a way to get rid of a project**
 
