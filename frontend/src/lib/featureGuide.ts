@@ -99,6 +99,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Every new project starts with its own conversation with Gerry, ready on the Chat tab — shared with everyone on the project, on this computer or on the hub",
       "Attach a budget to a project so everyone working on it sees spend against the allotment; only the person who linked it can change it",
       "Paste a Google Sheet's Drive link on the Budget tab to link it and attach it in one step — this is how a hub project gets a budget",
+      "Archive a project to hide it without losing anything, and bring it back later; only its owner can delete one for good",
       "Add people to a project by their work email on the Overview, and set whether each can view, comment or edit",
       "Someone who has never opened Little Gerry can still be added; their role is waiting at their first sign-in",
       "Create a project on this computer or on the firm's hub, where the people you add can reach it",

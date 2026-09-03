@@ -31,6 +31,7 @@ import { CanvasTab } from "@/components/projects/CanvasTab";
 import { ProjectLinksPanel } from "@/components/projects/ProjectLinksPanel";
 import { ProjectPeoplePanel } from "@/components/projects/PeoplePanel";
 import { ProjectBudgetTab } from "@/components/projects/ProjectBudgetTab";
+import { ProjectDangerPanel } from "@/components/projects/ProjectDangerPanel";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Layers },
@@ -264,6 +265,16 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
             />
 
             <ProjectLinksPanel projectId={id!} source={source} canEdit={canEdit} />
+
+            <ProjectDangerPanel
+              projectId={id!}
+              projectName={project.name}
+              source={source}
+              isArchived={project.is_archived}
+              canEdit={canEdit}
+              isOwner={myRole === "owner"}
+              onGone={() => navigate("/projects")}
+            />
           </div>
         )}
 

@@ -4,6 +4,17 @@
 
 ## Changelog
 
+### v4.5.0 — 2026-09-03
+**A way back, and a way to get rid of a project**
+
+- **Back and Forward buttons, top left.** Leaving a project for the chat used to be a one-way trip — there was no way to return except starting again from the sidebar. The app now keeps its own history. **Alt+←** and **Alt+→** work too (**⌘[** and **⌘]** on a Mac).
+- **Projects can be deleted.** Open the project, then **Overview → Archive or delete**. You must type the project's name to confirm, because this cannot be undone.
+- **Only the owner can delete a project.** A company-visible project makes everyone at the firm an editor; destroying everyone's work is not an editing decision.
+- **What a delete takes:** the project, its tasks, its canvas, its timeline, its links, its member list, its pinned material and its conversation with Gerry — for everyone on it.
+- **What a delete does not take:** budgets. A budget is a link to a Google Sheet that exists whether or not a project claims it, so the sheet and the budget are simply let go of.
+- **Archiving now works both ways, and from inside the project.** It used to be a one-way button buried in the edit dialog on the Projects page. There is now a **Bring it back** for anything archived.
+- **Shared projects on the hub can be edited, archived and deleted too.** The pencil on a hub project card did nothing at all before.
+
 ### v4.4.0 — 2026-09-03
 **Chat and Budget now work on hub projects too**
 
