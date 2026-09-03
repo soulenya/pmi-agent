@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 221;
+export const BUILD_NUMBER = 223;
 export const BUILD_DATE = "2026-09-03";
 
 export interface ChangelogEntry {
@@ -14,6 +14,38 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 223,
+    date: "2026-09-03",
+    title: "Projects can be linked to each other",
+    changes: [
+      "A project's Overview now says how it fits with other work: it can wait for another project, gate one, run alongside one, or be part of one.",
+      "A gate waits on a named milestone. Finish that milestone and the gate closes on its own, and the owner of the waiting project is told.",
+      "A gate can be waived when the wait no longer applies, and reinstated if it does again.",
+      "Gates appear on the timeline as a marker on the day they open, and any task scheduled to start before one is flagged. Gates never move your dates.",
+      "New Portfolio view: every project you can see, laid out by what waits on what, with open work, late work, open gates and the next milestone on each card.",
+      "Links cannot be made in a circle. If a link would close a loop, Little Gerry refuses it and names the projects in the loop.",
+      "Gerry can read a linked project's goal, milestones and gate status when working in a project workroom \u2014 and nothing else. A link is not access.",
+      "A link to a project you cannot see still shows, but without the name.",
+    ],
+  },
+  {
+    build: 222,
+    date: "2026-09-03",
+    title: "Projects gain a timeline and a whiteboard",
+    changes: [
+      "New Timeline tab: every task as a bar on a day, week or month scale — drag a bar to move it, drag its edge to change how long it takes, drag from one bar to another to say which waits on which",
+      "Tasks now carry a start and an end alongside the due date, a percentage done, and a milestone flag that draws as a diamond",
+      "Little Gerry works out the schedule for you: the critical path is highlighted, slack is shown, late work turns red, and a link that would make two tasks wait on each other is refused",
+      "New Canvas tab: an endless whiteboard with sticky notes, text, shapes, frames, freehand pen and pasted images",
+      "Drag documents, budgets, bookmarks, files and tasks from the Material list onto the canvas — each card shows live state, so a task card turns red when it is overdue and a budget card shows spend against its allotment",
+      "Draw a line between two task cards and it becomes a real dependency on the timeline; the canvas and the timeline are two views of the same plan",
+      "Double-click any card to open the real thing behind it, and send the page you are reading in the Research Browser straight to a project canvas",
+      "Full editing: undo and redo, align and even out spacing, snap to nearby items or to a grid, bring to front, send to back, duplicate, copy and paste, and keyboard shortcuts",
+      "Canvas images are encrypted on your machine like every other document, rather than being stored in the database",
+      "Gerry can now read a project's timeline, schedule a task, make one task wait on another, add notes to the canvas and link them",
+    ],
+  },
   {
     build: 221,
     date: "2026-09-03",

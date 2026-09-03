@@ -319,7 +319,9 @@ class LangGraphSupervisor:
         # the room's goal, pinned artifacts, and recent journal every turn.
         try:
             from services.workroom_context import build_workroom_context
-            attach_ctx += await build_workroom_context(self.db, self.conversation_id)
+            attach_ctx += await build_workroom_context(
+                self.db, self.conversation_id, self.user_id
+            )
         except Exception:
             logger.exception("Failed to build workroom context")
 

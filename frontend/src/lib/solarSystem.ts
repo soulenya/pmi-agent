@@ -37,6 +37,7 @@ import {
   Archive,
   Handshake,
   Wallet,
+  Network,
   type LucideIcon,
 } from "lucide-react";
 
@@ -95,6 +96,7 @@ export const PLANETS: Planet[] = [
     size: 64,
     moons: [
       { id: "projects", route: "/projects", label: "Projects", icon: FolderOpen },
+      { id: "portfolio", route: "/projects/portfolio", label: "Portfolio", icon: Network },
       { id: "tasks", route: "/tasks", label: "Tasks", icon: FolderKanban },
       { id: "scheduled-tasks", route: "/scheduled-tasks", label: "Scheduled Tasks", icon: CalendarClock },
       { id: "calendar", route: "/calendar", label: "Calendar", icon: CalendarDays },

@@ -91,6 +91,7 @@ _TOOLS = [
     "manage_generated_file",
     "create_task",
     "get_tasks",
+    "get_project_timeline",
     "update_task",
     "list_scheduled_tasks",
     "manage_scheduled_task",

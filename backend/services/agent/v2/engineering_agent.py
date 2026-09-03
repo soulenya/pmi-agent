@@ -70,6 +70,11 @@ _TOOLS = [
     "search_drive_content",
     "generate_file",
     "create_task",
+    "get_project_timeline",
+    "set_task_schedule",
+    "add_task_dependency",
+    "create_canvas_node",
+    "link_canvas_nodes",
     "request_approval",
 ]
 

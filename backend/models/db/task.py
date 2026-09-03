@@ -5,7 +5,17 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -77,6 +87,12 @@ class Task(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
     due_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Planned work, kept apart from `due_date` (the date it must be done by).
+    start_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    end_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    progress_pct: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_milestone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
     attachments: Mapped[list[dict]] = mapped_column(JSONB, nullable=False, default=list)
@@ -115,6 +131,42 @@ class Task(Base):
 
     def __repr__(self) -> str:
         return f"<Task id={self.id} title={self.title!r} status={self.status}>"
+
+
+class TaskDependency(Base):
+    """One task waits on another. `kind` is the usual FS/SS/FF/SF pairing."""
+
+    __tablename__ = "task_dependencies"
+    __table_args__ = (
+        UniqueConstraint("predecessor_id", "successor_id", name="uq_task_dependency"),
+        CheckConstraint(
+            "predecessor_id <> successor_id", name="ck_task_dependency_not_self"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    predecessor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False
+    )
+    successor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    kind: Mapped[str] = mapped_column(String(2), nullable=False, default="FS")
+    lag_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    def __repr__(self) -> str:
+        return f"<TaskDependency {self.predecessor_id} -{self.kind}-> {self.successor_id}>"
 
 
 class TaskComment(Base):
