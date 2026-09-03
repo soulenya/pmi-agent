@@ -23,6 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.db.project_member import PROJECT_ROLES, ProjectMember
 from models.db.task import Project
 
+# Who may hold an account at all. Sign-in checks it and so does sharing, so it
+# lives here rather than in either caller.
+ALLOWED_DOMAINS = {"pmi-llc.com", "precisianmedical.com"}
+
 
 def role_at_least(role: str, minimum: str) -> bool:
     """True if ``role`` carries at least the authority of ``minimum``."""

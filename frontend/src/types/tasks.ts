@@ -53,6 +53,7 @@ export interface ProjectCreate {
   name: string;
   description?: string;
   goal?: string;
+  visibility?: ProjectVisibility;
   color?: string;
   start_date?: string;
   target_date?: string;
@@ -75,6 +76,9 @@ export interface ProjectMember {
   display_name: string | null;
   role: "owner" | "editor" | "commenter" | "viewer";
 }
+
+/** Ownership moves by a different act than sharing, so it is not offered here. */
+export type AssignableRole = "viewer" | "commenter" | "editor";
 
 export interface ProjectSpace {
   project: Project;

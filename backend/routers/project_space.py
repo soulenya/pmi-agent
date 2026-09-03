@@ -6,11 +6,14 @@ pinned material and its people. The page opens on one request, not six.
 
 from __future__ import annotations
 
+import logging
+import secrets
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,8 +25,11 @@ from models.db.task import Project, Task
 from models.db.user import User
 from models.db.workroom import Workroom, WorkroomItem, WorkroomJournalEntry
 from models.schemas.tasks import ProjectOut
+from services.auth.service import hash_password
 from services.projects import custody
-from services.projects.access import resolve_role
+from services.projects.access import ALLOWED_DOMAINS, resolve_role
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -41,6 +47,19 @@ class MemberOut(BaseModel):
     email: str | None = None
     display_name: str | None = None
     role: str
+
+
+# The owner is not assignable: ownership moves by a different act than sharing.
+AssignableRole = Literal["viewer", "commenter", "editor"]
+
+
+class MemberAdd(BaseModel):
+    email: EmailStr
+    role: AssignableRole = "editor"
+
+
+class MemberUpdate(BaseModel):
+    role: AssignableRole
 
 
 class HeldItemOut(BaseModel):
@@ -140,6 +159,179 @@ async def get_project_space(
             "members": len(members),
         },
     )
+
+
+# ── People ────────────────────────────────────────────────────────────────────
+
+async def _require_owner(db: AsyncSession, project: Project, user_id: uuid.UUID) -> None:
+    if await resolve_role(db, project, user_id) != "owner":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can decide who is on a project.",
+        )
+
+
+async def _member_out(db: AsyncSession, member: ProjectMember) -> MemberOut:
+    user = (
+        await db.execute(select(User).where(User.id == member.user_id))
+    ).scalar_one_or_none()
+    return MemberOut(
+        user_id=member.user_id,
+        email=getattr(user, "email", None),
+        display_name=getattr(user, "display_name", None),
+        role=member.role,
+    )
+
+
+async def _notify_added(db: AsyncSession, project: Project, user_id: uuid.UUID, role: str) -> None:
+    """Tell someone they have been put on a project. Never raises."""
+    try:
+        from models.db.enums import NotificationType
+        from repositories.conversation_repo import NotificationRepository
+
+        await NotificationRepository(db).create(
+            user_id=user_id,
+            type=NotificationType.SYSTEM_ALERT.value,
+            title=f"You were added to {project.name}",
+            message=f"You can now open {project.name} as {role}.",
+            entity_type="project",
+            entity_id=project.id,
+        )
+    except Exception:  # noqa: BLE001 — a missed notification must not fail the write
+        logger.exception("Failed to announce project membership")
+
+
+@router.post(
+    "/{project_id}/members",
+    response_model=MemberOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_project_member(
+    body: MemberAdd,
+    project: Project = Depends(require_project_role("viewer")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MemberOut:
+    """Put someone on a project by email address.
+
+    The person does not have to have signed in yet. If their address is on an
+    allowed domain we create the account here, dormant, so that the role is
+    already waiting the first time they arrive. Identity is still checked at
+    sign-in — this grants a role, not a way in.
+    """
+    await _require_owner(db, project, current_user.id)
+
+    email = body.email.strip().lower()
+    domain = email.rsplit("@", 1)[-1] if "@" in email else ""
+    if domain not in ALLOWED_DOMAINS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"'{email}' is not on an address this workspace recognises.",
+        )
+
+    user = (
+        await db.execute(select(User).where(func.lower(User.email) == email))
+    ).scalar_one_or_none()
+    if user is None:
+        user = User(
+            email=email,
+            display_name=email.split("@")[0],
+            hashed_password=hash_password(secrets.token_urlsafe(32)),
+            role="member",
+            is_active=True,
+            can_write_regulatory=True,
+            onboarding_complete=False,
+        )
+        db.add(user)
+        await db.flush()
+
+    existing = (
+        await db.execute(
+            select(ProjectMember).where(
+                ProjectMember.project_id == project.id,
+                ProjectMember.user_id == user.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{email} is already on this project.",
+        )
+
+    member = ProjectMember(
+        id=uuid.uuid4(), project_id=project.id, user_id=user.id, role=body.role
+    )
+    db.add(member)
+
+    # A project nobody else can see is not shared by adding people to it.
+    if project.visibility == "private":
+        project.visibility = "shared"
+
+    await _notify_added(db, project, user.id, body.role)
+    await db.commit()
+    await db.refresh(member)
+    return await _member_out(db, member)
+
+
+@router.patch("/{project_id}/members/{user_id}", response_model=MemberOut)
+async def update_project_member(
+    user_id: uuid.UUID,
+    body: MemberUpdate,
+    project: Project = Depends(require_project_role("viewer")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MemberOut:
+    await _require_owner(db, project, current_user.id)
+
+    member = (
+        await db.execute(
+            select(ProjectMember).where(
+                ProjectMember.project_id == project.id,
+                ProjectMember.user_id == user_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if member is None:
+        raise HTTPException(status_code=404, detail="That person is not on this project.")
+    if member.role == "owner":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The owner's role cannot be changed here.",
+        )
+
+    member.role = body.role
+    await db.commit()
+    await db.refresh(member)
+    return await _member_out(db, member)
+
+
+@router.delete("/{project_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_project_member(
+    user_id: uuid.UUID,
+    project: Project = Depends(require_project_role("viewer")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    await _require_owner(db, project, current_user.id)
+
+    member = (
+        await db.execute(
+            select(ProjectMember).where(
+                ProjectMember.project_id == project.id,
+                ProjectMember.user_id == user_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if member is None:
+        return
+    if member.role == "owner":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A project cannot be left without its owner.",
+        )
+    await db.delete(member)
+    await db.commit()
 
 
 @router.post("/{project_id}/workroom", response_model=WorkroomBrief)

@@ -15,16 +15,33 @@ import {
   Archive,
   Loader2,
   Network,
+  Laptop,
+  Cloud,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listProjects, createProject, updateProject, listTasks } from "@/api/tasks";
 import type { Source } from "@/api/tasks";
 import { getHubStatus } from "@/api/hub";
-import type { Project, Task, TaskStatus, ProjectCreate, ProjectUpdate } from "@/types/tasks";
+import type {
+  Project,
+  Task,
+  TaskStatus,
+  ProjectCreate,
+  ProjectUpdate,
+  ProjectVisibility,
+} from "@/types/tasks";
 import { AskGerryButton } from "@/components/AskGerryButton";
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────
 
 const STATUS_DONE: TaskStatus[] = ["done", "cancelled"];
+
+// Said plainly, because the difference between these three is the difference
+// between private notes and something the whole firm reads.
+const VISIBILITY_HELP: Record<ProjectVisibility, string> = {
+  private: "Only you can open it.",
+  shared: "Only the people you add can open it.",
+  company: "Anyone signed in at the firm can open it.",
+};
 
 function errorMessage(err: unknown): string {
   const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
@@ -227,17 +244,28 @@ function EditProjectModal({
 
 // ── New project form ──────────────────────────────────────────────────────────
 
-function NewProjectForm({ onClose }: { onClose: () => void }) {
+function NewProjectForm({
+  onClose,
+  hubConnected,
+}: {
+  onClose: () => void;
+  hubConnected: boolean;
+}) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#1e6db5");
   const [targetDate, setTargetDate] = useState("");
+  const [destination, setDestination] = useState<Source>("local");
+  const [visibility, setVisibility] = useState<ProjectVisibility>("private");
 
   const mutation = useMutation({
-    mutationFn: (body: ProjectCreate) => createProject(body),
+    mutationFn: (body: ProjectCreate) => createProject(body, destination),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["projects"] });
+      // Whichever side took it is the side that now has something new to show.
+      qc.invalidateQueries({
+        queryKey: destination === "hub" ? ["hub", "projects"] : ["projects"],
+      });
       onClose();
     },
   });
@@ -248,6 +276,7 @@ function NewProjectForm({ onClose }: { onClose: () => void }) {
     mutation.mutate({
       name: name.trim(),
       description: description.trim() || undefined,
+      visibility,
       color,
       target_date: targetDate || undefined,
     });
@@ -301,6 +330,73 @@ function NewProjectForm({ onClose }: { onClose: () => void }) {
             className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
+      </div>
+
+      {/* Where it lives. Only worth asking when there is more than one answer. */}
+      {hubConnected && (
+        <div className="space-y-1.5">
+          <label className="text-xs text-muted-foreground font-medium">
+            Where should this live?
+          </label>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setDestination("local")}
+              className={cn(
+                "rounded-md border p-3 text-left text-sm",
+                destination === "local"
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "hover:bg-accent",
+              )}
+            >
+              <span className="flex items-center gap-2 font-medium">
+                <Laptop className="h-4 w-4" />
+                On this computer
+              </span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Yours alone. Nobody else can reach it.
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDestination("hub");
+                // A hub project nobody can see is not worth putting there.
+                if (visibility === "private") setVisibility("shared");
+              }}
+              className={cn(
+                "rounded-md border p-3 text-left text-sm",
+                destination === "hub"
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "hover:bg-accent",
+              )}
+            >
+              <span className="flex items-center gap-2 font-medium">
+                <Cloud className="h-4 w-4" />
+                On the hub
+              </span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Others at the firm can be brought in.
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-1">
+        <label className="text-xs text-muted-foreground font-medium">Who can see it</label>
+        <select
+          value={visibility}
+          onChange={(e) => setVisibility(e.target.value as ProjectVisibility)}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="private">Just me</option>
+          <option value="shared">People I add</option>
+          <option value="company">Everyone at the firm</option>
+        </select>
+        <p className="text-xs text-muted-foreground">
+          {VISIBILITY_HELP[visibility]}
+        </p>
       </div>
 
       <div className="flex gap-2 pt-1">
@@ -603,7 +699,9 @@ export function ProjectsPage() {
       </div>
 
       {/* Form */}
-      {showForm && <NewProjectForm onClose={() => setShowForm(false)} />}
+      {showForm && (
+        <NewProjectForm onClose={() => setShowForm(false)} hubConnected={hubConnected} />
+      )}
 
       {/* Stats */}
       {!projectsLoading && projects.length > 0 && (

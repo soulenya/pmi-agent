@@ -4,6 +4,19 @@
 
 ## Changelog
 
+### v4.2.0 — 2026-09-03
+**Share a project with the people you work with**
+
+- **Every project now has a People panel** on its Overview. The owner adds someone by their work email, chooses what they can do, changes it later, or takes them off again. Everyone else sees the list and nothing more.
+- **Three roles.** *Can view* reads the project. *Can comment* reads it and leaves comments. *Can edit* does the work — tasks, canvas, timeline, notes. Ownership is deliberately not on that list: handing a project over is a different act from sharing it, and it is not done by a dropdown.
+- **Adding the first person to a private project opens it to Shared.** A project that stays private while carrying a member list would simply be a list of people who cannot get in.
+- **You can add someone who has never opened Little Gerry.** Their role is written down and waiting for them the first time they sign in with their own account. This grants a role, not a way in — identity is still checked at sign-in, every time.
+- **Only addresses at the firm can be added.** The same list of allowed domains that governs signing in now governs sharing, so the two can never drift apart.
+- **The list cannot be broken.** A project cannot be left without its owner: the owner cannot be removed and cannot be demoted from the People panel. Adding the same person twice is refused rather than quietly duplicated.
+- **New Project asks where the project should live** — on this computer, or on the hub where others at the firm can be brought in — whenever you are connected to the hub. It also asks who should be able to see it, in plain words: just me, the people I add, or everyone at the firm.
+- **The person you add is told.** A notification lands for them naming the project.
+- **What travels and what does not.** A shared project carries its tasks, canvas, timeline, links and workroom. Attached documents do not: they are encrypted on the computer they were added to, under a key held by that computer, and there is no way to read them from another install. That is a deliberate limit, not an oversight.
+
 ### v4.1.0 — 2026-09-03
 **Projects gain a timeline, a whiteboard, and links to each other**
 
