@@ -20,7 +20,6 @@ import {
   ensureProjectWorkroom,
   getProjectSpace,
   listHeldItems,
-  listTasks,
   releaseHeldItem,
   updateProject,
 } from "@/api/tasks";
@@ -31,6 +30,7 @@ import { CanvasTab } from "@/components/projects/CanvasTab";
 import { ProjectLinksPanel } from "@/components/projects/ProjectLinksPanel";
 import { ProjectPeoplePanel } from "@/components/projects/PeoplePanel";
 import { ProjectBudgetTab } from "@/components/projects/ProjectBudgetTab";
+import { ProjectTasksTab } from "@/components/projects/ProjectTasksTab";
 import { ProjectDangerPanel } from "@/components/projects/ProjectDangerPanel";
 
 const TABS = [
@@ -111,13 +111,6 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
     enabled: Boolean(id),
   });
 
-  // The hub has no task board in this window, so the space lists them itself.
-  const { data: hubTasks = [] } = useQuery({
-    queryKey: ["hub", "tasks", id],
-    queryFn: () => listTasks({ project_id: id! }, "hub"),
-    enabled: onHub && Boolean(id),
-  });
-
   const releaseMutation = useMutation({
     mutationFn: (item: HeldItem) =>
       releaseHeldItem(id!, item.item_type, item.item_id, undefined, source),
@@ -184,6 +177,14 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
         <nav className="mt-4 flex flex-wrap gap-1">
           {TABS.map(t => {
             const Icon = t.icon;
+            // A tab that holds something says so, so the space does not look
+            // empty when it is not.
+            const badge =
+              t.id === "tasks"
+                ? counts.tasks_open
+                : t.id === "material"
+                  ? counts.items
+                  : 0;
             return (
               <button
                 key={t.id}
@@ -198,6 +199,11 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
               >
                 <Icon className="h-4 w-4" />
                 {t.label}
+                {badge > 0 && (
+                  <span className="rounded-full bg-muted px-1.5 text-[11px] leading-5 text-muted-foreground">
+                    {badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -288,37 +294,12 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
 
         {active === "tasks" && (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {counts.tasks_open} open of {counts.tasks_total}.
-            </p>
-            {onHub ? (
-              hubTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No tasks on this project yet.
-                </p>
-              ) : (
-                <ul className="divide-y rounded-xl border">
-                  {hubTasks.map(t => (
-                    <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-2">
-                      <span className="truncate text-sm">{t.title}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {t.status.replace("_", " ")}
-                        {t.due_date
-                          ? ` \u00b7 due ${new Date(t.due_date).toLocaleDateString()}`
-                          : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )
-            ) : (
-              <NavLink
-                to={`/projects/${id}`}
-                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
-              >
-                <FolderOpen className="h-4 w-4" /> Open the task board
-              </NavLink>
-            )}
+            <ProjectTasksTab
+              projectId={id!}
+              source={source}
+              canEdit={canEdit}
+              members={members}
+            />
 
             {held.length > 0 && (
               <div className="rounded-xl border p-4">

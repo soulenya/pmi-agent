@@ -538,6 +538,20 @@ From those dates and links Little Gerry works out the schedule: the earliest and
 
 A link that would make two tasks wait on each other is refused rather than saved, with a message saying so. Viewers see the chart but cannot change it.
 
+#### Tasks
+
+The **Tasks** tab is where a project's work is made and kept. It works the same way whether the project lives on this computer or on the hub.
+
+Type a title and press Enter, or open **Details** first to set the status, priority, assignee, due date, start and end dates and whether it is a milestone. Click any row to open it: everything you set on the way in can be changed, plus a description and a progress figure, and there is an **Add a sub-task** box and a **Delete**.
+
+A field can be emptied as well as filled — clear a due date or set the assignee back to *Nobody yet* and it sticks.
+
+Tasks sit under their status, each heading carrying a count and collapsing when you click it. Sort the whole list by order, due date or priority. A task past its due date shows its date in red; a sub-task says which task it sits under.
+
+**Drag a row onto the canvas** to put it on the board.
+
+Whoever can edit the project can add and change tasks. A viewer sees the list and nothing else. Work made in a shared project is held there: it can only be changed from that project, and only its owner can release it.
+
 #### The Canvas
 
 An endless whiteboard for thinking a project through. Pick a tool from the bar in the top-left, then click the board to place something.
@@ -555,9 +569,11 @@ An endless whiteboard for thinking a project through. Pick a tool from the bar i
 
 **Boxes grow as you type.** A note or text box that runs out of room gets taller rather than giving you a scroll bar. Drag its resize handle to set a height yourself and it stays exactly where you put it.
 
-**Real work goes on the board too.** The **Material** panel on the right lists the project's tasks, documents, budgets, bookmarks, files and email threads. Drag one onto the canvas, or click it to drop it in the middle. Those cards are live: a task card turns red when it is overdue, a budget card shows what has been spent against its allotment and turns amber as it nears the limit, and a card whose item has been deleted says so. **Double-click a card** to open the real thing behind it.
+**Real work goes on the board too.** The **pool** on the right lists everything the project holds — its tasks, its budgets, its documents, bookmarks, files and email threads — grouped by kind with a count on each group and a filter box at the top. Drag one onto the canvas, or click it to drop it in the middle. Tick **Show what is already placed** to put a second copy of something down. Those cards are live: a task card turns red when it is overdue, a budget card shows what has been spent against its allotment and turns amber as it nears the limit, and a card whose item has been deleted says so. **Double-click a card** to open the real thing behind it.
 
-**The canvas and the timeline are one plan.** Drag a line between two task cards and it becomes a real dependency — the timeline reschedules and the critical path moves. Delete the line and the dependency goes with it.
+**A task card is the task.** Change the status on a task card and the task changes with it — the Tasks tab, the timeline and the project's counts all follow.
+
+**The canvas and the timeline are one plan.** Drag a line between two task cards and it becomes a real dependency — the timeline reschedules and the critical path moves, and the board tells you it has done so. Delete the line and the dependency goes with it.
 
 Editing:
 

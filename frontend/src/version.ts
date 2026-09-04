@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 232;
+export const BUILD_NUMBER = 233;
 export const BUILD_DATE = "2026-09-05";
 
 export interface ChangelogEntry {
@@ -14,6 +14,25 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 233,
+    date: "2026-09-05",
+    title: "Tasks belong to the project",
+    changes: [
+      "You can make a task inside a project. The Tasks tab was a link out to the task board, and on a hub project it was a read-only list, so there was no way to add one where the work actually lives.",
+      "Title, status, priority, assignee, due date, start and end dates and the milestone flag, all on the way in and all changeable afterwards by opening the row.",
+      "Tasks are grouped by status with a count on each group, collapsible, and sortable by order, due date or priority.",
+      "Add a sub-task from inside a task. It shows which task it sits under.",
+      "A due date or an assignee can now be cleared. Removing one used to be silently ignored: the change was sent and dropped on the way in.",
+      "Drag a task row straight from the Tasks tab onto the canvas.",
+      "The canvas rail is now the project's pool: tasks, budgets and pinned material together, grouped by kind with counts and a filter box.",
+      "The pool can show what is already on the board, so you can place a second copy instead of wondering where an item went.",
+      "Change a task's status on its canvas card and the tasks tab and the timeline change with it.",
+      "Drawing a line between two task cards says out loud that the timeline now waits for one before the other, instead of doing it silently.",
+      "Every change made anywhere in a project refreshes the whole project. The tabs used to each refresh their own corner, so a change made in one could sit unseen in another until you reloaded.",
+      "The Tasks and Material tabs carry a count, so the space stops looking empty when it is not.",
+    ],
+  },
   {
     build: 232,
     date: "2026-09-05",
