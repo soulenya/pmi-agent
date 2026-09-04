@@ -849,10 +849,9 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     queryFn: () => listProjectBudgets(projectId, source),
   });
   const { data: room } = useQuery({
-    queryKey: ["workroom", workroomId],
-    queryFn: () => getWorkroom(workroomId!),
-    // The workroom behind a hub project lives on the hub, not here.
-    enabled: Boolean(workroomId) && source === "local",
+    queryKey: ["workroom", source, workroomId],
+    queryFn: () => getWorkroom(workroomId!, source),
+    enabled: Boolean(workroomId),
   });
 
   const placed = useMemo(

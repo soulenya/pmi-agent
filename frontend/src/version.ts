@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 233;
+export const BUILD_NUMBER = 234;
 export const BUILD_DATE = "2026-09-05";
 
 export interface ChangelogEntry {
@@ -14,6 +14,23 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 234,
+    date: "2026-09-05",
+    title: "Material, in the project",
+    changes: [
+      "The Material tab is a real tab. It held two links before: one that threw you out of the project into the workrooms page, and one on a hub project telling you to open the hub in a browser. There is no hub browser and there never will be — the app is the client.",
+      "Pin a document, a Drive file, a generated file, a website, a note, a task, a budget, a regulatory document, an email thread or an Odoo record, from inside the project.",
+      "Add a file straight from your computer. It is stored and pinned in one step.",
+      "Remove a pin. Pins are grouped by kind with a count on each group.",
+      "Write journal entries and read the ones already there. This is what Gerry reads back in the project conversation.",
+      "Set what the project is for, in the tab, by clicking the line.",
+      "Drag any pin onto the canvas.",
+      "All of it works on a hub project. The calls existed the whole time but had no way to ask the hub, so a hub project could not reach its own room.",
+      "A project's room now appears in your workrooms list if you are on the project. It was still filtered to whoever created it, so a colleague added to a project could not see the room in any list.",
+      "A pinned file says so when only the computer that added it can open it. Document contents are encrypted with a key held on that machine, so on a shared project everyone sees the pin but the file itself does not travel.",
+    ],
+  },
   {
     build: 233,
     date: "2026-09-05",

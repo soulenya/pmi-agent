@@ -399,7 +399,7 @@ function SharedRoomsRail({ onJoined }: { onJoined: (roomId: string) => void }) {
   // Silently absent when Google is disconnected or the folder is empty.
   const { data: shared = [] } = useQuery({
     queryKey: ["workrooms-shared"],
-    queryFn: listSharedRooms,
+    queryFn: () => listSharedRooms(),
     staleTime: 120_000,
     retry: false,
   });

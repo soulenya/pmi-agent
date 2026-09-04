@@ -459,9 +459,9 @@ Every project card has a **layers** button that opens the project's own space. T
 - **Overview** — open and total tasks, pinned material, journal entries, the people on the project, the visibility control, and the archive/delete controls.
 - **Canvas** — an endless whiteboard for the project.
 - **Timeline** — the project's schedule as a Gantt chart.
-- **Tasks** — a count and a link through to the project's task board.
+- **Tasks** — the project's tasks, made and edited in place. See below.
 - **Budget** — the money on this project. See below.
-- **Material** — the project's pinned documents, files, emails and links, kept in its workroom.
+- **Material** — everything pinned to the project, its journal and its goal. See below.
 - **Chat** — the project's conversation with Gerry, shared by everyone on the project. Every new project is given one the moment it is created, so this tab is ready straight away. Older projects made before this got a **Start one** button instead. A shared project on the hub opens its conversation in the app just the same; attachments and the conversation list on the left are for this computer's chats, so they are not shown there.
 
 #### The Budget tab
@@ -551,6 +551,24 @@ Tasks sit under their status, each heading carrying a count and collapsing when 
 **Drag a row onto the canvas** to put it on the board.
 
 Whoever can edit the project can add and change tasks. A viewer sees the list and nothing else. Work made in a shared project is held there: it can only be changed from that project, and only its owner can release it.
+
+#### Material
+
+Everything the project has been given to work with, in one tab. Like the Tasks tab, it works the same on a local project and on a hub project.
+
+**What this project is for** sits at the top. Click the line and write; it is the same goal Gerry reads back to you in the project's conversation.
+
+**Pinning.** Choose a kind from *Pin something…* and a browser opens on what you already have: knowledge base documents, Drive files, generated files, saved pages, notes, tasks, budgets, regulatory documents, email threads and Odoo records. Tasks and budgets are offered from this project. **Add a file** takes a file straight off your computer, stores it and pins it in one step.
+
+Pins are grouped by kind with a count on each group. The ones that have somewhere to go carry an open link. The bin removes a pin — it unpins it from the project and does not delete the thing itself.
+
+**Drag a pin onto the canvas** to put it on the board, the same as a task or a budget.
+
+**The journal** is the project's running record — what happened, what was decided. Type a line and press Enter. Gerry reads these back when you work in the project's conversation.
+
+**One thing files cannot do.** A document's contents are encrypted with a key held on the computer that added it. On a project shared with other people, everyone sees the pin and its name, but only that computer can open the file. Pins that work this way say so on the item, rather than letting you find out by clicking. Anything with a web address — Drive files, saved pages, email threads — opens for everyone.
+
+A viewer sees the material and cannot change it.
 
 #### The Canvas
 
@@ -694,12 +712,12 @@ You sign in as yourself, not as the app. Everything you look at and everything y
 
 ### Seeing shared work
 
-Open **Projects**. Below your own projects, a **Shared on the hub** area lists the projects the firm has shared with you, with the account you're signed in as. Open one and you get the same project space as a local project — overview, tasks and pinned material — marked **On the hub**.
+Open **Projects**. Below your own projects, a **Shared on the hub** area lists the projects the firm has shared with you, with the account you're signed in as. Open one and you get the same project space as a local project — overview, canvas, timeline, tasks, budget, material and chat — marked **On the hub**.
 
-Two things work differently there:
+The tabs all work there. Two things differ:
 
-- **The conversation stays on the hub.** A shared project's chat is held on the server, so this app shows the project but doesn't open its chat.
-- **Material lives in the project's workroom on the hub**, not in your Knowledge Base.
+- **The conversation is held on the hub**, so it is shared by everyone on the project. It opens in the app; the attachment box and the conversation list on the left belong to this computer's own chats and are not shown.
+- **Material pinned to a hub project lives with the project**, not in your Knowledge Base. Everyone on the project sees every pin. A pinned file whose contents are encrypted on the computer that added it says so — see *Material* above.
 
 If a project you expected isn't listed, either it hasn't been shared with you or your hub connection has lapsed — reconnect from Settings.
 

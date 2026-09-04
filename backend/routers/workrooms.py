@@ -14,11 +14,12 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user
+from models.db.project_member import ProjectMember
 from models.db.task import Project
 from models.db.user import User
 from models.db.workroom import (
@@ -140,10 +141,28 @@ async def list_workrooms(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[WorkroomOut]:
+    # A project's room belongs to the project, so anyone who can see the project
+    # sees its room. Rooms with no project stay personal.
+    member_projects = select(ProjectMember.project_id).where(
+        ProjectMember.user_id == current_user.id
+    )
+    visible = or_(
+        Workroom.user_id == current_user.id,
+        Workroom.project_id.in_(member_projects),
+        Workroom.project_id.in_(
+            select(Project.id).where(
+                or_(
+                    Project.owner_id == current_user.id,
+                    Project.created_by == current_user.id,
+                    Project.visibility == "company",
+                )
+            )
+        ),
+    )
     stmt = (
         select(Workroom, func.count(WorkroomItem.id))
         .outerjoin(WorkroomItem, WorkroomItem.workroom_id == Workroom.id)
-        .where(Workroom.user_id == current_user.id)
+        .where(visible)
         .group_by(Workroom.id)
         .order_by(desc(Workroom.updated_at))
     )

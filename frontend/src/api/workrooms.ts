@@ -1,4 +1,10 @@
 import { apiClient } from "./client";
+import type { Source } from "./tasks";
+
+/** A hub project's room lives on the hub, so its calls go through the proxy. */
+function at(source: Source, path: string): string {
+  return source === "hub" ? `/hub/api${path}` : path;
+}
 
 // ── Workrooms — persistent co-work spaces with Gerry ────────────────────────
 
@@ -69,15 +75,22 @@ export interface SharedRoomManifest {
   joined: boolean;
 }
 
-export async function listWorkrooms(includeArchived = false): Promise<Workroom[]> {
-  const { data } = await apiClient.get<Workroom[]>("/workrooms", {
+export async function listWorkrooms(
+  includeArchived = false,
+  source: Source = "local",
+): Promise<Workroom[]> {
+  const { data } = await apiClient.get<Workroom[]>(at(source, "/workrooms"), {
     params: { include_archived: includeArchived },
   });
   return data;
 }
 
-export async function createWorkroom(title: string, goal: string): Promise<Workroom> {
-  const { data } = await apiClient.post<Workroom>("/workrooms", { title, goal });
+export async function createWorkroom(
+  title: string,
+  goal: string,
+  source: Source = "local",
+): Promise<Workroom> {
+  const { data } = await apiClient.post<Workroom>(at(source, "/workrooms"), { title, goal });
   return data;
 }
 
@@ -85,39 +98,45 @@ export async function createWorkroom(title: string, goal: string): Promise<Workr
 export async function uploadWorkroomFile(
   roomId: string,
   file: File,
+  source: Source = "local",
 ): Promise<WorkroomItem> {
   const form = new FormData();
   form.append("file", file);
   const { data } = await apiClient.post<WorkroomItem>(
-    `/workrooms/${roomId}/upload`,
+    at(source, `/workrooms/${roomId}/upload`),
     form,
     { headers: { "Content-Type": "multipart/form-data" } },
   );
   return data;
 }
 
-export async function getWorkroom(id: string): Promise<WorkroomDetail> {
-  const { data } = await apiClient.get<WorkroomDetail>(`/workrooms/${id}`);
+export async function getWorkroom(
+  id: string,
+  source: Source = "local",
+): Promise<WorkroomDetail> {
+  const { data } = await apiClient.get<WorkroomDetail>(at(source, `/workrooms/${id}`));
   return data;
 }
 
 export async function updateWorkroom(
   id: string,
   fields: Partial<Pick<Workroom, "title" | "goal" | "status">>,
+  source: Source = "local",
 ): Promise<Workroom> {
-  const { data } = await apiClient.patch<Workroom>(`/workrooms/${id}`, fields);
+  const { data } = await apiClient.patch<Workroom>(at(source, `/workrooms/${id}`), fields);
   return data;
 }
 
-export async function deleteWorkroom(id: string): Promise<void> {
-  await apiClient.delete(`/workrooms/${id}`);
+export async function deleteWorkroom(id: string, source: Source = "local"): Promise<void> {
+  await apiClient.delete(at(source, `/workrooms/${id}`));
 }
 
 export async function addWorkroomItem(
   roomId: string,
   item: { kind: WorkroomItemKind; ref_id?: string; label: string },
+  source: Source = "local",
 ): Promise<WorkroomItem> {
-  const { data } = await apiClient.post<WorkroomItem>(`/workrooms/${roomId}/items`, {
+  const { data } = await apiClient.post<WorkroomItem>(at(source, `/workrooms/${roomId}/items`), {
     kind: item.kind,
     ref_id: item.ref_id ?? "",
     label: item.label,
@@ -125,16 +144,21 @@ export async function addWorkroomItem(
   return data;
 }
 
-export async function removeWorkroomItem(roomId: string, itemId: string): Promise<void> {
-  await apiClient.delete(`/workrooms/${roomId}/items/${itemId}`);
+export async function removeWorkroomItem(
+  roomId: string,
+  itemId: string,
+  source: Source = "local",
+): Promise<void> {
+  await apiClient.delete(at(source, `/workrooms/${roomId}/items/${itemId}`));
 }
 
 export async function addWorkroomJournal(
   roomId: string,
   entry: string,
+  source: Source = "local",
 ): Promise<WorkroomJournalEntry> {
   const { data } = await apiClient.post<WorkroomJournalEntry>(
-    `/workrooms/${roomId}/journal`,
+    at(source, `/workrooms/${roomId}/journal`),
     { entry },
   );
   return data;
@@ -144,28 +168,35 @@ export async function addWorkroomJournal(
 
 export async function shareWorkroom(
   roomId: string,
+  source: Source = "local",
 ): Promise<{ file_id: string; url: string }> {
   const { data } = await apiClient.post<{ file_id: string; url: string }>(
-    `/workrooms/${roomId}/share`,
+    at(source, `/workrooms/${roomId}/share`),
   );
   return data;
 }
 
 export async function pullWorkroom(
   roomId: string,
+  source: Source = "local",
 ): Promise<{ added_items: number; title: string }> {
   const { data } = await apiClient.post<{ added_items: number; title: string }>(
-    `/workrooms/${roomId}/pull`,
+    at(source, `/workrooms/${roomId}/pull`),
   );
   return data;
 }
 
-export async function listSharedRooms(): Promise<SharedRoomManifest[]> {
-  const { data } = await apiClient.get<SharedRoomManifest[]>("/workrooms/shared/available");
+export async function listSharedRooms(source: Source = "local"): Promise<SharedRoomManifest[]> {
+  const { data } = await apiClient.get<SharedRoomManifest[]>(
+    at(source, "/workrooms/shared/available"),
+  );
   return data;
 }
 
-export async function joinSharedRoom(fileId: string): Promise<Workroom> {
-  const { data } = await apiClient.post<Workroom>(`/workrooms/shared/${fileId}/join`);
+export async function joinSharedRoom(
+  fileId: string,
+  source: Source = "local",
+): Promise<Workroom> {
+  const { data } = await apiClient.post<Workroom>(at(source, `/workrooms/shared/${fileId}/join`));
   return data;
 }
