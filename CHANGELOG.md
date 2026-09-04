@@ -4,6 +4,42 @@
 
 ## Changelog
 
+### v4.6.3 — 2026-09-05
+**Material, in the project**
+
+The Material tab held two links. On a local project, "Open the workroom" threw
+you out of the project you were standing in. On a hub project it said the
+material sat in the project's workroom on the hub and to open the hub in a
+browser — which is not possible. There is no browser interface on the hub and
+there is no plan for one; the app is the client. That sentence has been
+deleted.
+
+Nothing was missing on the server. The room exists, it is made with the
+project, and access is already judged by project role. The calls the app makes
+to reach a room simply had no way of saying *which* installation to ask, so a
+hub project could never fetch its own.
+
+- **Pinning, in the project.** Pin a KB document, a Drive file, a generated
+  file, a website, a note, a task, a budget, a regulatory document, an email
+  thread or an Odoo record, without leaving the project. Tasks and budgets are
+  offered from the project you are in.
+- **Add a file from your computer** in one step — stored and pinned together.
+- **Remove a pin.** Pins are grouped by kind with a count on each group, and
+  the ones with somewhere to go carry an open link.
+- **The journal.** Read the entries and add one. This is the running record
+  Gerry reads back in the project's conversation.
+- **The project's goal** is editable in the tab. Click the line and write.
+- **Drag a pin onto the canvas**, the same as a task or a budget.
+- **All of it works on a hub project.**
+- **A project's room is now listed for everyone on the project.** The listing
+  still filtered on whoever created the room, so a colleague added to a
+  project could open the room by link but never find it in a list. It was the
+  last place the old personal-workroom assumption survived.
+- **Files say when they cannot travel.** A document's contents are encrypted
+  with a key held on the computer that added it. On a shared project everyone
+  sees the pin, but only that computer can open the file. The item says so
+  instead of letting you discover it by clicking.
+
 ### v4.6.2 — 2026-09-05
 **Tasks belong to the project**
 

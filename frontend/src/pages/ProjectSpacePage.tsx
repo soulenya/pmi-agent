@@ -31,6 +31,7 @@ import { ProjectLinksPanel } from "@/components/projects/ProjectLinksPanel";
 import { ProjectPeoplePanel } from "@/components/projects/PeoplePanel";
 import { ProjectBudgetTab } from "@/components/projects/ProjectBudgetTab";
 import { ProjectTasksTab } from "@/components/projects/ProjectTasksTab";
+import { ProjectMaterialTab } from "@/components/projects/ProjectMaterialTab";
 import { ProjectDangerPanel } from "@/components/projects/ProjectDangerPanel";
 
 const TABS = [
@@ -346,25 +347,13 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
         )}
 
         {active === "material" && (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              {counts.items} pinned {counts.items === 1 ? "item" : "items"} and{" "}
-              {counts.journal} journal {counts.journal === 1 ? "entry" : "entries"}.
-            </p>
-            {onHub ? (
-              <p className="text-sm text-muted-foreground">
-                This material sits in the project's workroom on the hub, alongside
-                the rest of the project. Open the hub in a browser to work in it.
-              </p>
-            ) : (
-              <NavLink
-                to="/workrooms"
-                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
-              >
-                <Paperclip className="h-4 w-4" /> Open the workroom
-              </NavLink>
-            )}
-          </div>
+          <ProjectMaterialTab
+            projectId={id!}
+            workroomId={workroom?.id ?? null}
+            source={source}
+            canEdit={canEdit}
+            onHub={onHub}
+          />
         )}
 
         {active === "budget" && (

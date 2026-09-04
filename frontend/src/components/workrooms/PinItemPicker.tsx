@@ -7,8 +7,8 @@ import { listGeneratedFiles } from "@/api/files";
 import { listGmailThreads } from "@/api/google";
 import { getOdooData, getOdooModels } from "@/api/odoo";
 import { listRegDocs } from "@/api/regulatory";
-import { listBudgets } from "@/api/budgets";
-import { listTasks } from "@/api/tasks";
+import { listBudgets, listProjectBudgets } from "@/api/budgets";
+import { listTasks, type Source } from "@/api/tasks";
 import { ITEM_KIND_LABELS, type WorkroomItemKind } from "@/api/workrooms";
 
 export interface PickedItem {
@@ -26,10 +26,20 @@ interface Props {
   kind: WorkroomItemKind;
   onPick: (items: PickedItem[]) => void;
   onClose: () => void;
+  /** Where the room lives. Tasks and budgets are fetched from there. */
+  source?: Source;
+  /** Set when the room belongs to a project: narrows tasks and budgets to it. */
+  projectId?: string;
 }
 
 /** Browse-and-pin picker: one dialog per pinned-item kind. */
-export function PinItemPicker({ kind, onPick, onClose }: Props) {
+export function PinItemPicker({
+  kind,
+  onPick,
+  onClose,
+  source = "local",
+  projectId,
+}: Props) {
   if (kind === "drive_doc") {
     return (
       <DriveBrowser
@@ -43,7 +53,15 @@ export function PinItemPicker({ kind, onPick, onClose }: Props) {
   if (kind === "note") return <NotePicker onPick={onPick} onClose={onClose} />;
   if (kind === "website") return <WebsitePicker onPick={onPick} onClose={onClose} />;
   if (kind === "odoo_record") return <OdooPicker onPick={onPick} onClose={onClose} />;
-  return <ListPicker kind={kind} onPick={onPick} onClose={onClose} />;
+  return (
+    <ListPicker
+      kind={kind}
+      onPick={onPick}
+      onClose={onClose}
+      source={source}
+      projectId={projectId}
+    />
+  );
 }
 
 function Shell({
@@ -110,11 +128,11 @@ function OptionList({
   );
 }
 
-function ListPicker({ kind, onPick, onClose }: Props) {
+function ListPicker({ kind, onPick, onClose, source = "local", projectId }: Props) {
   const [search, setSearch] = useState("");
 
   const query = useQuery({
-    queryKey: ["pin-picker", kind],
+    queryKey: ["pin-picker", kind, source, projectId ?? ""],
     queryFn: async (): Promise<Option[]> => {
       switch (kind) {
         case "kb_doc": {
@@ -142,7 +160,7 @@ function ListPicker({ kind, onPick, onClose }: Props) {
           }));
         }
         case "task": {
-          const tasks = await listTasks();
+          const tasks = await listTasks(projectId ? { project_id: projectId } : {}, source);
           return tasks.map((t) => ({ ref_id: t.id, label: t.title, sub: t.status }));
         }
         case "regulatory_doc": {
@@ -154,6 +172,10 @@ function ListPicker({ kind, onPick, onClose }: Props) {
           }));
         }
         case "budget": {
+          if (projectId) {
+            const attached = await listProjectBudgets(projectId, source);
+            return attached.map((b) => ({ ref_id: b.id, label: b.title, sub: b.currency }));
+          }
           const budgets = await listBudgets();
           return budgets.map((b) => ({ ref_id: b.id, label: b.title, sub: b.currency }));
         }
