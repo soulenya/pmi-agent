@@ -4,7 +4,15 @@
 
 ## Changelog
 
-### v4.6.4 — 2026-09-05
+### v4.6.5 — 2026-09-04
+**Pasted text is text**
+
+- **Paste onto a canvas and you get a text box**, not a sticky note. A sticky
+  note is a decision you make on purpose; pasting is just moving words.
+- **Add to the canvas now asks what you want.** The chat panel's right-click
+  menu offers *Text*, *Sticky note* and *Shape* instead of choosing for you.
+
+### v4.6.4 — 2026-09-04
 **Copying out of the chat panel**
 
 Reported: copying text out of the persistent chat panel and pasting it onto a

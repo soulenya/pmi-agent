@@ -36,7 +36,7 @@ import {
 import { createConversation, listConversations, listMessages, stopTurn } from "@/api/chat";
 import { grantDriveEdit } from "@/api/google";
 import { useAuthStore } from "@/stores/authStore";
-import { useCanvasSinkStore } from "@/stores/canvasSinkStore";
+import { useCanvasSinkStore, type TextDropKind } from "@/stores/canvasSinkStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useResizableTextarea } from "@/hooks/useResizableTextarea";
 import { useChatInputSizeStore } from "@/stores/chatInputSizeStore";
@@ -126,6 +126,12 @@ export function ChatSidebarToggle() {
 
 // ── Right-click menu ───────────────────────────────────────────────────────
 
+const CANVAS_KINDS: { kind: TextDropKind; label: string }[] = [
+  { kind: "text", label: "Text" },
+  { kind: "sticky", label: "Sticky note" },
+  { kind: "shape", label: "Shape" },
+];
+
 function ChatContextMenu({
   x,
   y,
@@ -144,7 +150,7 @@ function ChatContextMenu({
   canDropOnCanvas: boolean;
   onCopy: () => void;
   onPaste: () => void;
-  onAddToCanvas: () => void;
+  onAddToCanvas: (kind: TextDropKind) => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -175,36 +181,44 @@ function ChatContextMenu({
   if (inInput) {
     items.push({ label: "Paste", hint: modLabel("V"), onClick: onPaste });
   }
-  items.push({
-    label: "Add to the canvas",
-    hint: canDropOnCanvas ? "sticky note" : "no canvas open",
-    disabled: !text || !canDropOnCanvas,
-    onClick: onAddToCanvas,
-  });
+  const canvasReady = Boolean(text) && canDropOnCanvas;
+  for (const { kind, label } of CANVAS_KINDS) {
+    items.push({
+      label,
+      disabled: !canvasReady,
+      onClick: () => onAddToCanvas(kind),
+    });
+  }
 
   return (
     <div
       ref={ref}
       style={{
-        left: Math.min(x, window.innerWidth - 208),
-        top: Math.min(y, window.innerHeight - 8 - items.length * 30),
+        left: Math.min(x, window.innerWidth - 216),
+        top: Math.min(y, window.innerHeight - 16 - (items.length + 1) * 28),
       }}
       className="fixed z-[60] w-52 rounded-md border border-border bg-card py-1 shadow-md"
     >
-      {items.map((item) => (
-        <button
-          key={item.label}
-          type="button"
-          disabled={item.disabled}
-          onClick={() => {
-            item.onClick();
-            onClose();
-          }}
-          className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-xs text-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
-        >
-          <span>{item.label}</span>
-          <span className="text-[10px] text-muted-foreground">{item.hint}</span>
-        </button>
+      {items.map((item, i) => (
+        <div key={item.label}>
+          {i === items.length - CANVAS_KINDS.length && (
+            <div className="mt-1 border-t px-3 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+              {canDropOnCanvas ? "Add to the canvas as" : "Add to the canvas — none open"}
+            </div>
+          )}
+          <button
+            type="button"
+            disabled={item.disabled}
+            onClick={() => {
+              item.onClick();
+              onClose();
+            }}
+            className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-xs text-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+          >
+            <span>{item.label}</span>
+            <span className="text-[10px] text-muted-foreground">{item.hint}</span>
+          </button>
+        </div>
       ))}
     </div>
   );
@@ -898,7 +912,7 @@ export function ChatSidebar() {
           canDropOnCanvas={Boolean(dropOnCanvas)}
           onCopy={() => void copyText(menu.text)}
           onPaste={() => void pasteIntoInput()}
-          onAddToCanvas={() => dropOnCanvas?.(menu.text)}
+          onAddToCanvas={(kind) => dropOnCanvas?.(menu.text, kind)}
           onClose={() => setMenu(null)}
         />
       )}

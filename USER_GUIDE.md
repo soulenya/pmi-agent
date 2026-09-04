@@ -577,10 +577,10 @@ An endless whiteboard for thinking a project through. Pick a tool from the bar i
 - **Sticky note**, **Text**, **Shape** and **Frame** for your own material. Pick a colour from the same bar, or change it afterwards — see below.
 - **Draw** for freehand pen, pressure-sensitive if your device reports it. **Erase** removes whatever you click.
 - **Images** — paste one with Ctrl+V or drop the file onto the board. Pictures are encrypted on your machine like every other document.
-- **Text** — copy a passage from anywhere, press Ctrl+V on the board, and it lands as a sticky note in the middle of your view.
+- **Text** — copy a passage from anywhere, press Ctrl+V on the board, and it lands as a text box in the middle of your view. Turn it into a note or a shape afterwards if you want one.
 - **Right-click the empty board** to place something exactly where you clicked.
 
-**Copying out of the chat panel.** Highlight a passage of Gerry's answer, right-click it, and choose **Copy** or **Add to the canvas** — the latter puts it straight on the open board as a sticky note. Right-clicking in the message box adds **Paste**. *Add to the canvas* only appears while a project's canvas is open; elsewhere it says *no canvas open*.
+**Copying out of the chat panel.** Highlight a passage of Gerry's answer and right-click it. **Copy** puts it on the clipboard; under **Add to the canvas as** you choose **Text**, **Sticky note** or **Shape**, and it goes straight onto the open board. Right-clicking in the message box adds **Paste**. The canvas choices are only offered while a project's canvas is open; elsewhere the menu says *none open*.
 
 **Changing how something looks.** Select anything and a panel opens under the toolbar. It changes fill, line colour, line thickness, dashed or solid, text colour, text size, bold and fade — at any time, not only at the moment you place something. Select several items and it changes all of them at once; where they disagree, the panel says so rather than flattening them.
 
