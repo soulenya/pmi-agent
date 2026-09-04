@@ -4,6 +4,48 @@
 
 ## Changelog
 
+### v4.6.0 — 2026-09-04
+**A project budget can now hold money you have promised but not yet paid**
+
+- **The project Budget tab shows the whole ledger.** It used to show a title, a
+  total and a progress bar — the actual lines were only ever visible on the
+  Budgets page, to the one person who owned the sheet. Open a budget on a
+  project now and you get the same ledger, the same categories and the same
+  filters as the Budgets page, because it is the same ledger.
+- **Everyone on the project can read it.** The figures belong to the project.
+  The Google Sheet still belongs to whoever made it, so only they can add or
+  change lines — a colleague's edit would be refused by Drive itself, and
+  offering the button would only teach people it is broken.
+- **You can make a budget from the project.** Before, the only thing this tab
+  could do on a shared project was take a pasted Drive link — and a sheet
+  Little Gerry did not make is read-only, so there was no way to put a single
+  line in it. Creating is now the first thing on offer, and the linking box says
+  plainly what a linked sheet can and cannot do.
+- **Every line now says which way the money is going and whether it has moved.**
+  Four words, in a new **Status** column on the sheet:
+  - **Spent** — money that has gone.
+  - **Allocated** — money committed to something but not yet paid.
+  - **Collected** — money that has come in.
+  - **Expected** — money invoiced or forecast but not yet collected.
+- **So you can allocate money you have not spent.** Set aside £40,000 for a
+  contractor you have not paid, and it comes off what is left immediately.
+  The bar on each budget tracks **spent plus allocated**, and the figure under
+  it says how much is still **free to allocate** — which is the number you
+  actually need before promising anything.
+- **And track money owed to you.** Expected income is kept separate from
+  spending and never inflates what you have left to spend. Collecting an
+  invoice is not the same as being given more budget.
+- **Nothing you already had has changed meaning.** An existing line with a blank
+  Status counts as Spent, exactly as it did. So does a line where somebody has
+  typed a word the app does not recognise — a typo can never quietly remove
+  money from a total.
+- **Sub-budgets roll up properly.** A budget referenced by another one now
+  contributes two synced lines instead of one: what it has spent, and what it
+  has allocated. Allocated money stays allocated all the way up the tree.
+- **Gerry understands the difference.** Ask her to allocate money, or to record
+  an invoice you are still waiting on, and she files it under the right status
+  rather than logging it as spent.
+
 ### v4.5.2 — 2026-09-03
 **The dependency check is now quick, and tells you what it is doing**
 

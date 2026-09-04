@@ -8,7 +8,7 @@
  * gated by the per-budget permission toggle. Not an official budget center.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
@@ -17,7 +17,6 @@ import {
   Link2,
   Loader2,
   Mail,
-  Pencil,
   PlusCircle,
   RefreshCw,
   ScanSearch,
@@ -26,11 +25,9 @@ import {
   X,
 } from "lucide-react";
 import {
-  addBudgetEntry,
   addBudgetReference,
   compareBudgetToOdoo,
   createBudget,
-  deleteBudgetEntry,
   getBudget,
   linkBudget,
   linkBudgetFolder,
@@ -41,21 +38,19 @@ import {
   unlinkBudget,
   unlinkBudgetFolder,
   updateBudget,
-  updateBudgetEntry,
   updateBudgetFolder,
   type BudgetDetail,
-  type BudgetEntry,
   type BudgetFolder,
   type OdooCompareResult,
 } from "@/api/budgets";
 import { acceptSuggestion, dismissSuggestion, listSuggestions } from "@/api/assistant";
+import {
+  BudgetLedgerTable,
+  BudgetSummaryCards,
+  money,
+} from "@/components/budgets/BudgetLedger";
 import { useToastStore } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
-
-function money(n: number | null | undefined, currency = "USD"): string {
-  if (n === null || n === undefined) return "—";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(n);
-}
 
 export function BudgetsPage() {
   const qc = useQueryClient();
@@ -238,10 +233,8 @@ export function BudgetsPage() {
           )}
           {budgets.map((b) => {
             const s = b.cached_summary || {};
-            const pct =
-              s.allotment && s.total_spent !== undefined
-                ? Math.min(100, Math.round(((s.total_spent ?? 0) / s.allotment) * 100))
-                : null;
+            const committed = (s.total_spent ?? 0) + (s.total_allocated ?? 0);
+            const pct = s.allotment ? Math.min(100, Math.round((committed / s.allotment) * 100)) : null;
             return (
               <button
                 key={b.id}
@@ -261,6 +254,11 @@ export function BudgetsPage() {
                   {money(s.total_spent ?? 0, b.currency)} spent
                   {s.allotment != null && ` of ${money(s.allotment, b.currency)}`}
                 </div>
+                {(s.total_allocated ?? 0) > 0 && (
+                  <div className="truncate text-xs text-amber-600 dark:text-amber-400">
+                    {money(s.total_allocated, b.currency)} allocated
+                  </div>
+                )}
                 {pct !== null && (
                   <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-accent">
                     <div
@@ -312,79 +310,7 @@ function BudgetDetailView({
 }) {
   const qc = useQueryClient();
   const push = useToastStore((s) => s.push);
-  const s = budget.cached_summary || {};
   const readonly = budget.external_readonly;
-
-  const [entryDate, setEntryDate] = useState("");
-  const [entryDesc, setEntryDesc] = useState("");
-  const [entryCategory, setEntryCategory] = useState("");
-  const [entryAmount, setEntryAmount] = useState("");
-  const [entryNote, setEntryNote] = useState("");
-  const [editingRow, setEditingRow] = useState<number | null>(null);
-  const [editDraft, setEditDraft] = useState<Partial<BudgetEntry>>({});
-  const [busyRow, setBusyRow] = useState<number | null>(null);
-
-  // ── Ledger filters & isolation ────────────────────────────────
-  const UNCAT = "(uncategorized)";
-  const [activeCats, setActiveCats] = useState<Set<string>>(new Set());
-  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
-  const [isolate, setIsolate] = useState(false);
-
-  const entryCat = (e: BudgetEntry) => e.category.trim() || UNCAT;
-
-  const filterCats = useMemo(() => {
-    const defined = budget.cached_categories.map((c) => c.name);
-    const inUse = new Set(budget.cached_ledger.map(entryCat));
-    const extras = [...inUse].filter((c) => c !== UNCAT && !defined.includes(c)).sort();
-    const cats = [...defined, ...extras];
-    if (inUse.has(UNCAT)) cats.push(UNCAT);
-    return cats;
-  }, [budget.cached_categories, budget.cached_ledger]);
-
-  // Row numbers shift when the sheet changes — drop selections that vanished.
-  useEffect(() => {
-    setSelectedRows((prev) => {
-      const live = new Set(budget.cached_ledger.map((e) => e.row));
-      const next = new Set([...prev].filter((r) => live.has(r)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [budget.cached_ledger]);
-  useEffect(() => {
-    if (isolate && selectedRows.size === 0) setIsolate(false);
-  }, [isolate, selectedRows]);
-
-  const visibleEntries = useMemo(() => {
-    if (isolate) return budget.cached_ledger.filter((e) => selectedRows.has(e.row));
-    if (activeCats.size === 0) return budget.cached_ledger;
-    return budget.cached_ledger.filter((e) => activeCats.has(entryCat(e)));
-  }, [budget.cached_ledger, activeCats, selectedRows, isolate]);
-
-  const filtering = isolate || activeCats.size > 0;
-  const visibleSubtotal = useMemo(
-    () => visibleEntries.reduce((sum, e) => sum + (e.amount ?? 0), 0),
-    [visibleEntries],
-  );
-
-  const toggleCat = (name: string) =>
-    setActiveCats((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  const toggleRow = (row: number) =>
-    setSelectedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(row)) next.delete(row);
-      else next.add(row);
-      return next;
-    });
-
-  const err = (e: unknown, fallback: string) => {
-    const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-    push("error", typeof detail === "string" ? detail : fallback);
-    onChanged(); // conflict messages come with a refreshed truth — show it
-  };
 
   const refreshMutation = useMutation({
     mutationFn: () => refreshBudget(budget.id),
@@ -401,59 +327,6 @@ function BudgetDetailView({
     },
   });
 
-  const addMutation = useMutation({
-    mutationFn: () =>
-      addBudgetEntry(budget.id, {
-        date: entryDate || undefined,
-        description: entryDesc.trim(),
-        category: entryCategory.trim(),
-        amount: Number(entryAmount),
-        note: entryNote.trim(),
-      }),
-    onSuccess: () => {
-      setEntryDate(""); setEntryDesc(""); setEntryCategory(""); setEntryAmount(""); setEntryNote("");
-      onChanged();
-    },
-    onError: (e) => err(e, "Couldn't add the entry."),
-  });
-
-  const saveEdit = async (entry: BudgetEntry) => {
-    setBusyRow(entry.row);
-    try {
-      await updateBudgetEntry(budget.id, entry.row, {
-        expected: { description: entry.description, amount: entry.amount },
-        date: editDraft.date,
-        description: editDraft.description,
-        category: editDraft.category,
-        amount: editDraft.amount === undefined ? undefined : Number(editDraft.amount),
-        note: editDraft.note,
-      });
-      setEditingRow(null);
-      setEditDraft({});
-      onChanged();
-    } catch (e) {
-      err(e, "Couldn't update the entry.");
-    } finally {
-      setBusyRow(null);
-    }
-  };
-
-  const removeEntry = async (entry: BudgetEntry) => {
-    if (!window.confirm(`Delete "${entry.description}" (${money(entry.amount, budget.currency)}) from the ledger? This removes the row from the Google Sheet too.`)) return;
-    setBusyRow(entry.row);
-    try {
-      await deleteBudgetEntry(budget.id, entry.row, {
-        description: entry.description,
-        amount: entry.amount,
-      });
-      onChanged();
-    } catch (e) {
-      err(e, "Couldn't delete the entry.");
-    } finally {
-      setBusyRow(null);
-    }
-  };
-
   const unlink = async () => {
     if (!window.confirm(`Remove "${budget.title}" from Little Gerry? The Google Sheet stays on your Drive untouched.`)) return;
     const res = await unlinkBudget(budget.id);
@@ -461,8 +334,6 @@ function BudgetDetailView({
     onUnlinked();
     push("info", `Budget unlinked. The sheet is still on Drive: ${res.sheet_kept_at}`);
   };
-
-  const pct = s.allotment ? Math.min(100, Math.round(((s.total_spent ?? 0) / s.allotment) * 100)) : null;
 
   return (
     <div className="space-y-6 pb-8">
@@ -505,30 +376,7 @@ function BudgetDetailView({
       </div>
 
       {/* Summary */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Total spent</p>
-          <p className="text-xl font-semibold">{money(s.total_spent ?? 0, budget.currency)}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Allotment</p>
-          <p className="text-xl font-semibold">{money(s.allotment ?? null, budget.currency)}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Remaining</p>
-          <p className={cn("text-xl font-semibold", (s.remaining ?? 0) < 0 && "text-red-500")}>
-            {money(s.remaining ?? null, budget.currency)}
-          </p>
-          {pct !== null && (
-            <div className="mt-2 h-2 w-full overflow-hidden rounded bg-accent">
-              <div
-                className={cn("h-full", pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500")}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-          )}
-        </div>
-      </section>
+      <BudgetSummaryCards budget={budget} />
 
       {/* Gerry permission */}
       {!readonly && (
@@ -570,259 +418,8 @@ function BudgetDetailView({
       <ReferencesSection budget={budget} onChanged={onChanged} />
       <OdooCompareSection budget={budget} />
 
-      {/* Categories — tap to filter the ledger */}
-      {filterCats.length > 0 && (
-        <section className="space-y-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {filterCats.map((name) => {
-              const spent = name === UNCAT
-                ? budget.cached_ledger.reduce((sum, e) => sum + (entryCat(e) === UNCAT ? e.amount ?? 0 : 0), 0)
-                : s.by_category?.[name] ?? 0;
-              const cap = budget.cached_categories.find((c) => c.name === name)?.cap;
-              const active = activeCats.has(name);
-              return (
-                <button
-                  key={name}
-                  onClick={() => toggleCat(name)}
-                  className={cn(
-                    "rounded-md border px-2 py-1 text-xs transition-colors",
-                    active
-                      ? "border-primary bg-primary/10 font-medium text-primary"
-                      : "hover:bg-accent",
-                  )}
-                  title={active ? "Remove this category from the filter" : "Show only this category"}
-                >
-                  {name}: {money(spent, budget.currency)}
-                  {cap != null && <span className="text-muted-foreground"> / {money(cap, budget.currency)}</span>}
-                </button>
-              );
-            })}
-            {activeCats.size > 0 && (
-              <button
-                onClick={() => setActiveCats(new Set())}
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3 w-3" /> Clear filter
-              </button>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* Ledger */}
-      <section className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-semibold">Ledger</h3>
-          {selectedRows.size > 0 && (
-            <>
-              <button
-                onClick={() => setIsolate((v) => !v)}
-                className={cn(
-                  "rounded-md border px-2 py-1 text-xs",
-                  isolate
-                    ? "border-primary bg-primary/10 font-medium text-primary"
-                    : "hover:bg-accent",
-                )}
-                title={isolate ? "Show the full ledger again" : "Show only the checked entries"}
-              >
-                {isolate ? "Show all" : `Isolate selected (${selectedRows.size})`}
-              </button>
-              <button
-                onClick={() => { setSelectedRows(new Set()); setIsolate(false); }}
-                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3 w-3" /> Clear selection
-              </button>
-            </>
-          )}
-          {filtering && (
-            <span className="ml-auto rounded-md bg-accent px-2 py-1 text-xs">
-              Showing {visibleEntries.length} of {budget.cached_ledger.length} · subtotal{" "}
-              <span className="font-semibold">{money(visibleSubtotal, budget.currency)}</span>
-            </span>
-          )}
-        </div>
-        <div className="overflow-x-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-                <th className="w-8 px-3 py-2" title="Check entries to isolate them" />
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">Description</th>
-                <th className="px-3 py-2">Category</th>
-                <th className="px-3 py-2 text-right">Amount</th>
-                <th className="px-3 py-2">Note</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {budget.cached_ledger.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
-                    No entries yet{readonly ? "." : " — add one below or straight into the Google Sheet."}
-                  </td>
-                </tr>
-              )}
-              {budget.cached_ledger.length > 0 && visibleEntries.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-muted-foreground">
-                    Nothing matches the current filter.
-                  </td>
-                </tr>
-              )}
-              {visibleEntries.map((e) => (
-                <tr key={`${e.row}-${e.description}`} className="border-b last:border-0">
-                  <td className="px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedRows.has(e.row)}
-                      onChange={() => toggleRow(e.row)}
-                      className="h-3.5 w-3.5 accent-primary"
-                      title="Select for isolation"
-                    />
-                  </td>
-                  {editingRow === e.row ? (
-                    <>
-                      <td className="px-2 py-1">
-                        <input
-                          value={editDraft.date ?? e.date}
-                          onChange={(ev) => setEditDraft((d) => ({ ...d, date: ev.target.value }))}
-                          className="w-24 rounded border bg-background px-1.5 py-1 text-xs"
-                        />
-                      </td>
-                      <td className="px-2 py-1">
-                        <input
-                          value={editDraft.description ?? e.description}
-                          onChange={(ev) => setEditDraft((d) => ({ ...d, description: ev.target.value }))}
-                          className="w-full rounded border bg-background px-1.5 py-1 text-xs"
-                        />
-                      </td>
-                      <td className="px-2 py-1">
-                        <input
-                          value={editDraft.category ?? e.category}
-                          onChange={(ev) => setEditDraft((d) => ({ ...d, category: ev.target.value }))}
-                          className="w-28 rounded border bg-background px-1.5 py-1 text-xs"
-                        />
-                      </td>
-                      <td className="px-2 py-1 text-right">
-                        <input
-                          type="number"
-                          value={String(editDraft.amount ?? e.amount ?? "")}
-                          onChange={(ev) => setEditDraft((d) => ({ ...d, amount: Number(ev.target.value) }))}
-                          className="w-24 rounded border bg-background px-1.5 py-1 text-right text-xs"
-                        />
-                      </td>
-                      <td className="px-2 py-1">
-                        <input
-                          value={editDraft.note ?? e.note}
-                          onChange={(ev) => setEditDraft((d) => ({ ...d, note: ev.target.value }))}
-                          className="w-full rounded border bg-background px-1.5 py-1 text-xs"
-                        />
-                      </td>
-                      <td className="whitespace-nowrap px-2 py-1 text-right">
-                        <button
-                          onClick={() => void saveEdit(e)}
-                          disabled={busyRow === e.row}
-                          className="mr-1 rounded border px-2 py-1 text-xs hover:bg-accent"
-                        >
-                          {busyRow === e.row ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save"}
-                        </button>
-                        <button
-                          onClick={() => { setEditingRow(null); setEditDraft({}); }}
-                          className="rounded border px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">{e.date}</td>
-                      <td className="px-3 py-2">{e.description}</td>
-                      <td className="px-3 py-2 text-xs">{e.category}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right font-medium">
-                        {money(e.amount, budget.currency)}
-                      </td>
-                      <td className="max-w-[200px] truncate px-3 py-2 text-xs text-muted-foreground">{e.note}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {!readonly && (
-                          <>
-                            <button
-                              onClick={() => { setEditingRow(e.row); setEditDraft({}); }}
-                              className="mr-1 text-muted-foreground hover:text-foreground"
-                              title="Edit entry"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => void removeEntry(e)}
-                              disabled={busyRow === e.row}
-                              className="text-muted-foreground hover:text-destructive"
-                              title="Delete entry (removes the row in Sheets too)"
-                            >
-                              {busyRow === e.row ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Add entry */}
-        {!readonly && (
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="date"
-              value={entryDate}
-              onChange={(e) => setEntryDate(e.target.value)}
-              className="rounded-md border bg-background px-2 py-1.5 text-sm"
-            />
-            <input
-              value={entryDesc}
-              onChange={(e) => setEntryDesc(e.target.value)}
-              placeholder="Description"
-              className="min-w-[160px] flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
-            />
-            <input
-              value={entryCategory}
-              onChange={(e) => setEntryCategory(e.target.value)}
-              placeholder="Category"
-              list={`categories-${budget.id}`}
-              className="w-40 rounded-md border bg-background px-2 py-1.5 text-sm"
-            />
-            <datalist id={`categories-${budget.id}`}>
-              {budget.cached_categories.map((c) => (
-                <option key={c.name} value={c.name} />
-              ))}
-            </datalist>
-            <input
-              type="number"
-              value={entryAmount}
-              onChange={(e) => setEntryAmount(e.target.value)}
-              placeholder="Amount"
-              className="w-28 rounded-md border bg-background px-2 py-1.5 text-sm"
-            />
-            <input
-              value={entryNote}
-              onChange={(e) => setEntryNote(e.target.value)}
-              placeholder="Note (optional)"
-              className="min-w-[120px] flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
-            />
-            <button
-              onClick={() => addMutation.mutate()}
-              disabled={!entryDesc.trim() || !entryAmount.trim() || addMutation.isPending}
-              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
-            >
-              {addMutation.isPending ? "Adding…" : "Add entry"}
-            </button>
-          </div>
-        )}
-      </section>
+      {/* Categories, ledger and the add-entry row */}
+      <BudgetLedgerTable budget={budget} canEdit={!readonly} onChanged={onChanged} />
     </div>
   );
 }
@@ -1126,7 +723,7 @@ function ReferencesSection({ budget, onChanged }: { budget: BudgetDetail; onChan
       setPickId("");
       onChanged();
       push("success", asLineItem
-        ? "Referenced — a '[Budget]' line item in this sheet now tracks that budget's total on every sync."
+        ? "Referenced — '[Budget]' line items in this sheet now track that budget's spend and its allocations on every sync."
         : "Referenced — its live numbers show here.");
     } catch (e) {
       const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
@@ -1138,12 +735,12 @@ function ReferencesSection({ budget, onChanged }: { budget: BudgetDetail; onChan
 
   const remove = async (refId: string, title: string, hasRow: boolean) => {
     const removeRow = hasRow
-      ? window.confirm(`Also delete the "[Budget] ${title}" line item from this sheet? OK = delete the row too, Cancel = keep the row as a frozen snapshot.`)
+      ? window.confirm(`Also delete the "[Budget] ${title}" line items from this sheet? OK = delete the rows too, Cancel = keep them as a frozen snapshot.`)
       : false;
     if (!hasRow && !window.confirm(`Stop referencing "${title}"?`)) return;
     const res = await removeBudgetReference(budget.id, refId, removeRow);
     onChanged();
-    push("info", res.row_removed ? "Reference and its line item removed." : "Reference removed.");
+    push("info", res.row_removed ? "Reference and its line items removed." : "Reference removed.");
   };
 
   return (
@@ -1155,7 +752,9 @@ function ReferencesSection({ budget, onChanged }: { budget: BudgetDetail; onChan
             <p className="text-sm font-medium">Referenced budgets</p>
             <p className="text-xs text-muted-foreground">
               Pull other budgets' numbers into this one — as live figures here, and optionally
-              as a synced "[Budget]" line item in this sheet so your totals include them.
+              as synced "[Budget]" line items in this sheet so your totals include them.
+              What a sub-budget has spent and what it has allocated come across as
+              separate rows, so allocated money stays allocated all the way up.
             </p>
           </div>
         </div>
@@ -1209,12 +808,20 @@ function ReferencesSection({ budget, onChanged }: { budget: BudgetDetail; onChan
               <span className="font-medium">{r.ref_title}</span>
               <span className="text-muted-foreground">
                 spent {money(r.total_spent, budget.currency)}
+                {(r.total_allocated ?? 0) > 0 && (
+                  <>
+                    {" "}·{" "}
+                    <span className="text-amber-600 dark:text-amber-400">
+                      allocated {money(r.total_allocated, budget.currency)}
+                    </span>
+                  </>
+                )}
                 {r.allotment != null && <> of {money(r.allotment, budget.currency)} · remaining {money(r.remaining, budget.currency)}</>}
                 {" "}· {r.entry_count} entries
               </span>
               {r.include_as_entry && (
-                <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground" title="A '[Budget]' row in this sheet tracks this total">
-                  synced line item
+                <span className="rounded bg-accent px-1.5 py-0.5 text-[10px] text-muted-foreground" title="'[Budget]' rows in this sheet track this budget's spend and its allocations">
+                  synced line items
                 </span>
               )}
               <button

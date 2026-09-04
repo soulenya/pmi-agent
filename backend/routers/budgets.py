@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -96,12 +97,17 @@ class FolderOut(BaseModel):
         )
 
 
+#: Spent / Allocated / Collected / Expected. Blank means Spent.
+EntryStatus = Literal["Spent", "Allocated", "Collected", "Expected"]
+
+
 class EntryCreate(BaseModel):
     date: str = Field("", max_length=20)
     description: str = Field(..., min_length=1, max_length=300)
     category: str = Field("", max_length=100)
     amount: float
     note: str = Field("", max_length=500)
+    status: EntryStatus = "Spent"
 
 
 class EntryExpected(BaseModel):
@@ -116,6 +122,7 @@ class EntryUpdate(BaseModel):
     category: str | None = Field(None, max_length=100)
     amount: float | None = None
     note: str | None = Field(None, max_length=500)
+    status: EntryStatus | None = None
 
 
 class EntryDelete(BaseModel):
@@ -339,6 +346,7 @@ async def add_entry(
             category=body.category,
             note=body.note,
             source="user",
+            status=body.status,
         )
     except BudgetError as exc:
         raise HTTPException(400, str(exc))
@@ -360,6 +368,7 @@ async def update_entry(
         for k, v in {
             "date": body.date, "description": body.description,
             "category": body.category, "amount": body.amount, "note": body.note,
+            "status": body.status,
         }.items()
         if v is not None
     }

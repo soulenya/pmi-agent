@@ -26,6 +26,7 @@ from models.db.task import Project, Task
 from models.db.user import User
 from models.db.workroom import Workroom, WorkroomItem, WorkroomJournalEntry
 from models.schemas.tasks import ProjectOut
+from services import budget_service
 from services.auth.service import hash_password
 from services.projects import custody
 from services.projects.access import ALLOWED_DOMAINS, resolve_role
@@ -174,6 +175,13 @@ class ProjectBudgetOut(BaseModel):
     cached_summary: dict
     cached_at: datetime | None
     is_mine: bool
+    external_readonly: bool = False
+
+
+class ProjectBudgetDetailOut(ProjectBudgetOut):
+    cached_ledger: list = []
+    cached_categories: list = []
+    references: list[dict] = []
 
 
 @router.get("/{project_id}/budgets", response_model=list[ProjectBudgetOut])
@@ -205,9 +213,56 @@ async def list_project_budgets(
             cached_summary=b.cached_summary or {},
             cached_at=b.cached_at,
             is_mine=b.user_id == current_user.id,
+            external_readonly=b.external_readonly,
         )
         for b in rows
     ]
+
+
+@router.get("/{project_id}/budgets/{budget_id}", response_model=ProjectBudgetDetailOut)
+async def read_project_budget(
+    budget_id: uuid.UUID,
+    project: Project = Depends(require_project_role("viewer")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectBudgetDetailOut:
+    """One attached budget's ledger, for anyone on the project.
+
+    This serves the cached copy and nothing else. Refreshing from Drive needs
+    the owner's Google credentials, so it stays on the owner-only
+    ``/budgets/{id}`` route — asking someone else's token to read a sheet it
+    was never given would fail at Google anyway, and offering the button would
+    only teach people it is broken.
+
+    The budget id is checked against this project, so membership of one
+    project can never be used to read a budget hanging off another.
+    """
+    b = (
+        await db.execute(
+            select(Budget).where(Budget.id == budget_id, Budget.project_id == project.id)
+        )
+    ).scalar_one_or_none()
+    if b is None:
+        raise HTTPException(404, "Budget not found on this project")
+    refs: list[dict] = []
+    try:
+        refs = await budget_service.reference_panel(db, b)
+    except Exception:  # noqa: BLE001 — sub-budgets must never break the read
+        logger.exception("Reference panel failed for budget %s", b.id)
+    return ProjectBudgetDetailOut(
+        id=b.id,
+        title=b.title,
+        currency=b.currency,
+        allotment=float(b.allotment) if b.allotment is not None else None,
+        drive_url=b.drive_url,
+        cached_summary=b.cached_summary or {},
+        cached_at=b.cached_at,
+        is_mine=b.user_id == current_user.id,
+        external_readonly=b.external_readonly,
+        cached_ledger=b.cached_ledger or [],
+        cached_categories=b.cached_categories or [],
+        references=refs,
+    )
 
 
 # ── People ────────────────────────────────────────────────────────────────────

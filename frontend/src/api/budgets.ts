@@ -8,6 +8,30 @@ function at(source: Source, path: string): string {
 
 // ── Budgets — personal Drive-backed budgets (Sheet = system of record) ──────
 
+/**
+ * Whether a ledger line has actually happened, and which way the money goes.
+ *
+ *   Spent      out, already gone
+ *   Allocated  out, committed but not yet paid
+ *   Collected  in, already received
+ *   Expected   in, invoiced or forecast but not yet collected
+ *
+ * Rows written before this existed have no status and count as Spent.
+ */
+export type EntryStatus = "Spent" | "Allocated" | "Collected" | "Expected";
+
+export const ENTRY_STATUSES: EntryStatus[] = ["Spent", "Allocated", "Collected", "Expected"];
+
+/** Money leaving the budget. The rest is money arriving. */
+export function isOutgoing(status: EntryStatus): boolean {
+  return status === "Spent" || status === "Allocated";
+}
+
+/** Promised rather than settled. */
+export function isPlanned(status: EntryStatus): boolean {
+  return status === "Allocated" || status === "Expected";
+}
+
 export interface BudgetEntry {
   row: number;
   date: string;
@@ -16,6 +40,7 @@ export interface BudgetEntry {
   amount: number | null;
   source: string;
   note: string;
+  status?: EntryStatus;
 }
 
 export interface BudgetCategory {
@@ -24,10 +49,21 @@ export interface BudgetCategory {
 }
 
 export interface BudgetSummary {
+  /** Money actually gone. */
   total_spent?: number;
+  /** Money committed but not yet paid. */
+  total_allocated?: number;
+  /** Money actually received. */
+  total_collected?: number;
+  /** Money invoiced or forecast but not yet in. */
+  total_expected?: number;
+  /** total_spent + total_allocated. */
+  committed?: number;
   allotment?: number | null;
+  /** allotment − spent − allocated: what is still free to promise. */
   remaining?: number | null;
   by_category?: Record<string, number>;
+  by_status?: Partial<Record<EntryStatus, number>>;
   entry_count?: number;
 }
 
@@ -59,6 +95,10 @@ export interface BudgetReference {
   ref_title: string;
   include_as_entry: boolean;
   total_spent: number;
+  total_allocated?: number;
+  total_collected?: number;
+  total_expected?: number;
+  committed?: number;
   allotment: number | null;
   remaining: number | null;
   entry_count: number;
@@ -111,6 +151,14 @@ export interface ProjectBudget {
   cached_summary: BudgetSummary;
   cached_at: string | null;
   is_mine: boolean;
+  external_readonly?: boolean;
+}
+
+/** The same, with the ledger — what everyone on the project may read. */
+export interface ProjectBudgetDetail extends ProjectBudget {
+  cached_ledger: BudgetEntry[];
+  cached_categories: BudgetCategory[];
+  references: BudgetReference[];
 }
 
 export async function listProjectBudgets(
@@ -119,6 +167,23 @@ export async function listProjectBudgets(
 ): Promise<ProjectBudget[]> {
   const { data } = await apiClient.get<ProjectBudget[]>(
     at(source, `/projects/${projectId}/budgets`),
+  );
+  return data;
+}
+
+/**
+ * One attached budget's ledger, readable by anyone on the project.
+ *
+ * Serves the cached copy only. Refreshing from Drive needs the owner's Google
+ * credentials, so that stays on the owner's own route.
+ */
+export async function getProjectBudget(
+  projectId: string,
+  budgetId: string,
+  source: Source = "local",
+): Promise<ProjectBudgetDetail> {
+  const { data } = await apiClient.get<ProjectBudgetDetail>(
+    at(source, `/projects/${projectId}/budgets/${budgetId}`),
   );
   return data;
 }
@@ -135,13 +200,16 @@ export async function listBudgets(source: Source = "local"): Promise<Budget[]> {
   return data;
 }
 
-export async function createBudget(body: {
-  title: string;
-  allotment?: number | null;
-  currency?: string;
-  categories?: string[];
-}): Promise<BudgetDetail> {
-  const { data } = await apiClient.post<BudgetDetail>("/budgets", body);
+export async function createBudget(
+  body: {
+    title: string;
+    allotment?: number | null;
+    currency?: string;
+    categories?: string[];
+  },
+  source: Source = "local",
+): Promise<BudgetDetail> {
+  const { data } = await apiClient.post<BudgetDetail>(at(source, "/budgets"), body);
   return data;
 }
 
@@ -155,13 +223,13 @@ export async function linkBudget(
   return data;
 }
 
-export async function getBudget(id: string): Promise<BudgetDetail> {
-  const { data } = await apiClient.get<BudgetDetail>(`/budgets/${id}`);
+export async function getBudget(id: string, source: Source = "local"): Promise<BudgetDetail> {
+  const { data } = await apiClient.get<BudgetDetail>(at(source, `/budgets/${id}`));
   return data;
 }
 
-export async function refreshBudget(id: string): Promise<BudgetDetail> {
-  const { data } = await apiClient.post<BudgetDetail>(`/budgets/${id}/refresh`);
+export async function refreshBudget(id: string, source: Source = "local"): Promise<BudgetDetail> {
+  const { data } = await apiClient.post<BudgetDetail>(at(source, `/budgets/${id}/refresh`));
   return data;
 }
 
@@ -182,18 +250,29 @@ export async function updateBudget(
   return data;
 }
 
-export async function unlinkBudget(id: string): Promise<{ sheet_kept_at: string }> {
+export async function unlinkBudget(
+  id: string,
+  source: Source = "local",
+): Promise<{ sheet_kept_at: string }> {
   const { data } = await apiClient.delete<{ unlinked: string; sheet_kept_at: string }>(
-    `/budgets/${id}`,
+    at(source, `/budgets/${id}`),
   );
   return data;
 }
 
 export async function addBudgetEntry(
   id: string,
-  entry: { date?: string; description: string; category?: string; amount: number; note?: string },
+  entry: {
+    date?: string;
+    description: string;
+    category?: string;
+    amount: number;
+    note?: string;
+    status?: EntryStatus;
+  },
+  source: Source = "local",
 ): Promise<BudgetDetail> {
-  const { data } = await apiClient.post<BudgetDetail>(`/budgets/${id}/entries`, entry);
+  const { data } = await apiClient.post<BudgetDetail>(at(source, `/budgets/${id}/entries`), entry);
   return data;
 }
 
@@ -207,9 +286,14 @@ export async function updateBudgetEntry(
     category?: string;
     amount?: number;
     note?: string;
+    status?: EntryStatus;
   },
+  source: Source = "local",
 ): Promise<BudgetDetail> {
-  const { data } = await apiClient.patch<BudgetDetail>(`/budgets/${id}/entries/${row}`, body);
+  const { data } = await apiClient.patch<BudgetDetail>(
+    at(source, `/budgets/${id}/entries/${row}`),
+    body,
+  );
   return data;
 }
 
@@ -217,10 +301,12 @@ export async function deleteBudgetEntry(
   id: string,
   row: number,
   expected: { description?: string; amount?: number | null },
+  source: Source = "local",
 ): Promise<BudgetDetail> {
-  const { data } = await apiClient.post<BudgetDetail>(`/budgets/${id}/entries/${row}/delete`, {
-    expected,
-  });
+  const { data } = await apiClient.post<BudgetDetail>(
+    at(source, `/budgets/${id}/entries/${row}/delete`),
+    { expected },
+  );
   return data;
 }
 
@@ -265,17 +351,19 @@ export async function scanBudgetFolder(
 export async function addBudgetReference(
   id: string,
   body: { ref_budget_id: string; include_as_entry: boolean },
+  source: Source = "local",
 ): Promise<void> {
-  await apiClient.post(`/budgets/${id}/references`, body);
+  await apiClient.post(at(source, `/budgets/${id}/references`), body);
 }
 
 export async function removeBudgetReference(
   id: string,
   referenceId: string,
   removeRow: boolean,
+  source: Source = "local",
 ): Promise<{ row_removed: boolean }> {
   const { data } = await apiClient.delete<{ removed: string; row_removed: boolean }>(
-    `/budgets/${id}/references/${referenceId}`,
+    at(source, `/budgets/${id}/references/${referenceId}`),
     { params: { remove_row: removeRow } },
   );
   return data;

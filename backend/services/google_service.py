@@ -2257,17 +2257,23 @@ def sheets_create_budget_spreadsheet(
     from datetime import datetime as _dt
 
     values_payload = [
-        {"range": "Ledger!A1:F1",
-         "values": [["Date", "Description", "Category", "Amount", "Source", "Note"]]},
+        {"range": "Ledger!A1:G1",
+         "values": [["Date", "Description", "Category", "Amount", "Source", "Note", "Status"]]},
         {"range": "Categories!A1:B1", "values": [["Category", "Cap"]]},
-        {"range": "Settings!A1:B7", "values": [
+        {"range": "Settings!A1:B10", "values": [
             ["Title", title],
             ["Allotment", allotment if allotment is not None else ""],
             ["Currency", currency],
             ["Created", _dt.now().strftime("%Y-%m-%d")],
             ["Managed By", "Little Gerry"],
-            ["Total Spent", "=SUM(Ledger!D2:D)"],
-            ["Remaining", "=IF(B2=\"\",\"\",B2-B6)"],
+            # Status column G: blank counts as Spent, so a row typed straight
+            # into the sheet behaves the way it always did.
+            ["Total Spent", '=SUMIF(Ledger!G2:G,"Spent",Ledger!D2:D)'
+                            '+SUMIFS(Ledger!D2:D,Ledger!G2:G,"",Ledger!B2:B,"<>")'],
+            ["Allocated", '=SUMIF(Ledger!G2:G,"Allocated",Ledger!D2:D)'],
+            ["Collected", '=SUMIF(Ledger!G2:G,"Collected",Ledger!D2:D)'],
+            ["Expected", '=SUMIF(Ledger!G2:G,"Expected",Ledger!D2:D)'],
+            ["Remaining", '=IF(B2="","",B2-B6-B7)'],
         ]},
     ]
     if categories:
