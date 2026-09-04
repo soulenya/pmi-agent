@@ -542,9 +542,18 @@ A link that would make two tasks wait on each other is refused rather than saved
 
 An endless whiteboard for thinking a project through. Pick a tool from the bar in the top-left, then click the board to place something.
 
-- **Sticky note**, **Text**, **Shape** and **Frame** for your own material. Pick a colour from the same bar.
+- **Sticky note**, **Text**, **Shape** and **Frame** for your own material. Pick a colour from the same bar, or change it afterwards — see below.
 - **Draw** for freehand pen, pressure-sensitive if your device reports it. **Erase** removes whatever you click.
 - **Images** — paste one with Ctrl+V or drop the file onto the board. Pictures are encrypted on your machine like every other document.
+- **Right-click the empty board** to place something exactly where you clicked.
+
+**Changing how something looks.** Select anything and a panel opens under the toolbar. It changes fill, line colour, line thickness, dashed or solid, text colour, text size, bold and fade — at any time, not only at the moment you place something. Select several items and it changes all of them at once; where they disagree, the panel says so rather than flattening them.
+
+**Shapes hold text.** Double-click a shape and type inside it. A shape can be rounded, square, an ellipse, a diamond or an arrow, and you can turn one into another from the panel. To put a shape around something already on the board, select it and choose **draw a shape around** — from the panel or from the right-click menu.
+
+**An unfilled shape does not block what is under it.** Draw a box around a text box and the text box is still yours to click; grab the shape by its border. If you want a shape that does block — a solid block of colour — mark it **solid** in the panel.
+
+**Boxes grow as you type.** A note or text box that runs out of room gets taller rather than giving you a scroll bar. Drag its resize handle to set a height yourself and it stays exactly where you put it.
 
 **Real work goes on the board too.** The **Material** panel on the right lists the project's tasks, documents, budgets, bookmarks, files and email threads. Drag one onto the canvas, or click it to drop it in the middle. Those cards are live: a task card turns red when it is overdue, a budget card shows what has been spent against its allotment and turns amber as it nears the limit, and a card whose item has been deleted says so. **Double-click a card** to open the real thing behind it.
 
@@ -558,9 +567,13 @@ Editing:
 | Duplicate | Ctrl+D |
 | Copy / paste | Ctrl+C / Ctrl+V |
 | Delete | Delete or Backspace |
+| Type in the selected item | Enter. Escape stops. Double-click does the same |
 | Fit everything on screen | Ctrl+0 |
 | Pick a tool | V select, S sticky, T text, R shape, F frame, P pen, E erase |
-| Align, even out spacing, bring to front, send to back | Select two or more items; a bar appears at the bottom |
+| Bring to front / send to back | Ctrl+] / Ctrl+[, or the panel |
+| Reach something buried | Alt+click the same spot repeatedly to step down through the stack |
+| Align and even out spacing | Select two or more items; a bar appears at the bottom |
+| Everything else on one item | Right-click it |
 | Snap | On by default: a dragged item lines up with its neighbours and a pink guide shows where. The grid button switches to an 8-pixel grid instead |
 
 Freehand ink is decorative. It is stored and drawn and nothing more — never searched, and never read back to Gerry. A drawing is for the people in the room.

@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 231;
-export const BUILD_DATE = "2026-09-04";
+export const BUILD_NUMBER = 232;
+export const BUILD_DATE = "2026-09-05";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,27 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 232,
+    date: "2026-09-05",
+    title: "The canvas stops fighting you",
+    changes: [
+      "A shape you resize stays the size you made it. Sizes were being saved for the position but never the width and height, so the next refresh snapped everything back to the size it was born at.",
+      "Anything you change while a save is in flight now survives that save. A refresh landing mid-edit could previously undo the edit you were still making.",
+      "Select something and a panel appears with its colours. You can change fill, line colour, line thickness, dashes, text colour, text size, bold and fade after a thing is placed — not only at the moment you place it.",
+      "Select six things and recolour all six at once. Where they disagree the panel says so instead of quietly flattening them.",
+      "Shapes hold text. Double-click a shape and type inside it.",
+      "Shapes come in five forms now — rounded, square, ellipse, diamond and arrow — and you can change one into another after the fact.",
+      "Draw a shape around something you already made: select it and pick 'draw a shape around', and a shape appears behind it at the right size.",
+      "An unfilled shape no longer eats clicks. Draw a box around a text box and the text box is still yours to click; the shape is grabbed by its border. Mark a shape solid when you do want it to block.",
+      "Every new thing is placed on top of what is already there, instead of everything sharing one layer and the order being an accident.",
+      "Bring to front and send to back are on the panel and on Ctrl+] and Ctrl+[.",
+      "Alt-click somewhere crowded to dig down through the stack one item at a time.",
+      "Type past the bottom of a text box or a note and the box grows. No more scroll bar inside a note. Drag the handle to set a height yourself and it stays where you put it.",
+      "Right-click a node for edit text, draw a shape around, duplicate, bring to front, send to back and delete. Right-click the empty canvas to place something where you clicked.",
+      "Press Enter on a selected note to start typing in it, and Escape to stop.",
+    ],
+  },
   {
     build: 231,
     date: "2026-09-04",

@@ -4,6 +4,55 @@
 
 ## Changelog
 
+### v4.6.1 — 2026-09-05
+**The canvas stops fighting you**
+
+Five separate complaints about the project canvas, all of them fair, all of
+them fixed.
+
+- **A shape you resize stays the size you made it.** The board saved a node's
+  position and its text, and nothing else. Width and height were never sent, so
+  the next time the canvas reloaded — which it does after every save — every
+  shape, note and text box snapped back to the size it was created at. Sizes
+  are now saved with everything else.
+- **An edit made during a save survives the save.** The board saves on a short
+  delay and then refetches. If you were still working when that refetch landed,
+  it overwrote you with the older server copy. Anything still waiting to be
+  saved, or still out on the wire, now wins over what comes back.
+- **You can change a thing's colour after you have placed it.** Selecting
+  anything opens a panel next to the toolbar: fill, line colour, line
+  thickness, dashed or solid, text colour, text size, bold, and fade. Before
+  this, the only chance you got to choose a colour was the split second before
+  the thing existed.
+  - Select six things and change all six at once. Where they disagree, the
+    panel shows a mixed state rather than silently flattening them.
+- **Shapes hold text.** Double-click a shape and type inside it. The text
+  centres itself and grows the shape if it needs to.
+- **Shapes have forms.** Rounded, square, ellipse, diamond and arrow — and you
+  can turn one into another after the fact.
+- **You can draw a shape around something you already made.** Select it, choose
+  *draw a shape around*, and a shape appears behind it, sized to fit with room
+  to spare.
+- **An empty shape no longer swallows clicks.** Drawing a box around a text box
+  used to make the text box unreachable, because the shape's invisible fill
+  covered it and took every click. An unfilled shape is now grabbed by its
+  border — a generous border, not a pixel hunt — and everything inside it stays
+  yours to click. If you want a shape that does block, mark it solid.
+- **Layering is deliberate.** Everything used to be placed on layer zero, so
+  what sat on top was decided by the order things happened to load. New items
+  now go on top, and *bring to front* / *send to back* are on the panel and on
+  `Ctrl+]` / `Ctrl+[`.
+- **Alt-click digs through a stack** one item at a time, for when something is
+  genuinely buried.
+- **Text boxes and notes grow as you type.** They used to keep their height and
+  give you a scroll bar inside a sticky note the size of a playing card. Drag
+  the resize handle to set a height yourself and it stays exactly where you put
+  it.
+- **Right-click works.** On a node: edit text, draw a shape around, duplicate,
+  bring to front, send to back, delete. On empty canvas: place a note, a text
+  box, a shape or a frame right where you clicked.
+- **Enter** starts typing in the selected note; **Escape** stops.
+
 ### v4.6.0 — 2026-09-04
 **A project budget can now hold money you have promised but not yet paid**
 
