@@ -63,7 +63,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Source } from "@/api/tasks";
-import { getProjectSpace, listTasks } from "@/api/tasks";
+import { getProjectSpace, listTasks, updateTask } from "@/api/tasks";
+import type { TaskStatus } from "@/types/tasks";
+import { listProjectBudgets } from "@/api/budgets";
 import { getWorkroom, type WorkroomItemKind } from "@/api/workrooms";
 import {
   createEdge,
@@ -95,8 +97,10 @@ import {
 } from "./canvasOps";
 import {
   BoardContext,
+  DRAG_MIME,
   type BoardApi,
   type NodeData,
+  type RailItem,
   type ResizeBox,
 } from "./canvas/board";
 import { CanvasMenu, type MenuItem } from "./canvas/ContextMenu";
@@ -118,9 +122,6 @@ const SNAP_PX = 6;
 const GRID = 8;
 const UNDO_DEPTH = 40;
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
-
-/** What a Material rail entry puts on the drag. */
-const DRAG_MIME = "application/x-littlegerry-item";
 
 // Workroom pins whose kind the canvas can draw as a reference node.
 const RAIL_KINDS: WorkroomItemKind[] = [
@@ -164,11 +165,14 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   const [color, setColor] = useState(STICKY_COLORS[0]);
   const [penColor, setPenColor] = useState("#0f172a");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [stroke, setStroke] = useState<InkPoint[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; nodeId: string | null } | null>(
     null,
   );
+  const [railFilter, setRailFilter] = useState("");
+  const [showPlaced, setShowPlaced] = useState(false);
   const drawing = useRef(false);
 
   const key = ["project-canvas", source, projectId] as const;
@@ -355,9 +359,17 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         { source_node_id: c.source!, target_node_id: c.target! },
         source,
       ),
-    onSuccess: () => {
+    onSuccess: (_created, c) => {
       queryClient.invalidateQueries({ queryKey: key });
       queryClient.invalidateQueries({ queryKey: ["project-timeline", source, projectId] });
+      // A line between two task cards is not decoration: the backend turns it
+      // into a real dependency, and the timeline redraws. Say so.
+      const nodes = data?.nodes ?? [];
+      const from = nodes.find((n) => n.id === c.source);
+      const to = nodes.find((n) => n.id === c.target);
+      if (from?.kind === "task" && to?.kind === "task") {
+        setNotice("The timeline now waits for the first task before the second.");
+      }
     },
     onError: (err: unknown) => {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response
@@ -652,6 +664,20 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     [edit],
   );
 
+  const setTaskStatus = useMutation({
+    mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
+      updateTask(taskId, { status: status as TaskStatus }, source),
+    onSuccess: () => {
+      // The card reads through resolve, and the tasks tab and timeline read the
+      // row directly. All three are looking at the same task.
+      queryClient.invalidateQueries({ queryKey: ["project-canvas-refs", source] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["project-timeline", source, projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-space", source, projectId] });
+    },
+    onError: () => setError("That task's status could not be changed."),
+  });
+
   const board = useMemo<BoardApi>(
     () => ({
       editable,
@@ -664,8 +690,9 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       },
       grow: (id, height) => edit(id, { height: Math.round(height) }),
       endResize,
+      setTaskStatus: (taskId, status) => setTaskStatus.mutate({ taskId, status }),
     }),
-    [editable, editingId, remember, edit, endResize],
+    [editable, editingId, remember, edit, endResize, setTaskStatus],
   );
 
   // ── Snapping ──────────────────────────────────────────────────────────────
@@ -817,6 +844,10 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     queryKey: ["tasks", { project_id: projectId }, source],
     queryFn: () => listTasks({ project_id: projectId }, source),
   });
+  const { data: railBudgets } = useQuery({
+    queryKey: ["project-budgets", source, projectId],
+    queryFn: () => listProjectBudgets(projectId, source),
+  });
   const { data: room } = useQuery({
     queryKey: ["workroom", workroomId],
     queryFn: () => getWorkroom(workroomId!),
@@ -829,18 +860,49 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     [data?.nodes],
   );
 
-  const rail = useMemo(() => {
-    const items: { kind: NodeKind; refId: string; label: string }[] = [];
+  const pool = useMemo(() => {
+    const items: RailItem[] = [];
     (railTasks ?? []).forEach((t) =>
       items.push({ kind: "task", refId: t.id, label: t.title }),
+    );
+    (railBudgets ?? []).forEach((b) =>
+      items.push({ kind: "budget", refId: b.id, label: b.title }),
     );
     (room?.items ?? [])
       .filter((i) => RAIL_KINDS.includes(i.kind))
       .forEach((i) =>
         items.push({ kind: i.kind as NodeKind, refId: i.ref_id, label: i.label }),
       );
-    return items.filter((i) => !placed.has(i.refId));
-  }, [railTasks, room?.items, placed]);
+    // The same thing can be pinned and be a task; show it once.
+    const seen = new Set<string>();
+    return items.filter((i) => {
+      const key = `${i.kind}:${i.refId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [railTasks, railBudgets, room?.items]);
+
+  const railGroups = useMemo(() => {
+    const needle = railFilter.trim().toLowerCase();
+    const visible = pool.filter(
+      (i) =>
+        (showPlaced || !placed.has(i.refId)) &&
+        (!needle || i.label.toLowerCase().includes(needle)),
+    );
+    const byKind = new Map<NodeKind, RailItem[]>();
+    visible.forEach((i) => {
+      const bucket = byKind.get(i.kind);
+      if (bucket) bucket.push(i);
+      else byKind.set(i.kind, [i]);
+    });
+    return [...byKind.entries()].map(([kind, items]) => ({ kind, items }));
+  }, [pool, placed, railFilter, showPlaced]);
+
+  const hiddenBecausePlaced = useMemo(
+    () => (showPlaced ? 0 : pool.filter((i) => placed.has(i.refId)).length),
+    [pool, placed, showPlaced],
+  );
 
   const dropRef = useCallback(
     (kind: NodeKind, refId: string, label: string, clientX: number, clientY: number) => {
@@ -1414,45 +1476,80 @@ function Board({ projectId, source = "local", canEdit }: Props) {
             </Panel>
           ) : null}
 
-          {editable && rail.length > 0 ? (
+          {editable && pool.length > 0 ? (
             <Panel
               position="top-right"
-              className="max-h-[60%] w-56 overflow-y-auto rounded-md border border-border bg-card/95 p-2 shadow-sm"
+              className="flex max-h-[70%] w-60 flex-col rounded-md border border-border bg-card/95 p-2 shadow-sm"
             >
-              <p className="mb-1.5 text-xs font-medium text-foreground">Material</p>
+              <p className="text-xs font-medium text-foreground">The pool</p>
               <p className="mb-2 text-[11px] leading-snug text-muted-foreground">
-                Drag onto the board, or click to drop it in the middle.
+                Everything this project holds. Drag onto the board, or click to
+                drop it in the middle.
               </p>
-              <ul className="space-y-1">
-                {rail.map((item) => (
-                  <li key={`${item.kind}-${item.refId}`}>
-                    <button
-                      type="button"
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData(DRAG_MIME, JSON.stringify(item));
-                        e.dataTransfer.effectAllowed = "copy";
-                      }}
-                      onClick={() => {
-                        const box = wrapper.current?.getBoundingClientRect();
-                        dropRef(
-                          item.kind,
-                          item.refId,
-                          item.label,
-                          (box?.left ?? 0) + (box?.width ?? 0) / 2,
-                          (box?.top ?? 0) + (box?.height ?? 0) / 2,
-                        );
-                      }}
-                      className="w-full cursor-grab rounded border border-border bg-background px-2 py-1 text-left text-xs hover:bg-muted active:cursor-grabbing"
-                    >
-                      <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
-                        {item.kind.replace("_", " ")}
-                      </span>
-                      <span className="line-clamp-2 text-foreground">{item.label}</span>
-                    </button>
-                  </li>
+              <input
+                value={railFilter}
+                placeholder="Filter"
+                onChange={(e) => setRailFilter(e.target.value)}
+                className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-xs"
+              />
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+                {railGroups.map((group) => (
+                  <div key={group.kind}>
+                    <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {group.kind.replace("_", " ")} · {group.items.length}
+                    </p>
+                    <ul className="space-y-1">
+                      {group.items.map((item) => (
+                        <li key={`${item.kind}-${item.refId}`}>
+                          <button
+                            type="button"
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData(DRAG_MIME, JSON.stringify(item));
+                              e.dataTransfer.effectAllowed = "copy";
+                            }}
+                            onClick={() => {
+                              const box = wrapper.current?.getBoundingClientRect();
+                              dropRef(
+                                item.kind,
+                                item.refId,
+                                item.label,
+                                (box?.left ?? 0) + (box?.width ?? 0) / 2,
+                                (box?.top ?? 0) + (box?.height ?? 0) / 2,
+                              );
+                            }}
+                            className={cn(
+                              "w-full cursor-grab rounded border border-border bg-background px-2 py-1 text-left text-xs hover:bg-muted active:cursor-grabbing",
+                              placed.has(item.refId) && "opacity-60",
+                            )}
+                          >
+                            <span className="line-clamp-2 text-foreground">{item.label}</span>
+                            {placed.has(item.refId) && (
+                              <span className="text-[10px] text-muted-foreground">
+                                already on the board
+                              </span>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
+                {railGroups.length === 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Nothing left to place.
+                  </p>
+                )}
+              </div>
+              <label className="mt-2 flex items-center gap-1.5 border-t border-border pt-2 text-[11px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={showPlaced}
+                  onChange={(e) => setShowPlaced(e.target.checked)}
+                />
+                Show what is already placed
+                {hiddenBecausePlaced > 0 && ` (${hiddenBecausePlaced})`}
+              </label>
             </Panel>
           ) : null}
         </ReactFlow>
@@ -1472,6 +1569,19 @@ function Board({ projectId, source = "local", canEdit }: Props) {
             <button
               type="button"
               onClick={() => setError(null)}
+              className="ml-2 underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+
+        {notice && !error ? (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-md border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm">
+            {notice}
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
               className="ml-2 underline"
             >
               Dismiss

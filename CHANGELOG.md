@@ -4,6 +4,52 @@
 
 ## Changelog
 
+### v4.6.2 — 2026-09-05
+**Tasks belong to the project**
+
+A project could hold tasks, show them on a timeline and draw them on a canvas,
+but it had no way to make one. The Tasks tab linked out to the task board on a
+local project and printed a read-only list on a hub project — and hub projects
+are where the shared work is, so there was no way in at all. The endpoint had
+been sitting there ready the whole time.
+
+- **A real Tasks tab.** Make a task with a title alone, or open *Details* and
+  set status, priority, assignee, due date, start and end dates and the
+  milestone flag on the way in. Click any row to open it and change any of
+  that afterwards, set progress, add a sub-task, or delete it.
+- **Grouped, counted and sortable.** Tasks sit under their status with a count
+  on each heading, each group collapsible, and the whole list sortable by
+  order, due date or priority. A late task's date shows red. A sub-task says
+  which task it sits under.
+- **A due date can be removed again.** This one was a real defect, not a
+  missing feature: the task editor already offered to clear a due date, an
+  assignee or a project, and the request was already being sent — the server
+  was throwing every empty value away before it got as far as the database. So
+  a date could be set and then never unset. Fixed for every field.
+- **A viewer sees the list and cannot change it**, the same as everywhere else
+  in a project.
+
+**The canvas has a pool.**
+
+- The rail on the right of the canvas used to hold pinned material only. It now
+  holds everything the project has: its tasks, its budgets and its pinned
+  material, grouped by kind with a count on each group and a filter box.
+- It can show what is already on the board, greyed, so you can put a second
+  copy down instead of hunting for where the first one went.
+- A task can be dragged onto the canvas from the Tasks tab as well as from the
+  pool.
+
+**The tabs answer to each other.**
+
+- Change a task's status on its card on the canvas and the task changes — the
+  Tasks tab, the timeline and the project's counts all follow.
+- Drawing a line between two task cards has always created a real dependency on
+  the timeline. Now it says so, instead of doing it silently.
+- Any change made anywhere in a project refreshes the whole project. Each tab
+  used to refresh its own corner of the cache, which is why a task added in one
+  place could sit unseen in another until you reloaded the window.
+- The Tasks and Material tabs carry a count of what they hold.
+
 ### v4.6.1 — 2026-09-05
 **The canvas stops fighting you**
 

@@ -58,6 +58,7 @@ class TaskCreate(BaseModel):
     description: str | None = None
     project_id: uuid.UUID | None = None
     parent_task_id: uuid.UUID | None = None
+    status: str = "todo"
     priority: str = "medium"
     assignee_id: uuid.UUID | None = None
     due_date: datetime | None = None

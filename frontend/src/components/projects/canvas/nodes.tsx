@@ -331,9 +331,22 @@ const STATE_RING: Record<string, string> = {
   gone: "border-dashed border-muted-foreground",
 };
 
+/** The statuses a task card offers, in the order a task moves through them. */
+const TASK_STATUSES = [
+  ["todo", "To do"],
+  ["in_progress", "In progress"],
+  ["in_review", "In review"],
+  ["done", "Done"],
+  ["backlog", "Backlog"],
+  ["cancelled", "Cancelled"],
+] as const;
+
 function RefNode({ data, selected }: NodeProps) {
   const { node, resolved, canEdit } = data as unknown as NodeData;
+  const board = useBoard();
   const title = resolved?.title || node.label || "Loading…";
+  const editableTask =
+    canEdit && node.kind === "task" && Boolean(node.ref_id) && !resolved?.missing;
   return (
     <>
       <Resizer node={node} visible={Boolean(selected) && canEdit} minWidth={140} minHeight={70} />
@@ -352,7 +365,21 @@ function RefNode({ data, selected }: NodeProps) {
         {resolved?.subtitle ? (
           <div className="truncate text-xs text-muted-foreground">{resolved.subtitle}</div>
         ) : null}
-        {resolved?.status ? (
+        {editableTask ? (
+          <select
+            value={resolved?.status ?? "todo"}
+            // The board owns the click, so keep it from starting a drag.
+            onPointerDown={(e) => e.stopPropagation()}
+            onChange={(e) => board.setTaskStatus(node.ref_id!, e.target.value)}
+            className="nodrag mt-auto rounded border border-border bg-background px-1 py-0.5 text-xs text-muted-foreground"
+          >
+            {TASK_STATUSES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        ) : resolved?.status ? (
           <div className="mt-auto text-xs text-muted-foreground">{resolved.status}</div>
         ) : null}
         {resolved?.missing ? (

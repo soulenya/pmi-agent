@@ -132,7 +132,9 @@ export interface TaskCreate {
   description?: string;
   project_id?: string;
   parent_task_id?: string;
+  status?: TaskStatus;
   priority?: TaskPriority;
+  assignee_id?: string | null;
   due_date?: string;
   start_date?: string;
   end_date?: string;
@@ -146,6 +148,7 @@ export interface TaskUpdate {
   description?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
+  assignee_id?: string | null;
   due_date?: string | null;
   start_date?: string | null;
   end_date?: string | null;

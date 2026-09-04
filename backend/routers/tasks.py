@@ -343,7 +343,9 @@ async def update_task(
     await _visible_task(db, task_id, current_user)
     held = await custody.assert_may_change(db, "task", task_id, current_user.id)
     repo = TaskRepository(db)
-    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    # Only what the caller actually sent. Dropping every null instead would mean
+    # a due date, an assignee or a project could be set but never cleared.
+    updates = body.model_dump(exclude_unset=True)
     if "project_id" in updates:
         custody.assert_stays_put(held, updates["project_id"])
         # Moving work into a shared project makes it that project's, or anyone

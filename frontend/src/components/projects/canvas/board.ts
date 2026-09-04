@@ -7,7 +7,22 @@
 
 import { createContext, useContext } from "react";
 import type { Source } from "@/api/tasks";
-import type { CanvasNode, ResolvedRef } from "@/types/canvas";
+import type { CanvasNode, NodeKind, ResolvedRef } from "@/types/canvas";
+
+/**
+ * The drag payload the board accepts.
+ *
+ * Anything that can name a thing the canvas knows how to draw can offer it:
+ * the material rail, and the tasks tab, which is why this does not live in
+ * CanvasTab any more.
+ */
+export const DRAG_MIME = "application/x-littlegerry-item";
+
+export interface RailItem {
+  kind: NodeKind;
+  refId: string;
+  label: string;
+}
 
 export interface NodeData {
   node: CanvasNode;
@@ -34,6 +49,8 @@ export interface BoardApi {
   /** A box has outgrown its text; make it taller. */
   grow: (id: string, height: number) => void;
   endResize: (node: CanvasNode, box: ResizeBox) => void;
+  /** A task card is the task. Changing it here changes it everywhere. */
+  setTaskStatus: (taskId: string, status: string) => void;
 }
 
 const inert: BoardApi = {
@@ -44,6 +61,7 @@ const inert: BoardApi = {
   saveContent: () => undefined,
   grow: () => undefined,
   endResize: () => undefined,
+  setTaskStatus: () => undefined,
 };
 
 export const BoardContext = createContext<BoardApi>(inert);
