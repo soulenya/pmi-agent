@@ -466,17 +466,42 @@ Every project card has a **layers** button that opens the project's own space. T
 
 #### The Budget tab
 
-A budget is a Google Sheet you keep on the **Budget** page. This tab attaches one to a project so that everyone working on the project can see where the money is.
+A budget is a Google Sheet. This tab puts one on a project so that everyone working on the project can see where the money is — and so you can set money aside before you have spent it.
 
-**To attach one,** open the Budget tab and click **Add a budget**. You are shown your own budgets; pick one. Or paste a Drive link to a sheet and it is linked and attached in one go. You must be able to edit the project to attach anything to it.
+**To make one,** open the Budget tab and click **Add a budget**, then fill in the name, the allotment and any categories and click **Create**. Little Gerry builds the sheet on your Drive with its Ledger, Categories and Settings tabs already in place. This is the one to use: it is a real budget you can write to.
 
-**What everyone on the project sees:** the title, what has been spent, the allotment, how much is left or how far over it has gone, and a link to the sheet on Drive. That is a view, not a handover — the sheet on Drive keeps its own sharing, so a teammate can only open it if you have given them access there too.
+**Or use one you already have** — the same box lists your other budgets, and one click attaches it.
 
-**Only the person who linked a budget can take it off again** (the **✕**) or change it. Others see the figures and nothing else.
+**Or paste a Drive link** to a sheet you keep yourself. Be aware that a sheet Little Gerry did not make is **read-only**: the figures show up here, but you cannot add a line or allocate anything against it from the app. Edit it in Google Sheets instead.
+
+You must be able to edit the project to put anything on it.
+
+**Click a budget to open its ledger.** You get every line, the category filters and the status filters — the same view as the Budget page, because it is the same ledger.
+
+**Four statuses, on every line.** A budget is not only a record of what has gone:
+
+| Status | What it means |
+|---|---|
+| **Spent** | Money that has gone. |
+| **Allocated** | Money committed to something but not yet paid. |
+| **Collected** | Money that has come in. |
+| **Expected** | Money invoiced or forecast but not yet collected. |
+
+**Allocated is the point of all this.** Set aside £40,000 for a contractor you have not paid yet and it comes off what is left immediately. The bar on each budget tracks **spent plus allocated**, and the line under it tells you how much is **free to allocate** — the number you need before you promise anything else.
+
+**Money coming in is kept separate** and never inflates what you have left to spend. Collecting an invoice is not the same as being handed more budget.
+
+**Existing lines are unaffected.** A line with no status counts as **Spent**, exactly as it always did. So does a line where somebody has typed a word the app does not know, so a typo in the sheet can never quietly take money out of a total.
+
+**Sub-budgets.** If a budget references others, the panel lists them with what each has spent and what each has allocated, and those figures roll up into the parent as two synced lines. Add and remove references on the **Budget** page.
+
+**What everyone on the project sees:** all of it — the totals, the allocations, the expected income and every line in the ledger. That is a view, not a handover: the sheet on Drive keeps its own sharing, so a teammate can only open the sheet itself if you have given them access there too.
+
+**Only the person whose Drive holds the sheet can change anything** — add a line, edit one, delete one, or take the budget off the project (the **✕**). This is not a policy Little Gerry invented; a colleague's edit would be refused by Google Drive itself.
 
 Taking a budget off a project, or deleting the project, never touches the budget or the sheet. The sheet exists whether or not a project claims it.
 
-A shared project on the hub has a Budget tab of its own. Its budgets are held on the hub, beside the project, so everyone on the project sees the same figures. A budget you keep on this computer stays on this computer; to put one on a hub project, paste the sheet's Drive link into that project's Budget tab and it is linked there.
+A shared project on the hub has a Budget tab of its own, and budgets created there are held on the hub beside the project, so everyone on the project sees the same figures. A budget you keep on this computer stays on this computer.
 
 #### Archiving and deleting a project
 
@@ -912,14 +937,19 @@ Navigate to **Manage Budgets** (a moon on the **Enterprise** planet). A personal
 - **Create a budget** with a title, optional allotment, and categories — it's created as a **Google Sheet in the company's shared budgets folder** on Drive, so every budget lives in one known place. You own your sheet and can open it anytime.
 - **One ledger, two surfaces**: add, edit, or delete entries in Little Gerry OR directly in Google Sheets — changes reflect in both. The page refreshes automatically while open, and every edit re-checks the sheet first so nothing gets clobbered.
 - **Allotments**: set one and watch spending against it with progress bars (amber at 80%, red at 100%).
+- **Four statuses on every line** — **Spent** (money gone), **Allocated** (committed but not yet paid), **Collected** (money in), and **Expected** (invoiced but not yet collected). They live in a **Status** column on the sheet, so you can type them there too. **A blank status means Spent**, and so does a word the app does not recognise, so nothing you already have changes meaning and a typo can never quietly remove money from a total.
+- **Set money aside before you spend it**: an **Allocated** line reserves money for something committed. What is left is the allotment less spent *and* allocated, so the page can tell you what is genuinely free to promise.
+- **Track money owed to you**: **Collected** and **Expected** lines are kept apart from spending and are only shown when there are any, so a plain spending budget stays plain. Income never inflates what you have left to spend, and category totals cover outgoing money only.
+- **Filter by status** as well as by category — the chips above the ledger show only the statuses actually in the sheet, with a count.
 - **Filter and isolate**: tap the category chips above the ledger to filter it (multi-select, live subtotal), or check specific entries and "Isolate selected" to view just those rows for a reference.
-- **Let Gerry help**: a per-budget toggle grants Gerry permission to add and edit entries when you ask in chat ("log $89.99 for the torque wrench against Lab Tools"). Edits and deletions also require your explicit confirmation in chat. Reading is always allowed, and you can revoke the grant anytime.
+- **Let Gerry help**: a per-budget toggle grants Gerry permission to add and edit entries when you ask in chat ("log $89.99 for the torque wrench against Lab Tools"). She files a line under the right status, so "set aside $5,000 for the enclosure tooling" is recorded as **Allocated**, not spent, and "we invoiced them $12,000 last week" as **Expected**. Edits and deletions also require your explicit confirmation in chat. Reading is always allowed, and you can revoke the grant anytime.
 - **Create from chat** too: ask Gerry to set up a budget with an allotment and categories — her write permission still starts OFF until you enable it.
 - **The budget watches itself**: crossing 80% or 100% of an allotment raises a notification (once per crossing), categories warn when they hit their caps, and the first scan of each month delivers a rollup of last month's spending. Budgets at 80%+ also appear in the home-screen briefing panel, and workroom digests report pinned budgets whose totals changed since yesterday. All read-only — nudges never touch your sheet.
 - **Invoices connect**: ask Gerry to file an invoice from an email ("file the invoice from OVYL's email") — it lands in the company's invoice folder on Drive for the invoice sheet's daily pipeline. If the amount is readable and a budget matches, Gerry suggests the ledger entry on the Assistant page — accept or dismiss, never silent.
 - **Linked folders**: link invoice or receipts folders from Drive to any budget. Gerry scans them read-only — reads each PDF/image/CSV (OCR when needed), extracts vendor, date, and amount, picks a category, and totals what she found. Every document becomes a suggestion you review inside the budget (accept, dismiss, or accept all). Your files are never modified or moved.
 - **Per-budget automation**: turn on daily folder scans and daily Gmail invoice checks per budget. Accepting a Gmail find files the attachment into your linked invoice folder and logs the entry — nothing ever happens without your accept.
-- **Master budgets**: reference any other budget to pull its numbers in — shown live, and optionally as a synced "[Budget]" line item in the master's sheet so its totals include the sub-budget on both surfaces.
+- **Master budgets**: reference any other budget to pull its numbers in — shown live, and optionally as synced "[Budget]" line items in the master's sheet so its totals include the sub-budget on both surfaces. A sub-budget contributes **two** lines, its spend and its allocations, so allocated money stays allocated all the way up the tree.
+- **On a project**: attach a budget to a project and everyone on the project can read the whole ledger, allocations included. Only you can change it — see [The Budget tab](#the-budget-tab).
 - **Cross-check against Odoo**: every budget has a compare panel — bounce your tracking off live ERP invoices, sales, customers, or bank balances, side by side. Advisory only.
 - **Cross-check against Odoo**: ask Gerry to compare a budget's tracking with ERP actuals — an advisory side-by-side, not a reconciliation.
 - **Share a budget**: share the Google Sheet with a teammate from Sheets; they paste its link on their Manage Budgets page to follow it read-only.

@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 230;
-export const BUILD_DATE = "2026-09-03";
+export const BUILD_NUMBER = 231;
+export const BUILD_DATE = "2026-09-04";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,22 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 231,
+    date: "2026-09-04",
+    title: "Allocate money in a project budget, not just record what is spent",
+    changes: [
+      "A project's Budget tab now opens up to the whole ledger \u2014 same lines, same categories, same filters as the Budgets page, because it is the same ledger.",
+      "Everyone on the project can read the figures. Only the person who made the sheet can add or change lines; a colleague's edit would be refused by Google Drive itself.",
+      "You can create a budget from the project. Before, a shared project could only take a pasted Drive link \u2014 and a sheet Little Gerry did not make is read-only, so there was no way to put a line in it.",
+      "Every line now says which way the money is going and whether it has moved: Spent, Allocated, Collected or Expected.",
+      "Allocated means committed but not yet paid. Set money aside for a contractor and it comes off what is left straight away, so the tab can tell you what is still free to allocate.",
+      "Expected means invoiced but not yet collected. Money owed to you is kept separate and never inflates what you have left to spend.",
+      "Existing lines are untouched: a blank status still counts as Spent, and so does a word the app does not recognise, so a typo cannot quietly remove money from a total.",
+      "A sub-budget now rolls up two lines into its parent \u2014 what it has spent and what it has allocated \u2014 so allocated money stays allocated all the way up.",
+      "Gerry can file a line under any of the four statuses, so asking her to allocate money no longer logs it as spent.",
+    ],
+  },
   {
     build: 224,
     date: "2026-09-03",

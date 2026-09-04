@@ -1872,8 +1872,15 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "add_budget_entry",
             "description": (
-                "Append a spending entry to a budget's ledger (written "
-                "straight into the Google Sheet, Source='gerry'). REQUIRES "
+                "Append an entry to a budget's ledger (written "
+                "straight into the Google Sheet, Source='gerry'). Use the "
+                "status to say whether the money has actually moved: "
+                "'Spent' for money already gone, 'Allocated' to set money "
+                "aside for a cost that is committed but not yet paid, "
+                "'Collected' for money received, 'Expected' for money "
+                "invoiced or forecast but not yet in. Allocated and Expected "
+                "do not count as spend; Allocated does reduce what is left "
+                "to promise. REQUIRES "
                 "the per-budget 'Let Gerry manage entries' permission — if "
                 "it's off, tell the user to flip the toggle on the Manage "
                 "Budgets page. Linked external sheets are always read-only."
@@ -1883,11 +1890,21 @@ TOOL_DEFINITIONS: list[dict] = [
                 "properties": {
                     "description": {
                         "type": "string",
-                        "description": "What the money was spent on, e.g. 'Stainless fittings — McMaster'.",
+                        "description": "What the money is for, e.g. 'Stainless fittings — McMaster'.",
                     },
                     "amount": {
                         "type": "number",
-                        "description": "Amount spent (positive number).",
+                        "description": "Amount as a positive number. The status says which way it flows.",
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["Spent", "Allocated", "Collected", "Expected"],
+                        "description": (
+                            "Spent = money out, already gone (the default). "
+                            "Allocated = money out, committed but not yet paid. "
+                            "Collected = money in, received. "
+                            "Expected = money in, not yet collected."
+                        ),
                     },
                     "date": {
                         "type": "string",
@@ -1942,6 +1959,16 @@ TOOL_DEFINITIONS: list[dict] = [
                     "new_date": {"type": "string", "description": "YYYY-MM-DD"},
                     "new_category": {"type": "string"},
                     "new_note": {"type": "string"},
+                    "new_status": {
+                        "type": "string",
+                        "enum": ["Spent", "Allocated", "Collected", "Expected"],
+                        "description": (
+                            "Move the entry between planned and actual — e.g. "
+                            "'Allocated' to 'Spent' when a committed cost is "
+                            "finally paid, or 'Expected' to 'Collected' when "
+                            "an invoice is settled."
+                        ),
+                    },
                     "budget_title": {
                         "type": "string",
                         "description": "Budget title (fuzzy matched). Omit if the user has exactly one budget.",
@@ -4284,9 +4311,15 @@ def _budget_summary_line(budget) -> str:
     s = budget.cached_summary or {}
     cur = budget.currency or "USD"
     parts = [f"spent {_fmt_money(s.get('total_spent', 0), cur)}"]
+    if s.get("total_allocated"):
+        parts.append(f"allocated {_fmt_money(s['total_allocated'], cur)}")
     if s.get("allotment") is not None:
         parts.append(f"of {_fmt_money(s['allotment'], cur)}")
         parts.append(f"remaining {_fmt_money(s.get('remaining'), cur)}")
+    if s.get("total_collected"):
+        parts.append(f"collected {_fmt_money(s['total_collected'], cur)}")
+    if s.get("total_expected"):
+        parts.append(f"expected in {_fmt_money(s['total_expected'], cur)}")
     parts.append(f"{s.get('entry_count', 0)} entries")
     return ", ".join(parts)
 
@@ -4359,9 +4392,10 @@ def _read_budget_body(budget) -> str:
         for e in shown:
             cat = f" [{e['category']}]" if e.get("category") else ""
             note = f" — {e['note']}" if e.get("note") else ""
+            status = str(e.get("status") or "Spent")
             lines.append(
                 f"- {e.get('date', '?')}: {e.get('description', '')}{cat} "
-                f"{_fmt_money(e.get('amount'), cur)} (source: {e.get('source', '?')}){note}"
+                f"{_fmt_money(e.get('amount'), cur)} ({status}; source: {e.get('source', '?')}){note}"
             )
     else:
         lines.append("Ledger is empty.")
@@ -4418,7 +4452,12 @@ def _match_budget_entries(budget, args: dict[str, Any]) -> list[dict]:
 
 
 def _entry_desc(e: dict, currency: str) -> str:
-    return f"{e.get('date', '?')}: {e.get('description', '')} {_fmt_money(e.get('amount'), currency)}"
+    status = str(e.get("status") or "Spent")
+    marker = "" if status == "Spent" else f" [{status}]"
+    return (
+        f"{e.get('date', '?')}: {e.get('description', '')} "
+        f"{_fmt_money(e.get('amount'), currency)}{marker}"
+    )
 
 
 async def execute_add_budget_entry(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -4438,21 +4477,25 @@ async def execute_add_budget_entry(ctx: ToolContext, args: dict[str, Any]) -> st
     except (TypeError, ValueError):
         return "Error: amount must be a number."
     date = str(args.get("date", "")).strip() or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    status = bs.normalize_status(args.get("status"))
     try:
         await bs.add_entry(
             ctx.db, budget,
             date=date, description=description, amount=amount,
             category=str(args.get("category", "")).strip(),
             note=str(args.get("note", "")).strip(), source="gerry",
+            status=status,
         )
     except bs.BudgetError as exc:
         return f"Error: {exc}"
     await _journal_budget_write(
         ctx, budget,
-        f'Budget "{budget.title}": Gerry added {description} ({_fmt_money(amount, budget.currency)})',
+        f'Budget "{budget.title}": Gerry added {description} '
+        f"({_fmt_money(amount, budget.currency)}, {status})",
     )
     return (
-        f'Added to "{budget.title}": {date} — {description} {_fmt_money(amount, budget.currency)}. '
+        f'Added to "{budget.title}": {date} — {description} '
+        f"{_fmt_money(amount, budget.currency)} as {status}. "
         f"Now {_budget_summary_line(budget)}. Sheet: {budget.drive_url}"
     )
 
@@ -4499,8 +4542,13 @@ async def execute_update_budget_entry(ctx: ToolContext, args: dict[str, Any]) ->
         fields["category"] = str(args["new_category"]).strip()
     if args.get("new_note") is not None:
         fields["note"] = str(args["new_note"]).strip()
+    if str(args.get("new_status", "")).strip():
+        fields["status"] = bs.normalize_status(args["new_status"])
     if not fields:
-        return "Nothing to change — provide new_description, new_amount, new_date, new_category, or new_note."
+        return (
+            "Nothing to change — provide new_description, new_amount, new_date, "
+            "new_category, new_note, or new_status."
+        )
     before = _entry_desc(entry, budget.currency)
     try:
         await bs.update_entry(
