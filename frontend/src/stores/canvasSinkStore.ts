@@ -7,10 +7,15 @@
  */
 import { create } from "zustand";
 
+/** The kinds of canvas item a block of text can arrive as. */
+export type TextDropKind = "sticky" | "text" | "shape";
+
+export type DropText = (text: string, kind?: TextDropKind) => void;
+
 interface CanvasSinkState {
   /** Set only while an editable project canvas is on screen. */
-  dropText: ((text: string) => void) | null;
-  setDropText: (fn: ((text: string) => void) | null) => void;
+  dropText: DropText | null;
+  setDropText: (fn: DropText | null) => void;
 }
 
 export const useCanvasSinkStore = create<CanvasSinkState>()((set) => ({

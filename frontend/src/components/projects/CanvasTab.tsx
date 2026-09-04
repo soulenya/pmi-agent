@@ -67,7 +67,7 @@ import { getProjectSpace, listTasks, updateTask } from "@/api/tasks";
 import type { TaskStatus } from "@/types/tasks";
 import { listProjectBudgets } from "@/api/budgets";
 import { getWorkroom, type WorkroomItemKind } from "@/api/workrooms";
-import { useCanvasSinkStore } from "@/stores/canvasSinkStore";
+import { useCanvasSinkStore, type TextDropKind } from "@/stores/canvasSinkStore";
 import {
   createEdge,
   createNode,
@@ -138,6 +138,13 @@ const RAIL_KINDS: WorkroomItemKind[] = [
 
 /** Kinds that hold their own words. */
 const TEXT_KINDS = ["sticky", "text", "shape", "frame"];
+
+/** Sizes for text arriving from outside the board — pasted, or from the chat. */
+const TEXT_DROP_SIZES: Record<TextDropKind, { w: number; h: number }> = {
+  sticky: { w: 180, h: 140 },
+  text: { w: 260, h: 40 },
+  shape: { w: 200, h: 140 },
+};
 
 type Tool = "select" | "sticky" | "text" | "shape" | "frame" | "pen" | "eraser";
 
@@ -811,9 +818,9 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     },
   });
 
-  /** Put a block of text on the board as a sticky note, centred in the view. */
+  /** Put a block of text on the board, centred in the view. */
   const dropText = useCallback(
-    (text: string) => {
+    (text: string, kind: TextDropKind = "text") => {
       const trimmed = text.trim();
       if (!editable || !trimmed) return;
       const box = wrapper.current?.getBoundingClientRect();
@@ -821,15 +828,16 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         x: (box?.left ?? 0) + (box?.width ?? 0) / 2,
         y: (box?.top ?? 0) + (box?.height ?? 0) / 2,
       });
+      const size = TEXT_DROP_SIZES[kind];
       remember();
       addNode.mutate({
-        kind: "sticky",
-        x: at.x - 90,
-        y: at.y - 70,
-        width: 180,
-        height: 140,
+        kind,
+        x: at.x - size.w / 2,
+        y: at.y - size.h / 2,
+        width: size.w,
+        height: size.h,
         z: nextZ(),
-        style: { color },
+        style: kind === "text" ? {} : { color },
         content: trimmed.slice(0, 8000),
       });
       setNotice("Added to the board.");
