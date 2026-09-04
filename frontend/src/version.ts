@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 234;
+export const BUILD_NUMBER = 235;
 export const BUILD_DATE = "2026-09-05";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 235,
+    date: "2026-09-05",
+    title: "Copying out of the chat panel",
+    changes: [
+      "The canvas no longer takes the copy and paste keys when text is highlighted somewhere else. It was claiming them whenever nothing on the page had focus, which is exactly the state you are in after highlighting a line in the chat panel.",
+      "Paste text onto a canvas and it becomes a sticky note. There was no way in at all before — only images were accepted.",
+      "Copying anywhere outside the board now clears the board's own copy, so the next paste gives you what you actually copied instead of the last thing you duplicated.",
+      "Right-click in the chat panel for Copy, Paste and Add to the canvas. Highlight a line of Gerry's answer, right-click, and it goes on the board as a sticky note.",
+      "Add to the canvas is offered only while a project's canvas is open, and says so when it is not.",
+    ],
+  },
   {
     build: 234,
     date: "2026-09-05",

@@ -4,6 +4,34 @@
 
 ## Changelog
 
+### v4.6.4 — 2026-09-05
+**Copying out of the chat panel**
+
+Reported: copying text out of the persistent chat panel and pasting it onto a
+canvas did not work, and the canvas appeared to be taking the copy key.
+
+It was. The canvas listens for keys on the whole window and treated "nothing
+on the page has focus" as "the board is being used" — which is exactly the
+state you are in after highlighting a line of text in the chat panel. And the
+board had no way to accept pasted text in any case: the paste handler only
+ever looked for an image.
+
+- **A highlight outside the board keeps its own clipboard keys.** The canvas
+  now checks for a selection elsewhere before it takes Ctrl+C, Ctrl+V or
+  Ctrl+X.
+- **Paste text onto a canvas and it becomes a sticky note**, placed in the
+  middle of what you are looking at.
+- **A copy made outside the board clears the board's copy.** Duplicating a
+  node put it on a private clipboard that Ctrl+V preferred forever after, so
+  once you had copied anything on the board you could never paste anything
+  else. The system clipboard now wins, which is what it means to copy
+  something.
+- **Right-click in the chat panel.** *Copy* on a highlighted passage, *Paste*
+  when the pointer is in the message box, and **Add to the canvas**, which
+  drops the highlighted text on the board as a sticky note.
+- **Add to the canvas appears only when a canvas is open** and says *no canvas
+  open* when it is not, rather than failing quietly.
+
 ### v4.6.3 — 2026-09-05
 **Material, in the project**
 

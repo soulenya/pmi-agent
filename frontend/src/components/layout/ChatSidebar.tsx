@@ -36,6 +36,8 @@ import {
 import { createConversation, listConversations, listMessages, stopTurn } from "@/api/chat";
 import { grantDriveEdit } from "@/api/google";
 import { useAuthStore } from "@/stores/authStore";
+import { useCanvasSinkStore } from "@/stores/canvasSinkStore";
+import { useToastStore } from "@/stores/toastStore";
 import { useResizableTextarea } from "@/hooks/useResizableTextarea";
 import { useChatInputSizeStore } from "@/stores/chatInputSizeStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
@@ -122,6 +124,92 @@ export function ChatSidebarToggle() {
   );
 }
 
+// ── Right-click menu ───────────────────────────────────────────────────────
+
+function ChatContextMenu({
+  x,
+  y,
+  text,
+  inInput,
+  canDropOnCanvas,
+  onCopy,
+  onPaste,
+  onAddToCanvas,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  text: string;
+  inInput: boolean;
+  canDropOnCanvas: boolean;
+  onCopy: () => void;
+  onPaste: () => void;
+  onAddToCanvas: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const away = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("pointerdown", away);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("pointerdown", away);
+      window.removeEventListener("keydown", key);
+    };
+  }, [onClose]);
+
+  const items: {
+    label: string;
+    hint?: string;
+    disabled?: boolean;
+    onClick: () => void;
+  }[] = [
+    { label: "Copy", hint: modLabel("C"), disabled: !text, onClick: onCopy },
+  ];
+  if (inInput) {
+    items.push({ label: "Paste", hint: modLabel("V"), onClick: onPaste });
+  }
+  items.push({
+    label: "Add to the canvas",
+    hint: canDropOnCanvas ? "sticky note" : "no canvas open",
+    disabled: !text || !canDropOnCanvas,
+    onClick: onAddToCanvas,
+  });
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        left: Math.min(x, window.innerWidth - 208),
+        top: Math.min(y, window.innerHeight - 8 - items.length * 30),
+      }}
+      className="fixed z-[60] w-52 rounded-md border border-border bg-card py-1 shadow-md"
+    >
+      {items.map((item) => (
+        <button
+          key={item.label}
+          type="button"
+          disabled={item.disabled}
+          onClick={() => {
+            item.onClick();
+            onClose();
+          }}
+          className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-xs text-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+        >
+          <span>{item.label}</span>
+          <span className="text-[10px] text-muted-foreground">{item.hint}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Main sidebar ───────────────────────────────────────────────────────────────
 
 export function ChatSidebar() {
@@ -204,9 +292,62 @@ export function ChatSidebar() {
     max: 400,
   });
 
+  // ── Right-click menu ───────────────────────────────────────────────────────
+  // The panel sits over every page, so a selection here has to keep its own
+  // clipboard keys and needs somewhere obvious to go.
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    text: string;
+    inInput: boolean;
+  } | null>(null);
+  const dropOnCanvas = useCanvasSinkStore((s) => s.dropText);
+  const pushToast = useToastStore((s) => s.push);
+
+  const openMenu = useCallback((e: React.MouseEvent) => {
+    const el = e.target as HTMLElement;
+    const input = el instanceof HTMLTextAreaElement ? el : null;
+    const text = input
+      ? input.value.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0)
+      : (window.getSelection()?.toString() ?? "");
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, text, inInput: Boolean(input) });
+  }, []);
+
+  const copyText = useCallback(
+    async (text: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        pushToast("error", `The clipboard refused. Use ${modLabel("C")} instead.`);
+      }
+    },
+    [pushToast],
+  );
+
+  const pasteIntoInput = useCallback(async () => {
+    const el = textareaRef.current;
+    if (!el) return;
+    let text = "";
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      pushToast("error", `The clipboard refused. Use ${modLabel("V")} instead.`);
+      return;
+    }
+    if (!text) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? start;
+    setInputText(el.value.slice(0, start) + text + el.value.slice(end));
+    const caret = start + text.length;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(caret, caret);
+    });
+  }, [textareaRef, pushToast]);
+
   // Keyboard shortcut Ctrl+/ (Cmd+/ on macOS)
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
+  useEffect(() => {    function onKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === "/") { e.preventDefault(); toggle(); }
     }
     window.addEventListener("keydown", onKey);
@@ -647,7 +788,10 @@ export function ChatSidebar() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-2">
+      <div
+        onContextMenu={openMenu}
+        className="flex-1 overflow-y-auto px-2 py-2 space-y-2"
+      >
         {messages.length === 0 && !isConnecting && (
           <p className="text-center text-xs text-muted-foreground py-8 px-4">
             Ask me anything about your work, documents, or tasks.
@@ -718,7 +862,7 @@ export function ChatSidebar() {
       </div>
 
       {/* Input */}
-      <div className="border-t p-2">
+      <div className="border-t p-2" onContextMenu={openMenu}>
         <div className="relative flex items-end gap-1.5 rounded-lg border bg-muted/30 px-2.5 py-1.5">
           <div
             onPointerDown={startResize}
@@ -744,6 +888,20 @@ export function ChatSidebar() {
           </button>
         </div>
       </div>
+
+      {menu && (
+        <ChatContextMenu
+          x={menu.x}
+          y={menu.y}
+          text={menu.text}
+          inInput={menu.inInput}
+          canDropOnCanvas={Boolean(dropOnCanvas)}
+          onCopy={() => void copyText(menu.text)}
+          onPaste={() => void pasteIntoInput()}
+          onAddToCanvas={() => dropOnCanvas?.(menu.text)}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </>
   );
 

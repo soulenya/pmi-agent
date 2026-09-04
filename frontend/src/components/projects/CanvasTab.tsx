@@ -67,6 +67,7 @@ import { getProjectSpace, listTasks, updateTask } from "@/api/tasks";
 import type { TaskStatus } from "@/types/tasks";
 import { listProjectBudgets } from "@/api/budgets";
 import { getWorkroom, type WorkroomItemKind } from "@/api/workrooms";
+import { useCanvasSinkStore } from "@/stores/canvasSinkStore";
 import {
   createEdge,
   createNode,
@@ -810,6 +811,40 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     },
   });
 
+  /** Put a block of text on the board as a sticky note, centred in the view. */
+  const dropText = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!editable || !trimmed) return;
+      const box = wrapper.current?.getBoundingClientRect();
+      const at = flow.screenToFlowPosition({
+        x: (box?.left ?? 0) + (box?.width ?? 0) / 2,
+        y: (box?.top ?? 0) + (box?.height ?? 0) / 2,
+      });
+      remember();
+      addNode.mutate({
+        kind: "sticky",
+        x: at.x - 90,
+        y: at.y - 70,
+        width: 180,
+        height: 140,
+        z: nextZ(),
+        style: { color },
+        content: trimmed.slice(0, 8000),
+      });
+      setNotice("Added to the board.");
+    },
+    [editable, flow, remember, addNode, nextZ, color],
+  );
+
+  // The chat panel floats over the app and drops text here.
+  const setCanvasSink = useCanvasSinkStore((s) => s.setDropText);
+  useEffect(() => {
+    if (!editable) return;
+    setCanvasSink(dropText);
+    return () => setCanvasSink(null);
+  }, [editable, dropText, setCanvasSink]);
+
   useEffect(() => {
     if (!editable) return;
     const onPaste = (event: ClipboardEvent) => {
@@ -820,18 +855,46 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         return;
       }
       const file = Array.from(event.clipboardData?.files ?? [])[0];
-      if (!file || !file.type.startsWith("image/")) return;
+      if (file && file.type.startsWith("image/")) {
+        event.preventDefault();
+        const box = wrapper.current?.getBoundingClientRect();
+        const at = flow.screenToFlowPosition({
+          x: (box?.left ?? 0) + (box?.width ?? 0) / 2,
+          y: (box?.top ?? 0) + (box?.height ?? 0) / 2,
+        });
+        addImage.mutate({ file, at });
+        return;
+      }
+      // Nodes copied on this board take Ctrl+V; text only lands when they have
+      // been superseded by a copy made somewhere else.
+      if (clipboard.current.length) return;
+      const text = event.clipboardData?.getData("text/plain");
+      if (!text?.trim()) return;
       event.preventDefault();
-      const box = wrapper.current?.getBoundingClientRect();
-      const at = flow.screenToFlowPosition({
-        x: (box?.left ?? 0) + (box?.width ?? 0) / 2,
-        y: (box?.top ?? 0) + (box?.height ?? 0) / 2,
-      });
-      addImage.mutate({ file, at });
+      dropText(text);
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [editable, flow, addImage]);
+  }, [editable, flow, addImage, dropText]);
+
+  /**
+   * A copy made outside the board makes the board's own clipboard stale — the
+   * system clipboard now holds that text, and Ctrl+V should produce it.
+   */
+  useEffect(() => {
+    const onCopy = () => {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && !wrapper.current?.contains(sel.anchorNode)) {
+        clipboard.current = [];
+      }
+    };
+    window.addEventListener("copy", onCopy);
+    window.addEventListener("cut", onCopy);
+    return () => {
+      window.removeEventListener("copy", onCopy);
+      window.removeEventListener("cut", onCopy);
+    };
+  }, []);
 
   // ── Material rail ─────────────────────────────────────────────────────────
   const { data: space } = useQuery({
@@ -1065,12 +1128,22 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       if (!wrapper.current?.contains(target) && target !== document.body) return;
 
       const meta = event.ctrlKey || event.metaKey;
-      if (meta && event.key.toLowerCase() === "z") {
+      const key = event.key.toLowerCase();
+      // Text highlighted anywhere else — the chat panel, a page behind it —
+      // owns the clipboard keys. The board only takes them when nothing else
+      // is selected.
+      if (meta && (key === "c" || key === "v" || key === "x")) {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && !wrapper.current?.contains(sel.anchorNode)) {
+          return;
+        }
+      }
+      if (meta && key === "z") {
         event.preventDefault();
         void (event.shiftKey ? redo() : undo());
         return;
       }
-      if (meta && event.key.toLowerCase() === "y") {
+      if (meta && key === "y") {
         event.preventDefault();
         void redo();
         return;
@@ -1098,17 +1171,17 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         }
         return;
       }
-      if (meta && event.key.toLowerCase() === "d") {
+      if (meta && key === "d") {
         event.preventDefault();
         duplicateNodes(picked);
         return;
       }
-      if (meta && event.key.toLowerCase() === "c") {
+      if (meta && key === "c") {
         copySelection();
         return;
       }
-      if (meta && event.key.toLowerCase() === "v") {
-        // An image on the clipboard is handled by the paste listener instead.
+      if (meta && key === "v") {
+        // Text and images on the clipboard are handled by the paste listener.
         if (clipboard.current.length) duplicateNodes(clipboard.current);
         return;
       }
@@ -1117,8 +1190,8 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         flow.fitView({ padding: 0.2 });
         return;
       }
-      if (!meta && SHORTCUT_TOOLS[event.key.toLowerCase()]) {
-        setTool(SHORTCUT_TOOLS[event.key.toLowerCase()]);
+      if (!meta && SHORTCUT_TOOLS[key]) {
+        setTool(SHORTCUT_TOOLS[key]);
       }
     };
     window.addEventListener("keydown", onKey);

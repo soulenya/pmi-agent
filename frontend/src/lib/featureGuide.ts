@@ -99,6 +99,8 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Tasks group under their status with a count, collapse, and sort by order, due date or priority",
       "The canvas rail is the project's pool: every task, budget and pinned item, grouped by kind with a filter, ready to drag onto the board",
       "Drag a task from the Tasks tab straight onto the canvas, or change its status from its card on the board",
+      "Paste text onto a canvas and it lands as a sticky note in the middle of what you are looking at",
+      "Right-click in the chat panel to copy what you have highlighted, paste into the message box, or send the highlighted text to the open canvas as a sticky note",
       "Pin documents, Drive files, websites, notes, tasks, budgets, regulatory documents and email threads to a project on its Material tab, and drag any of them onto the canvas",
       "Add a file from your computer to a project in one step, and keep the project's running journal in the same place",
       "Material works on a hub project too \u2014 a pinned file says plainly when only the computer that added it can open the contents",
