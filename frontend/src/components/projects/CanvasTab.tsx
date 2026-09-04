@@ -4,6 +4,10 @@
  * Free-form nodes carry their own content; reference nodes point at something
  * that already exists in the app and are resolved in one batch, never one
  * request per node. Ink is decorative: stored and drawn, never indexed.
+ *
+ * Geometry is the server's. Every local change is queued into a debounced
+ * batch, and a refetch that lands while a change is still in flight is merged
+ * over rather than allowed to undo it.
  */
 
 import {
@@ -12,6 +16,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,11 +25,8 @@ import {
   Background,
   BackgroundVariant,
   Controls,
-  Handle,
   MiniMap,
-  NodeResizer,
   Panel,
-  Position,
   ReactFlow,
   ReactFlowProvider,
   addEdge,
@@ -34,11 +36,9 @@ import {
   type Connection,
   type Edge,
   type Node,
-  type NodeProps,
   type OnConnect,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import getStroke from "perfect-freehand";
 import {
   AlignCenterHorizontal,
   AlignCenterVertical,
@@ -48,8 +48,6 @@ import {
   AlignStartHorizontal,
   AlignStartVertical,
   AlignVerticalDistributeCenter,
-  BringToFront,
-  Copy,
   Eraser,
   Frame,
   Grid3x3,
@@ -58,7 +56,6 @@ import {
   MousePointer2,
   PenLine,
   Redo2,
-  SendToBack,
   Square,
   StickyNote,
   Type,
@@ -73,7 +70,6 @@ import {
   createNode,
   deleteEdge,
   deleteNode,
-  fetchCanvasImage,
   getDefaultCanvas,
   resolveNodes,
   saveNodes,
@@ -83,7 +79,6 @@ import type {
   CanvasEdge as ApiEdge,
   CanvasFull,
   CanvasNode as ApiNode,
-  InkStroke,
   NodeKind,
   ResolvedRef,
 } from "@/types/canvas";
@@ -98,6 +93,23 @@ import {
   type Box,
   type Snapshot,
 } from "./canvasOps";
+import {
+  BoardContext,
+  type BoardApi,
+  type NodeData,
+  type ResizeBox,
+} from "./canvas/board";
+import { CanvasMenu, type MenuItem } from "./canvas/ContextMenu";
+import { CanvasInspector } from "./canvas/Inspector";
+import { inkBounds, strokePath, type InkPoint } from "./canvas/ink";
+import { NODE_TYPES, isHollow, typeFor } from "./canvas/nodes";
+import {
+  STICKY_COLORS,
+  autoHeight,
+  cleanStyle,
+  styleOf,
+  type StylePatch,
+} from "./canvas/style";
 
 const SAVE_DEBOUNCE_MS = 700;
 
@@ -105,6 +117,7 @@ const SAVE_DEBOUNCE_MS = 700;
 const SNAP_PX = 6;
 const GRID = 8;
 const UNDO_DEPTH = 40;
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 /** What a Material rail entry puts on the drag. */
 const DRAG_MIME = "application/x-littlegerry-item";
@@ -121,266 +134,19 @@ const RAIL_KINDS: WorkroomItemKind[] = [
   "task",
 ];
 
-const STICKY_COLORS = [
-  "#fde68a",
-  "#bfdbfe",
-  "#bbf7d0",
-  "#fecaca",
-  "#e9d5ff",
-  "#e5e7eb",
-];
+/** Kinds that hold their own words. */
+const TEXT_KINDS = ["sticky", "text", "shape", "frame"];
 
 type Tool = "select" | "sticky" | "text" | "shape" | "frame" | "pen" | "eraser";
 
-type NodeData = {
-  node: ApiNode;
-  resolved?: ResolvedRef;
-  canEdit: boolean;
-  ctx: { projectId: string; canvasId: string; source: Source };
-};
-
-// ── Ink ───────────────────────────────────────────────────────────────────────
-
-function strokePath(points: [number, number, number][], size: number): string {
-  const outline = getStroke(points, {
-    size,
-    thinning: 0.6,
-    smoothing: 0.5,
-    streamline: 0.5,
-  });
-  if (!outline.length) return "";
-  const d = outline.reduce(
-    (acc, [x0, y0], i, arr) => {
-      const [x1, y1] = arr[(i + 1) % arr.length];
-      acc.push(x0, y0, (x0 + x1) / 2, (y0 + y1) / 2);
-      return acc;
-    },
-    ["M", ...outline[0], "Q"] as (string | number)[],
-  );
-  return `${d.join(" ")} Z`;
+/** Hollow kinds let the pointer through; a faded node says so on the wrapper. */
+function wrapperStyle(node: ApiNode): CSSProperties | undefined {
+  const style: CSSProperties = {};
+  if (isHollow(node)) style.pointerEvents = "none";
+  const opacity = styleOf(node).opacity;
+  if (opacity !== undefined && opacity < 1) style.opacity = opacity;
+  return Object.keys(style).length > 0 ? style : undefined;
 }
-
-function inkBounds(points: [number, number, number][]) {
-  const xs = points.map((p) => p[0]);
-  const ys = points.map((p) => p[1]);
-  return {
-    minX: Math.min(...xs),
-    minY: Math.min(...ys),
-    maxX: Math.max(...xs),
-    maxY: Math.max(...ys),
-  };
-}
-
-// ── Node renderers ────────────────────────────────────────────────────────────
-
-function handles() {
-  return (
-    <>
-      <Handle type="target" position={Position.Left} className="!h-2 !w-2" />
-      <Handle type="source" position={Position.Right} className="!h-2 !w-2" />
-    </>
-  );
-}
-
-function StickyNode({ data, selected, id }: NodeProps) {
-  const { node, canEdit } = data as unknown as NodeData;
-  const queryClient = useQueryClient();
-  const color = (node.style?.color as string) ?? STICKY_COLORS[0];
-  return (
-    <>
-      <NodeResizer isVisible={Boolean(selected) && canEdit} minWidth={120} minHeight={80} />
-      {handles()}
-      <div
-        className="h-full w-full rounded-sm p-2 text-sm text-neutral-900 shadow-sm"
-        style={{ background: color }}
-      >
-        <textarea
-          defaultValue={node.content}
-          readOnly={!canEdit}
-          onBlur={(e) => {
-            if (!canEdit || e.target.value === node.content) return;
-            window.dispatchEvent(
-              new CustomEvent("canvas-node-content", {
-                detail: { id, content: e.target.value },
-              }),
-            );
-            void queryClient;
-          }}
-          className="h-full w-full resize-none border-0 bg-transparent p-0 text-sm outline-none"
-          placeholder="Note"
-        />
-      </div>
-    </>
-  );
-}
-
-function TextNode({ data, selected, id }: NodeProps) {
-  const { node, canEdit } = data as unknown as NodeData;
-  return (
-    <>
-      <NodeResizer isVisible={Boolean(selected) && canEdit} minWidth={80} minHeight={30} />
-      {handles()}
-      <textarea
-        defaultValue={node.content}
-        readOnly={!canEdit}
-        onBlur={(e) => {
-          if (!canEdit || e.target.value === node.content) return;
-          window.dispatchEvent(
-            new CustomEvent("canvas-node-content", {
-              detail: { id, content: e.target.value },
-            }),
-          );
-        }}
-        className="h-full w-full resize-none border-0 bg-transparent p-1 text-sm text-foreground outline-none"
-        placeholder="Text"
-      />
-    </>
-  );
-}
-
-function ShapeNode({ data, selected }: NodeProps) {
-  const { node, canEdit } = data as unknown as NodeData;
-  const color = (node.style?.color as string) ?? "#94a3b8";
-  return (
-    <>
-      <NodeResizer isVisible={Boolean(selected) && canEdit} minWidth={40} minHeight={40} />
-      {handles()}
-      <div
-        className="h-full w-full rounded-md border-2"
-        style={{ borderColor: color, background: `${color}22` }}
-      />
-    </>
-  );
-}
-
-function FrameNode({ data, selected }: NodeProps) {
-  const { node, canEdit } = data as unknown as NodeData;
-  return (
-    <>
-      <NodeResizer isVisible={Boolean(selected) && canEdit} minWidth={160} minHeight={120} />
-      <div className="h-full w-full rounded-md border-2 border-dashed border-border bg-muted/20">
-        <div className="px-2 py-1 text-xs text-muted-foreground">
-          {node.label || "Frame"}
-        </div>
-      </div>
-    </>
-  );
-}
-
-function ImageNode({ data, selected }: NodeProps) {
-  const { node, canEdit, ctx } = data as unknown as NodeData;
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    let url: string | null = null;
-    let live = true;
-    fetchCanvasImage(ctx.projectId, ctx.canvasId, node.id, ctx.source)
-      .then((objectUrl) => {
-        url = objectUrl;
-        if (live) setSrc(objectUrl);
-        else URL.revokeObjectURL(objectUrl);
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [ctx.projectId, ctx.canvasId, ctx.source, node.id]);
-
-  return (
-    <>
-      <NodeResizer isVisible={Boolean(selected) && canEdit} minWidth={60} minHeight={60} />
-      {handles()}
-      {src ? (
-        <img
-          src={src}
-          alt={node.label || "Image"}
-          draggable={false}
-          className="h-full w-full rounded-sm object-contain"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center rounded-sm border border-dashed text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-        </div>
-      )}
-    </>
-  );
-}
-
-function InkNode({ data }: NodeProps) {
-  const { node } = data as unknown as NodeData;
-  const stroke = node.style as unknown as InkStroke;
-  const points = (stroke?.points ?? []) as [number, number, number][];
-  if (!points.length) return null;
-  const b = inkBounds(points);
-  const local = points.map(
-    ([x, y, p]) => [x - b.minX, y - b.minY, p] as [number, number, number],
-  );
-  return (
-    <svg
-      width={node.width}
-      height={node.height}
-      className="pointer-events-none overflow-visible"
-    >
-      <path d={strokePath(local, stroke.size ?? 6)} fill={stroke.color ?? "#0f172a"} />
-    </svg>
-  );
-}
-
-const STATE_RING: Record<string, string> = {
-  ok: "border-border",
-  warn: "border-amber-400",
-  late: "border-rose-500",
-  gone: "border-dashed border-muted-foreground",
-};
-
-function RefNode({ data, selected }: NodeProps) {
-  const { node, resolved, canEdit } = data as unknown as NodeData;
-  const title = resolved?.title || node.label || "Loading…";
-  return (
-    <>
-      <NodeResizer isVisible={Boolean(selected) && canEdit} minWidth={140} minHeight={70} />
-      {handles()}
-      <div
-        className={cn(
-          "flex h-full w-full flex-col gap-1 rounded-md border bg-card p-2 shadow-sm",
-          STATE_RING[resolved?.state ?? "ok"],
-        )}
-      >
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          {node.kind.replace("_", " ")}
-        </div>
-        <div className="line-clamp-2 text-sm font-medium text-foreground">{title}</div>
-        {resolved?.subtitle ? (
-          <div className="truncate text-xs text-muted-foreground">{resolved.subtitle}</div>
-        ) : null}
-        {resolved?.status ? (
-          <div className="mt-auto text-xs text-muted-foreground">{resolved.status}</div>
-        ) : null}
-        {resolved?.missing ? (
-          <div className="mt-auto text-xs text-rose-500">No longer exists</div>
-        ) : null}
-      </div>
-    </>
-  );
-}
-
-const NODE_TYPES = {
-  sticky: StickyNode,
-  text: TextNode,
-  shape: ShapeNode,
-  frame: FrameNode,
-  image: ImageNode,
-  ink: InkNode,
-  ref: RefNode,
-};
-
-function typeFor(kind: NodeKind): string {
-  if (["sticky", "text", "shape", "frame", "image", "ink"].includes(kind)) return kind;
-  return "ref";
-}
-
-// ── The board ─────────────────────────────────────────────────────────────────
 
 interface Props {
   projectId: string;
@@ -398,7 +164,11 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   const [color, setColor] = useState(STICKY_COLORS[0]);
   const [penColor, setPenColor] = useState("#0f172a");
   const [error, setError] = useState<string | null>(null);
-  const [stroke, setStroke] = useState<[number, number, number][]>([]);
+  const [stroke, setStroke] = useState<InkPoint[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; nodeId: string | null } | null>(
+    null,
+  );
   const drawing = useRef(false);
 
   const key = ["project-canvas", source, projectId] as const;
@@ -429,42 +199,21 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
-  // Rebuild the board whenever the server's copy changes.
-  useEffect(() => {
-    if (!data) return;
-    setNodes(
-      data.nodes.map((n) => ({
-        id: n.id,
-        type: typeFor(n.kind),
-        position: { x: n.x, y: n.y },
-        width: n.width,
-        height: n.height,
-        zIndex: n.z,
-        draggable: canEdit && n.kind !== "ink",
-        selectable: true,
-        parentId: n.parent_node_id ?? undefined,
-        data: {
-          node: n,
-          resolved: resolvedByNode.get(n.id),
-          canEdit,
-          ctx: { projectId, canvasId: data.id, source },
-        },
-      })),
-    );
-    setEdges(
-      data.edges.map((e) => ({
-        id: e.id,
-        source: e.source_node_id,
-        target: e.target_node_id,
-        label: e.label || undefined,
-        animated: e.kind === "depends_on",
-      })),
-    );
-  }, [data, resolvedByNode, canEdit, setNodes, setEdges, projectId, source]);
-
   // ── Saving ────────────────────────────────────────────────────────────────
+  // `pending` is waiting for the debounce; `inFlight` is out on the wire. Both
+  // are merged over whatever the server sends back, so a refetch cannot roll a
+  // change back under the user's hands.
   const pending = useRef<Map<string, Record<string, unknown>>>(new Map());
+  const inFlight = useRef<Map<string, Record<string, unknown>>>(new Map());
   const timer = useRef<number | null>(null);
+
+  const unsavedFor = useCallback(
+    (id: string) => ({
+      ...(inFlight.current.get(id) ?? {}),
+      ...(pending.current.get(id) ?? {}),
+    }),
+    [],
+  );
 
   const flushSave = useCallback(async () => {
     if (!canvasId || pending.current.size === 0) return;
@@ -472,11 +221,14 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       id,
       ...patch,
     }));
+    inFlight.current = new Map(pending.current);
     pending.current.clear();
     try {
       await saveNodes(projectId, canvasId, batch as never, source);
+      inFlight.current.clear();
       await queryClient.invalidateQueries({ queryKey: key });
     } catch {
+      inFlight.current.clear();
       setError("That change did not save. Check your connection.");
     }
   }, [canvasId, projectId, source, queryClient, key]);
@@ -492,6 +244,31 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     [editable, flushSave],
   );
 
+  /** Show a change straight away, and save it. */
+  const edit = useCallback(
+    (id: string, patch: Record<string, unknown>) => {
+      if (!editable) return;
+      setNodes((ns) =>
+        ns.map((n) => {
+          if (n.id !== id) return n;
+          const held = n.data as unknown as NodeData;
+          const merged = { ...held.node, ...patch } as ApiNode;
+          const next: Node = { ...n, data: { ...held, node: merged } };
+          if ("width" in patch) next.width = merged.width;
+          if ("height" in patch) next.height = merged.height;
+          if ("x" in patch || "y" in patch) {
+            next.position = { x: merged.x, y: merged.y };
+          }
+          if ("z" in patch) next.zIndex = merged.z;
+          if ("style" in patch) next.style = wrapperStyle(merged);
+          return next;
+        }),
+      );
+      queueSave(id, patch);
+    },
+    [editable, setNodes, queueSave],
+  );
+
   useEffect(() => {
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
@@ -499,16 +276,64 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     };
   }, [flushSave]);
 
-  // Sticky and text bodies come back through a DOM event so the textarea can
-  // stay uncontrolled and not fight the user's cursor.
+  // ── The board ─────────────────────────────────────────────────────────────
+  // Rebuild whenever the server's copy changes, keeping anything unsaved.
   useEffect(() => {
-    const onContent = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { id: string; content: string };
-      queueSave(detail.id, { content: detail.content });
-    };
-    window.addEventListener("canvas-node-content", onContent);
-    return () => window.removeEventListener("canvas-node-content", onContent);
-  }, [queueSave]);
+    if (!data) return;
+    setNodes(
+      data.nodes.map((raw) => {
+        const n = { ...raw, ...unsavedFor(raw.id) } as ApiNode;
+        const built: Node = {
+          id: n.id,
+          type: typeFor(n.kind),
+          position: { x: n.x, y: n.y },
+          width: n.width,
+          height: n.height,
+          zIndex: n.z,
+          style: wrapperStyle(n),
+          draggable: canEdit && n.kind !== "ink",
+          selectable: true,
+          parentId: n.parent_node_id ?? undefined,
+          data: {
+            node: n,
+            resolved: resolvedByNode.get(n.id),
+            canEdit,
+            ctx: { projectId, canvasId: data.id, source },
+          } as unknown as Record<string, unknown>,
+        };
+        return built;
+      }),
+    );
+    setEdges(
+      data.edges.map((e) => ({
+        id: e.id,
+        source: e.source_node_id,
+        target: e.target_node_id,
+        label: e.label || undefined,
+        animated: e.kind === "depends_on",
+      })),
+    );
+  }, [
+    data,
+    resolvedByNode,
+    canEdit,
+    setNodes,
+    setEdges,
+    projectId,
+    source,
+    unsavedFor,
+  ]);
+
+  /** The highest z handed out so far, so new things land on top. */
+  const zCeil = useRef(0);
+  useEffect(() => {
+    if (!data) return;
+    zCeil.current = Math.max(zCeil.current, 0, ...data.nodes.map((n) => n.z));
+  }, [data]);
+  const nextZ = useCallback(() => {
+    zCeil.current += 1;
+    return zCeil.current;
+  }, []);
 
   const addNode = useMutation({
     mutationFn: (body: Parameters<typeof createNode>[2]) =>
@@ -564,12 +389,16 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       nodes: (data?.nodes ?? []).map((n) => {
         const l = live.get(n.id);
         if (!l) return n;
+        const held = (l.data as unknown as NodeData).node;
         return {
           ...n,
           x: l.position.x,
           y: l.position.y,
           width: l.width ?? n.width,
           height: l.height ?? n.height,
+          z: l.zIndex ?? n.z,
+          content: held.content,
+          style: held.style,
         };
       }),
       edges: (data?.edges ?? []) as ApiEdge[],
@@ -685,38 +514,33 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     await restore(target);
   }, [currentSnapshot, restore]);
 
-  // ── Arranging a selection ─────────────────────────────────────────────────
+  // ── What is picked ────────────────────────────────────────────────────────
   const selection = useMemo(() => nodes.filter((n) => n.selected), [nodes]);
-
-  const boxes = useMemo<Box[]>(
-    () =>
-      selection.map((n) => ({
-        id: n.id,
-        x: n.position.x,
-        y: n.position.y,
-        width: n.width ?? (n.data as unknown as NodeData).node.width,
-        height: n.height ?? (n.data as unknown as NodeData).node.height,
-      })),
+  const picked = useMemo(
+    () => selection.map((n) => (n.data as unknown as NodeData).node),
     [selection],
   );
+
+  const boxFor = useCallback(
+    (n: Node): Box => ({
+      id: n.id,
+      x: n.position.x,
+      y: n.position.y,
+      width: n.width ?? (n.data as unknown as NodeData).node.width,
+      height: n.height ?? (n.data as unknown as NodeData).node.height,
+    }),
+    [],
+  );
+
+  const boxes = useMemo<Box[]>(() => selection.map(boxFor), [selection, boxFor]);
 
   const applyMoves = useCallback(
     (moves: Map<string, { x?: number; y?: number }>) => {
       if (!editable || moves.size === 0) return;
       remember();
-      setNodes((ns) =>
-        ns.map((n) => {
-          const move = moves.get(n.id);
-          if (!move) return n;
-          return {
-            ...n,
-            position: { x: move.x ?? n.position.x, y: move.y ?? n.position.y },
-          };
-        }),
-      );
-      moves.forEach((move, id) => queueSave(id, { ...move }));
+      moves.forEach((move, id) => edit(id, { ...move }));
     },
-    [editable, remember, setNodes, queueSave],
+    [editable, remember, edit],
   );
 
   const align = useCallback(
@@ -733,26 +557,53 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     (direction: "front" | "back") => {
       if (!editable || selection.length === 0) return;
       remember();
-      const all = data?.nodes ?? [];
-      const top = Math.max(0, ...all.map((n) => n.z));
-      const bottom = Math.min(0, ...all.map((n) => n.z));
+      const bottom = Math.min(0, ...(data?.nodes ?? []).map((n) => n.z));
       selection.forEach((n, i) => {
-        const z = direction === "front" ? top + 1 + i : bottom - 1 - i;
-        queueSave(n.id, { z });
+        edit(n.id, { z: direction === "front" ? nextZ() : bottom - 1 - i });
       });
     },
-    [editable, selection, remember, data?.nodes, queueSave],
+    [editable, selection, remember, data?.nodes, edit, nextZ],
   );
+
+  const applyStyle = useCallback(
+    (patch: StylePatch) => {
+      if (!editable || selection.length === 0) return;
+      remember();
+      selection.forEach((n) => {
+        const held = (n.data as unknown as NodeData).node;
+        edit(n.id, { style: cleanStyle({ ...styleOf(held), ...patch }) });
+      });
+    },
+    [editable, selection, remember, edit],
+  );
+
+  /** Draw a hollow shape around what is picked, sitting behind it. */
+  const wrapInShape = useCallback(() => {
+    if (!editable || boxes.length === 0) return;
+    const pad = 24;
+    const x = Math.min(...boxes.map((b) => b.x)) - pad;
+    const y = Math.min(...boxes.map((b) => b.y)) - pad;
+    const right = Math.max(...boxes.map((b) => b.x + b.width)) + pad;
+    const bottom = Math.max(...boxes.map((b) => b.y + b.height)) + pad;
+    const under = Math.min(0, ...selection.map((n) => n.zIndex ?? 0)) - 1;
+    remember();
+    addNode.mutate({
+      kind: "shape",
+      x,
+      y,
+      width: right - x,
+      height: bottom - y,
+      z: under,
+      style: { color, shape: "rounded", fill: "none" },
+    });
+  }, [editable, boxes, selection, remember, addNode, color]);
 
   /** Copy the picked nodes to a private clipboard; the OS one holds text. */
   const clipboard = useRef<ApiNode[]>([]);
 
   const copySelection = useCallback(() => {
-    const picked = (data?.nodes ?? []).filter((n) =>
-      selection.some((s) => s.id === n.id),
-    );
     if (picked.length) clipboard.current = picked;
-  }, [data?.nodes, selection]);
+  }, [picked]);
 
   const duplicateNodes = useCallback(
     (originals: ApiNode[], offset = 24) => {
@@ -769,12 +620,52 @@ function Board({ projectId, source = "local", canEdit }: Props) {
           y: n.y + offset,
           width: n.width,
           height: n.height,
-          z: n.z,
+          z: nextZ(),
           style: n.style,
         });
       });
     },
-    [editable, remember, addNode],
+    [editable, remember, addNode, nextZ],
+  );
+
+  const deleteSelection = useCallback(() => {
+    if (!editable || selection.length === 0) return;
+    remember();
+    selection.forEach((n) => removeNode.mutate(n.id));
+  }, [editable, selection, remember, removeNode]);
+
+  // ── What the node renderers may do ────────────────────────────────────────
+  const endResize = useCallback(
+    (node: ApiNode, box: ResizeBox) => {
+      const patch: Record<string, unknown> = {
+        x: Math.round(box.x),
+        y: Math.round(box.y),
+        width: Math.round(box.width),
+        height: Math.round(box.height),
+      };
+      // A height dragged on purpose is a height the text must not overrule.
+      if (autoHeight(styleOf(node)) && Math.abs(box.height - node.height) > 1) {
+        patch.style = cleanStyle({ ...styleOf(node), autoHeight: false });
+      }
+      edit(node.id, patch);
+    },
+    [edit],
+  );
+
+  const board = useMemo<BoardApi>(
+    () => ({
+      editable,
+      editingId,
+      setEditingId,
+      remember,
+      saveContent: (id, content) => {
+        remember();
+        edit(id, { content });
+      },
+      grow: (id, height) => edit(id, { height: Math.round(height) }),
+      endResize,
+    }),
+    [editable, editingId, remember, edit, endResize],
   );
 
   // ── Snapping ──────────────────────────────────────────────────────────────
@@ -809,16 +700,19 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         y: point.y,
         width: size.w,
         height: size.h,
+        z: nextZ(),
         style: tool === "sticky" || tool === "shape" ? { color } : {},
         label: tool === "frame" ? "Frame" : "",
       });
       setTool("select");
     },
-    [flow, tool, color, addNode, remember],
+    [flow, tool, color, addNode, remember, nextZ],
   );
 
   const onPaneClick = useCallback(
     (event: React.MouseEvent) => {
+      setMenu(null);
+      setEditingId(null);
       if (!editable) return;
       if (["sticky", "text", "shape", "frame"].includes(tool)) {
         place(event.clientX, event.clientY);
@@ -854,9 +748,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     setStroke([]);
     if (points.length < 2) return;
     const b = inkBounds(points);
-    const local = points.map(
-      ([x, y, p]) => [x - b.minX, y - b.minY, p] as [number, number, number],
-    );
+    const local = points.map(([x, y, p]) => [x - b.minX, y - b.minY, p] as InkPoint);
     // Ink commits on pen-up, never per sample.
     remember();
     addNode.mutate({
@@ -865,9 +757,10 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       y: b.minY,
       width: Math.max(b.maxX - b.minX, 1),
       height: Math.max(b.maxY - b.minY, 1),
+      z: nextZ(),
       style: { points: local, color: penColor, size: 6 },
     });
-  }, [stroke, penColor, addNode, remember]);
+  }, [stroke, penColor, addNode, remember, nextZ]);
 
   // ── Images ────────────────────────────────────────────────────────────────
   const addImage = useMutation({
@@ -879,7 +772,10 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         { ...at, width: 280, height: 200 },
         source,
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: key }),
+    onSuccess: (made) => {
+      queueSave(made.id, { z: nextZ() });
+      queryClient.invalidateQueries({ queryKey: key });
+    },
     onError: (err: unknown) => {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response
         ?.data?.detail;
@@ -890,7 +786,10 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   useEffect(() => {
     if (!editable) return;
     const onPaste = (event: ClipboardEvent) => {
-      if (!wrapper.current?.contains(document.activeElement) && document.activeElement !== document.body) {
+      if (
+        !wrapper.current?.contains(document.activeElement) &&
+        document.activeElement !== document.body
+      ) {
         return;
       }
       const file = Array.from(event.clipboardData?.files ?? [])[0];
@@ -955,14 +854,16 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         y: point.y,
         width: 200,
         height: 96,
+        z: nextZ(),
       });
     },
-    [flow, addNode, remember],
+    [flow, addNode, remember, nextZ],
   );
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
+      if (!editable) return;
       const raw = event.dataTransfer.getData(DRAG_MIME);
       if (raw) {
         try {
@@ -1025,17 +926,6 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   );
 
   // ── Dragging with snap ────────────────────────────────────────────────────
-  const boxFor = useCallback(
-    (n: Node): Box => ({
-      id: n.id,
-      x: n.position.x,
-      y: n.position.y,
-      width: n.width ?? (n.data as unknown as NodeData).node.width,
-      height: n.height ?? (n.data as unknown as NodeData).node.height,
-    }),
-    [],
-  );
-
   const onNodeDrag = useCallback(
     (_: unknown, node: Node) => {
       if (snapGrid) return; // the grid is doing the work
@@ -1057,20 +947,46 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         const snapped = snapToObjects(boxFor(node), others, SNAP_PX);
         x = snapped.x;
         y = snapped.y;
-        if (x !== node.position.x || y !== node.position.y) {
-          setNodes((ns) =>
-            ns.map((n) => (n.id === node.id ? { ...n, position: { x, y } } : n)),
-          );
-        }
       }
-      queueSave(node.id, { x, y });
+      edit(node.id, { x, y });
     },
-    [snapGrid, nodes, boxFor, setNodes, queueSave],
+    [snapGrid, nodes, boxFor, edit],
+  );
+
+  /** Alt-click digs down through whatever is stacked under the pointer. */
+  const cycleUnder = useCallback(
+    (clientX: number, clientY: number) => {
+      const point = flow.screenToFlowPosition({ x: clientX, y: clientY });
+      const under = nodes
+        .filter((n) => {
+          const b = boxFor(n);
+          return (
+            point.x >= b.x &&
+            point.x <= b.x + b.width &&
+            point.y >= b.y &&
+            point.y <= b.y + b.height
+          );
+        })
+        .sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0));
+      if (under.length < 2) return;
+      const at = under.findIndex((n) => n.selected);
+      const next = under[(at + 1) % under.length];
+      setNodes((ns) => ns.map((n) => ({ ...n, selected: n.id === next.id })));
+    },
+    [flow, nodes, boxFor, setNodes],
   );
 
   // ── Keyboard ──────────────────────────────────────────────────────────────
   const SHORTCUT_TOOLS: Record<string, Tool> = useMemo(
-    () => ({ v: "select", s: "sticky", t: "text", r: "shape", f: "frame", p: "pen", e: "eraser" }),
+    () => ({
+      v: "select",
+      s: "sticky",
+      t: "text",
+      r: "shape",
+      f: "frame",
+      p: "pen",
+      e: "eraser",
+    }),
     [],
   );
 
@@ -1098,12 +1014,32 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         void redo();
         return;
       }
+      if (event.key === "Escape") {
+        setEditingId(null);
+        setMenu(null);
+        return;
+      }
       if (!editable) return;
+      if (meta && event.key === "]") {
+        event.preventDefault();
+        restack("front");
+        return;
+      }
+      if (meta && event.key === "[") {
+        event.preventDefault();
+        restack("back");
+        return;
+      }
+      if (event.key === "Enter" && picked.length === 1) {
+        if (TEXT_KINDS.includes(picked[0].kind)) {
+          event.preventDefault();
+          setEditingId(picked[0].id);
+        }
+        return;
+      }
       if (meta && event.key.toLowerCase() === "d") {
         event.preventDefault();
-        duplicateNodes(
-          (data?.nodes ?? []).filter((n) => selection.some((s) => s.id === n.id)),
-        );
+        duplicateNodes(picked);
         return;
       }
       if (meta && event.key.toLowerCase() === "c") {
@@ -1132,10 +1068,63 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     redo,
     duplicateNodes,
     copySelection,
-    selection,
-    data?.nodes,
+    picked,
+    restack,
     flow,
     SHORTCUT_TOOLS,
+  ]);
+
+  // ── The right-click menu ──────────────────────────────────────────────────
+  const openMenu = useCallback(
+    (clientX: number, clientY: number, nodeId: string | null) => {
+      const box = wrapper.current?.getBoundingClientRect();
+      setMenu({ x: clientX - (box?.left ?? 0), y: clientY - (box?.top ?? 0), nodeId });
+    },
+    [],
+  );
+
+  const menuItems = useMemo<MenuItem[]>(() => {
+    if (!menu || !editable) return [];
+    if (!menu.nodeId) {
+      return [
+        {
+          label: "Fit the board",
+          hint: "Ctrl+0",
+          onClick: () => flow.fitView({ padding: 0.2 }),
+        },
+        { label: "Snap to the grid", onClick: () => setSnapGrid((s) => !s) },
+      ];
+    }
+    const only = picked.find((n) => n.id === menu.nodeId) ?? picked[0];
+    const items: MenuItem[] = [];
+    if (only && TEXT_KINDS.includes(only.kind)) {
+      items.push({
+        label: "Edit the text",
+        hint: "Enter",
+        onClick: () => setEditingId(only.id),
+      });
+    }
+    if (only?.ref_id) {
+      items.push({ label: "Open it", onClick: () => openNode(only.id) });
+    }
+    items.push(
+      { label: "Draw a shape around", onClick: wrapInShape },
+      { label: "Duplicate", hint: "Ctrl+D", onClick: () => duplicateNodes(picked) },
+      { label: "Bring to front", hint: "Ctrl+]", onClick: () => restack("front") },
+      { label: "Send to back", hint: "Ctrl+[", onClick: () => restack("back") },
+      { label: "Delete", onClick: deleteSelection, danger: true },
+    );
+    return items;
+  }, [
+    menu,
+    editable,
+    picked,
+    flow,
+    wrapInShape,
+    duplicateNodes,
+    restack,
+    deleteSelection,
+    openNode,
   ]);
 
   if (isLoading) {
@@ -1157,332 +1146,352 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   ];
 
   return (
-    <div
-      ref={wrapper}
-      onDrop={onDrop}
-      onDragOver={(e) => {
-        if (editable) e.preventDefault();
-      }}
-      className="relative h-[70vh] w-full overflow-hidden rounded-lg border border-border bg-background"
-    >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={NODE_TYPES}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onPaneClick={onPaneClick}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onNodeDragStart={onNodeDragStart}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={onNodeDragStop}
-        onNodesDelete={(deleted) => {
-          if (!editable) return;
-          remember();
-          deleted.forEach((n) => removeNode.mutate(n.id));
+    <BoardContext.Provider value={board}>
+      <div
+        ref={wrapper}
+        onDrop={onDrop}
+        onDragOver={(e) => {
+          if (editable) e.preventDefault();
         }}
-        onEdgesDelete={(deleted) => {
-          if (!editable) return;
-          remember();
-          deleted.forEach((e) => removeEdgeMutation.mutate(e.id));
-        }}
-        onNodeClick={(_, node) => {
-          if (tool === "eraser" && editable) {
-            remember();
-            removeNode.mutate(node.id);
-          }
-        }}
-        onNodeDoubleClick={(_, node) => openNode(node.id)}
-        nodesDraggable={editable && tool === "select"}
-        nodesConnectable={editable}
-        elementsSelectable
-        snapToGrid={snapGrid}
-        snapGrid={[GRID, GRID]}
-        panOnDrag={tool === "select"}
-        selectionOnDrag={false}
-        fitView
-        proOptions={{ hideAttribution: false }}
-        defaultViewport={data?.viewport}
-        className={cn(tool === "pen" && "cursor-crosshair", tool === "eraser" && "cursor-cell")}
+        className="relative h-[70vh] w-full overflow-hidden rounded-lg border border-border bg-background"
       >
-        <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
-        <Controls />
-        <MiniMap pannable zoomable className="!bg-muted" />
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={NODE_TYPES}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onPaneClick={onPaneClick}
+          onPaneContextMenu={(event) => {
+            event.preventDefault();
+            const e = event as React.MouseEvent;
+            openMenu(e.clientX, e.clientY, null);
+          }}
+          onNodeContextMenu={(event, node) => {
+            event.preventDefault();
+            if (!node.selected) {
+              setNodes((ns) => ns.map((n) => ({ ...n, selected: n.id === node.id })));
+            }
+            openMenu(event.clientX, event.clientY, node.id);
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDragStop}
+          onNodesDelete={(deleted) => {
+            if (!editable) return;
+            remember();
+            deleted.forEach((n) => removeNode.mutate(n.id));
+          }}
+          onEdgesDelete={(deleted) => {
+            if (!editable) return;
+            remember();
+            deleted.forEach((e) => removeEdgeMutation.mutate(e.id));
+          }}
+          onNodeClick={(event, node) => {
+            setMenu(null);
+            if (event.altKey) {
+              cycleUnder(event.clientX, event.clientY);
+              return;
+            }
+            if (editingId && editingId !== node.id) setEditingId(null);
+            if (tool === "eraser" && editable) {
+              remember();
+              removeNode.mutate(node.id);
+            }
+          }}
+          onNodeDoubleClick={(_, node) => {
+            const kind = (node.data as unknown as NodeData).node.kind;
+            if (editable && (kind === "shape" || kind === "frame")) {
+              setEditingId(node.id);
+              return;
+            }
+            openNode(node.id);
+          }}
+          nodesDraggable={editable && tool === "select"}
+          nodesConnectable={editable}
+          elementsSelectable
+          snapToGrid={snapGrid}
+          snapGrid={[GRID, GRID]}
+          panOnDrag={tool === "select"}
+          selectionOnDrag={false}
+          fitView
+          proOptions={{ hideAttribution: false }}
+          defaultViewport={data?.viewport}
+          className={cn(
+            tool === "pen" && "cursor-crosshair",
+            tool === "eraser" && "cursor-cell",
+          )}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
+          <Controls />
+          <MiniMap pannable zoomable className="!bg-muted" />
 
-        {editable ? (
-          <Panel position="top-left" className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-card/95 p-1 shadow-sm">
-            {tools.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                title={t.label}
-                onClick={() => setTool(t.id)}
-                className={cn(
-                  "rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground",
-                  tool === t.id && "bg-primary/10 text-primary",
-                )}
-              >
-                <t.icon className="h-4 w-4" />
-              </button>
-            ))}
-            <div className="mx-1 h-5 w-px bg-border" />
-            {STICKY_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                title="Colour"
-                onClick={() => {
-                  setColor(c);
-                  setPenColor(c === "#e5e7eb" ? "#0f172a" : c);
-                }}
-                style={{ background: c }}
-                className={cn(
-                  "h-5 w-5 rounded-full border",
-                  color === c ? "border-primary" : "border-border",
-                )}
-              />
-            ))}
-            <div className="mx-1 h-5 w-px bg-border" />
-            <button
-              type="button"
-              title="Paste an image with Ctrl+V"
-              className="rounded p-1.5 text-muted-foreground"
-            >
-              <ImageIcon className="h-4 w-4" />
-            </button>
-            <div className="mx-1 h-5 w-px bg-border" />
-            <button
-              type="button"
-              title="Undo (Ctrl+Z)"
-              disabled={depths.past === 0 || busy}
-              onClick={() => void undo()}
-              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
-            >
-              <Undo2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              title="Redo (Ctrl+Shift+Z)"
-              disabled={depths.future === 0 || busy}
-              onClick={() => void redo()}
-              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
-            >
-              <Redo2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              title={snapGrid ? "Snapping to the grid" : "Snapping to nearby items"}
-              onClick={() => setSnapGrid((s) => !s)}
-              className={cn(
-                "rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground",
-                snapGrid && "bg-primary/10 text-primary",
-              )}
-            >
-              <Grid3x3 className="h-4 w-4" />
-            </button>
-          </Panel>
-        ) : (
-          <Panel position="top-left" className="rounded-md border border-border bg-card/95 px-2 py-1 text-xs text-muted-foreground">
-            Read-only
-          </Panel>
-        )}
-
-        {stroke.length > 1 ? (
-          <svg className="pointer-events-none absolute inset-0 h-full w-full">
-            <g
-              transform={`translate(${flow.getViewport().x} ${flow.getViewport().y}) scale(${flow.getViewport().zoom})`}
-            >
-              <path d={strokePath(stroke, 6)} fill={penColor} />
-            </g>
-          </svg>
-        ) : null}
-
-        {guides.length > 0 ? (
-          <svg className="pointer-events-none absolute inset-0 h-full w-full">
-            <g
-              transform={`translate(${flow.getViewport().x} ${flow.getViewport().y}) scale(${flow.getViewport().zoom})`}
-            >
-              {guides.map((g) =>
-                g.axis === "x" ? (
-                  <line
-                    key={`x-${g.at}`}
-                    x1={g.at}
-                    x2={g.at}
-                    y1={-10000}
-                    y2={10000}
-                    stroke="#ec4899"
-                    strokeWidth={1 / flow.getViewport().zoom}
-                  />
-                ) : (
-                  <line
-                    key={`y-${g.at}`}
-                    x1={-10000}
-                    x2={10000}
-                    y1={g.at}
-                    y2={g.at}
-                    stroke="#ec4899"
-                    strokeWidth={1 / flow.getViewport().zoom}
-                  />
-                ),
-              )}
-            </g>
-          </svg>
-        ) : null}
-
-        {editable && selection.length > 1 ? (
-          <Panel
-            position="bottom-center"
-            className="mb-2 flex items-center gap-1 rounded-md border border-border bg-card/95 p-1 shadow-sm"
-          >
-            <span className="px-1 text-xs text-muted-foreground">
-              {selection.length} picked
-            </span>
-            {(
-              [
-                ["left", AlignStartVertical, "Align left"],
-                ["center", AlignCenterVertical, "Align centres"],
-                ["right", AlignEndVertical, "Align right"],
-                ["top", AlignStartHorizontal, "Align top"],
-                ["middle", AlignCenterHorizontal, "Align middles"],
-                ["bottom", AlignEndHorizontal, "Align bottom"],
-              ] as [AlignMode, typeof AlignStartVertical, string][]
-            ).map(([mode, Icon, label]) => (
-              <button
-                key={mode}
-                type="button"
-                title={label}
-                onClick={() => align(mode)}
-                className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            ))}
-            <div className="mx-1 h-5 w-px bg-border" />
-            <button
-              type="button"
-              title="Even out the horizontal gaps"
-              disabled={selection.length < 3}
-              onClick={() => distribute("x")}
-              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
-            >
-              <AlignHorizontalDistributeCenter className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              title="Even out the vertical gaps"
-              disabled={selection.length < 3}
-              onClick={() => distribute("y")}
-              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
-            >
-              <AlignVerticalDistributeCenter className="h-4 w-4" />
-            </button>
-            <div className="mx-1 h-5 w-px bg-border" />
-            <button
-              type="button"
-              title="Bring to front"
-              onClick={() => restack("front")}
-              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <BringToFront className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              title="Send to back"
-              onClick={() => restack("back")}
-              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <SendToBack className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              title="Duplicate (Ctrl+D)"
-              onClick={() =>
-                duplicateNodes(
-                  (data?.nodes ?? []).filter((n) =>
-                    selection.some((s) => s.id === n.id),
-                  ),
-                )
-              }
-              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Copy className="h-4 w-4" />
-            </button>
-          </Panel>
-        ) : null}
-
-        {editable && rail.length > 0 ? (
-          <Panel
-            position="top-right"
-            className="max-h-[60%] w-56 overflow-y-auto rounded-md border border-border bg-card/95 p-2 shadow-sm"
-          >
-            <p className="mb-1.5 text-xs font-medium text-foreground">Material</p>
-            <p className="mb-2 text-[11px] leading-snug text-muted-foreground">
-              Drag onto the board, or click to drop it in the middle.
-            </p>
-            <ul className="space-y-1">
-              {rail.map((item) => (
-                <li key={`${item.kind}-${item.refId}`}>
+          <Panel position="top-left" className="flex flex-col items-start gap-2">
+            {editable ? (
+              <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-card/95 p-1 shadow-sm">
+                {tools.map((t) => (
                   <button
+                    key={t.id}
                     type="button"
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData(DRAG_MIME, JSON.stringify(item));
-                      e.dataTransfer.effectAllowed = "copy";
-                    }}
-                    onClick={() => {
-                      const box = wrapper.current?.getBoundingClientRect();
-                      dropRef(
-                        item.kind,
-                        item.refId,
-                        item.label,
-                        (box?.left ?? 0) + (box?.width ?? 0) / 2,
-                        (box?.top ?? 0) + (box?.height ?? 0) / 2,
-                      );
-                    }}
-                    className="w-full cursor-grab rounded border border-border bg-background px-2 py-1 text-left text-xs hover:bg-muted active:cursor-grabbing"
+                    title={t.label}
+                    onClick={() => setTool(t.id)}
+                    className={cn(
+                      "rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground",
+                      tool === t.id && "bg-primary/10 text-primary",
+                    )}
                   >
-                    <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {item.kind.replace("_", " ")}
-                    </span>
-                    <span className="line-clamp-2 text-foreground">{item.label}</span>
+                    <t.icon className="h-4 w-4" />
                   </button>
-                </li>
-              ))}
-            </ul>
+                ))}
+                <div className="mx-1 h-5 w-px bg-border" />
+                {STICKY_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    title="Colour for the next thing you place"
+                    onClick={() => {
+                      setColor(c);
+                      setPenColor(c === "#e5e7eb" ? "#0f172a" : c);
+                    }}
+                    style={{ background: c }}
+                    className={cn(
+                      "h-5 w-5 rounded-full border",
+                      color === c ? "border-primary" : "border-border",
+                    )}
+                  />
+                ))}
+                <div className="mx-1 h-5 w-px bg-border" />
+                <button
+                  type="button"
+                  title="Paste an image with Ctrl+V"
+                  className="rounded p-1.5 text-muted-foreground"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                </button>
+                <div className="mx-1 h-5 w-px bg-border" />
+                <button
+                  type="button"
+                  title="Undo (Ctrl+Z)"
+                  disabled={depths.past === 0 || busy}
+                  onClick={() => void undo()}
+                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+                >
+                  <Undo2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  title="Redo (Ctrl+Shift+Z)"
+                  disabled={depths.future === 0 || busy}
+                  onClick={() => void redo()}
+                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+                >
+                  <Redo2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  title={snapGrid ? "Snapping to the grid" : "Snapping to nearby items"}
+                  onClick={() => setSnapGrid((s) => !s)}
+                  className={cn(
+                    "rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground",
+                    snapGrid && "bg-primary/10 text-primary",
+                  )}
+                >
+                  <Grid3x3 className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-md border border-border bg-card/95 px-2 py-1 text-xs text-muted-foreground">
+                Read-only
+              </div>
+            )}
+
+            {editable ? (
+              <CanvasInspector
+                selected={picked}
+                onStyle={applyStyle}
+                onWrap={wrapInShape}
+                onEditText={() => picked[0] && setEditingId(picked[0].id)}
+                onRestack={restack}
+                onDuplicate={() => duplicateNodes(picked)}
+                onDelete={deleteSelection}
+              />
+            ) : null}
           </Panel>
+
+          {stroke.length > 1 ? (
+            <svg className="pointer-events-none absolute inset-0 h-full w-full">
+              <g
+                transform={`translate(${flow.getViewport().x} ${flow.getViewport().y}) scale(${flow.getViewport().zoom})`}
+              >
+                <path d={strokePath(stroke, 6)} fill={penColor} />
+              </g>
+            </svg>
+          ) : null}
+
+          {guides.length > 0 ? (
+            <svg className="pointer-events-none absolute inset-0 h-full w-full">
+              <g
+                transform={`translate(${flow.getViewport().x} ${flow.getViewport().y}) scale(${flow.getViewport().zoom})`}
+              >
+                {guides.map((g) =>
+                  g.axis === "x" ? (
+                    <line
+                      key={`x-${g.at}`}
+                      x1={g.at}
+                      x2={g.at}
+                      y1={-10000}
+                      y2={10000}
+                      stroke="#ec4899"
+                      strokeWidth={1 / flow.getViewport().zoom}
+                    />
+                  ) : (
+                    <line
+                      key={`y-${g.at}`}
+                      x1={-10000}
+                      x2={10000}
+                      y1={g.at}
+                      y2={g.at}
+                      stroke="#ec4899"
+                      strokeWidth={1 / flow.getViewport().zoom}
+                    />
+                  ),
+                )}
+              </g>
+            </svg>
+          ) : null}
+
+          {editable && selection.length > 1 ? (
+            <Panel
+              position="bottom-center"
+              className="mb-2 flex items-center gap-1 rounded-md border border-border bg-card/95 p-1 shadow-sm"
+            >
+              <span className="px-1 text-xs text-muted-foreground">
+                {selection.length} picked
+              </span>
+              {(
+                [
+                  ["left", AlignStartVertical, "Align left"],
+                  ["center", AlignCenterVertical, "Align centres"],
+                  ["right", AlignEndVertical, "Align right"],
+                  ["top", AlignStartHorizontal, "Align top"],
+                  ["middle", AlignCenterHorizontal, "Align middles"],
+                  ["bottom", AlignEndHorizontal, "Align bottom"],
+                ] as [AlignMode, typeof AlignStartVertical, string][]
+              ).map(([mode, Icon, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  title={label}
+                  onClick={() => align(mode)}
+                  className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Icon className="h-4 w-4" />
+                </button>
+              ))}
+              <div className="mx-1 h-5 w-px bg-border" />
+              <button
+                type="button"
+                title="Even out the horizontal gaps"
+                disabled={selection.length < 3}
+                onClick={() => distribute("x")}
+                className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+              >
+                <AlignHorizontalDistributeCenter className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                title="Even out the vertical gaps"
+                disabled={selection.length < 3}
+                onClick={() => distribute("y")}
+                className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40"
+              >
+                <AlignVerticalDistributeCenter className="h-4 w-4" />
+              </button>
+            </Panel>
+          ) : null}
+
+          {editable && rail.length > 0 ? (
+            <Panel
+              position="top-right"
+              className="max-h-[60%] w-56 overflow-y-auto rounded-md border border-border bg-card/95 p-2 shadow-sm"
+            >
+              <p className="mb-1.5 text-xs font-medium text-foreground">Material</p>
+              <p className="mb-2 text-[11px] leading-snug text-muted-foreground">
+                Drag onto the board, or click to drop it in the middle.
+              </p>
+              <ul className="space-y-1">
+                {rail.map((item) => (
+                  <li key={`${item.kind}-${item.refId}`}>
+                    <button
+                      type="button"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(DRAG_MIME, JSON.stringify(item));
+                        e.dataTransfer.effectAllowed = "copy";
+                      }}
+                      onClick={() => {
+                        const box = wrapper.current?.getBoundingClientRect();
+                        dropRef(
+                          item.kind,
+                          item.refId,
+                          item.label,
+                          (box?.left ?? 0) + (box?.width ?? 0) / 2,
+                          (box?.top ?? 0) + (box?.height ?? 0) / 2,
+                        );
+                      }}
+                      className="w-full cursor-grab rounded border border-border bg-background px-2 py-1 text-left text-xs hover:bg-muted active:cursor-grabbing"
+                    >
+                      <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {item.kind.replace("_", " ")}
+                      </span>
+                      <span className="line-clamp-2 text-foreground">{item.label}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          ) : null}
+        </ReactFlow>
+
+        {menu ? (
+          <CanvasMenu
+            x={menu.x}
+            y={menu.y}
+            items={menuItems}
+            onClose={() => setMenu(null)}
+          />
         ) : null}
-      </ReactFlow>
 
-      {error ? (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
-          {error}
-          <button
-            type="button"
-            onClick={() => setError(null)}
-            className="ml-2 underline"
-          >
-            Dismiss
-          </button>
-        </div>
-      ) : null}
+        {error ? (
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive">
+            {error}
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="ml-2 underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
 
-      {editable && nodes.length === 0 ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="max-w-sm text-center text-sm text-muted-foreground">
-            An empty canvas. Pick a tool above, then click to place a note, some
-            text or a shape. Paste an image straight in. Drag between two things
-            to link them.
-          </p>
-        </div>
-      ) : null}
-    </div>
+        {editable && nodes.length === 0 ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <p className="max-w-sm text-center text-sm text-muted-foreground">
+              An empty canvas. Pick a tool above, then click to place a note, some
+              text or a shape. Paste an image straight in. Drag between two things
+              to link them.
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </BoardContext.Provider>
   );
 }
-
-const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 export function CanvasTab(props: Props) {
   return (
