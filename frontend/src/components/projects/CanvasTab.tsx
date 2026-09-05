@@ -1059,9 +1059,10 @@ function Board({ projectId, source = "local", canEdit }: Props) {
 
   // ── Dragging with snap ────────────────────────────────────────────────────
   const onNodeDrag = useCallback(
-    (_: unknown, node: Node) => {
+    (_: unknown, node: Node, dragged: Node[]) => {
       if (snapGrid) return; // the grid is doing the work
-      const others = nodes.filter((n) => n.id !== node.id).map(boxFor);
+      const moving = new Set((dragged?.length ? dragged : [node]).map((n) => n.id));
+      const others = nodes.filter((n) => !moving.has(n.id)).map(boxFor);
       const snapped = snapToObjects(boxFor(node), others, SNAP_PX);
       setGuides(snapped.guides);
     },
@@ -1070,19 +1071,38 @@ function Board({ projectId, source = "local", canEdit }: Props) {
 
   const onNodeDragStart = useCallback(() => remember(), [remember]);
 
-  const onNodeDragStop = useCallback(
-    (_: unknown, node: Node) => {
+  /** Save every node that moved, not just the one under the pointer. */
+  const settle = useCallback(
+    (node: Node, dragged: Node[]) => {
       setGuides([]);
-      let { x, y } = node.position;
+      const moved = dragged?.length ? dragged : [node];
+      let dx = 0;
+      let dy = 0;
       if (!snapGrid) {
-        const others = nodes.filter((n) => n.id !== node.id).map(boxFor);
+        const moving = new Set(moved.map((n) => n.id));
+        const others = nodes.filter((n) => !moving.has(n.id)).map(boxFor);
         const snapped = snapToObjects(boxFor(node), others, SNAP_PX);
-        x = snapped.x;
-        y = snapped.y;
+        // The snap nudges the whole group, so it keeps its shape.
+        dx = snapped.x - node.position.x;
+        dy = snapped.y - node.position.y;
       }
-      edit(node.id, { x, y });
+      for (const n of moved) {
+        edit(n.id, { x: n.position.x + dx, y: n.position.y + dy });
+      }
     },
     [snapGrid, nodes, boxFor, edit],
+  );
+
+  const onNodeDragStop = useCallback(
+    (_: unknown, node: Node, dragged: Node[]) => settle(node, dragged),
+    [settle],
+  );
+
+  const onSelectionDragStop = useCallback(
+    (_: unknown, dragged: Node[]) => {
+      if (dragged.length) settle(dragged[0], dragged);
+    },
+    [settle],
   );
 
   /** Alt-click digs down through whatever is stacked under the pointer. */
@@ -1323,6 +1343,8 @@ function Board({ projectId, source = "local", canEdit }: Props) {
           onNodeDragStart={onNodeDragStart}
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
+          onSelectionDragStart={onNodeDragStart}
+          onSelectionDragStop={onSelectionDragStop}
           onNodesDelete={(deleted) => {
             if (!editable) return;
             remember();
