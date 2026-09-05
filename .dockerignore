@@ -14,6 +14,7 @@
 backend/google_credentials.json
 backend/google_token.json
 backend/google_stt_sa.json
+backend/hub_client.json
 backend/.env
 backend/.env.*
 
@@ -21,6 +22,8 @@ backend/logs/
 backend/generated_files/
 backend/assets/
 backend/tests/
+backend/*.log
+backend/.pytest_out.txt
 
 frontend/node_modules/
 frontend/dist/
