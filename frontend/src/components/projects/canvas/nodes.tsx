@@ -16,8 +16,10 @@ import {
 } from "@xyflow/react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { STATUS_RING, TASK_STATUSES } from "@/lib/taskStatus";
 import { fetchCanvasImage } from "@/api/canvas";
 import type { CanvasNode, NodeKind } from "@/types/canvas";
+import type { TaskStatus } from "@/types/tasks";
 import { AutoGrowText } from "./AutoGrowText";
 import { useBoard, type NodeData } from "./board";
 import { inkBounds, strokePath, type InkPoint } from "./ink";
@@ -332,14 +334,7 @@ const STATE_RING: Record<string, string> = {
 };
 
 /** The statuses a task card offers, in the order a task moves through them. */
-const TASK_STATUSES = [
-  ["todo", "To do"],
-  ["in_progress", "In progress"],
-  ["in_review", "In review"],
-  ["done", "Done"],
-  ["backlog", "Backlog"],
-  ["cancelled", "Cancelled"],
-] as const;
+const CARD_STATUSES = TASK_STATUSES;
 
 function RefNode({ data, selected }: NodeProps) {
   const { node, resolved, canEdit } = data as unknown as NodeData;
@@ -347,16 +342,27 @@ function RefNode({ data, selected }: NodeProps) {
   const title = resolved?.title || node.label || "Loading…";
   const editableTask =
     canEdit && node.kind === "task" && Boolean(node.ref_id) && !resolved?.missing;
+  const stroke = styleOf(node).stroke;
+  // A task shows its status as the card border, unless it is late or you picked a colour.
+  const statusRing =
+    node.kind === "task" &&
+    !resolved?.missing &&
+    !stroke &&
+    (resolved?.state ?? "ok") === "ok" &&
+    resolved?.status
+      ? STATUS_RING[resolved.status as TaskStatus]
+      : null;
   return (
     <>
       <Resizer node={node} visible={Boolean(selected) && canEdit} minWidth={140} minHeight={70} />
       <Handles />
       <div
         className={cn(
-          "flex h-full w-full flex-col gap-1 overflow-hidden rounded-md border bg-card p-2 shadow-sm",
-          STATE_RING[resolved?.state ?? "ok"],
+          "flex h-full w-full flex-col gap-1 overflow-hidden rounded-md bg-card p-2 shadow-sm",
+          statusRing ? cn("border-2", statusRing) : "border",
+          statusRing ? null : STATE_RING[resolved?.state ?? "ok"],
         )}
-        style={{ borderColor: styleOf(node).stroke }}
+        style={{ borderColor: stroke }}
       >
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
           {node.kind.replace("_", " ")}
@@ -373,9 +379,9 @@ function RefNode({ data, selected }: NodeProps) {
             onChange={(e) => board.setTaskStatus(node.ref_id!, e.target.value)}
             className="nodrag mt-auto rounded border border-border bg-background px-1 py-0.5 text-xs text-muted-foreground"
           >
-            {TASK_STATUSES.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
+            {CARD_STATUSES.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
               </option>
             ))}
           </select>

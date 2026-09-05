@@ -27,6 +27,7 @@ import {
 import { createTask, deleteTask, listTasks, updateTask, type Source } from "@/api/tasks";
 import { DRAG_MIME, type RailItem } from "@/components/projects/canvas/board";
 import { useProjectInvalidate } from "@/hooks/useProjectInvalidate";
+import { STATUS_EDGE, TASK_STATUSES } from "@/lib/taskStatus";
 import { cn } from "@/lib/utils";
 import type {
   ProjectMember,
@@ -36,33 +37,7 @@ import type {
   TaskUpdate,
 } from "@/types/tasks";
 
-const STATUSES: { id: TaskStatus; label: string; edge: string; dot: string }[] = [
-  { id: "todo", label: "To do", edge: "border-l-slate-400", dot: "bg-slate-400" },
-  {
-    id: "in_progress",
-    label: "In progress",
-    edge: "border-l-sky-500",
-    dot: "bg-sky-500",
-  },
-  {
-    id: "in_review",
-    label: "In review",
-    edge: "border-l-violet-500",
-    dot: "bg-violet-500",
-  },
-  { id: "done", label: "Done", edge: "border-l-emerald-500", dot: "bg-emerald-500" },
-  {
-    id: "backlog",
-    label: "Backlog",
-    edge: "border-l-neutral-300 dark:border-l-neutral-700",
-    dot: "bg-neutral-400",
-  },
-  { id: "cancelled", label: "Cancelled", edge: "border-l-rose-400", dot: "bg-rose-400" },
-];
-
-const STATUS_EDGE: Record<TaskStatus, string> = Object.fromEntries(
-  STATUSES.map((s) => [s.id, s.edge]),
-) as Record<TaskStatus, string>;
+const STATUSES = TASK_STATUSES;
 
 const PRIORITIES: { id: TaskPriority; label: string; className: string }[] = [
   { id: "low", label: "Low", className: "text-slate-500" },
