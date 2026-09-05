@@ -33,6 +33,7 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  useStore,
   type Connection,
   type Edge,
   type Node,
@@ -122,6 +123,8 @@ const SAVE_DEBOUNCE_MS = 700;
 const SNAP_PX = 6;
 const GRID = 8;
 const UNDO_DEPTH = 40;
+/** Zoom out past this and a task's sub-task cards fold into it. */
+const FOLD_ZOOM = 0.5;
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 // Workroom pins whose kind the canvas can draw as a reference node.
@@ -686,6 +689,81 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     onError: () => setError("That task's status could not be changed."),
   });
 
+  // ── Folding a task family when you zoom out ───────────────────────────────
+  const zoom = useStore((s) => s.transform[2]);
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const folding = zoom < FOLD_ZOOM;
+
+  // Zooming back in is the other way to open everything.
+  useEffect(() => {
+    if (!folding) setOpened(new Set());
+  }, [folding]);
+
+  /** Task cards whose task sits under another task card on this same board. */
+  const kids = useMemo(() => {
+    const cardFor = new Map<string, string>();
+    for (const n of nodes) {
+      const held = n.data as unknown as NodeData;
+      if (held?.node?.kind === "task" && held.node.ref_id) {
+        cardFor.set(held.node.ref_id, n.id);
+      }
+    }
+    const out = new Map<string, string[]>();
+    for (const n of nodes) {
+      const above = (n.data as unknown as NodeData)?.resolved?.parent_ref_id;
+      const owner = above ? cardFor.get(above) : undefined;
+      if (owner && owner !== n.id) out.set(owner, [...(out.get(owner) ?? []), n.id]);
+    }
+    return out;
+  }, [nodes]);
+
+  /** What is folded away right now, and how many sit under each open card. */
+  const folded = useMemo(() => {
+    const away = new Set<string>();
+    const count = new Map<string, number>();
+    if (!folding || kids.size === 0) return { away, count };
+    const gather = (id: string, into: Set<string>) => {
+      for (const kid of kids.get(id) ?? []) {
+        if (into.has(kid)) continue; // a cycle would otherwise never end
+        into.add(kid);
+        gather(kid, into);
+      }
+    };
+    for (const parent of kids.keys()) {
+      if (opened.has(parent)) continue;
+      const mine = new Set<string>();
+      gather(parent, mine);
+      if (mine.size === 0) continue;
+      count.set(parent, mine.size);
+      for (const id of mine) away.add(id);
+    }
+    // A card that is itself folded away carries no count of its own.
+    for (const id of away) count.delete(id);
+    return { away, count };
+  }, [folding, kids, opened]);
+
+  const shownNodes = useMemo(() => {
+    if (folded.away.size === 0 && folded.count.size === 0) return nodes;
+    return nodes.map((n) => {
+      const hide = folded.away.has(n.id);
+      const under = folded.count.get(n.id) ?? 0;
+      if (!hide && under === 0) return n;
+      const held = n.data as unknown as NodeData;
+      return {
+        ...n,
+        hidden: hide,
+        data: { ...held, folded: under } as unknown as Record<string, unknown>,
+      };
+    });
+  }, [nodes, folded]);
+
+  const shownEdges = useMemo(() => {
+    if (folded.away.size === 0) return edges;
+    return edges.map((e) =>
+      folded.away.has(e.source) || folded.away.has(e.target) ? { ...e, hidden: true } : e,
+    );
+  }, [edges, folded]);
+
   const board = useMemo<BoardApi>(
     () => ({
       editable,
@@ -699,6 +777,12 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       grow: (id, height) => edit(id, { height: Math.round(height) }),
       endResize,
       setTaskStatus: (taskId, status) => setTaskStatus.mutate({ taskId, status }),
+      toggleFolded: (nodeId) =>
+        setOpened((open) => {
+          const next = new Set(open);
+          if (!next.delete(nodeId)) next.add(nodeId);
+          return next;
+        }),
     }),
     [editable, editingId, remember, edit, endResize, setTaskStatus],
   );
@@ -1062,11 +1146,13 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     (_: unknown, node: Node, dragged: Node[]) => {
       if (snapGrid) return; // the grid is doing the work
       const moving = new Set((dragged?.length ? dragged : [node]).map((n) => n.id));
-      const others = nodes.filter((n) => !moving.has(n.id)).map(boxFor);
+      const others = nodes
+        .filter((n) => !moving.has(n.id) && !folded.away.has(n.id))
+        .map(boxFor);
       const snapped = snapToObjects(boxFor(node), others, SNAP_PX);
       setGuides(snapped.guides);
     },
-    [snapGrid, nodes, boxFor],
+    [snapGrid, nodes, boxFor, folded],
   );
 
   const onNodeDragStart = useCallback(() => remember(), [remember]);
@@ -1080,7 +1166,9 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       let dy = 0;
       if (!snapGrid) {
         const moving = new Set(moved.map((n) => n.id));
-        const others = nodes.filter((n) => !moving.has(n.id)).map(boxFor);
+        const others = nodes
+          .filter((n) => !moving.has(n.id) && !folded.away.has(n.id))
+          .map(boxFor);
         const snapped = snapToObjects(boxFor(node), others, SNAP_PX);
         // The snap nudges the whole group, so it keeps its shape.
         dx = snapped.x - node.position.x;
@@ -1090,7 +1178,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         edit(n.id, { x: n.position.x + dx, y: n.position.y + dy });
       }
     },
-    [snapGrid, nodes, boxFor, edit],
+    [snapGrid, nodes, boxFor, edit, folded],
   );
 
   const onNodeDragStop = useCallback(
@@ -1318,8 +1406,8 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         className="relative h-[70vh] w-full overflow-hidden rounded-lg border border-border bg-background"
       >
         <ReactFlow
-          nodes={nodes}
-          edges={edges}
+          nodes={shownNodes}
+          edges={shownEdges}
           nodeTypes={NODE_TYPES}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}

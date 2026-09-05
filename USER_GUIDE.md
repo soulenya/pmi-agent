@@ -610,6 +610,8 @@ An endless whiteboard for thinking a project through. Pick a tool from the bar i
 
 **A task card is the task.** Change the status on a task card and the task changes with it — the Tasks tab, the timeline and the project's counts all follow.
 
+**Standing back folds the detail away.** Zoom out past about half size and a task's sub-task cards fold into the parent card, which shows a count of what is tucked underneath — "+7". Zoom back in and they come out again on their own. Click the count to open one family while the rest stay folded, so you can look into a single task without losing the wider view; it stays open until you click it again or zoom in. Only task cards fold, and only into their own parent — notes, shapes and drawings are never hidden.
+
 **The canvas and the timeline are one plan.** Drag a line between two task cards and it becomes a real dependency — the timeline reschedules and the critical path moves, and the board tells you it has done so. Delete the line and the dependency goes with it.
 
 Editing:

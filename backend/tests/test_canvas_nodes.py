@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.project_member import ProjectMember
-from models.db.task import Project
+from models.db.task import Project, Task
 
 
 async def _project(db: AsyncSession, owner_id) -> Project:
@@ -144,3 +144,40 @@ async def test_batch_ignores_nodes_from_another_canvas(
     fresh = await _canvas(client, auth_headers, second.id)
     saved = next(n for n in fresh["nodes"] if n["id"] == stranger["id"])
     assert saved["width"] == 140
+
+
+@pytest.mark.asyncio
+async def test_a_task_card_says_which_task_it_sits_under(
+    client: AsyncClient, auth_headers: dict[str, str], db_session: AsyncSession, test_user
+):
+    """The board folds a family away, so it has to be told there is one."""
+    project = await _project(db_session, test_user.id)
+    parent = Task(title="Dig the trench", project_id=project.id, created_by=test_user.id)
+    db_session.add(parent)
+    await db_session.flush()
+    child = Task(
+        title="Call for locates",
+        project_id=project.id,
+        created_by=test_user.id,
+        parent_task_id=parent.id,
+    )
+    db_session.add(child)
+    await db_session.flush()
+
+    canvas = await _canvas(client, auth_headers, project.id)
+    top = await _node(
+        client, auth_headers, project.id, canvas["id"], kind="task", ref_id=str(parent.id)
+    )
+    under = await _node(
+        client, auth_headers, project.id, canvas["id"], kind="task", ref_id=str(child.id)
+    )
+
+    resp = await client.post(
+        f"/projects/{project.id}/canvas/{canvas['id']}/resolve",
+        json={"node_ids": [top["id"], under["id"]]},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    by_node = {item["node_id"]: item for item in resp.json()["items"]}
+    assert by_node[under["id"]]["parent_ref_id"] == str(parent.id)
+    assert by_node[top["id"]]["parent_ref_id"] is None

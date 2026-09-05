@@ -337,7 +337,7 @@ const STATE_RING: Record<string, string> = {
 const CARD_STATUSES = TASK_STATUSES;
 
 function RefNode({ data, selected }: NodeProps) {
-  const { node, resolved, canEdit } = data as unknown as NodeData;
+  const { node, resolved, canEdit, folded } = data as unknown as NodeData;
   const board = useBoard();
   const title = resolved?.title || node.label || "Loading…";
   const editableTask =
@@ -356,6 +356,17 @@ function RefNode({ data, selected }: NodeProps) {
     <>
       <Resizer node={node} visible={Boolean(selected) && canEdit} minWidth={140} minHeight={70} />
       <Handles />
+      {folded ? (
+        <button
+          type="button"
+          title={`${folded} sub-task${folded === 1 ? "" : "s"} folded in — click to open`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => board.toggleFolded(node.id)}
+          className="nodrag absolute -right-2 -top-2 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border border-border bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground shadow"
+        >
+          +{folded}
+        </button>
+      ) : null}
       <div
         className={cn(
           "flex h-full w-full flex-col gap-1 overflow-hidden rounded-md bg-card p-2 shadow-sm",

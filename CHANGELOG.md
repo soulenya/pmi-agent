@@ -4,6 +4,24 @@
 
 ## Changelog
 
+### v4.7.0 — 2026-09-05
+**A crowded canvas folds itself up when you stand back**
+
+A board with a task broken into a dozen steps is unreadable from far away: the
+sub-task cards are too small to read but still take up all the room, so the
+shape of the work is lost in them.
+
+- **Zoom out past about half size and a task's sub-task cards fold into it.**
+  The parent card gets a count in its corner — "+7" — for what is tucked away.
+  Zoom back in and they all come back on their own.
+- **Click the count to open one family** while everything else stays folded, so
+  you can look into a single task without losing the wider view. It stays open
+  until you click it again or zoom back in.
+- Only task cards fold, and only into their own parent task. Notes, shapes,
+  drawings and every other kind of card are left alone.
+- Connecting lines to a folded card are hidden with it, and objects no longer
+  snap to the edges of cards that are folded out of sight.
+
 ### v4.6.9 — 2026-09-05
 **Moving several things at once on the canvas**
 

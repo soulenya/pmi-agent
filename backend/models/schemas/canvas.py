@@ -165,6 +165,8 @@ class ResolvedRef(BaseModel):
     # A hint for the colour of the node — "ok" | "warn" | "late" | "gone".
     state: str = "ok"
     missing: bool = False
+    # The task this one sits under, so the board can fold a family away.
+    parent_ref_id: str | None = None
 
 
 class ResolveResponse(BaseModel):
