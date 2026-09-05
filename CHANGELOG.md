@@ -4,6 +4,21 @@
 
 ## Changelog
 
+### v4.6.9 — 2026-09-05
+**Moving several things at once on the canvas**
+
+Reported: highlight several objects, drag them, and only the one under the mouse
+stays where it was put.
+
+- **A multiple selection moves as one and stays moved.** The canvas saved the
+  position of the node under the pointer and no others, so everything else in
+  the selection sprang back the moment the board reloaded from the server. They
+  moved on screen, which is why it looked like the drag had worked.
+- **Snapping applies to the group, not to one member of it.** A snap now nudges
+  everything that moved by the same amount, so the selection keeps its shape
+  instead of one object jumping to an edge on its own.
+- Dragging by the selection box itself is saved the same way.
+
 ### v4.6.8 — 2026-09-05
 **Budgets on a shared project, and sub-tasks that go where you meant**
 

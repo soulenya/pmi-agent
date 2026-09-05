@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 239;
+export const BUILD_NUMBER = 240;
 export const BUILD_DATE = "2026-09-05";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 240,
+    date: "2026-09-05",
+    title: "Moving several things at once on the canvas",
+    changes: [
+      "Select several things on the canvas and drag them, and they all stay where you put them. Only the one under the pointer was being saved, so the rest sprang back.",
+      "A snap while dragging a group now nudges the whole group, so it keeps its shape.",
+    ],
+  },
   {
     build: 239,
     date: "2026-09-05",

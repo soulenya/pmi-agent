@@ -598,6 +598,8 @@ An endless whiteboard for thinking a project through. Pick a tool from the bar i
 
 **Changing how something looks.** Select anything and a panel opens under the toolbar. It changes fill, line colour, line thickness, dashed or solid, text colour, text size, bold and fade — at any time, not only at the moment you place something. Select several items and it changes all of them at once; where they disagree, the panel says so rather than flattening them.
 
+**Moving several at once.** Drag a box around what you want, or hold Shift and click each one, then drag any of them and the whole selection travels together and stays where you put it. A snap nudges the group as a whole, so it keeps its shape.
+
 **Shapes hold text.** Double-click a shape and type inside it. A shape can be rounded, square, an ellipse, a diamond or an arrow, and you can turn one into another from the panel. To put a shape around something already on the board, select it and choose **draw a shape around** — from the panel or from the right-click menu.
 
 **An unfilled shape does not block what is under it.** Draw a box around a text box and the text box is still yours to click; grab the shape by its border. If you want a shape that does block — a solid block of colour — mark it **solid** in the panel.
