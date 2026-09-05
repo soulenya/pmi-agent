@@ -4,8 +4,8 @@
 
 ## Changelog
 
-### v4.6.8 — 2026-09-04
-**Budgets on a shared project**
+### v4.6.8 — 2026-09-05
+**Budgets on a shared project, and sub-tasks that go where you meant**
 
 Reported: creating a budget on a project's Budget tab failed with "check that
 Google is connected in Settings", on an account that was plainly connected.
@@ -28,6 +28,17 @@ only words it had.
   added it.** That is true of a stored document, whose bytes are encrypted with
   a local key, and untrue of a Drive link, which opens for anyone the file is
   shared with.
+
+Reported separately: asking Gerry for sub-tasks under a task you already had
+produced a fresh set of standalone tasks instead.
+
+- **Gerry puts sub-tasks under the task you named.** It looks for that task in
+  the project first. Sub-tasks could only ever be nested under something created
+  in the same breath, so an existing parent was simply ignored.
+- **If two tasks answer to the name, Gerry asks which one** and writes nothing
+  until you say. If nothing answers to it, that parent is created and Gerry tells
+  you it did, in case a different one was meant.
+- Both hold on shared projects as well as your own.
 
 ### v4.6.7 — 2026-09-04
 **Status colour on the board, and a much shorter guide**

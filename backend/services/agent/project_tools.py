@@ -211,6 +211,48 @@ async def _hub_find_task(
     return near[0], ""
 
 
+def _match_parent(
+    rows: list[Any], text: str, title_of: Any, id_of: Any
+) -> tuple[Any, list[Any]]:
+    """Pick the one task a parent name refers to, or hand back the candidates.
+
+    Returns ``(task, [])`` for a single match, ``(None, candidates)`` when the
+    name is ambiguous and someone has to choose, and ``(None, [])`` when there
+    is nothing by that name yet.
+    """
+    text = str(text or "").strip()
+    if not text:
+        return None, []
+    for row in rows:
+        if str(id_of(row)) == text:
+            return row, []
+    lowered = text.lower()
+    exact = [r for r in rows if str(title_of(r) or "").lower() == lowered]
+    near = exact or [r for r in rows if lowered in str(title_of(r) or "").lower()]
+    if len(near) == 1:
+        return near[0], []
+    return None, near
+
+
+def _which_parent(title: str, name: str, candidates: list[str]) -> str:
+    """Ask which existing task the sub-tasks belong under. Nothing is created."""
+    listed = ", ".join(f'"{c}"' for c in candidates[:5])
+    return (
+        f'Error: "{title}" is meant to sit under "{name}", but more than one '
+        f"task goes by that name: {listed}. Ask which one is meant, then send "
+        "the batch again using that task's exact title or its id. Nothing was "
+        "created."
+    )
+
+
+async def _project_tasks(db: AsyncSession, project_id: uuid.UUID) -> list[Task]:
+    return list(
+        (await db.execute(select(Task).where(Task.project_id == project_id)))
+        .scalars()
+        .all()
+    )
+
+
 async def _may_touch(db: AsyncSession, task: Task, user_id: uuid.UUID) -> bool:
     if task.created_by == user_id or task.assignee_id == user_id:
         return True
@@ -698,19 +740,38 @@ async def execute_create_tasks(ctx: Any, args: dict[str, Any]) -> str:
 
     made: dict[str, uuid.UUID] = {}
     created: list[Task] = []
+    existing = await _project_tasks(ctx.db, project.id)
+    adopted: list[str] = []
     for row in rows:
         parent_id: uuid.UUID | None = None
         if row["parent"]:
             parent_id = made.get(row["parent"].lower())
             if parent_id is None:
-                found, _ = await _resolve_task(ctx.db, ctx.user_id, row["parent"])
-                if found is None or found.project_id != project.id:
-                    return (
-                        f"Error: \"{row['title']}\" says it sits under "
-                        f"\"{row['parent']}\", but there is no such task in "
-                        f'"{project.name}". Nothing was created — list the parent '
-                        "earlier in the same batch, or check the title."
+                found, choices = _match_parent(
+                    existing, row["parent"], lambda t: t.title, lambda t: t.id
+                )
+                if choices:
+                    return _which_parent(
+                        row["title"], row["parent"], [t.title for t in choices]
                     )
+                if found is None:
+                    # Nothing by that name, so the heading it belongs under has
+                    # to exist before the work that sits inside it.
+                    found = Task(
+                        title=row["parent"][:500],
+                        status="todo",
+                        priority="medium",
+                        project_id=project.id,
+                        sort_order=len(created),
+                        source_conversation_id=getattr(ctx, "conversation_id", None),
+                        created_by=ctx.user_id,
+                    )
+                    ctx.db.add(found)
+                    await ctx.db.flush()
+                    existing.append(found)
+                    created.append(found)
+                    adopted.append(found.title)
+                made[row["parent"].lower()] = found.id
                 parent_id = found.id
         task = Task(
             title=row["title"],
@@ -730,13 +791,15 @@ async def execute_create_tasks(ctx: Any, args: dict[str, Any]) -> str:
         ctx.db.add(task)
         await ctx.db.flush()
         made[row["title"].lower()] = task.id
+        existing.append(task)
         created.append(task)
 
-    return _batch_report(project.name, [t.title for t in created], rows, "")
+    return _batch_report(project.name, [t.title for t in created], rows, "", adopted)
 
 
 def _batch_report(
-    name: str, titles: list[str], rows: list[dict[str, Any]], where: str
+    name: str, titles: list[str], rows: list[dict[str, Any]], where: str,
+    adopted: list[str] | None = None,
 ) -> str:
     subs = sum(1 for r in rows if r["parent"])
     stones = sum(1 for r in rows if r["is_milestone"])
@@ -748,8 +811,16 @@ def _batch_report(
     tail = f" ({', '.join(extras)})" if extras else ""
     listed = "\n".join(f"- {t}" for t in titles[:20])
     more = f"\n… and {len(titles) - 20} more." if len(titles) > 20 else ""
+    new_parents = ""
+    if adopted:
+        named = ", ".join(f'"{a}"' for a in adopted)
+        new_parents = (
+            f"\nThere was no task called {named} in the project, so it was "
+            "created as the parent. Say so, in case a different one was meant."
+        )
     return (
         f'Created {len(titles)} tasks in {where}"{name}"{tail}:\n{listed}{more}'
+        f"{new_parents}"
     )
 
 
@@ -763,17 +834,61 @@ async def _create_tasks_on_hub(
         return "Error: this computer is not connected to the hub."
     project_id = str(shared.get("id"))
     name = str(shared.get("name"))
+    payload, problem = await _hub_get(
+        ctx.db, ctx.user_id, f"/tasks?project_id={project_id}"
+    )
+    if payload is None:
+        return problem
+    existing = payload if isinstance(payload, list) else payload.get("items") or []
     made: dict[str, str] = {}
     titles: list[str] = []
+    adopted: list[str] = []
+
+    async def add(body: dict[str, Any]) -> tuple[str | None, str]:
+        try:
+            resp = await hub.request(ctx.db, ctx.user_id, "POST", "/tasks", json_body=body)
+        except hub.HubError as exc:
+            return None, (
+                f'Error: the hub stopped answering after {len(titles)} of '
+                f'{len(rows)} tasks were created in "{name}": {exc}'
+            )
+        if resp.status_code not in (200, 201):
+            return None, (
+                f'Error: the hub refused "{body["title"]}" ({resp.status_code}). '
+                f'{len(titles)} of {len(rows)} tasks were created in "{name}" '
+                "before it stopped."
+            )
+        row = resp.json()
+        existing.append(row)
+        return str(row.get("id")), ""
+
     for row in rows:
         parent_id = made.get(row["parent"].lower()) if row["parent"] else None
         if row["parent"] and parent_id is None:
-            return (
-                f"Error: \"{row['title']}\" says it sits under \"{row['parent']}\", "
-                f'which is not in this batch. {len(titles)} tasks were already '
-                f'created in "{name}"; list the parent before its children and '
-                "send the rest again."
+            found, choices = _match_parent(
+                existing, row["parent"], lambda t: t.get("title"), lambda t: t.get("id")
             )
+            if choices:
+                return _which_parent(
+                    row["title"], row["parent"], [str(c.get("title")) for c in choices]
+                )
+            if found is None:
+                new_id, problem = await add(
+                    {
+                        "title": row["parent"][:500],
+                        "project_id": project_id,
+                        "status": "todo",
+                        "priority": "medium",
+                    }
+                )
+                if new_id is None:
+                    return problem
+                parent_id = new_id
+                titles.append(row["parent"])
+                adopted.append(row["parent"])
+            else:
+                parent_id = str(found.get("id"))
+            made[row["parent"].lower()] = parent_id
         body = {
             "title": row["title"],
             "description": row["description"],
@@ -786,23 +901,13 @@ async def _create_tasks_on_hub(
             "start_date": row["start_date"].isoformat() if row["start_date"] else None,
             "end_date": row["end_date"].isoformat() if row["end_date"] else None,
         }
-        try:
-            resp = await hub.request(ctx.db, ctx.user_id, "POST", "/tasks", json_body=body)
-        except hub.HubError as exc:
-            return (
-                f'Error: the hub stopped answering after {len(titles)} of '
-                f'{len(rows)} tasks were created in "{name}": {exc}'
-            )
-        if resp.status_code not in (200, 201):
-            return (
-                f'Error: the hub refused "{row["title"]}" ({resp.status_code}). '
-                f'{len(titles)} of {len(rows)} tasks were created in "{name}" '
-                "before it stopped."
-            )
-        made[row["title"].lower()] = str(resp.json().get("id"))
+        new_id, problem = await add(body)
+        if new_id is None:
+            return problem
+        made[row["title"].lower()] = new_id
         titles.append(row["title"])
 
-    return _batch_report(name, titles, rows, "the shared project ")
+    return _batch_report(name, titles, rows, "the shared project ", adopted)
 
 
 async def _default_canvas(
@@ -1138,8 +1243,9 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 "Create MANY tasks in one project in a single call — the line items of "
                 "a contract, a list of deliverables, a work breakdown. Always prefer "
                 "this over calling create_task repeatedly. Works on shared hub projects "
-                "as well as local ones. Give each task a 'parent' naming an earlier task "
-                "in the same list to nest it underneath. Nothing is created if any entry "
+                "as well as local ones. Give each task a 'parent' to nest it underneath "
+                "another — this is how sub-tasks are made, and the parent may be a task "
+                "that already exists in the project. Nothing is created if any entry "
                 "is malformed, so send the whole list at once."
             ),
             "parameters": {
@@ -1177,8 +1283,13 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                                 "parent": {
                                     "type": "string",
                                     "description": (
-                                        "Title of the task this one sits under. Must be "
-                                        "listed earlier in this same call."
+                                        "Title or id of the task this one sits under, "
+                                        "making this a sub-task. It may already exist in "
+                                        "the project or be listed earlier in this same "
+                                        "call; call get_tasks first and use the existing "
+                                        "title exactly rather than a near-miss, which "
+                                        "would create a second parent. If nothing there "
+                                        "matches, it is created as a new parent."
                                     ),
                                 },
                             },
@@ -1366,8 +1477,11 @@ TOOL_DOCS = {
         "JSON: {\"project\": str, \"tasks\": [{\"title\": str, \"description\": str, "
         "\"status\": todo|in_progress|in_review|done|backlog|cancelled, "
         "\"priority\": low|medium|high|critical, \"due_date\": ISO, \"start_date\": ISO, "
-        "\"end_date\": ISO, \"is_milestone\": bool, \"parent\": title listed earlier}]}. "
-        "Nothing is written if any entry is bad. Shared hub projects included."
+        "\"end_date\": ISO, \"is_milestone\": bool, \"parent\": title or id of the task "
+        "this one sits under}]}. \"parent\" is how sub-tasks are made and may name a "
+        "task that already exists — call get_tasks first and copy its title exactly, "
+        "since a near-miss creates a second parent instead of nesting under the real "
+        "one. Nothing is written if any entry is bad. Shared hub projects included."
     ),
     "set_task_schedule": (
         "Set a task's start_date, end_date, progress_pct (0-100) or is_milestone. "

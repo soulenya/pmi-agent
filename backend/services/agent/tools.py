@@ -157,7 +157,9 @@ TOOL_DEFINITIONS: list[dict] = [
                 "Use this when the user explicitly asks to create, add, or track a task or action item. "
                 "Pass 'project' to file the task under a project. If the user named a "
                 "project and you do not know its id, call list_projects first — a "
-                "shared project exists only on the hub and will otherwise look missing."
+                "shared project exists only on the hub and will otherwise look missing. "
+                "Pass 'parent' to make this a sub-task of another task. Creating "
+                "several sub-tasks at once is a job for create_tasks instead."
             ),
             "parameters": {
                 "type": "object",
@@ -169,6 +171,16 @@ TOOL_DEFINITIONS: list[dict] = [
                         "description": (
                             "Optional project name or id to file this task under. "
                             "Works for shared projects on the hub as well as local ones."
+                        ),
+                    },
+                    "parent": {
+                        "type": "string",
+                        "description": (
+                            "Optional title or id of the task this one sits under, "
+                            "making it a sub-task. Call get_tasks first and use the "
+                            "existing title exactly; a near-miss creates a second "
+                            "parent instead of nesting under the real one. If no task "
+                            "matches, it is created as a new parent."
                         ),
                     },
                     "priority": {
@@ -2590,6 +2602,7 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
 
     project = None
     wanted_project = str(args.get("project") or "").strip()
+    wanted_parent = str(args.get("parent") or "").strip()
     if wanted_project:
         project, problem = await _project_tools._resolve_project(
             ctx.db, ctx.user_id, wanted_project, "editor"
@@ -2603,9 +2616,61 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
             )
             if shared is not None:
                 return await _create_task_on_hub(
-                    ctx, shared, title, description, priority, due_date
+                    ctx, shared, title, description, priority, due_date, wanted_parent
                 )
             return problem
+
+    parent_task: Task | None = None
+    if wanted_parent:
+        from sqlalchemy import or_, select
+
+        if project is not None:
+            pool = list(
+                (
+                    await ctx.db.execute(
+                        select(Task).where(Task.project_id == project.id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        else:
+            pool = list(
+                (
+                    await ctx.db.execute(
+                        select(Task).where(
+                            or_(
+                                Task.created_by == ctx.user_id,
+                                Task.assignee_id == ctx.user_id,
+                            )
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        parent_task, choices = _project_tools._match_parent(
+            pool, wanted_parent, lambda t: t.title, lambda t: t.id
+        )
+        if choices:
+            listed = ", ".join(f'"{t.title}"' for t in choices[:5])
+            return (
+                f'Error: more than one task is called "{wanted_parent}": {listed}. '
+                "Ask which one this belongs under, then use that task's exact "
+                "title or its id. Nothing was created."
+            )
+        if parent_task is None:
+            parent_task = Task(
+                title=wanted_parent[:500],
+                status=TaskStatus.TODO,
+                priority=TaskPriority.MEDIUM,
+                project_id=project.id if project is not None else None,
+                source_conversation_id=ctx.conversation_id,
+                created_by=ctx.user_id,
+                assignee_id=ctx.user_id,
+            )
+            ctx.db.add(parent_task)
+            await ctx.db.flush()
 
     task = Task(
         title=title,
@@ -2613,7 +2678,12 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
         status=TaskStatus.TODO,
         priority=TaskPriority(priority),
         due_date=due_date,
-        project_id=project.id if project is not None else None,
+        parent_task_id=parent_task.id if parent_task is not None else None,
+        project_id=(
+            project.id
+            if project is not None
+            else (parent_task.project_id if parent_task is not None else None)
+        ),
         source_conversation_id=ctx.conversation_id,
         source_ref=(
             {
@@ -2634,8 +2704,9 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
 
     due_str = f", due {due_date.date()}" if due_date else ""
     where = f' in "{project.name}"' if project is not None else ""
+    under = f' under "{parent_task.title}"' if parent_task is not None else ""
     return (
-        f"Task created{where}: \"{task.title}\" "
+        f"Task created{where}{under}: \"{task.title}\" "
         f"[priority={priority}{due_str}, id={task.id}]"
     )
 
@@ -2647,32 +2718,71 @@ async def _create_task_on_hub(
     description: str | None,
     priority: str,
     due_date: datetime | None,
+    wanted_parent: str = "",
 ) -> str:
     """Make the task in the shared project, where the rest of it lives."""
-    from services.hub import client as hub
+    parent_id: str | None = None
+    parent_title = ""
+    if wanted_parent:
+        payload, problem = await _project_tools._hub_get(
+            ctx.db, ctx.user_id, f"/tasks?project_id={project.get('id')}"
+        )
+        if payload is None:
+            return problem
+        rows = payload if isinstance(payload, list) else payload.get("items") or []
+        found, choices = _project_tools._match_parent(
+            rows, wanted_parent, lambda t: t.get("title"), lambda t: t.get("id")
+        )
+        if choices:
+            listed = ", ".join(f'"{c.get("title")}"' for c in choices[:5])
+            return (
+                f'Error: more than one task in "{project.get("name")}" is called '
+                f'"{wanted_parent}": {listed}. Ask which one this belongs under, '
+                "then use that task's exact title or its id. Nothing was created."
+            )
+        if found is None:
+            made = await _hub_post_task(
+                ctx, {"title": wanted_parent[:500], "project_id": str(project.get("id"))}
+            )
+            if isinstance(made, str):
+                return made
+            found = made
+        parent_id = str(found.get("id"))
+        parent_title = str(found.get("title"))
 
     body = {
         "title": title,
         "description": description,
         "project_id": str(project.get("id")),
+        "parent_task_id": parent_id,
         "priority": priority,
         "due_date": due_date.isoformat() if due_date else None,
     }
+    created = await _hub_post_task(ctx, body)
+    if isinstance(created, str):
+        return created
+    due_str = f", due {due_date.date()}" if due_date else ""
+    under = f' under "{parent_title}"' if parent_id else ""
+    return (
+        f'Task created in the shared project "{project.get("name")}"{under}: "{title}" '
+        f"[priority={priority}{due_str}, id={created.get('id')}]"
+    )
+
+
+async def _hub_post_task(ctx: ToolContext, body: dict[str, Any]) -> dict[str, Any] | str:
+    """The new task as the hub stored it, or a message saying why there isn't one."""
+    from services.hub import client as hub
+
     try:
         resp = await hub.request(ctx.db, ctx.user_id, "POST", "/tasks", json_body=body)
     except hub.HubError as exc:
-        return f'Error: could not reach the hub to add the task to "{project.get("name")}": {exc}'
+        return f"Error: could not reach the hub to add the task: {exc}"
     if resp.status_code not in (200, 201):
         return (
-            f'Error: the hub refused the task for "{project.get("name")}" '
+            f'Error: the hub refused "{body.get("title")}" '
             f"({resp.status_code}). {resp.text[:200]}"
         )
-    created = resp.json()
-    due_str = f", due {due_date.date()}" if due_date else ""
-    return (
-        f'Task created in the shared project "{project.get("name")}": "{title}" '
-        f"[priority={priority}{due_str}, id={created.get('id')}]"
-    )
+    return resp.json()
 
 
 async def _resolve_recipient_email(ctx: ToolContext, name: str) -> tuple[str | None, list[str]]:

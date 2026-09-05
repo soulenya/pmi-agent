@@ -17,7 +17,10 @@ _TOOL_DOCS = {
     "create_task": (
         "Create a new task in the PMI task tracker (Kanban board). Auto-approved. "
         "Pass \"project\" (name or id) to file it under a project, shared ones on "
-        "the hub included; call list_projects first if you only have a name."
+        "the hub included; call list_projects first if you only have a name. "
+        "Pass \"parent\" (title or id of an existing task) to make this a sub-task "
+        "of it; call get_tasks first and copy the title exactly, since a near-miss "
+        "creates a second parent instead of nesting under the real one."
     ),
     "request_approval": "Submit an irreversible action for human approval before execution. Required for emails, calendar events, and any external write. For send_email the payload supports to/subject/body/cc/bcc/attachments and reply threading via 'thread_id' + 'reply_to_message_id' (from search_gmail/read_gmail_message).",
     "propose_odoo_write": (
