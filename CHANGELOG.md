@@ -4,6 +4,31 @@
 
 ## Changelog
 
+### v4.6.8 — 2026-09-04
+**Budgets on a shared project**
+
+Reported: creating a budget on a project's Budget tab failed with "check that
+Google is connected in Settings", on an account that was plainly connected.
+
+The message was wrong and so was the request behind it. A shared project's
+Budget tab posted straight to the hub, and **the hub has no Google account** —
+it is a server, not a person. It could not make the sheet, and said so in the
+only words it had.
+
+- **Creating a budget on a shared project works.** The Google Sheet is made on
+  your own computer, under your own Google account, and the finished budget —
+  name, allotment and every ledger line — is copied to the hub for everyone on
+  the project to read.
+- **Linking an existing sheet to a shared project works**, the same way and for
+  the same reason.
+- **Update from Drive** on the project's Budget tab re-reads the sheet here and
+  sends the new figures up. Rows are edited on the Budgets page or in Google
+  Sheets, because that is where the sheet can actually be reached.
+- **A pinned Drive file no longer warns that it only opens on the computer that
+  added it.** That is true of a stored document, whose bytes are encrypted with
+  a local key, and untrue of a Drive link, which opens for anyone the file is
+  shared with.
+
 ### v4.6.7 — 2026-09-04
 **Status colour on the board, and a much shorter guide**
 

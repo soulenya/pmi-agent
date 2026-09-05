@@ -228,6 +228,32 @@ export async function getBudget(id: string, source: Source = "local"): Promise<B
   return data;
 }
 
+/**
+ * Copy a budget made on this computer to where a shared project lives.
+ *
+ * The hub has no Google account, so it can neither create a sheet nor read
+ * one. The sheet is made here with the owner's credentials and the figures are
+ * sent up for everyone on the project to read. Repeating this for the same
+ * sheet updates the copy rather than making a second budget.
+ */
+export async function mirrorBudget(
+  budget: BudgetDetail,
+  source: Source,
+): Promise<BudgetDetail> {
+  const { data } = await apiClient.post<BudgetDetail>(at(source, "/budgets/mirror"), {
+    title: budget.title,
+    drive_file_id: budget.drive_file_id,
+    drive_url: budget.drive_url,
+    allotment: budget.allotment,
+    currency: budget.currency,
+    external_readonly: budget.external_readonly,
+    cached_ledger: budget.cached_ledger ?? [],
+    cached_categories: budget.cached_categories ?? [],
+    cached_summary: budget.cached_summary ?? {},
+  });
+  return data;
+}
+
 export async function refreshBudget(id: string, source: Source = "local"): Promise<BudgetDetail> {
   const { data } = await apiClient.post<BudgetDetail>(at(source, `/budgets/${id}/refresh`));
   return data;

@@ -56,12 +56,12 @@ const KIND_ORDER: WorkroomItemKind[] = [
  * Document and generated-file BYTES are encrypted under a key held in this
  * computer's keyring, so on a shared project everyone sees the pin but only the
  * install that uploaded it can open the file. Saying so on the item beats
- * letting someone find out by clicking.
+ * letting someone find out by clicking. A Drive file is NOT one of these: it
+ * opens from Google for anyone it is shared with, wherever they are.
  */
 const INSTALL_LOCAL: WorkroomItemKind[] = [
   "kb_doc",
   "generated_file",
-  "drive_doc",
   "email_thread",
   "odoo_record",
 ];
@@ -355,6 +355,11 @@ export function ProjectMaterialTab({
                           <span className="block text-xs text-muted-foreground">
                             Everyone on the project sees this pin, but the file itself
                             only opens on the computer that added it.
+                          </span>
+                        )}
+                        {onHub && item.kind === "drive_doc" && (
+                          <span className="block text-xs text-muted-foreground">
+                            Opens for anyone the Drive file is shared with.
                           </span>
                         )}
                       </span>

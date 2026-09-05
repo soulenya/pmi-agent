@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -45,6 +45,24 @@ class BudgetCreate(BaseModel):
 
 class BudgetLink(BaseModel):
     file_id: str = Field(..., min_length=10, max_length=500)
+
+
+class BudgetMirror(BaseModel):
+    """An already-created sheet, copied to where the project lives.
+
+    The hub has no Google account, so it cannot make a sheet or read one. The
+    desktop does both with the owner's credentials and sends the result here.
+    """
+
+    title: str = Field(..., min_length=1, max_length=200)
+    drive_file_id: str = Field(..., min_length=10, max_length=255)
+    drive_url: str = Field("", max_length=1000)
+    allotment: float | None = Field(None, ge=0)
+    currency: str = Field("USD", max_length=8)
+    external_readonly: bool = False
+    cached_ledger: list = Field(default_factory=list)
+    cached_categories: list = Field(default_factory=list)
+    cached_summary: dict = Field(default_factory=dict)
 
 
 class BudgetUpdate(BaseModel):
@@ -237,6 +255,42 @@ async def link_budget(
         budget = await budget_service.link_external_budget(db, current_user.id, body.file_id)
     except BudgetError as exc:
         raise HTTPException(400, str(exc))
+    await db.commit()
+    return BudgetDetailOut.model_validate(budget)
+
+
+@router.post("/mirror", response_model=BudgetDetailOut, status_code=status.HTTP_201_CREATED)
+async def mirror_budget(
+    body: BudgetMirror,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BudgetDetailOut:
+    """Register a sheet made elsewhere, and keep its figures up to date.
+
+    Google is never called here, so this works on the hub. Repeating the call
+    for the same sheet refreshes the stored copy instead of making a second one.
+    """
+    budget = (
+        await db.execute(
+            select(Budget).where(
+                Budget.user_id == current_user.id,
+                Budget.drive_file_id == body.drive_file_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if budget is None:
+        budget = Budget(user_id=current_user.id, drive_file_id=body.drive_file_id)
+        db.add(budget)
+    budget.title = body.title.strip()[:200]
+    budget.drive_url = body.drive_url
+    budget.allotment = body.allotment
+    budget.currency = body.currency
+    budget.external_readonly = body.external_readonly
+    budget.cached_ledger = body.cached_ledger
+    budget.cached_categories = body.cached_categories
+    budget.cached_summary = body.cached_summary
+    budget.cached_at = datetime.now(timezone.utc)
+    await db.flush()
     await db.commit()
     return BudgetDetailOut.model_validate(budget)
 
