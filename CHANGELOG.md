@@ -4,6 +4,31 @@
 
 ## Changelog
 
+### v4.6.6 — 2026-09-04
+**A tidier task list, and Gerry can see inside a shared project**
+
+Reported: the tasks page was chaotic, and Gerry kept naming a project on the
+hub and then insisting in the next breath that he could not find it.
+
+The second one was real. Only two of Gerry's tools knew that a project can
+live on the hub instead of on this computer. Every other one looked in the
+local database, found nothing, and said so — which is why he could list
+"SO/LIC CLIN 001" and then fail to open its timeline.
+
+- **Sub-tasks sit under their parent**, indented, instead of scattering
+  themselves through the status groups. A parent shows a fold arrow and a
+  count, and folds itself back up once you have added a sub-task.
+- **Every task row carries its status as a coloured left edge** — grey for to
+  do, blue for in progress, violet for in review, green for done, red for
+  cancelled — so the shape of the work is readable without reading it.
+- **Gerry can add tasks in bulk.** Hand him the line items from a contract and
+  ask; he writes them in one go, with dates, priorities, milestones and
+  sub-tasks. If any one line is wrong, nothing is written at all.
+- **Gerry can read a whole project's task list**, not just the tasks with his
+  own name on them, and it comes back nested the way the page shows it.
+- **Shared hub projects work everywhere now** — timelines, task lists, adding
+  tasks, scheduling them, and putting notes on the canvas.
+
 ### v4.6.5 — 2026-09-04
 **Pasted text is text**
 

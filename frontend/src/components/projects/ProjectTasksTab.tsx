@@ -36,14 +36,33 @@ import type {
   TaskUpdate,
 } from "@/types/tasks";
 
-const STATUSES: { id: TaskStatus; label: string }[] = [
-  { id: "todo", label: "To do" },
-  { id: "in_progress", label: "In progress" },
-  { id: "in_review", label: "In review" },
-  { id: "done", label: "Done" },
-  { id: "backlog", label: "Backlog" },
-  { id: "cancelled", label: "Cancelled" },
+const STATUSES: { id: TaskStatus; label: string; edge: string; dot: string }[] = [
+  { id: "todo", label: "To do", edge: "border-l-slate-400", dot: "bg-slate-400" },
+  {
+    id: "in_progress",
+    label: "In progress",
+    edge: "border-l-sky-500",
+    dot: "bg-sky-500",
+  },
+  {
+    id: "in_review",
+    label: "In review",
+    edge: "border-l-violet-500",
+    dot: "bg-violet-500",
+  },
+  { id: "done", label: "Done", edge: "border-l-emerald-500", dot: "bg-emerald-500" },
+  {
+    id: "backlog",
+    label: "Backlog",
+    edge: "border-l-neutral-300 dark:border-l-neutral-700",
+    dot: "bg-neutral-400",
+  },
+  { id: "cancelled", label: "Cancelled", edge: "border-l-rose-400", dot: "bg-rose-400" },
 ];
+
+const STATUS_EDGE: Record<TaskStatus, string> = Object.fromEntries(
+  STATUSES.map((s) => [s.id, s.edge]),
+) as Record<TaskStatus, string>;
 
 const PRIORITIES: { id: TaskPriority; label: string; className: string }[] = [
   { id: "low", label: "Low", className: "text-slate-500" },
@@ -85,9 +104,19 @@ function memberName(members: ProjectMember[], userId: string | null): string | n
 
 // ── One row ───────────────────────────────────────────────────────────────────
 
+/** A task with whatever sits under it, so the list can be drawn as a tree. */
+export interface TaskNode {
+  task: Task;
+  children: TaskNode[];
+}
+
+function countTree(nodes: TaskNode[]): number {
+  return nodes.reduce((n, node) => n + 1 + countTree(node.children), 0);
+}
+
 function TaskRow({
-  task,
-  parentTitle,
+  node,
+  depth,
   members,
   canEdit,
   onPatch,
@@ -95,16 +124,18 @@ function TaskRow({
   onAddSub,
   busy,
 }: {
-  task: Task;
-  parentTitle: string | null;
+  node: TaskNode;
+  depth: number;
   members: ProjectMember[];
   canEdit: boolean;
-  onPatch: (body: TaskUpdate) => void;
-  onDelete: () => void;
-  onAddSub: (title: string) => void;
+  onPatch: (id: string, body: TaskUpdate) => void;
+  onDelete: (id: string) => void;
+  onAddSub: (parentId: string, title: string) => void;
   busy: boolean;
 }) {
+  const { task, children } = node;
   const [open, setOpen] = useState(false);
+  const [showKids, setShowKids] = useState(true);
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [sub, setSub] = useState("");
@@ -114,10 +145,26 @@ function TaskRow({
 
   const drag: RailItem = { kind: "task", refId: task.id, label: task.title };
 
+  /** Adding a sub-task folds the parent back up and shows what was just made. */
+  function addSub() {
+    const value = sub.trim();
+    if (!value) return;
+    onAddSub(task.id, value);
+    setSub("");
+    setShowKids(true);
+    setOpen(false);
+  }
+
   return (
-    <li className="border-b last:border-b-0">
+    <li
+      className={cn(
+        "border-b border-l-[3px] last:border-b-0",
+        STATUS_EDGE[task.status],
+      )}
+    >
       <div
-        className="flex items-center gap-2 px-3 py-2"
+        className="flex items-center gap-2 py-2 pr-3"
+        style={{ paddingLeft: 12 + depth * 18 }}
         draggable={canEdit}
         onDragStart={(e) => {
           e.dataTransfer.setData(DRAG_MIME, JSON.stringify(drag));
@@ -130,16 +177,27 @@ function TaskRow({
             aria-hidden
           />
         )}
+        {children.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setShowKids((v) => !v)}
+            title={showKids ? "Hide the sub-tasks" : `Show ${children.length} sub-tasks`}
+            className="shrink-0 rounded text-muted-foreground hover:bg-accent"
+          >
+            {showKids ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        ) : (
+          <span className="w-4 shrink-0" aria-hidden />
+        )}
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          {open ? (
-            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-          )}
           <span className="min-w-0">
             <span
               className={cn(
@@ -150,9 +208,9 @@ function TaskRow({
             >
               {task.title}
             </span>
-            {parentTitle && (
-              <span className="block truncate text-[11px] text-muted-foreground">
-                under {parentTitle}
+            {children.length > 0 && !showKids && (
+              <span className="block text-[11px] text-muted-foreground">
+                {children.length} sub-task{children.length === 1 ? "" : "s"}
               </span>
             )}
           </span>
@@ -183,7 +241,7 @@ function TaskRow({
         <select
           value={task.status}
           disabled={!canEdit || busy}
-          onChange={(e) => onPatch({ status: e.target.value as TaskStatus })}
+          onChange={(e) => onPatch(task.id, { status: e.target.value as TaskStatus })}
           className="shrink-0 rounded border bg-background px-1.5 py-0.5 text-xs disabled:opacity-60"
         >
           {STATUSES.map((s) => (
@@ -195,14 +253,17 @@ function TaskRow({
       </div>
 
       {open && (
-        <div className="space-y-3 border-t bg-muted/30 px-3 py-3">
+        <div
+          className="space-y-3 border-t bg-muted/30 py-3 pr-3"
+          style={{ paddingLeft: 12 + depth * 18 }}
+        >
           <input
             value={title}
             disabled={!canEdit}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => {
               const next = title.trim();
-              if (next && next !== task.title) onPatch({ title: next });
+              if (next && next !== task.title) onPatch(task.id, { title: next });
               else setTitle(task.title);
             }}
             className="w-full rounded border bg-background px-2 py-1 text-sm"
@@ -214,7 +275,8 @@ function TaskRow({
             placeholder="What this involves"
             onChange={(e) => setDescription(e.target.value)}
             onBlur={() => {
-              if (description !== (task.description ?? "")) onPatch({ description });
+              if (description !== (task.description ?? ""))
+                onPatch(task.id, { description });
             }}
             className="w-full rounded border bg-background px-2 py-1 text-sm"
           />
@@ -225,7 +287,9 @@ function TaskRow({
               <select
                 value={task.priority}
                 disabled={!canEdit}
-                onChange={(e) => onPatch({ priority: e.target.value as TaskPriority })}
+                onChange={(e) =>
+                  onPatch(task.id, { priority: e.target.value as TaskPriority })
+                }
                 className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
               >
                 {PRIORITIES.map((p) => (
@@ -240,7 +304,7 @@ function TaskRow({
               <select
                 value={task.assignee_id ?? ""}
                 disabled={!canEdit}
-                onChange={(e) => onPatch({ assignee_id: e.target.value || null })}
+                onChange={(e) => onPatch(task.id, { assignee_id: e.target.value || null })}
                 className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
               >
                 <option value="">Nobody yet</option>
@@ -257,7 +321,7 @@ function TaskRow({
                 type="date"
                 value={toDayInput(task.due_date)}
                 disabled={!canEdit}
-                onChange={(e) => onPatch({ due_date: fromDayInput(e.target.value) })}
+                onChange={(e) => onPatch(task.id, { due_date: fromDayInput(e.target.value) })}
                 className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
               />
             </label>
@@ -270,7 +334,7 @@ function TaskRow({
                 value={task.progress_pct}
                 disabled={!canEdit}
                 onChange={(e) =>
-                  onPatch({
+                  onPatch(task.id, {
                     progress_pct: Math.max(0, Math.min(100, Number(e.target.value) || 0)),
                   })
                 }
@@ -283,7 +347,9 @@ function TaskRow({
                 type="date"
                 value={toDayInput(task.start_date)}
                 disabled={!canEdit}
-                onChange={(e) => onPatch({ start_date: fromDayInput(e.target.value) })}
+                onChange={(e) =>
+                  onPatch(task.id, { start_date: fromDayInput(e.target.value) })
+                }
                 className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
               />
             </label>
@@ -293,7 +359,7 @@ function TaskRow({
                 type="date"
                 value={toDayInput(task.end_date)}
                 disabled={!canEdit}
-                onChange={(e) => onPatch({ end_date: fromDayInput(e.target.value) })}
+                onChange={(e) => onPatch(task.id, { end_date: fromDayInput(e.target.value) })}
                 className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
               />
             </label>
@@ -302,7 +368,7 @@ function TaskRow({
                 type="checkbox"
                 checked={task.is_milestone}
                 disabled={!canEdit}
-                onChange={(e) => onPatch({ is_milestone: e.target.checked })}
+                onChange={(e) => onPatch(task.id, { is_milestone: e.target.checked })}
                 className="mb-1.5"
               />
               <span className="mb-1">Milestone</span>
@@ -316,19 +382,15 @@ function TaskRow({
                 placeholder="Add a sub-task"
                 onChange={(e) => setSub(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key !== "Enter" || !sub.trim()) return;
-                  onAddSub(sub.trim());
-                  setSub("");
+                  if (e.key !== "Enter") return;
+                  addSub();
                 }}
                 className="min-w-0 flex-1 rounded border bg-background px-2 py-1 text-sm"
               />
               <button
                 type="button"
                 disabled={!sub.trim() || busy}
-                onClick={() => {
-                  onAddSub(sub.trim());
-                  setSub("");
-                }}
+                onClick={addSub}
                 className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-accent disabled:opacity-50"
               >
                 <Plus className="h-3.5 w-3.5" /> Sub-task
@@ -336,7 +398,7 @@ function TaskRow({
               <button
                 type="button"
                 disabled={busy}
-                onClick={onDelete}
+                onClick={() => onDelete(task.id)}
                 className="ml-auto inline-flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
               >
                 <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -348,6 +410,24 @@ function TaskRow({
             Drag this row onto the canvas to put it on the board.
           </p>
         </div>
+      )}
+
+      {children.length > 0 && showKids && (
+        <ul className="border-t">
+          {children.map((child) => (
+            <TaskRow
+              key={child.task.id}
+              node={child}
+              depth={depth + 1}
+              members={members}
+              canEdit={canEdit}
+              busy={busy}
+              onPatch={onPatch}
+              onDelete={onDelete}
+              onAddSub={onAddSub}
+            />
+          ))}
+        </ul>
       )}
     </li>
   );
@@ -429,11 +509,6 @@ export function ProjectTasksTab({
 
   const busy = create.isPending || patch.isPending || remove.isPending;
 
-  const titles = useMemo(
-    () => new Map(tasks.map((t) => [t.id, t.title] as const)),
-    [tasks],
-  );
-
   const groups = useMemo(() => {
     const sorted = [...tasks].sort((a, b) => {
       if (sortBy === "priority") {
@@ -450,10 +525,25 @@ export function ProjectTasksTab({
       }
       return a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at);
     });
+
+    // A sub-task is drawn under its parent, not as a row of its own, so it is
+    // grouped by the parent's status rather than by its own.
+    const byId = new Map<string, TaskNode>(
+      sorted.map((t) => [t.id, { task: t, children: [] }]),
+    );
+    const roots: TaskNode[] = [];
+    for (const node of byId.values()) {
+      const parent = node.task.parent_task_id
+        ? byId.get(node.task.parent_task_id)
+        : undefined;
+      if (parent && parent !== node) parent.children.push(node);
+      else roots.push(node);
+    }
+
     return STATUSES.map((s) => ({
       ...s,
-      tasks: sorted.filter((t) => t.status === s.id),
-    })).filter((g) => g.tasks.length > 0);
+      nodes: roots.filter((n) => n.task.status === s.id),
+    })).filter((g) => g.nodes.length > 0);
   }, [tasks, sortBy]);
 
   function submit() {
@@ -656,32 +746,29 @@ export function ProjectTasksTab({
                   ) : (
                     <ChevronDown className="h-4 w-4" />
                   )}
+                  <span className={cn("h-2 w-2 shrink-0 rounded-full", group.dot)} aria-hidden />
                   {group.label}
                   <span className="text-xs font-normal text-muted-foreground">
-                    {group.tasks.length}
+                    {countTree(group.nodes)}
                   </span>
                 </button>
                 {!shut && (
                   <ul>
-                    {group.tasks.map((task) => (
+                    {group.nodes.map((node) => (
                       <TaskRow
-                        key={task.id}
-                        task={task}
-                        parentTitle={
-                          task.parent_task_id
-                            ? titles.get(task.parent_task_id) ?? null
-                            : null
-                        }
+                        key={node.task.id}
+                        node={node}
+                        depth={0}
                         members={members}
                         canEdit={canEdit}
                         busy={busy}
-                        onPatch={(body) => patch.mutate({ id: task.id, body })}
-                        onDelete={() => remove.mutate(task.id)}
-                        onAddSub={(subTitle) =>
+                        onPatch={(id, body) => patch.mutate({ id, body })}
+                        onDelete={(id) => remove.mutate(id)}
+                        onAddSub={(parentId, subTitle) =>
                           create.mutate({
                             title: subTitle,
                             project_id: projectId,
-                            parent_task_id: task.id,
+                            parent_task_id: parentId,
                             status: "todo",
                           })
                         }

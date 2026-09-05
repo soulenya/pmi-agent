@@ -28,7 +28,12 @@ _TOOL_DOCS = {
         'log_note {model, record_id, body}; update_field {model, record_id, values}; create_contact {name, email?, phone?, city?}.'
     ),
     "get_approvals": 'View approval requests — pending or resolved. READ ONLY: only the user can approve or reject. JSON fields: {"status": "pending"|"approved"|"rejected"|"expired"|"cancelled" (optional; omit for recent history), "limit": int (optional)}.',
-    "get_tasks": "List tasks from the PMI task tracker with optional status/priority filters.",
+    "get_tasks": (
+        "List tasks from the PMI task tracker. JSON: {\"project\": str optional, "
+        "\"status\": ..., \"priority\": ...}. With \"project\" it returns EVERY task in "
+        "that project, sub-tasks indented under their parents, shared hub projects "
+        "included — this is how you see inside a project. Without it, the user's own."
+    ),
     "get_regulatory_status": "Get the current regulatory filing status and compliance overview for the VACTOR program.",
     "search_web": "Search the public web (DuckDuckGo) for research, news, or regulatory guidance.",
     "fetch_page": "Download and extract readable text from a public URL.",

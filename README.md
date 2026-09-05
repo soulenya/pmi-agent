@@ -482,7 +482,8 @@ Displays local events and Google Calendar events side by side. Use the **Sync** 
 - **Sharing** — Add people to a project by work email at view / comment / edit; create projects on the hub for work the firm shares
 - **Timeline** — Gantt chart with dependencies, slack, critical path and late-work flags
 - **Canvas** — Infinite whiteboard with ink, images and live cards for real records; shapes hold text and restyle after placement; task-to-task links are real dependencies; the rail is the project's pool of tasks, budgets and pinned material; pasted text lands as a text box
-- **Project tasks** — Create and edit tasks inside a project, local or on the hub: status, priority, assignee, dates, milestones, sub-tasks, grouped by status and draggable onto the canvas
+- **Project tasks** — Create and edit tasks inside a project, local or on the hub: status, priority, assignee, dates, milestones, sub-tasks nested under their parent, a status colour on every row, grouped by status and draggable onto the canvas
+- **Bulk task entry from chat** — Hand Gerry a contract's line items and he writes the whole batch into a project at once, dates and sub-tasks included, all-or-nothing on a bad line
 - **Project material** — Pin, unpin and upload a project's documents, files, pages, notes, tasks and budgets from the project itself, with its journal and goal alongside; works on a hub project, and says plainly when a file's contents can only be opened on the computer that added it
 - **Links & gates** — Projects wait for, gate, run alongside or contain one another; gates close themselves when their milestone is done
 - **Portfolio** — One graph of every project you can see, laid out by what waits on what

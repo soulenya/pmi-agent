@@ -519,6 +519,12 @@ Both live on the **Overview** tab, under **Archive or delete**.
 
 Gerry can see every project you can open, on this computer and shared on the hub, and she can file a task under one — just name the project when you ask.
 
+**Ask her to add a whole list of tasks at once.** Paste the line items from a contract, or describe the milestones, and say "add these to *SO/LIC CLIN 001*". She writes them in a single go — titles, descriptions, statuses, priorities, due dates, start and end dates, milestone flags, and sub-tasks that name their parent from the same list. If one line is wrong she tells you which and writes nothing at all, so you never end up with half a contract in the project.
+
+**Ask her what is in a project** and she reads the whole task list back, sub-tasks indented under their parents, not just the tasks with your name on them.
+
+All of that works on a shared hub project as well as a local one, and so do the timeline, scheduling a task's dates, and putting a note on the project's canvas.
+
 **In a shared project's Chat tab, Gerry works from your machine.** She has your Knowledge Base, your Google account, your files and your budgets, exactly as she does anywhere else in the app. The hub keeps the conversation so the rest of the project can read it, and it is brought up to date each time you open the chat and after every answer.
 
 > **What this means for what you share.** An answer Gerry gives inside a shared project can draw on your Knowledge Base and your Google account, and that answer is then stored on the hub where everyone on the project can read it. The documents themselves are never copied to the hub — only the messages. If something should not be repeated to the project, do not ask about it there.
@@ -542,11 +548,15 @@ A link that would make two tasks wait on each other is refused rather than saved
 
 The **Tasks** tab is where a project's work is made and kept. It works the same way whether the project lives on this computer or on the hub.
 
-Type a title and press Enter, or open **Details** first to set the status, priority, assignee, due date, start and end dates and whether it is a milestone. Click any row to open it: everything you set on the way in can be changed, plus a description and a progress figure, and there is an **Add a sub-task** box and a **Delete**.
+Type a title and press Enter, or open **Details** first to set the status, priority, assignee, due date, start and end dates and whether it is a milestone. Click any row to open it: everything you set on the way in can be changed, plus a description and a progress figure, and there is an **Add a sub-task** box and a **Delete**. Adding a sub-task folds the parent back up so you can see what you just made.
 
 A field can be emptied as well as filled — clear a due date or set the assignee back to *Nobody yet* and it sticks.
 
-Tasks sit under their status, each heading carrying a count and collapsing when you click it. Sort the whole list by order, due date or priority. A task past its due date shows its date in red; a sub-task says which task it sits under.
+**Sub-tasks sit indented under their parent**, whatever their own status, with an arrow on the parent to fold them away and a count when they are hidden. A sub-task is never listed twice.
+
+**Every row carries its status as a coloured left edge** — grey for to do, blue for in progress, violet for in review, green for done, red for cancelled and pale grey for backlog — so you can read the state of a list without reading the words.
+
+Tasks group under the status of their top-level row, each heading carrying a count and collapsing when you click it. Sort the whole list by order, due date or priority. A task past its due date shows its date in red.
 
 **Drag a row onto the canvas** to put it on the board.
 
