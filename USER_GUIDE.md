@@ -554,7 +554,7 @@ A field can be emptied as well as filled — clear a due date or set the assigne
 
 **Sub-tasks sit indented under their parent**, whatever their own status, with an arrow on the parent to fold them away and a count when they are hidden. A sub-task is never listed twice.
 
-**Every row carries its status as a coloured left edge** — grey for to do, blue for in progress, violet for in review, green for done, red for cancelled and pale grey for backlog — so you can read the state of a list without reading the words.
+**Every row carries its status as a coloured left edge** — grey for to do, blue for in progress, violet for in review, green for done, red for cancelled and pale grey for backlog — so you can read the state of a list without reading the words. **A task card on the canvas uses the same colours** around its border. Two things compete for that border, so schedule comes first: a card running late or nearly due keeps its amber or red ring, and a card you have coloured yourself keeps your colour.
 
 Tasks group under the status of their top-level row, each heading carrying a count and collapsing when you click it. Sort the whole list by order, due date or priority. A task past its due date shows its date in red.
 

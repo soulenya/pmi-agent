@@ -82,7 +82,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Each project has an overview, timeline, canvas, tasks, budget, material and chat",
       "Plan on the timeline: drag to reschedule, link tasks, mark milestones, spot what is late",
       "Think on the canvas: sticky notes, shapes, pen and images, plus live cards for real tasks, documents and budgets",
-      "Track tasks with sub-tasks nested under their parent and a status colour on every row",
+      "Track tasks with sub-tasks nested under their parent, and a status colour on every row and canvas card",
       "Pin documents, Drive files, websites, notes and email threads on the Material tab",
       "Link projects so one waits on, gates or runs alongside another",
       "Choose who can see each project, and add people by their work email",

@@ -4,6 +4,23 @@
 
 ## Changelog
 
+### v4.6.7 — 2026-09-04
+**Status colour on the board, and a much shorter guide**
+
+The status colours added in v4.6.6 only ever reached the task list. On the
+canvas, a task card coloured its border by schedule state, so a card could
+tell you it was running late but never that it was finished.
+
+- **Task cards on the canvas carry their status as a coloured border**, using
+  the same palette as the task list, now kept in one place so a colour cannot
+  drift apart between the two.
+- **Schedule still wins when it matters.** A late or nearly-due card keeps its
+  amber or red ring, and a card you have coloured yourself keeps your colour.
+  The border can only say one thing at a time.
+- **The "What Gerry can do" panel is much shorter.** It had been growing a few
+  lines every release and the Projects section had reached forty-three of
+  them, which is a document, not a hint. It is under half the length now.
+
 ### v4.6.6 — 2026-09-04
 **A tidier task list, and Gerry can see inside a shared project**
 

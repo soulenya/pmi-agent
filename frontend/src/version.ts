@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 237;
+export const BUILD_NUMBER = 238;
 export const BUILD_DATE = "2026-09-04";
 
 export interface ChangelogEntry {
@@ -14,6 +14,28 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 238,
+    date: "2026-09-04",
+    title: "Status colour on the board, and a shorter guide",
+    changes: [
+      "Task cards on the canvas now carry their status as a coloured border, the same colours the task list uses. They only ever showed schedule state before, so a card told you it was late but never told you it was done.",
+      "A late or nearly-due card still shows its schedule colour, and a card you have coloured yourself keeps your colour. The border can only say one thing at a time.",
+      "The What Gerry can do panel is a great deal shorter. The Projects section alone had grown to forty-three lines, which is a document, not a hint.",
+    ],
+  },
+  {
+    build: 237,
+    date: "2026-09-04",
+    title: "A tidier task list, and Gerry inside a shared project",
+    changes: [
+      "Sub-tasks sit indented under their parent, and the parent folds itself up once you add one, showing a count when closed.",
+      "Every task row carries its status as a coloured left edge.",
+      "Hand Gerry the line items from a contract and ask for them all at once. He writes the batch in one go with dates, priorities, milestones and sub-tasks, and writes nothing at all if any line is wrong.",
+      "Ask Gerry what is in a project and he reads the whole task list, nested, not just the tasks with his name on them.",
+      "Timelines, scheduling and canvas notes now work on a shared hub project. Gerry could name a shared project and then insist it did not exist.",
+    ],
+  },
   {
     build: 236,
     date: "2026-09-04",
