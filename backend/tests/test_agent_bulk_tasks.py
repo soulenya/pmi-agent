@@ -20,7 +20,7 @@ from models.db.project_member import ProjectMember
 from models.db.task import Project, Task
 from models.db.user import User
 from services.agent import project_tools as pt
-from services.agent.tools import execute_get_tasks
+from services.agent.tools import execute_create_task, execute_get_tasks
 from services.auth.service import hash_password
 
 
@@ -197,3 +197,137 @@ async def test_get_tasks_indents_sub_tasks(db_session: AsyncSession):
     child = next(line for line in out.splitlines() if "Child job" in line)
     parent = next(line for line in out.splitlines() if "Parent job" in line)
     assert len(child) - len(child.lstrip(" -")) > len(parent) - len(parent.lstrip(" -"))
+
+
+@pytest.mark.asyncio
+async def test_a_parent_that_already_exists_is_used_not_duplicated(
+    db_session: AsyncSession,
+):
+    """The complaint: sub-tasks for a task you already have came out standalone."""
+    owner = await _user(db_session, "adopt-owner@pmi.local")
+    project = await _project(db_session, owner, "Contract F")
+    db_session.add(
+        Task(
+            title="Site preparation",
+            project_id=project.id,
+            created_by=owner.id,
+            status="todo",
+            priority="medium",
+        )
+    )
+    await db_session.flush()
+
+    await pt.execute_create_tasks(
+        _Ctx(db_session, owner.id),
+        {
+            "project": "Contract F",
+            "tasks": [
+                {"title": "Survey the pad", "parent": "Site preparation"},
+                {"title": "Pour the slab", "parent": "Site preparation"},
+            ],
+        },
+    )
+
+    made = await _tasks(db_session, project)
+    parents = [t for t in made if t.title == "Site preparation"]
+    assert len(parents) == 1
+    assert {t.title for t in made if t.parent_task_id == parents[0].id} == {
+        "Survey the pad",
+        "Pour the slab",
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_parent_matched_by_part_of_its_title_still_counts(
+    db_session: AsyncSession,
+):
+    owner = await _user(db_session, "partial-owner@pmi.local")
+    project = await _project(db_session, owner, "Contract G")
+    db_session.add(
+        Task(
+            title="CLIN 002 - Installation and commissioning",
+            project_id=project.id,
+            created_by=owner.id,
+            status="todo",
+            priority="medium",
+        )
+    )
+    await db_session.flush()
+
+    await pt.execute_create_tasks(
+        _Ctx(db_session, owner.id),
+        {"project": "Contract G", "tasks": [{"title": "Uncrate", "parent": "CLIN 002"}]},
+    )
+
+    made = {t.title: t for t in await _tasks(db_session, project)}
+    assert len(made) == 2
+    assert (
+        made["Uncrate"].parent_task_id
+        == made["CLIN 002 - Installation and commissioning"].id
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_ambiguous_parent_asks_instead_of_guessing(db_session: AsyncSession):
+    owner = await _user(db_session, "ambig-owner@pmi.local")
+    project = await _project(db_session, owner, "Contract H")
+    for title in ("Phase 1 design", "Phase 1 build"):
+        db_session.add(
+            Task(
+                title=title,
+                project_id=project.id,
+                created_by=owner.id,
+                status="todo",
+                priority="medium",
+            )
+        )
+    await db_session.flush()
+
+    out = await pt.execute_create_tasks(
+        _Ctx(db_session, owner.id),
+        {"project": "Contract H", "tasks": [{"title": "Kick off", "parent": "Phase 1"}]},
+    )
+
+    assert "Nothing was created" in out
+    assert "Phase 1 design" in out and "Phase 1 build" in out
+    assert len(await _tasks(db_session, project)) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_parent_nobody_has_yet_is_created(db_session: AsyncSession):
+    owner = await _user(db_session, "new-parent-owner@pmi.local")
+    project = await _project(db_session, owner, "Contract I")
+
+    out = await pt.execute_create_tasks(
+        _Ctx(db_session, owner.id),
+        {"project": "Contract I", "tasks": [{"title": "Order steel", "parent": "Procurement"}]},
+    )
+
+    made = {t.title: t for t in await _tasks(db_session, project)}
+    assert made["Order steel"].parent_task_id == made["Procurement"].id
+    assert "Procurement" in out
+
+
+@pytest.mark.asyncio
+async def test_one_task_can_be_filed_under_an_existing_parent(db_session: AsyncSession):
+    owner = await _user(db_session, "single-owner@pmi.local")
+    project = await _project(db_session, owner, "Contract J")
+    db_session.add(
+        Task(
+            title="Close out",
+            project_id=project.id,
+            created_by=owner.id,
+            status="todo",
+            priority="medium",
+        )
+    )
+    await db_session.flush()
+
+    await execute_create_task(
+        _Ctx(db_session, owner.id),
+        {"title": "Return the tooling", "project": "Contract J", "parent": "Close out"},
+    )
+
+    made = {t.title: t for t in await _tasks(db_session, project)}
+    assert len(made) == 2
+    assert made["Return the tooling"].parent_task_id == made["Close out"].id

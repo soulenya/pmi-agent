@@ -523,6 +523,8 @@ Gerry can see every project you can open, on this computer and shared on the hub
 
 **Ask her to add a whole list of tasks at once.** Paste the line items from a contract, or describe the milestones, and say "add these to *SO/LIC CLIN 001*". She writes them in a single go — titles, descriptions, statuses, priorities, due dates, start and end dates, milestone flags, and sub-tasks that name their parent from the same list. If one line is wrong she tells you which and writes nothing at all, so you never end up with half a contract in the project.
 
+**Ask her for sub-tasks under a task you already have** — "break *Site preparation* into steps" — and they go under that task. If two tasks answer to the name you used, she asks which one you meant and writes nothing until you say. If none do, she creates that parent and tells you she did.
+
 **Ask her what is in a project** and she reads the whole task list back, sub-tasks indented under their parents, not just the tasks with your name on them.
 
 All of that works on a shared hub project as well as a local one, and so do the timeline, scheduling a task's dates, and putting a note on the project's canvas.

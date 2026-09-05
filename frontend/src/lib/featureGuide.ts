@@ -86,7 +86,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Pin documents, Drive files, websites, notes and email threads on the Material tab",
       "Link projects so one waits on, gates or runs alongside another",
       "Choose who can see each project, and add people by their work email",
-      "Ask Gerry to read a project, add a batch of tasks from a contract, or schedule its work \u2014 shared hub projects included",
+      "Ask Gerry to read a project, add a batch of tasks from a contract, break a task into sub-tasks, or schedule its work \u2014 shared hub projects included",
     ],
   },
   portfolio: {

@@ -4,7 +4,7 @@
  */
 
 export const BUILD_NUMBER = 239;
-export const BUILD_DATE = "2026-09-04";
+export const BUILD_DATE = "2026-09-05";
 
 export interface ChangelogEntry {
   build: number;
@@ -16,12 +16,14 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     build: 239,
-    date: "2026-09-04",
-    title: "Budgets on a shared project",
+    date: "2026-09-05",
+    title: "Budgets on a shared project, and sub-tasks that land in the right place",
     changes: [
       "Creating a budget on a shared project works. It was asking the hub to make the Google Sheet, and the hub has no Google account, so it failed every time with a message blaming your own connection.",
       "The sheet is made on your computer under your Google account, and the finished figures go up for everyone on the project to read. Update from Drive sends up the latest.",
       "A pinned Drive file no longer claims it only opens on the computer that added it. Drive files open for anyone the file is shared with; the warning belongs on stored documents, not on links.",
+      "Ask Gerry for sub-tasks under a task you already have and they go under it. Before, a parent could only be one created in the same breath, so you got a pile of standalone tasks instead.",
+      "If two tasks share the name you used, Gerry asks which one you meant rather than picking. If none match, it creates that parent and says so.",
     ],
   },
   {
