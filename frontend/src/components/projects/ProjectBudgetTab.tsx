@@ -24,6 +24,8 @@ import {
   linkBudget,
   listBudgets,
   listProjectBudgets,
+  mirrorBudget,
+  refreshBudget,
   updateBudget,
   type ProjectBudget,
 } from "@/api/budgets";
@@ -82,6 +84,19 @@ function BudgetLedgerPanel({
     qc.invalidateQueries({ queryKey: ["project-budgets", source, projectId] });
   };
 
+  // A shared budget's sheet is read through this computer's Google account and
+  // the figures are sent up, because the hub has no Google account of its own.
+  const sync = useMutation({
+    mutationFn: async () => {
+      const fileId = driveFileId(budget.drive_url);
+      if (!fileId) throw new Error("This budget has no Drive link.");
+      const here = (await listBudgets("local")).find((b) => b.drive_file_id === fileId);
+      if (!here) throw new Error("local-missing");
+      return mirrorBudget(await refreshBudget(here.id, "local"), "hub");
+    },
+    onSuccess: onChanged,
+  });
+
   if (isLoading) {
     return <p className="px-4 pb-4 text-sm text-slate-500">Loading the ledger…</p>;
   }
@@ -91,7 +106,9 @@ function BudgetLedgerPanel({
 
   // Writes go to Drive under the owner's Google account, so only they can make
   // them. A linked external sheet is read-only to everyone, its owner included.
-  const canEditLedger = data.is_mine && !data.external_readonly;
+  // On a shared project nobody edits here: the sheet is reachable only from the
+  // computer that owns it, so the rows are edited on the Budgets page.
+  const canEditLedger = data.is_mine && !data.external_readonly && source !== "hub";
 
   return (
     <div className="space-y-4 border-t border-slate-200 p-4 dark:border-slate-700">
@@ -140,11 +157,34 @@ function BudgetLedgerPanel({
       )}
 
       {!canEditLedger && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          {data.is_mine
-            ? "This is a linked external sheet — Little Gerry can only read it. Edit it in Google Sheets."
-            : "You can see every figure here. Only the person who linked the sheet can change it."}
-        </p>
+        <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <p>
+            {!data.is_mine
+              ? "You can see every figure here. Only the person who linked the sheet can change it."
+              : data.external_readonly
+                ? "This is a linked external sheet — Little Gerry can only read it. Edit it in Google Sheets."
+                : "These are the figures as last sent up. The sheet lives on your Google account, so edit it on the Budgets page or in Google Sheets, then update this copy."}
+          </p>
+          {data.is_mine && source === "hub" && (
+            <>
+              <button
+                type="button"
+                onClick={() => sync.mutate()}
+                disabled={sync.isPending}
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                {sync.isPending ? "Updating…" : "Update from Drive"}
+              </button>
+              {sync.isError && (
+                <p className="text-rose-600">
+                  {String((sync.error as Error)?.message) === "local-missing"
+                    ? "This budget was added from another computer, so its sheet cannot be read from here. Whoever created it can update the figures."
+                    : "The figures could not be updated from Drive."}
+                </p>
+              )}
+            </>
+          )}
+        </div>
       )}
 
       <BudgetLedgerTable
@@ -293,6 +333,8 @@ function CreateBudgetForm({
 
   const create = useMutation({
     mutationFn: async () => {
+      // The sheet is always made here, on the owner's Google account. The hub
+      // has none, so a shared project gets a copy of the finished budget.
       const made = await createBudget(
         {
           title: title.trim(),
@@ -302,9 +344,10 @@ function CreateBudgetForm({
             .map((c) => c.trim())
             .filter(Boolean),
         },
-        source,
+        "local",
       );
-      return updateBudget(made.id, { project_id: projectId }, source);
+      const there = source === "hub" ? await mirrorBudget(made, "hub") : made;
+      return updateBudget(there.id, { project_id: projectId }, source);
     },
     onSuccess: onCreated,
   });
@@ -396,11 +439,13 @@ export function ProjectBudgetTab({
     onSuccess: done,
   });
 
-  // Linking a sheet where the project lives, so everyone on it sees the figures.
+  // Reading the sheet needs Google, which only this computer has, so the link
+  // is made here and the figures are copied to where the project lives.
   const linkAndAttach = useMutation({
     mutationFn: async (fileId: string) => {
-      const created = await linkBudget(fileId, source);
-      return updateBudget(created.id, { project_id: projectId }, source);
+      const created = await linkBudget(fileId, "local");
+      const there = source === "hub" ? await mirrorBudget(created, "hub") : created;
+      return updateBudget(there.id, { project_id: projectId }, source);
     },
     onSuccess: done,
   });

@@ -503,6 +503,8 @@ Taking a budget off a project, or deleting the project, never touches the budget
 
 A shared project on the hub has a Budget tab of its own, and budgets created there are held on the hub beside the project, so everyone on the project sees the same figures. A budget you keep on this computer stays on this computer.
 
+**How a budget on a shared project works.** The Google Sheet is always made on your own computer, under your own Google account, because the hub has no Google account of its own and never will. What travels to the hub is the finished budget — its name, its allotment and every line of its ledger — for everyone on the project to read. The rows are edited on the **Budgets** page or in Google Sheets, and **Update from Drive** on the project's Budget tab sends the new figures up. Only the person who created the budget can do that; from anyone else's computer the sheet cannot be read at all.
+
 #### Archiving and deleting a project
 
 Both live on the **Overview** tab, under **Archive or delete**.
@@ -576,7 +578,7 @@ Pins are grouped by kind with a count on each group. The ones that have somewher
 
 **The journal** is the project's running record — what happened, what was decided. Type a line and press Enter. Gerry reads these back when you work in the project's conversation.
 
-**One thing files cannot do.** A document's contents are encrypted with a key held on the computer that added it. On a project shared with other people, everyone sees the pin and its name, but only that computer can open the file. Pins that work this way say so on the item, rather than letting you find out by clicking. Anything with a web address — Drive files, saved pages, email threads — opens for everyone.
+**One thing files cannot do.** A document's contents are encrypted with a key held on the computer that added it. On a project shared with other people, everyone sees the pin and its name, but only that computer can open the file. Pins that work this way say so on the item, rather than letting you find out by clicking. **Drive files and saved pages open for everyone** — a Drive file opens for anyone the file itself is shared with, which is Google's business and not the project's. An email thread is the exception among links: it opens in the mailbox it came from and nowhere else.
 
 A viewer sees the material and cannot change it.
 

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 238;
+export const BUILD_NUMBER = 239;
 export const BUILD_DATE = "2026-09-04";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 239,
+    date: "2026-09-04",
+    title: "Budgets on a shared project",
+    changes: [
+      "Creating a budget on a shared project works. It was asking the hub to make the Google Sheet, and the hub has no Google account, so it failed every time with a message blaming your own connection.",
+      "The sheet is made on your computer under your Google account, and the finished figures go up for everyone on the project to read. Update from Drive sends up the latest.",
+      "A pinned Drive file no longer claims it only opens on the computer that added it. Drive files open for anyone the file is shared with; the warning belongs on stored documents, not on links.",
+    ],
+  },
   {
     build: 238,
     date: "2026-09-04",
