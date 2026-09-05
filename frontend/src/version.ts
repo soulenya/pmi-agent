@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 240;
+export const BUILD_NUMBER = 241;
 export const BUILD_DATE = "2026-09-05";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 241,
+    date: "2026-09-05",
+    title: "A crowded canvas folds itself up when you stand back",
+    changes: [
+      "Zoom out past about half size and a task's sub-task cards fold into the parent card, which shows a count of what is tucked away.",
+      "Click that count to open one family while the rest stay folded. It stays open until you click it again or zoom back in.",
+      "Only task cards fold, and only into their own parent. Notes, shapes and drawings are left alone.",
+    ],
+  },
   {
     build: 240,
     date: "2026-09-05",

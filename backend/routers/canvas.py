@@ -587,6 +587,9 @@ async def resolve_nodes(
                             if task.due_date else ""
                         ),
                         state=_task_state(task),
+                        parent_ref_id=(
+                            str(task.parent_task_id) if task.parent_task_id else None
+                        ),
                     )
                 )
 

@@ -29,6 +29,8 @@ export interface NodeData {
   resolved?: ResolvedRef;
   canEdit: boolean;
   ctx: { projectId: string; canvasId: string; source: Source };
+  /** How many cards are folded into this one, zero when nothing is. */
+  folded?: number;
 }
 
 export interface ResizeBox {
@@ -51,6 +53,8 @@ export interface BoardApi {
   endResize: (node: CanvasNode, box: ResizeBox) => void;
   /** A task card is the task. Changing it here changes it everywhere. */
   setTaskStatus: (taskId: string, status: string) => void;
+  /** Open a folded family, or fold it away again. */
+  toggleFolded: (nodeId: string) => void;
 }
 
 const inert: BoardApi = {
@@ -62,6 +66,7 @@ const inert: BoardApi = {
   grow: () => undefined,
   endResize: () => undefined,
   setTaskStatus: () => undefined,
+  toggleFolded: () => undefined,
 };
 
 export const BoardContext = createContext<BoardApi>(inert);

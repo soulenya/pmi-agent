@@ -103,4 +103,5 @@ export interface ResolvedRef {
   status: string | null;
   state: "ok" | "warn" | "late" | "gone";
   missing: boolean;
+  parent_ref_id?: string | null;
 }
