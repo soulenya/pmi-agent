@@ -16,6 +16,7 @@ attachment into the budget's linked invoice folder and adds the entry).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
@@ -351,7 +352,9 @@ async def scan_folder(db: AsyncSession, budget: Budget, folder: BudgetFolder) ->
                         "date": str(extracted.get("date") or "") or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
                         "description": desc,
                         "amount": amount,
-                        "category": cat if cat in categories else "",
+                        # A category the sheet has not met yet is added to it on
+                        # accept, so a new kind of cost is not silently dropped.
+                        "category": cat,
                         "note": f"Extracted from {folder.kind} folder: {f.get('url', '')}",
                     },
                     source_url=f.get("url"),
@@ -394,6 +397,73 @@ def folder_extracted_total(folder: BudgetFolder) -> float:
         ),
         2,
     )
+
+
+# ── manual intake (a document that reached neither Drive nor the inbox) ───
+
+
+async def intake_upload(
+    db: AsyncSession, budget: Budget, *, filename: str, data: bytes, mime: str
+) -> dict:
+    """Read one hand-supplied invoice and propose it, exactly like a scan.
+
+    Not every invoice arrives by email or lands in a watched folder. This is
+    the same extraction and the same accept-or-dismiss review, so a document
+    someone was handed on paper ends up in the ledger the same way.
+    """
+    mime = (mime or "").split(";")[0].strip().lower()
+    if mime not in _SCANNABLE_MIMES:
+        raise BudgetFolderError(
+            "That file can't be read. Use a PDF, an image, or a CSV."
+        )
+    if not data:
+        raise BudgetFolderError("That file is empty.")
+
+    name = (filename or "invoice").strip()[:300]
+    text = await _get_text_smart(db, data, name, mime)
+    if not text.strip():
+        raise BudgetFolderError(
+            "No text could be read out of that file. A clearer scan usually works."
+        )
+    categories = [c["name"] for c in (budget.cached_categories or []) if c.get("name")]
+    extracted = await _llm_extract(db, text, categories)
+    try:
+        amount = float(extracted["amount"]) if extracted.get("amount") is not None else None
+    except (TypeError, ValueError, KeyError):
+        amount = None
+    if amount is None or amount <= 0:
+        raise BudgetFolderError(
+            "No total could be read out of that file — add the entry by hand instead."
+        )
+
+    vendor = str(extracted.get("vendor") or "").strip()
+    cur = budget.currency or "USD"
+    s = await _suggest_entry(
+        db,
+        budget,
+        # The bytes identify the document, so the same invoice uploaded twice
+        # is recognised rather than counted twice.
+        source_id=f"upload:{hashlib.sha256(data).hexdigest()[:40]}",
+        title=f'Log {_fmt(amount, cur)} to budget "{budget.title}"?',
+        summary=f'From "{name}", uploaded by hand.',
+        entry={
+            "date": str(extracted.get("date") or "")
+            or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "description": (f"{vendor} — {name}" if vendor else name)[:300],
+            "amount": amount,
+            "category": str(extracted.get("category") or "").strip(),
+            "note": f"Uploaded by hand: {name}",
+        },
+        source_url=None,
+    )
+    return {
+        "suggested": s is not None,
+        "duplicate": s is None,
+        "vendor": vendor,
+        "amount": amount,
+        "date": extracted.get("date"),
+        "category": extracted.get("category"),
+    }
 
 
 # ── Gmail invoice check (per-budget, suggest-first) ──────────────────────
@@ -452,7 +522,7 @@ async def gmail_check_budget(db: AsyncSession, budget: Budget) -> int:
             amount = parse_amount(f"{meta.get('subject', '')}\n{meta.get('body', '')}")
             sender = (meta.get("from", "").split("<")[0] or "").strip().strip('"')
             action = (
-                f"filed to \"{folder.folder_name}\" and logged"
+                f'filed to "{folder.folder_name}" and logged'
                 if folder is not None else "logged"
             )
             s = await _suggest_entry(

@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +31,10 @@ from services.projects.access import resolve_role, role_at_least
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/budgets", tags=["budgets"])
+
+# An invoice is a page or two. Anything this size is a mistake, and reading it
+# would cost an OCR round-trip to find that out.
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────
@@ -546,6 +550,56 @@ async def scan_folder(
         raise HTTPException(400, str(exc))
     await db.commit()
     return summary
+
+
+# ── Finding invoices: the inbox, and documents handed over by hand ────
+
+
+@router.post("/{budget_id}/gmail-scan")
+async def gmail_scan(
+    budget_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Look through the inbox for invoices right now, rather than waiting for
+    the daily pass. Findings are suggestions; nothing is filed or logged."""
+    budget = await _get_owned(db, budget_id, current_user.id)
+    try:
+        found = await budget_folder_service.gmail_check_budget(db, budget)
+    except BudgetFolderError as exc:
+        raise HTTPException(400, str(exc))
+    await db.commit()
+    return {"suggested": found}
+
+
+@router.post("/{budget_id}/invoices/upload", status_code=201)
+async def upload_invoice(
+    budget_id: uuid.UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Read one invoice supplied by hand and propose it for the ledger.
+
+    The file is read and discarded — only the extracted figures are kept, as
+    a suggestion the owner still has to accept.
+    """
+    budget = await _get_owned(db, budget_id, current_user.id)
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "That file is larger than 20 MB.")
+    try:
+        result = await budget_folder_service.intake_upload(
+            db,
+            budget,
+            filename=file.filename or "invoice",
+            data=data,
+            mime=file.content_type or "",
+        )
+    except BudgetFolderError as exc:
+        raise HTTPException(400, str(exc))
+    await db.commit()
+    return result
 
 
 # ── Cross-budget references ─────────────────────────────────────
