@@ -67,6 +67,41 @@ async def find_hub_project(
     return near[0] if len(near) == 1 else None
 
 
+async def resolve_project_anywhere(
+    db: AsyncSession, user_id: uuid.UUID, text: str, minimum: str
+) -> tuple[Project | None, dict[str, Any] | None, str]:
+    """A project by name or id, whether it lives here or on the hub.
+
+    Returns ``(local, shared, "")`` with exactly one of the first two set, or
+    ``(None, None, message)``. Tools that only read the local database report a
+    shared project as missing even though ``list_projects`` just named it.
+    """
+    project, problem = await _resolve_project(db, user_id, text, minimum)
+    if project is not None:
+        return project, None, ""
+    shared = await find_hub_project(db, user_id, text)
+    if shared is not None:
+        return None, shared, ""
+    return None, None, problem
+
+
+async def _hub_get(
+    db: AsyncSession, user_id: uuid.UUID, path: str
+) -> tuple[Any, str]:
+    """Read a path from the hub. Returns ``(payload, "")`` or ``(None, error)``."""
+    from services.hub import client as hub
+
+    if not hub.configured():
+        return None, "Error: this computer is not connected to the hub."
+    try:
+        resp = await hub.request(db, user_id, "GET", path)
+    except hub.HubError as exc:
+        return None, f"Error: could not reach the hub: {exc}"
+    if resp.status_code != 200:
+        return None, f"Error: the hub refused that request ({resp.status_code})."
+    return resp.json(), ""
+
+
 async def _resolve_project(
     db: AsyncSession, user_id: uuid.UUID, text: str, minimum: str
 ) -> tuple[Project | None, str]:
@@ -147,6 +182,33 @@ async def _resolve_task(
     if task is None or not await _may_touch(db, task, user_id):
         return None, f"Error: no task called '{text}'."
     return task, ""
+
+
+async def _hub_find_task(
+    ctx: Any, shared: dict[str, Any], text: str
+) -> tuple[dict[str, Any] | None, str]:
+    """One task inside a shared project, by id or by title."""
+    text = str(text or "").strip()
+    if not text:
+        return None, "Error: name the task."
+    payload, problem = await _hub_get(
+        ctx.db, ctx.user_id, f"/tasks?project_id={shared.get('id')}"
+    )
+    if payload is None:
+        return None, problem
+    rows = payload if isinstance(payload, list) else payload.get("items") or []
+    for row in rows:
+        if str(row.get("id")) == text:
+            return row, ""
+    lowered = text.lower()
+    exact = [r for r in rows if str(r.get("title", "")).lower() == lowered]
+    near = exact or [r for r in rows if lowered in str(r.get("title", "")).lower()]
+    if len(near) > 1:
+        titles = ", ".join(f'"{r.get("title")}"' for r in near[:5])
+        return None, f"Error: more than one task matches '{text}': {titles}."
+    if not near:
+        return None, f"Error: \"{shared.get('name')}\" has no task called '{text}'."
+    return near[0], ""
 
 
 async def _may_touch(db: AsyncSession, task: Task, user_id: uuid.UUID) -> bool:
@@ -298,9 +360,11 @@ def _project_line(
 
 
 async def execute_get_project_timeline(ctx: Any, args: dict[str, Any]) -> str:
-    project, problem = await _resolve_project(
+    project, shared, problem = await resolve_project_anywhere(
         ctx.db, ctx.user_id, args.get("project", ""), "viewer"
     )
+    if shared is not None:
+        return await _hub_timeline(ctx, shared)
     if project is None:
         return problem
 
@@ -343,9 +407,61 @@ async def execute_get_project_timeline(ctx: Any, args: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+async def _hub_timeline(ctx: Any, shared: dict[str, Any]) -> str:
+    """The same timeline for a project that lives on the hub, computed there."""
+    name = shared.get("name")
+    payload, problem = await _hub_get(
+        ctx.db, ctx.user_id, f"/projects/{shared.get('id')}/timeline"
+    )
+    if payload is None:
+        return problem
+    tasks = {str(t.get("id")): t for t in payload.get("tasks") or []}
+    if not tasks:
+        return f'"{name}" is shared on the hub and has no tasks yet, so there is no timeline to show.'
+
+    lines = [f'Timeline for the shared project "{name}" ({len(tasks)} tasks):']
+    for item in payload.get("schedule") or []:
+        task = tasks.get(str(item.get("task_id")))
+        if task is None:
+            continue
+        flags = []
+        if task.get("is_milestone"):
+            flags.append("milestone")
+        if item.get("is_critical"):
+            flags.append("critical path")
+        if item.get("is_late"):
+            flags.append("LATE")
+        if item.get("blocked_by_gate"):
+            flags.append("held by a gate")
+        suffix = f" [{', '.join(flags)}]" if flags else ""
+        lines.append(
+            f"- {task.get('title')}: {item.get('early_start')} to "
+            f"{item.get('early_finish')}, {item.get('slack_days')}d slack, "
+            f"{task.get('progress_pct', 0)}% done{suffix}"
+        )
+    count = len(payload.get("dependencies") or [])
+    if count:
+        lines.append(
+            "1 dependency between them."
+            if count == 1
+            else f"{count} dependencies between them."
+        )
+    return "\n".join(lines)
+
+
 async def execute_set_task_schedule(ctx: Any, args: dict[str, Any]) -> str:
     task, problem = await _resolve_task(ctx.db, ctx.user_id, args.get("task", ""))
     if task is None:
+        # A task in a shared project is not in this database at all, so a named
+        # project is the only way to reach it.
+        if args.get("project"):
+            _, shared, where = await resolve_project_anywhere(
+                ctx.db, ctx.user_id, args["project"], "editor"
+            )
+            if shared is not None:
+                return await _hub_set_schedule(ctx, shared, args)
+            if where:
+                return where
         return problem
 
     changes: list[str] = []
@@ -388,6 +504,71 @@ async def execute_set_task_schedule(ctx: Any, args: dict[str, Any]) -> str:
 
     await ctx.db.flush()
     return f'Task "{task.title}" updated: {", ".join(changes)}.'
+
+
+async def _hub_set_schedule(ctx: Any, shared: dict[str, Any], args: dict[str, Any]) -> str:
+    """The same change, applied to a task that lives on the hub."""
+    from services.hub import client as hub
+
+    row, problem = await _hub_find_task(ctx, shared, args.get("task", ""))
+    if row is None:
+        return problem
+
+    body: dict[str, Any] = {}
+    changes: list[str] = []
+
+    start, err = _parse_day(args.get("start_date"))
+    if err:
+        return err
+    end, err = _parse_day(args.get("end_date"))
+    if err:
+        return err
+
+    def _existing(field: str) -> datetime | None:
+        parsed, _ = _parse_day(row.get(field))
+        return parsed
+
+    new_start = start if start is not None else _existing("start_date")
+    new_end = end if end is not None else _existing("end_date")
+    if new_start and new_end and new_end < new_start:
+        return "Error: the end date falls before the start date."
+
+    if start is not None:
+        body["start_date"] = start.isoformat()
+        changes.append(f"starts {start.date()}")
+    if end is not None:
+        body["end_date"] = end.isoformat()
+        changes.append(f"ends {end.date()}")
+
+    if (raw := args.get("progress_pct")) is not None:
+        try:
+            pct = int(raw)
+        except (TypeError, ValueError):
+            return f"Error: '{raw}' is not a percentage."
+        if not 0 <= pct <= 100:
+            return "Error: progress must be between 0 and 100."
+        body["progress_pct"] = pct
+        changes.append(f"{pct}% done")
+
+    if (raw := args.get("is_milestone")) is not None:
+        body["is_milestone"] = bool(raw)
+        changes.append("marked a milestone" if raw else "no longer a milestone")
+
+    if not changes:
+        return "Error: nothing to change. Give a start date, end date, progress or milestone flag."
+
+    try:
+        resp = await hub.request(
+            ctx.db, ctx.user_id, "PATCH", f"/tasks/{row.get('id')}", json_body=body
+        )
+    except hub.HubError as exc:
+        return f"Error: could not reach the hub: {exc}"
+    if resp.status_code >= 400:
+        return f"Error: the hub refused that change ({resp.status_code})."
+    return (
+        f'Task "{row.get("title")}" in the shared project "{shared.get("name")}" '
+        f'updated: {", ".join(changes)}.'
+    )
 
 
 async def execute_add_task_dependency(ctx: Any, args: dict[str, Any]) -> str:
@@ -438,6 +619,192 @@ async def execute_add_task_dependency(ctx: Any, args: dict[str, Any]) -> str:
     return f'"{successor.title}" now waits on "{predecessor.title}" ({kind}, {lag}d lag).'
 
 
+_STATUSES = ("backlog", "todo", "in_progress", "in_review", "done", "cancelled")
+_PRIORITIES = ("low", "medium", "high", "critical")
+_MAX_BATCH = 100
+
+
+def _batch_row(raw: Any, index: int) -> tuple[dict[str, Any] | None, str]:
+    """One entry of a create_tasks batch, cleaned, or an error naming its place."""
+    where = f"task {index + 1}"
+    if isinstance(raw, str):
+        raw = {"title": raw}
+    if not isinstance(raw, dict):
+        return None, f"Error: {where} is not a task. Give a title, or an object with one."
+    title = str(raw.get("title") or "").strip()[:500]
+    if not title:
+        return None, f"Error: {where} has no title."
+
+    status = str(raw.get("status") or "todo").lower()
+    if status not in _STATUSES:
+        return None, f"Error: {where} has status '{status}'. Use one of {', '.join(_STATUSES)}."
+    priority = str(raw.get("priority") or "medium").lower()
+    if priority not in _PRIORITIES:
+        return None, f"Error: {where} has priority '{priority}'. Use one of {', '.join(_PRIORITIES)}."
+
+    dates: dict[str, datetime | None] = {}
+    for field in ("due_date", "start_date", "end_date"):
+        value, err = _parse_day(raw.get(field))
+        if err:
+            return None, f"Error: {where}'s {field.replace('_', ' ')} — {err[7:]}"
+        dates[field] = value
+    if dates["start_date"] and dates["end_date"] and dates["end_date"] < dates["start_date"]:
+        return None, f"Error: {where} ends before it starts."
+
+    return {
+        "title": title,
+        "description": (str(raw["description"]) if raw.get("description") else None),
+        "status": status,
+        "priority": priority,
+        "is_milestone": bool(raw.get("is_milestone")),
+        "parent": str(raw.get("parent") or "").strip(),
+        **dates,
+    }, ""
+
+
+async def execute_create_tasks(ctx: Any, args: dict[str, Any]) -> str:
+    """Write a whole list of tasks into one project in a single pass."""
+    raw_rows = args.get("tasks")
+    if isinstance(raw_rows, str):
+        # Some models hand back a JSON string, or one task per line.
+        import json
+
+        try:
+            raw_rows = json.loads(raw_rows)
+        except ValueError:
+            raw_rows = [line.strip("-• \t") for line in raw_rows.splitlines() if line.strip()]
+    if not isinstance(raw_rows, list) or not raw_rows:
+        return "Error: give a 'tasks' list with at least one task in it."
+    if len(raw_rows) > _MAX_BATCH:
+        return (
+            f"Error: {len(raw_rows)} tasks at once is too many. Send at most "
+            f"{_MAX_BATCH} per call and make a second call for the rest."
+        )
+
+    rows: list[dict[str, Any]] = []
+    for index, raw in enumerate(raw_rows):
+        row, problem = _batch_row(raw, index)
+        if row is None:
+            return f"{problem} Nothing was created."
+        rows.append(row)
+
+    project, shared, problem = await resolve_project_anywhere(
+        ctx.db, ctx.user_id, args.get("project", ""), "editor"
+    )
+    if shared is not None:
+        return await _create_tasks_on_hub(ctx, shared, rows)
+    if project is None:
+        return problem
+
+    made: dict[str, uuid.UUID] = {}
+    created: list[Task] = []
+    for row in rows:
+        parent_id: uuid.UUID | None = None
+        if row["parent"]:
+            parent_id = made.get(row["parent"].lower())
+            if parent_id is None:
+                found, _ = await _resolve_task(ctx.db, ctx.user_id, row["parent"])
+                if found is None or found.project_id != project.id:
+                    return (
+                        f"Error: \"{row['title']}\" says it sits under "
+                        f"\"{row['parent']}\", but there is no such task in "
+                        f'"{project.name}". Nothing was created — list the parent '
+                        "earlier in the same batch, or check the title."
+                    )
+                parent_id = found.id
+        task = Task(
+            title=row["title"],
+            description=row["description"],
+            status=row["status"],
+            priority=row["priority"],
+            due_date=row["due_date"],
+            start_date=row["start_date"],
+            end_date=row["end_date"],
+            is_milestone=row["is_milestone"],
+            parent_task_id=parent_id,
+            project_id=project.id,
+            sort_order=len(created),
+            source_conversation_id=getattr(ctx, "conversation_id", None),
+            created_by=ctx.user_id,
+        )
+        ctx.db.add(task)
+        await ctx.db.flush()
+        made[row["title"].lower()] = task.id
+        created.append(task)
+
+    return _batch_report(project.name, [t.title for t in created], rows, "")
+
+
+def _batch_report(
+    name: str, titles: list[str], rows: list[dict[str, Any]], where: str
+) -> str:
+    subs = sum(1 for r in rows if r["parent"])
+    stones = sum(1 for r in rows if r["is_milestone"])
+    extras = []
+    if subs:
+        extras.append(f"{subs} of them sub-tasks")
+    if stones:
+        extras.append(f"{stones} marked milestones")
+    tail = f" ({', '.join(extras)})" if extras else ""
+    listed = "\n".join(f"- {t}" for t in titles[:20])
+    more = f"\n… and {len(titles) - 20} more." if len(titles) > 20 else ""
+    return (
+        f'Created {len(titles)} tasks in {where}"{name}"{tail}:\n{listed}{more}'
+    )
+
+
+async def _create_tasks_on_hub(
+    ctx: Any, shared: dict[str, Any], rows: list[dict[str, Any]]
+) -> str:
+    """The same batch, written to the hub where the shared project lives."""
+    from services.hub import client as hub
+
+    if not hub.configured():
+        return "Error: this computer is not connected to the hub."
+    project_id = str(shared.get("id"))
+    name = str(shared.get("name"))
+    made: dict[str, str] = {}
+    titles: list[str] = []
+    for row in rows:
+        parent_id = made.get(row["parent"].lower()) if row["parent"] else None
+        if row["parent"] and parent_id is None:
+            return (
+                f"Error: \"{row['title']}\" says it sits under \"{row['parent']}\", "
+                f'which is not in this batch. {len(titles)} tasks were already '
+                f'created in "{name}"; list the parent before its children and '
+                "send the rest again."
+            )
+        body = {
+            "title": row["title"],
+            "description": row["description"],
+            "project_id": project_id,
+            "parent_task_id": parent_id,
+            "status": row["status"],
+            "priority": row["priority"],
+            "is_milestone": row["is_milestone"],
+            "due_date": row["due_date"].isoformat() if row["due_date"] else None,
+            "start_date": row["start_date"].isoformat() if row["start_date"] else None,
+            "end_date": row["end_date"].isoformat() if row["end_date"] else None,
+        }
+        try:
+            resp = await hub.request(ctx.db, ctx.user_id, "POST", "/tasks", json_body=body)
+        except hub.HubError as exc:
+            return (
+                f'Error: the hub stopped answering after {len(titles)} of '
+                f'{len(rows)} tasks were created in "{name}": {exc}'
+            )
+        if resp.status_code not in (200, 201):
+            return (
+                f'Error: the hub refused "{row["title"]}" ({resp.status_code}). '
+                f'{len(titles)} of {len(rows)} tasks were created in "{name}" '
+                "before it stopped."
+            )
+        made[row["title"].lower()] = str(resp.json().get("id"))
+        titles.append(row["title"])
+
+    return _batch_report(name, titles, rows, "the shared project ")
+
+
 async def _default_canvas(
     db: AsyncSession, project: Project, user_id: uuid.UUID
 ) -> ProjectCanvas:
@@ -463,10 +830,10 @@ async def _default_canvas(
 
 
 async def execute_create_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
-    project, problem = await _resolve_project(
+    project, shared, problem = await resolve_project_anywhere(
         ctx.db, ctx.user_id, args.get("project", ""), "editor"
     )
-    if project is None:
+    if project is None and shared is None:
         return problem
 
     kind = str(args.get("kind", "sticky")).lower()
@@ -479,6 +846,9 @@ async def execute_create_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
     content = args.get("content")
     if not label and not content:
         return "Error: give the note a label or some content."
+
+    if shared is not None:
+        return await _hub_canvas_node(ctx, shared, kind, label, content)
 
     canvas = await _default_canvas(ctx.db, project, ctx.user_id)
     placed = (
@@ -509,12 +879,63 @@ async def execute_create_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
     )
 
 
+async def _hub_default_canvas(
+    ctx: Any, shared: dict[str, Any]
+) -> tuple[dict[str, Any] | None, str]:
+    """The shared project's first canvas, nodes and edges included."""
+    payload, problem = await _hub_get(
+        ctx.db, ctx.user_id, f"/projects/{shared.get('id')}/canvas/default"
+    )
+    if payload is None:
+        return None, problem
+    return payload, ""
+
+
+async def _hub_canvas_node(
+    ctx: Any, shared: dict[str, Any], kind: str, label: str, content: Any
+) -> str:
+    from services.hub import client as hub
+
+    canvas, problem = await _hub_default_canvas(ctx, shared)
+    if canvas is None:
+        return problem
+    index = len(canvas.get("nodes") or [])
+    body = {
+        "kind": kind,
+        "label": label,
+        "content": str(content) if content is not None else "",
+        "x": 40 + (index % _GRID_COLS) * _GRID_X,
+        "y": 40 + (index // _GRID_COLS) * _GRID_Y,
+        "width": 200 if kind in ("sticky", "text") else 320,
+        "height": 140 if kind in ("sticky", "text") else 200,
+        "z": index,
+    }
+    try:
+        resp = await hub.request(
+            ctx.db,
+            ctx.user_id,
+            "POST",
+            f"/projects/{shared.get('id')}/canvas/{canvas.get('id')}/nodes",
+            json_body=body,
+        )
+    except hub.HubError as exc:
+        return f"Error: could not reach the hub: {exc}"
+    if resp.status_code >= 400:
+        return f"Error: the hub refused that note ({resp.status_code})."
+    return (
+        f'Added a {kind} to the canvas for the shared project "{shared.get("name")}": '
+        f'"{label or (str(content)[:60])}" [id={resp.json().get("id")}]'
+    )
+
+
 async def execute_link_canvas_nodes(ctx: Any, args: dict[str, Any]) -> str:
-    project, problem = await _resolve_project(
+    project, shared, problem = await resolve_project_anywhere(
         ctx.db, ctx.user_id, args.get("project", ""), "editor"
     )
-    if project is None:
+    if project is None and shared is None:
         return problem
+    if shared is not None:
+        return await _hub_link_canvas(ctx, shared, args)
 
     canvas = await _default_canvas(ctx.db, project, ctx.user_id)
     nodes = list(
@@ -588,6 +1009,76 @@ async def execute_link_canvas_nodes(ctx: Any, args: dict[str, Any]) -> str:
     return f'Linked "{src}" to "{dst}" on the canvas for "{project.name}".'
 
 
+def _find_hub_node(
+    nodes: list[dict[str, Any]], text: str
+) -> tuple[dict[str, Any] | None, str]:
+    text = str(text or "").strip()
+    if not text:
+        return None, "Error: name both ends of the link."
+    for node in nodes:
+        if str(node.get("id")) == text:
+            return node, ""
+    lowered = text.lower()
+    exact = [n for n in nodes if str(n.get("label", "")).lower() == lowered]
+    hits = exact or [n for n in nodes if lowered in str(n.get("label", "")).lower()]
+    if len(hits) > 1:
+        return None, f"Error: more than one note on the canvas matches '{text}'."
+    return (hits[0], "") if hits else (None, f"Error: no note called '{text}'.")
+
+
+async def _hub_link_canvas(ctx: Any, shared: dict[str, Any], args: dict[str, Any]) -> str:
+    from services.hub import client as hub
+
+    canvas, problem = await _hub_default_canvas(ctx, shared)
+    if canvas is None:
+        return problem
+    nodes = list(canvas.get("nodes") or [])
+
+    source, problem = _find_hub_node(nodes, args.get("from_node", ""))
+    if source is None:
+        return problem
+    target, problem = _find_hub_node(nodes, args.get("to_node", ""))
+    if target is None:
+        return problem
+    if source.get("id") == target.get("id"):
+        return "Error: a note cannot link to itself."
+    if source.get("kind") == "task" and target.get("kind") == "task":
+        return (
+            "Error: linking two task cards changes the schedule. "
+            "Use add_task_dependency instead so the loop check runs."
+        )
+    for edge in canvas.get("edges") or []:
+        if str(edge.get("source_node_id")) == str(source.get("id")) and str(
+            edge.get("target_node_id")
+        ) == str(target.get("id")):
+            return "Those two notes are already linked."
+
+    body = {
+        "source_node_id": str(source.get("id")),
+        "target_node_id": str(target.get("id")),
+        "kind": "link",
+        "label": str(args.get("label") or "").strip()[:200],
+    }
+    try:
+        resp = await hub.request(
+            ctx.db,
+            ctx.user_id,
+            "POST",
+            f"/projects/{shared.get('id')}/canvas/{canvas.get('id')}/edges",
+            json_body=body,
+        )
+    except hub.HubError as exc:
+        return f"Error: could not reach the hub: {exc}"
+    if resp.status_code >= 400:
+        return f"Error: the hub refused that link ({resp.status_code})."
+    src = source.get("label") or source.get("kind")
+    dst = target.get("label") or target.get("kind")
+    return (
+        f'Linked "{src}" to "{dst}" on the canvas for the shared project '
+        f'"{shared.get("name")}".'
+    )
+
+
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
@@ -642,16 +1133,84 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "create_tasks",
+            "description": (
+                "Create MANY tasks in one project in a single call — the line items of "
+                "a contract, a list of deliverables, a work breakdown. Always prefer "
+                "this over calling create_task repeatedly. Works on shared hub projects "
+                "as well as local ones. Give each task a 'parent' naming an earlier task "
+                "in the same list to nest it underneath. Nothing is created if any entry "
+                "is malformed, so send the whole list at once."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "string",
+                        "description": "Project name or id. Shared hub projects included.",
+                    },
+                    "tasks": {
+                        "type": "array",
+                        "description": "The tasks to create, in the order they should appear.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string", "description": "Required."},
+                                "description": {"type": "string"},
+                                "status": {
+                                    "type": "string",
+                                    "enum": list(_STATUSES),
+                                    "default": "todo",
+                                },
+                                "priority": {
+                                    "type": "string",
+                                    "enum": list(_PRIORITIES),
+                                    "default": "medium",
+                                },
+                                "due_date": {
+                                    "type": "string",
+                                    "description": "ISO date, e.g. '2026-06-30'.",
+                                },
+                                "start_date": {"type": "string", "description": "ISO date."},
+                                "end_date": {"type": "string", "description": "ISO date."},
+                                "is_milestone": {"type": "boolean"},
+                                "parent": {
+                                    "type": "string",
+                                    "description": (
+                                        "Title of the task this one sits under. Must be "
+                                        "listed earlier in this same call."
+                                    ),
+                                },
+                            },
+                            "required": ["title"],
+                        },
+                    },
+                },
+                "required": ["project", "tasks"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "set_task_schedule",
             "description": (
                 "Set when a task starts and finishes, how far along it is, or mark it "
                 "a milestone. This drives the project timeline. The due date is a "
-                "separate thing and is not changed here."
+                "separate thing and is not changed here. For a task in a shared hub "
+                "project, name the project too."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "task": {"type": "string", "description": "Task title or id."},
+                    "project": {
+                        "type": "string",
+                        "description": (
+                            "The project holding the task. Required for a shared "
+                            "hub project, optional otherwise."
+                        ),
+                    },
                     "start_date": {
                         "type": "string",
                         "description": "ISO date the work starts, e.g. '2026-06-01'.",
@@ -765,6 +1324,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
 TOOL_EXECUTORS = {
     "list_projects": execute_list_projects,
     "get_project_timeline": execute_get_project_timeline,
+    "create_tasks": execute_create_tasks,
     "set_task_schedule": execute_set_task_schedule,
     "add_task_dependency": execute_add_task_dependency,
     "create_canvas_node": execute_create_canvas_node,
@@ -774,6 +1334,7 @@ TOOL_EXECUTORS = {
 PRIMARY_ARGS = {
     "list_projects": "query",
     "get_project_timeline": "project",
+    "create_tasks": "tasks",
     "set_task_schedule": "task",
     "add_task_dependency": "task",
     "create_canvas_node": "label",
@@ -781,6 +1342,7 @@ PRIMARY_ARGS = {
 }
 
 RUNNING_LABELS = {    "list_projects": "Looking through the projects\u2026",    "get_project_timeline": "Working out the timeline…",
+    "create_tasks": "Writing the tasks in…",
     "set_task_schedule": "Scheduling the task…",
     "add_task_dependency": "Linking the tasks…",
     "create_canvas_node": "Adding to the canvas…",
@@ -795,11 +1357,22 @@ TOOL_DOCS = {
     ),
     "get_project_timeline": (
         "Read a project's computed schedule: per-task start/finish, slack, critical "
-        "path and late flags. JSON: {\"project\": str (name or id)}."
+        "path and late flags. Works for shared hub projects too. "
+        "JSON: {\"project\": str (name or id)}."
+    ),
+    "create_tasks": (
+        "Create MANY tasks in one project at once — contract line items, deliverables, "
+        "a work breakdown. Prefer this over repeated create_task calls. Auto-approved. "
+        "JSON: {\"project\": str, \"tasks\": [{\"title\": str, \"description\": str, "
+        "\"status\": todo|in_progress|in_review|done|backlog|cancelled, "
+        "\"priority\": low|medium|high|critical, \"due_date\": ISO, \"start_date\": ISO, "
+        "\"end_date\": ISO, \"is_milestone\": bool, \"parent\": title listed earlier}]}. "
+        "Nothing is written if any entry is bad. Shared hub projects included."
     ),
     "set_task_schedule": (
         "Set a task's start_date, end_date, progress_pct (0-100) or is_milestone. "
-        "Drives the Gantt timeline; does not touch due_date. Auto-approved."
+        "Drives the Gantt timeline; does not touch due_date. Pass \"project\" as well "
+        "to reach a task in a shared hub project. Auto-approved."
     ),
     "add_task_dependency": (
         "Make one task wait on another in the same project. JSON: {\"task\": str, "

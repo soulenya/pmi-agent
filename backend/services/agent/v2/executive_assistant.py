@@ -66,6 +66,7 @@ _TOOLS = [
     "search_knowledge_base",
     "read_knowledge_base_document",
     "create_task",
+    "create_tasks",
     "get_tasks",
     "list_projects",
     "get_project_timeline",

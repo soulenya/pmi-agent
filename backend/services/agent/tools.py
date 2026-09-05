@@ -444,12 +444,21 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "get_tasks",
             "description": (
-                "Query the PMI task tracker to list tasks for the current user. "
-                "Use this to answer questions about what tasks are open, overdue, or due soon."
+                "Query the PMI task tracker. Without 'project' it lists the current "
+                "user's own tasks. With 'project' it lists EVERY task in that project, "
+                "whoever owns it, sub-tasks indented under their parents — including "
+                "shared projects that live on the hub. Use this to see inside a project."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "project": {
+                        "type": "string",
+                        "description": (
+                            "Optional project name or id. Shared hub projects included. "
+                            "Call list_projects first if you only have a name."
+                        ),
+                    },
                     "status": {
                         "type": "string",
                         "enum": ["backlog", "todo", "in_progress", "in_review", "done", "cancelled", "all"],
@@ -3060,32 +3069,108 @@ async def execute_get_tasks(ctx: ToolContext, args: dict[str, Any]) -> str:
 
     status_filter = str(args.get("status", "all"))
     priority_filter = str(args.get("priority", "any"))
+    wanted_project = str(args.get("project") or "").strip()
 
-    stmt = select(Task).where(
-        (Task.created_by == ctx.user_id) | (Task.assignee_id == ctx.user_id)
-    )
+    if wanted_project:
+        project, shared, problem = await _project_tools.resolve_project_anywhere(
+            ctx.db, ctx.user_id, wanted_project, "viewer"
+        )
+        if shared is not None:
+            return await _hub_project_tasks(ctx, shared, status_filter, priority_filter)
+        if project is None:
+            return problem
+        # Everyone on a project sees all of its tasks, not only their own.
+        stmt = select(Task).where(Task.project_id == project.id)
+    else:
+        stmt = select(Task).where(
+            (Task.created_by == ctx.user_id) | (Task.assignee_id == ctx.user_id)
+        )
     if status_filter != "all":
         stmt = stmt.where(Task.status == status_filter)
     if priority_filter != "any":
         stmt = stmt.where(Task.priority == priority_filter)
-    stmt = stmt.order_by(Task.due_date.asc().nullslast(), Task.created_at.desc()).limit(30)
+    stmt = stmt.order_by(Task.due_date.asc().nullslast(), Task.created_at.desc()).limit(200)
 
     result = await ctx.db.execute(stmt)
     tasks = list(result.scalars())
 
     if not tasks:
+        if wanted_project:
+            return f'"{project.name}" has no tasks matching that filter.'
         return "No tasks found matching that filter."
 
     now = datetime.now(timezone.utc)
-    lines = [f"Tasks ({len(tasks)} found):"]
+    under = {}
     for t in tasks:
+        under.setdefault(t.parent_task_id, []).append(t)
+    known = {t.id for t in tasks}
+
+    def render(task: Task, depth: int) -> list[str]:
         due_str = ""
-        if t.due_date:
-            is_overdue = t.due_date < now and t.status not in (TaskStatus.DONE, TaskStatus.CANCELLED)
-            due_str = f", due {t.due_date.date()}" + (" [OVERDUE]" if is_overdue else "")
-        lines.append(
-            f"- [{t.status.upper()}][{t.priority}] {t.title}{due_str}"
-        )
+        if task.due_date:
+            overdue = task.due_date < now and task.status not in (
+                TaskStatus.DONE,
+                TaskStatus.CANCELLED,
+            )
+            due_str = f", due {task.due_date.date()}" + (" [OVERDUE]" if overdue else "")
+        stone = " [milestone]" if task.is_milestone else ""
+        out = [
+            f"{'  ' * depth}- [{task.status.upper()}][{task.priority}] "
+            f"{task.title}{due_str}{stone}"
+        ]
+        for child in under.get(task.id, []):
+            out.extend(render(child, depth + 1))
+        return out
+
+    where = f' in "{project.name}"' if wanted_project else ""
+    lines = [f"Tasks{where} ({len(tasks)} found):"]
+    for task in tasks:
+        # A sub-task whose parent is in this list is printed under it instead.
+        if task.parent_task_id is None or task.parent_task_id not in known:
+            lines.extend(render(task, 0))
+    return "\n".join(lines)
+
+
+async def _hub_project_tasks(
+    ctx: ToolContext, shared: dict[str, Any], status_filter: str, priority_filter: str
+) -> str:
+    """The tasks of a project that lives on the hub, read from the hub."""
+    name = shared.get("name")
+    payload, problem = await _project_tools._hub_get(
+        ctx.db, ctx.user_id, f"/tasks?project_id={shared.get('id')}"
+    )
+    if payload is None:
+        return problem
+    rows = [t for t in payload if isinstance(t, dict)]
+    if status_filter != "all":
+        rows = [t for t in rows if t.get("status") == status_filter]
+    if priority_filter != "any":
+        rows = [t for t in rows if t.get("priority") == priority_filter]
+    if not rows:
+        return f'The shared project "{name}" has no tasks matching that filter.'
+
+    under: dict[str | None, list[dict[str, Any]]] = {}
+    for t in rows:
+        under.setdefault(t.get("parent_task_id"), []).append(t)
+    known = {str(t.get("id")) for t in rows}
+
+    def render(task: dict[str, Any], depth: int) -> list[str]:
+        due = task.get("due_date")
+        due_str = f", due {str(due)[:10]}" if due else ""
+        stone = " [milestone]" if task.get("is_milestone") else ""
+        out = [
+            f"{'  ' * depth}- [{str(task.get('status', '')).upper()}]"
+            f"[{task.get('priority')}] {task.get('title')}{due_str}{stone}"
+        ]
+        for child in under.get(str(task.get("id")), []):
+            out.extend(render(child, depth + 1))
+        return out
+
+    lines = [f'Tasks in the shared project "{name}" ({len(rows)} found):']
+    for task in rows:
+        parent = task.get("parent_task_id")
+        if parent is None or str(parent) not in known:
+            lines.extend(render(task, 0))
     return "\n".join(lines)
 
 
