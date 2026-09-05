@@ -372,6 +372,38 @@ export async function scanBudgetFolder(
   return data;
 }
 
+/**
+ * Look through the inbox for invoices now, instead of waiting for the daily
+ * pass. No source argument: reading mail needs this computer's Google account.
+ */
+export async function gmailScanBudget(id: string): Promise<{ suggested: number }> {
+  const { data } = await apiClient.post<{ suggested: number }>(`/budgets/${id}/gmail-scan`);
+  return data;
+}
+
+export interface InvoiceUploadResult {
+  suggested: boolean;
+  duplicate: boolean;
+  vendor: string;
+  amount: number;
+  date: string | null;
+  category: string | null;
+}
+
+/** Hand over one invoice that arrived by neither Drive nor email. */
+export async function uploadBudgetInvoice(
+  id: string,
+  file: File,
+): Promise<InvoiceUploadResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const { data } = await apiClient.post<InvoiceUploadResult>(
+    `/budgets/${id}/invoices/upload`,
+    form,
+  );
+  return data;
+}
+
 // ── Cross-budget references ─────────────────────────────────────
 
 export async function addBudgetReference(

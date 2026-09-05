@@ -13,13 +13,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
   ExternalLink,
-  FolderOpen,
   Link2,
   Loader2,
-  Mail,
   PlusCircle,
   RefreshCw,
-  ScanSearch,
   Trash2,
   Wallet,
   X,
@@ -30,25 +27,20 @@ import {
   createBudget,
   getBudget,
   linkBudget,
-  linkBudgetFolder,
   listBudgets,
   refreshBudget,
   removeBudgetReference,
-  scanBudgetFolder,
   unlinkBudget,
-  unlinkBudgetFolder,
   updateBudget,
-  updateBudgetFolder,
   type BudgetDetail,
-  type BudgetFolder,
   type OdooCompareResult,
 } from "@/api/budgets";
-import { acceptSuggestion, dismissSuggestion, listSuggestions } from "@/api/assistant";
 import {
   BudgetLedgerTable,
   BudgetSummaryCards,
   money,
 } from "@/components/budgets/BudgetLedger";
+import { InvoiceIntake } from "@/components/budgets/InvoiceIntake";
 import { useToastStore } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 
@@ -410,9 +402,8 @@ function BudgetDetailView({
         </section>
       )}
 
-      {/* Linked folders + automations (Phase 6) */}
-      {!readonly && <FoldersSection budget={budget} onChanged={onChanged} />}
-      {!readonly && <PendingSuggestionsSection budget={budget} onChanged={onChanged} />}
+      {/* Finding invoices, and reviewing what turned up */}
+      {!readonly && <InvoiceIntake budget={budget} onChanged={onChanged} />}
 
       {/* Cross-budget references + Odoo cross-check */}
       <ReferencesSection budget={budget} onChanged={onChanged} />
@@ -421,281 +412,6 @@ function BudgetDetailView({
       {/* Categories, ledger and the add-entry row */}
       <BudgetLedgerTable budget={budget} canEdit={!readonly} onChanged={onChanged} />
     </div>
-  );
-}
-
-// ── Linked folders + automation (Phase 6 — read-only to Gerry) ────────────
-
-function FoldersSection({ budget, onChanged }: { budget: BudgetDetail; onChanged: () => void }) {
-  const push = useToastStore((s) => s.push);
-  const [linkingKind, setLinkingKind] = useState<"invoice" | "receipt" | null>(null);
-  const [ref, setRef] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  const scan = async (folderRowId: string, name: string) => {
-    setBusyId(folderRowId);
-    try {
-      const r = await scanBudgetFolder(budget.id, folderRowId);
-      const bits = [`${r.scanned} file(s) read`];
-      if (r.suggested) bits.push(`${r.suggested} entry suggestion(s) below`);
-      if (r.no_amount) bits.push(`${r.no_amount} with no readable amount`);
-      if (r.errors) bits.push(`${r.errors} failed`);
-      if (r.remaining) bits.push(`${r.remaining} more on the next scan`);
-      push(r.suggested ? "success" : "info", `Scanned "${name}": ${bits.join(", ")}.`);
-      onChanged();
-    } catch (e) {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      push("error", typeof detail === "string" ? detail : "Scan failed.");
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const link = async () => {
-    if (!linkingKind || !ref.trim()) return;
-    setBusyId("link");
-    try {
-      const folder = await linkBudgetFolder(budget.id, { kind: linkingKind, ref: ref.trim() });
-      setRef("");
-      setLinkingKind(null);
-      onChanged();
-      if (window.confirm(`"${folder.folder_name}" linked. Want Gerry to scan it for ${linkingKind}s now? (Read-only — your files are never modified.)`)) {
-        await scan(folder.id, folder.folder_name);
-      }
-    } catch (e) {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      push("error", typeof detail === "string" ? detail : "Couldn't link the folder.");
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const unlink = async (f: BudgetFolder) => {
-    if (!window.confirm(`Unlink "${f.folder_name}"? The Drive folder and its files stay untouched.`)) return;
-    await unlinkBudgetFolder(budget.id, f.id);
-    onChanged();
-  };
-
-  const gmailMutation = useMutation({
-    mutationFn: (enabled: boolean) => updateBudget(budget.id, { gmail_check_enabled: enabled }),
-    onSuccess: (b) => {
-      onChanged();
-      push("info", b.gmail_check_enabled
-        ? "Gerry will check Gmail daily for invoice-like attachments and suggest them here — nothing is filed or logged without your accept."
-        : "Daily Gmail invoice checks are off for this budget.");
-    },
-  });
-
-  return (
-    <section className="space-y-3 rounded-xl border bg-card p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <div>
-            <p className="text-sm font-medium">Linked folders & automation</p>
-            <p className="text-xs text-muted-foreground">
-              Point Gerry at Drive folders of invoices or receipts. She reads them (never
-              modifies or moves anything), extracts vendor/date/amount, and proposes ledger
-              entries you accept or dismiss.
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <button
-            onClick={() => { setLinkingKind(linkingKind === "invoice" ? null : "invoice"); setRef(""); }}
-            className={cn("rounded-md border px-2.5 py-1.5 text-xs hover:bg-accent", linkingKind === "invoice" && "border-primary text-primary")}
-          >
-            Link invoice folder
-          </button>
-          <button
-            onClick={() => { setLinkingKind(linkingKind === "receipt" ? null : "receipt"); setRef(""); }}
-            className={cn("rounded-md border px-2.5 py-1.5 text-xs hover:bg-accent", linkingKind === "receipt" && "border-primary text-primary")}
-          >
-            Link receipts folder
-          </button>
-        </div>
-      </div>
-
-      {linkingKind && (
-        <div className="flex gap-2">
-          <input
-            value={ref}
-            onChange={(e) => setRef(e.target.value)}
-            placeholder={`Paste the ${linkingKind} folder's Drive link`}
-            className="flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
-            autoFocus
-          />
-          <button
-            onClick={() => void link()}
-            disabled={!ref.trim() || busyId === "link"}
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
-          >
-            {busyId === "link" ? "Linking…" : "Link"}
-          </button>
-        </div>
-      )}
-
-      {budget.folders.length > 0 && (
-        <ul className="space-y-2">
-          {budget.folders.map((f) => (
-            <li key={f.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border px-3 py-2 text-xs">
-              <span className="rounded bg-accent px-1.5 py-0.5 uppercase text-[10px] tracking-wide text-muted-foreground">{f.kind}</span>
-              <a href={f.folder_url} target="_blank" rel="noopener noreferrer" className="font-medium hover:underline">
-                {f.folder_name}
-              </a>
-              <span className="text-muted-foreground">
-                {f.files_scanned} file(s) read · extracted {money(f.extracted_total, budget.currency)}
-                {f.last_scan_at && ` · last scan ${new Date(f.last_scan_at).toLocaleString()}`}
-              </span>
-              <span className="ml-auto flex items-center gap-2">
-                <label className="flex cursor-pointer items-center gap-1.5 text-muted-foreground" title="Scan this folder automatically once a day">
-                  <input
-                    type="checkbox"
-                    checked={f.auto_scan}
-                    onChange={async (e) => { await updateBudgetFolder(budget.id, f.id, { auto_scan: e.target.checked }); onChanged(); }}
-                    className="h-3.5 w-3.5 accent-primary"
-                  />
-                  Daily scan
-                </label>
-                <button
-                  onClick={() => void scan(f.id, f.folder_name)}
-                  disabled={busyId === f.id}
-                  className="flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-accent disabled:opacity-60"
-                >
-                  {busyId === f.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ScanSearch className="h-3 w-3" />}
-                  Scan now
-                </button>
-                <button onClick={() => void unlink(f)} className="text-muted-foreground hover:text-destructive" title="Unlink (folder and files stay untouched)">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="flex items-center justify-between border-t pt-3">
-        <div className="flex items-start gap-3">
-          <Mail className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <div>
-            <p className="text-sm font-medium">Check Gmail for invoices daily</p>
-            <p className="text-xs text-muted-foreground">
-              New invoice-like attachments become suggestions here — accepting files them into
-              the linked invoice folder and logs the entry. Never automatic.
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => gmailMutation.mutate(!budget.gmail_check_enabled)}
-          disabled={gmailMutation.isPending}
-          className={cn(
-            "relative h-6 w-11 shrink-0 rounded-full transition-colors",
-            budget.gmail_check_enabled ? "bg-primary" : "bg-muted-foreground/30",
-          )}
-          title={budget.gmail_check_enabled ? "Turn off daily Gmail checks" : "Turn on daily Gmail checks"}
-        >
-          <span
-            className={cn(
-              "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
-              budget.gmail_check_enabled ? "left-[22px]" : "left-0.5",
-            )}
-          />
-        </button>
-      </div>
-    </section>
-  );
-}
-
-// ── Pending suggestions — bulk review for scanned/emailed documents ───────
-
-function PendingSuggestionsSection({ budget, onChanged }: { budget: BudgetDetail; onChanged: () => void }) {
-  const push = useToastStore((s) => s.push);
-  const qc = useQueryClient();
-  const [busy, setBusy] = useState(false);
-
-  const suggestions = useQuery({
-    queryKey: ["budget-suggestions", budget.id],
-    queryFn: () => listSuggestions({ status: "pending" }),
-    refetchInterval: 30_000,
-    select: (rows) =>
-      rows.filter(
-        (r) =>
-          (r.kind === "budget_entry" || r.kind === "gmail_invoice") &&
-          (r.payload as { budget_id?: string })?.budget_id === budget.id,
-      ),
-  });
-  const pending = suggestions.data ?? [];
-  if (pending.length === 0) return null;
-
-  const resolve = async (id: string, action: "accept" | "dismiss") => {
-    try {
-      if (action === "accept") await acceptSuggestion(id);
-      else await dismissSuggestion(id);
-    } catch (e) {
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      push("error", typeof detail === "string" ? detail : `Couldn't ${action} the suggestion.`);
-    }
-    qc.invalidateQueries({ queryKey: ["budget-suggestions", budget.id] });
-    onChanged();
-  };
-
-  const acceptAll = async () => {
-    if (!window.confirm(`Accept all ${pending.length} suggested entries? Each one is written to the sheet.`)) return;
-    setBusy(true);
-    for (const s of pending) {
-      // Sequential on purpose: each write re-reads the sheet first.
-      // eslint-disable-next-line no-await-in-loop
-      await resolve(s.id, "accept");
-    }
-    setBusy(false);
-  };
-
-  return (
-    <section className="space-y-2 rounded-xl border border-primary/40 bg-card p-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">
-          Gerry found {pending.length} document{pending.length === 1 ? "" : "s"} to review
-        </p>
-        {pending.length > 1 && (
-          <button
-            onClick={() => void acceptAll()}
-            disabled={busy}
-            className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
-          >
-            {busy ? "Accepting…" : "Accept all"}
-          </button>
-        )}
-      </div>
-      <ul className="space-y-1.5">
-        {pending.map((s) => (
-          <li key={s.id} className="flex flex-wrap items-center gap-2 rounded-md border px-3 py-2 text-xs">
-            <div className="min-w-0 flex-1">
-              <p className="font-medium">{s.title}</p>
-              {s.summary && <p className="truncate text-muted-foreground">{s.summary}</p>}
-            </div>
-            {s.source_url && (
-              <a href={s.source_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" title="Open the source document">
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
-            <button
-              onClick={() => void resolve(s.id, "accept")}
-              disabled={busy}
-              className="rounded-md border border-primary px-2 py-1 text-primary hover:bg-primary/10 disabled:opacity-60"
-            >
-              Accept
-            </button>
-            <button
-              onClick={() => void resolve(s.id, "dismiss")}
-              disabled={busy}
-              className="rounded-md border px-2 py-1 text-muted-foreground hover:bg-accent disabled:opacity-60"
-            >
-              Dismiss
-            </button>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 

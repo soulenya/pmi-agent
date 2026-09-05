@@ -45,6 +45,7 @@ LEDGER_COLUMNS = ("date", "description", "category", "amount", "source", "note",
 LEDGER_WIDTH = len(LEDGER_COLUMNS)
 LEDGER_RANGE = "Ledger!A2:G2000"
 LEDGER_APPEND_RANGE = "Ledger!A:G"
+CATEGORY_APPEND_RANGE = "Categories!A:B"
 
 STATUS_SPENT = "Spent"
 STATUS_ALLOCATED = "Allocated"
@@ -387,6 +388,35 @@ def _require_writable(budget: Budget) -> None:
         )
 
 
+async def ensure_category(budget: Budget, name: str) -> bool:
+    """Put a category on the Categories tab when the sheet has not met it yet.
+
+    An invoice names costs the budget was never set up for. Dropping the name
+    would leave the row uncategorised and the totals unusable, so the sheet
+    learns it instead — with no cap, which is a category nobody is policing.
+    """
+    from services import google_service as gs
+
+    wanted = name.strip()[:100]
+    if not wanted or budget.external_readonly:
+        return False
+    known = {
+        str(c.get("name", "")).strip().lower() for c in (budget.cached_categories or [])
+    }
+    if wanted.lower() in known:
+        return False
+    try:
+        await _run(
+            lambda: gs.sheets_append_row(
+                budget.drive_file_id, CATEGORY_APPEND_RANGE, [wanted, ""]
+            )
+        )
+    except Exception:  # noqa: BLE001 — a sheet with no Categories tab still takes the entry
+        logger.info("Could not add category %r to budget %s", wanted, budget.id)
+        return False
+    return True
+
+
 async def add_entry(
     db: AsyncSession,
     budget: Budget,
@@ -405,6 +435,7 @@ async def add_entry(
     _require_writable(budget)
     if not description.strip():
         raise BudgetError("Entry description is required.")
+    await ensure_category(budget, category)
     row = [date.strip(), description.strip()[:300], category.strip()[:100],
            amount, source, note.strip()[:500], normalize_status(status)]
     await _run(lambda: gs.sheets_append_row(budget.drive_file_id, LEDGER_APPEND_RANGE, row))

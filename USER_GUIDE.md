@@ -505,6 +505,24 @@ A shared project on the hub has a Budget tab of its own, and budgets created the
 
 **How a budget on a shared project works.** The Google Sheet is always made on your own computer, under your own Google account, because the hub has no Google account of its own and never will. What travels to the hub is the finished budget — its name, its allotment and every line of its ledger — for everyone on the project to read. The rows are edited on the **Budgets** page or in Google Sheets, and **Update from Drive** on the project's Budget tab sends the new figures up. Only the person who created the budget can do that; from anyone else's computer the sheet cannot be read at all.
 
+**Sharing a budget you keep on this computer.** If you already have a budget that has never left your machine, **Add a budget** on a shared project offers it under **Or share a budget from this computer**. You are warned before anything moves, and the warning is the honest one: everyone on the project will be able to read its title, its totals and every line of its ledger, and taking it off the project later does not un-see it. The sheet on Drive stays yours; only the figures are copied.
+
+#### Getting invoices onto a budget
+
+Open a budget's ledger and, if the sheet is yours, you get **Where invoices come from** underneath it. The same three ways in are on the **Manage Budgets** page and on a project's Budget tab, because it is the same job either way.
+
+**Watch a Drive folder.** **Link invoice folder** or **Link receipts folder**, paste the folder's link, and Little Gerry reads what is in it — she never modifies, moves or deletes any of your files. Tick **Daily** to have it read once a day, or press **Read now**. Each pass handles a few files at a time and tells you how many are left for next time.
+
+**Search the inbox.** **Check now** looks through the last couple of days of mail for invoice-like attachments. Tick **Daily** to have it happen on its own. Accepting one of these files the attachment into your linked invoice folder as well as logging the line.
+
+**Hand one over.** **Choose a file** takes a PDF, a photo, a scan or a CSV — an invoice that arrived on paper, or from somewhere Little Gerry cannot reach. She reads the vendor, the date and the total off it. **The file itself is not kept**; only the figures, and only as something waiting for you to confirm. The same invoice offered twice is recognised rather than counted twice.
+
+**Nothing reaches the sheet without you.** Everything found appears in a list underneath with **Accept** and **Dismiss**, or **Accept all**. Until you accept, not one figure has been written. A total read wrongly off a bad scan is a real possibility, which is exactly why you are asked.
+
+**New categories are added to the sheet.** If an invoice names a cost your budget was never set up for, that category is marked **new** in the list and is added to the sheet's Categories tab — with no cap — when you accept. Before, the category was quietly stripped off and the line landed uncategorised.
+
+All of this needs the Google account on your own computer, so on a shared project the work happens there and the updated figures are sent up afterwards. On a budget somebody else added, the panel says so rather than offering you buttons that could not work. A linked external sheet cannot be written to at all, so it says that instead.
+
 #### Archiving and deleting a project
 
 Both live on the **Overview** tab, under **Archive or delete**.

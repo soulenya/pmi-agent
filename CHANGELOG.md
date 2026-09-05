@@ -5,6 +5,36 @@
 ## Changelog
 
 ### v4.7.0 — 2026-09-05
+**Invoices find their own way onto a project budget, and a crowded canvas folds itself up**
+
+Chasing invoices is the part of running a budget nobody signed up for, and
+until now only the personal Manage Budgets page could help with it. A project
+budget — the one the rest of the team can actually see — had none of it.
+
+- **A project's Budget tab now collects invoices the same three ways the
+  Manage Budgets page does**: watched Drive folders, the inbox, and a file you
+  hand it. Everything found is listed for you to accept or throw out; nothing
+  reaches the sheet on its own.
+- **Search the inbox on demand.** A "Check now" button looks through the last
+  couple of days of mail there and then, rather than waiting for the daily pass.
+- **Hand over an invoice that arrived on paper.** Upload a scan or a photo and
+  Gerry reads the vendor, date and total off it. The file itself is not kept —
+  only the figures, and only as something for you to confirm.
+- **A category read off an invoice is added to the sheet when it is new.**
+  Before, a cost the budget had never been set up for arrived with its category
+  quietly stripped off, so the by-category totals stopped adding up. New names
+  now appear on the Categories tab with no cap set, and are marked "new" in the
+  review list so you can see it coming.
+- **A budget that only exists on your computer can be shared with a project.**
+  You are told plainly first: everyone on the project will be able to read its
+  title, its totals and every line of its ledger. The Google Sheet stays yours —
+  only the figures are copied.
+
+Reading Drive and the inbox needs the Google account on your own computer, so
+this work happens there and the finished figures are sent up to the project
+afterwards. On a budget somebody else added, the panel says so rather than
+offering buttons that could not work.
+
 **A crowded canvas folds itself up when you stand back**
 
 A board with a task broken into a dozen steps is unreadable from far away: the

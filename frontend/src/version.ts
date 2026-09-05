@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 241;
+export const BUILD_NUMBER = 242;
 export const BUILD_DATE = "2026-09-05";
 
 export interface ChangelogEntry {
@@ -15,10 +15,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    build: 241,
+    build: 242,
     date: "2026-09-05",
-    title: "A crowded canvas folds itself up when you stand back",
+    title: "Invoices find their own way onto a project budget",
     changes: [
+      "A project's Budget tab can now watch Drive folders, search the inbox and take an invoice you hand it, the same as the Manage Budgets page.",
+      "Search the inbox on demand with Check now, instead of waiting for the daily pass.",
+      "Upload an invoice that arrived on paper and Gerry reads the vendor, date and total off it. The file is not kept.",
+      "A category read off an invoice that the sheet does not have yet is added to it, instead of the entry landing uncategorised.",
+      "A budget that only exists on your computer can be shared with a project, after a plain warning about who will then be able to read it.",
       "Zoom out past about half size and a task's sub-task cards fold into the parent card, which shows a count of what is tucked away.",
       "Click that count to open one family while the rest stay folded. It stays open until you click it again or zoom back in.",
       "Only task cards fold, and only into their own parent. Notes, shapes and drawings are left alone.",

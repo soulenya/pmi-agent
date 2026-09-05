@@ -20,6 +20,7 @@ import { useState } from "react";
 
 import {
   createBudget,
+  getBudget,
   getProjectBudget,
   linkBudget,
   listBudgets,
@@ -31,6 +32,7 @@ import {
 } from "@/api/budgets";
 import type { Source } from "@/api/tasks";
 import { BudgetLedgerTable, BudgetSummaryCards } from "@/components/budgets/BudgetLedger";
+import { InvoiceIntake } from "@/components/budgets/InvoiceIntake";
 
 /** Pulls the file id out of a pasted Drive link, or accepts a bare id. */
 function driveFileId(input: string): string | null {
@@ -193,6 +195,71 @@ function BudgetLedgerPanel({
         source={source}
         onChanged={onChanged}
       />
+
+      {data.is_mine && (
+        <ProjectInvoiceIntake budget={budget} source={source} onSynced={onChanged} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Getting invoices onto a project budget.
+ *
+ * Reading Drive and the inbox needs the Google account on this computer, and
+ * the hub has none, so the work happens against the local twin of the shared
+ * sheet and the finished figures are sent up afterwards. Someone who joined a
+ * project they did not create has no twin, which is why this can be absent.
+ */
+function ProjectInvoiceIntake({
+  budget,
+  source,
+  onSynced,
+}: {
+  budget: ProjectBudget;
+  source: Source;
+  onSynced: () => void;
+}) {
+  const qc = useQueryClient();
+  const fileId = driveFileId(budget.drive_url);
+
+  const { data: twin, isLoading } = useQuery({
+    queryKey: ["budget-twin", fileId],
+    queryFn: async () => {
+      const here = (await listBudgets("local")).find((b) => b.drive_file_id === fileId);
+      return here ? await getBudget(here.id, "local") : null;
+    },
+    enabled: Boolean(fileId),
+  });
+
+  const settle = async () => {
+    if (!twin) return;
+    const fresh = await refreshBudget(twin.id, "local");
+    if (source === "hub") await mirrorBudget(fresh, "hub");
+    qc.invalidateQueries({ queryKey: ["budget-twin", fileId] });
+    onSynced();
+  };
+
+  if (isLoading || !fileId) return null;
+  if (!twin) {
+    return (
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        This budget's sheet was added from another computer, so invoices have to be
+        collected there.
+      </p>
+    );
+  }
+  if (twin.external_readonly) {
+    return (
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        This is a linked external sheet — Little Gerry can read it but not write to it,
+        so invoices cannot be logged onto it here.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <InvoiceIntake budget={twin} onChanged={() => void settle()} />
     </div>
   );
 }
@@ -425,6 +492,14 @@ export function ProjectBudgetTab({
     enabled: picking,
   });
 
+  // A budget made on this computer has never left it. On a shared project it
+  // can still be offered, so long as what that means is said out loud first.
+  const { data: onThisComputer = [] } = useQuery({
+    queryKey: ["budgets", "local"],
+    queryFn: () => listBudgets("local"),
+    enabled: picking && source === "hub",
+  });
+
   const done = () => {
     setPicking(false);
     setDriveLink("");
@@ -451,6 +526,23 @@ export function ProjectBudgetTab({
   });
 
   const available = mine.filter(b => b.project_id !== projectId);
+
+  // Sending a private budget up to the hub is the one irreversible thing on
+  // this page, so it is asked for plainly rather than buried in a caption.
+  const share = useMutation({
+    mutationFn: async (budgetId: string) => {
+      const full = await getBudget(budgetId, "local");
+      const there = await mirrorBudget(full, "hub");
+      return updateBudget(there.id, { project_id: projectId }, "hub");
+    },
+    onSuccess: done,
+  });
+
+  const alreadyShared = new Set(mine.map(b => b.drive_file_id));
+  const shareable =
+    source === "hub"
+      ? onThisComputer.filter(b => !alreadyShared.has(b.drive_file_id))
+      : [];
 
   if (isLoading) {
     return <p className="text-sm text-slate-500">Loading budgets…</p>;
@@ -549,6 +641,49 @@ export function ProjectBudgetTab({
               </ul>
             )}
           </div>
+
+          {shareable.length > 0 && (
+            <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+              <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                Or share a budget from this computer
+              </label>
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                These are yours alone right now. Adding one puts its title, its totals and
+                every line of its ledger where everyone on this project can read them. The
+                Google Sheet itself stays yours — only the figures are copied.
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                {shareable.map(b => (
+                  <li key={b.id}>
+                    <button
+                      type="button"
+                      disabled={share.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Share "${b.title}" with everyone on this project? They will be able to see every line of its ledger. This cannot be undone by removing it later — they will have seen it.`,
+                          )
+                        ) {
+                          share.mutate(b.id);
+                        }
+                      }}
+                      className="flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
+                    >
+                      <span className="truncate text-slate-800 dark:text-slate-200">{b.title}</span>
+                      <span className="ml-3 shrink-0 text-xs text-slate-500">
+                        {money(b.allotment, b.currency)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {share.isError && (
+                <p className="mt-1.5 text-sm text-rose-600">
+                  That budget could not be shared with the project.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
             <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
