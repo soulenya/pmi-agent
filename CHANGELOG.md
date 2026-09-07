@@ -4,6 +4,37 @@
 
 ## Changelog
 
+### v4.7.3 — 2026-09-07
+**The board folds a layer at a time, and dropping a card files it**
+
+Reported as "nothing collapses, all the tasks just disappear with the
+exception of the original task". Two problems behind it: folding had only
+one stage, and there was no way to give the board more stages to fold.
+
+- **Folding is staged by depth.** A card folds at `0.34 × 1.5^(depth-1)`, so
+  the deepest sub-tasks go first, then their parent, then its parent. Before,
+  every card folded at the same threshold, which on a one-level board meant
+  the whole thing vanished into the root in a single step.
+- **Cards fly into the card that takes them.** The wrapper's own transform is
+  its position, so the animation is applied to the wrapper's contents, driven
+  by `--fold-dx` / `--fold-dy` board-pixel offsets aimed at the surviving
+  ancestor.
+- **Loose cards have an owner.** Notes, shapes, text boxes and links are
+  outside the task tree, so they hang off the task card they share a line
+  with, or the nearest task card by centre distance if they share none. They
+  count as one level deeper than their owner, so decoration clears a stage
+  before the work does.
+- **A task-to-task line now adopts.** `create_edge` sets the target's
+  `parent_task_id` alongside the dependency it already wrote, with a 64-hop
+  ancestor walk to refuse a cycle.
+- **Dropping a card on a card draws the line.** `onNodeDragStop` looks for the
+  topmost unfolded card containing the dragged card's centre and creates the
+  connection, unless the two are already joined that way. Single drags only —
+  moving a multi-selection never adopts.
+- **Deleting a line restores the previous parent.** `delete_edge` re-derives
+  the parent from whatever canvas edges still point at the node rather than
+  clearing it to null, so undo is lossless.
+
 ### v4.7.2 — 2026-09-07
 **The canvas folds instead of blinking, and the resize grips are catchable**
 

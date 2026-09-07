@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 244;
+export const BUILD_NUMBER = 245;
 export const BUILD_DATE = "2026-09-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,20 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 245,
+    date: "2026-09-07",
+    title: "The board folds a layer at a time, and dropping a card files it",
+    changes: [
+      "Zooming out now collapses the board in stages instead of all at once: notes, shapes and links fold away first, then sub-tasks fold into their parent, then that parent folds into its own parent.",
+      "Cards fly into whichever card is swallowing them, so you can see where your work went.",
+      "A note, shape, text box or link folds into the task card it is joined to by a line, or into the nearest task card if it is joined to nothing.",
+      "Drawing a line from one task card to another now also makes the second a sub-task of the first, so the board, the Tasks tab and the timeline agree.",
+      "Drop one card on top of another and that line is drawn for you.",
+      "Removing the line hands the task back to whichever line still points at it, so undo puts the board back exactly as it was.",
+      "A task cannot be made the parent of something it already sits under.",
+    ],
+  },
   {
     build: 244,
     date: "2026-09-07",
