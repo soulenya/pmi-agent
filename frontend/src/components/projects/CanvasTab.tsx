@@ -1471,6 +1471,8 @@ function Board({ projectId, source = "local", canEdit }: Props) {
           panOnDrag={tool === "select"}
           selectionOnDrag={false}
           fitView
+          // Must sit below FOLD_ZOOM, or a task family can never fold away.
+          minZoom={0.15}
           proOptions={{ hideAttribution: false }}
           defaultViewport={data?.viewport}
           className={cn(
@@ -1482,7 +1484,15 @@ function Board({ projectId, source = "local", canEdit }: Props) {
           <Controls />
           <MiniMap pannable zoomable className="!bg-muted" />
 
-          <Panel position="top-left" className="flex flex-col items-start gap-2">
+          <Panel
+            position="top-left"
+            className={cn(
+              "flex flex-col items-start gap-2",
+              // The pool is pinned top-right at w-60; without this the toolbar
+              // grows underneath it and its last buttons cannot be clicked.
+              editable && pool.length > 0 && "max-w-[calc(100%-18rem)]",
+            )}
+          >
             {editable ? (
               <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-card/95 p-1 shadow-sm">
                 {tools.map((t) => (

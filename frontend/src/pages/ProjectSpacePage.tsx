@@ -142,6 +142,9 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
   const vis = VISIBILITY[project.visibility] ?? VISIBILITY.private;
   const VisIcon = vis.icon;
   const canEdit = myRole === "owner" || myRole === "editor";
+  // On this computer a project is in one database and no other, so "shared"
+  // and "company" are aspirations until it has been moved to the hub.
+  const claimsShared = !onHub && project.visibility !== "private";
 
   return (
     <div className="flex h-full flex-col">
@@ -158,9 +161,16 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
             style={{ backgroundColor: project.color ?? "#64748b" }}
           />
           <h1 className="text-xl font-semibold">{project.name}</h1>
-          <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs",
+              claimsShared
+                ? "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                : "text-muted-foreground",
+            )}
+          >
             <VisIcon className="h-3 w-3" />
-            {vis.label}
+            {claimsShared ? "Not shared yet" : vis.label}
           </span>
           <span className="text-xs text-muted-foreground">
             you are {myRole}
@@ -238,7 +248,13 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
 
             <div className="rounded-xl border bg-card p-5">
               <h2 className="mb-1 text-sm font-medium">Who can see this</h2>
-              <p className="mb-3 text-xs text-muted-foreground">{vis.hint}</p>
+              <p className="mb-3 text-xs text-muted-foreground">
+                {onHub
+                  ? vis.hint
+                  : project.visibility === "private"
+                    ? "Only you. This project is on this computer."
+                    : "Still only you. This project is on this computer, so nobody else can reach it whatever it is labelled. Move it to the hub, below, to share it."}
+              </p>
               <div className="flex flex-wrap gap-1">
                 {(Object.keys(VISIBILITY) as ProjectVisibility[]).map(v => (
                   <button
@@ -266,6 +282,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
 
             <ProjectPeoplePanel
               projectId={id!}
+              projectName={project.name}
               source={source}
               members={members}
               isOwner={myRole === "owner"}

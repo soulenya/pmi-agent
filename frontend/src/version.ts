@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 242;
-export const BUILD_DATE = "2026-09-05";
+export const BUILD_NUMBER = 243;
+export const BUILD_DATE = "2026-09-06";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,20 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 243,
+    date: "2026-09-06",
+    title: "Sharing a project actually shares it, and the canvas answers again",
+    changes: [
+      "A project made on this computer can now be moved to the hub, where naming people means something. Its tasks, canvas and notes go with it, and anyone you had already added comes too.",
+      "Choose who it reaches on the way: only the people you name, or everyone at the firm.",
+      "A project on this computer no longer claims to be shared. It says Not shared yet, and the People panel explains that nobody else can open it until it is moved.",
+      "The copy on this computer is archived, not deleted.",
+      "Sub-task cards fold into their parent again. The board could never zoom out far enough to reach the point where folding starts, so it never happened.",
+      "You can zoom the canvas out much further than before.",
+      "Undo and redo work on the canvas. The buttons were being covered by the pool panel, so the clicks never reached them.",
+    ],
+  },
   {
     build: 242,
     date: "2026-09-05",

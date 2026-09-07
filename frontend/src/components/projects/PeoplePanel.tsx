@@ -9,6 +9,7 @@ import {
 } from "@/api/tasks";
 import type { Source } from "@/api/tasks";
 import type { AssignableRole, ProjectMember } from "@/types/tasks";
+import { MoveToHubCard } from "./MoveToHub";
 
 const ROLES: { value: AssignableRole; label: string; hint: string }[] = [
   { value: "viewer", label: "Can view", hint: "Read the project. Change nothing." },
@@ -33,11 +34,13 @@ function errorMessage(err: unknown): string {
  */
 export function ProjectPeoplePanel({
   projectId,
+  projectName,
   source = "local",
   members,
   isOwner,
 }: {
   projectId: string;
+  projectName?: string;
   source?: Source;
   members: ProjectMember[];
   isOwner: boolean;
@@ -71,6 +74,19 @@ export function ProjectPeoplePanel({
 
   const busy = addMutation.isPending || roleMutation.isPending || removeMutation.isPending;
   const failure = addMutation.error ?? roleMutation.error ?? removeMutation.error;
+
+  // A local project exists in this database and no other, so a member list on
+  // one is decoration. Say so instead of adding to it.
+  if (source === "local") {
+    return (
+      <MoveToHubCard
+        projectId={projectId}
+        projectName={projectName}
+        members={members}
+        isOwner={isOwner}
+      />
+    );
+  }
 
   return (
     <div className="rounded-xl border bg-card p-5">

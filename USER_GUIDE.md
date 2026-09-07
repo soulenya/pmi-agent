@@ -696,9 +696,35 @@ Set on the Overview tab. Only the project's owner can change it.
 
 New projects start private. Sharing controls who can open a project; it is separate from what Gerry is allowed to read.
 
+**These settings only mean something on the hub.** A project made on this
+computer is in this computer's database and no other, so there is nobody for it
+to be visible *to*. Such a project shows **Not shared yet** however it is set,
+and the People panel offers to move it to the hub instead. See *Sharing a
+project with someone*, below.
+
 #### Sharing a project with someone
 
-On the **Overview** tab, the **People** panel lists everyone on the project. If you own it, you can change that list.
+Where the project lives decides what this panel can do.
+
+**A project on this computer cannot be shared where it is.** Nothing on this
+machine is reachable by anyone else, so the **People** panel does not offer a
+member list — it offers **Move to the hub**. Choose who it should reach:
+
+| Choice | Who ends up able to open it |
+|--------|------------------------------|
+| **Only the people I name** | Nobody, until you name them on the hub. Nobody else at the firm sees it or knows it exists. |
+| **Everyone at the firm** | Anyone signed in can find and open it. |
+
+Its tasks — with their sub-task structure — its canvas boards, its pinned notes
+and anyone you had already added all go with it. The copy on this computer is
+**archived, not deleted**, and you are taken to the hub copy. Work in that one
+from then on.
+
+If you had already added people to it before moving, the panel names them and
+tells you they cannot see any of it yet. Moving the project takes them with it.
+
+**On a hub project**, the **People** panel lists everyone on the project. If you
+own it, you can change that list.
 
 **To add someone,** type their work email address, choose what they should be able to do, and click **Add**:
 
@@ -709,8 +735,6 @@ On the **Overview** tab, the **People** panel lists everyone on the project. If 
 | **Can edit** | Do the work: tasks, canvas, timeline, material, notes. |
 
 Ownership is not on that list. Handing a project over is a different act from sharing it, and it is not done from a dropdown.
-
-**A private project opens to Shared** the moment you add the first person. A project that stayed private while carrying a list of members would just be a list of people who cannot get in.
 
 **You can add someone who has never opened Little Gerry.** Their role is written down and waiting for them the first time they sign in with their own account.
 

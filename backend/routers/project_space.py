@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import secrets
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -25,10 +25,16 @@ from models.db.project_member import ProjectMember
 from models.db.task import Project, Task
 from models.db.user import User
 from models.db.workroom import Workroom, WorkroomItem, WorkroomJournalEntry
+from models.schemas.project_transfer import (
+    ProjectBundle,
+    ProjectImported,
+    PromoteRequest,
+    PromoteResult,
+)
 from models.schemas.tasks import ProjectOut
 from services import budget_service
 from services.auth.service import hash_password
-from services.projects import custody
+from services.projects import custody, transfer
 from services.projects.access import ALLOWED_DOMAINS, resolve_role
 from services.projects.workroom import ensure_workroom
 
@@ -303,6 +309,77 @@ async def _notify_added(db: AsyncSession, project: Project, user_id: uuid.UUID, 
         )
     except Exception:  # noqa: BLE001 — a missed notification must not fail the write
         logger.exception("Failed to announce project membership")
+
+
+@router.post(
+    "/import",
+    response_model=ProjectImported,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_project(
+    bundle: ProjectBundle,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectImported:
+    """Take delivery of a whole project from somewhere else.
+
+    This is the hub's half of sharing: the desktop packs up a project nobody
+    else can reach and posts it here, where the member list actually means
+    something. The sender becomes the owner.
+    """
+    result = await transfer.restore(db, current_user, bundle)
+    await db.commit()
+    logger.info(
+        "Imported project %s for %s (%d tasks, %d cards)",
+        result.project_id,
+        current_user.id,
+        result.tasks,
+        result.canvas_nodes,
+    )
+    return result
+
+
+@router.post("/{project_id}/promote", response_model=PromoteResult)
+async def promote_project(
+    body: PromoteRequest,
+    project: Project = Depends(require_project_role("viewer")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PromoteResult:
+    """Move a project off this computer and onto the hub, where people can reach it.
+
+    A project made here is only ever in this database, so adding people to it
+    achieves nothing. Sharing one therefore means sending it. The local copy is
+    archived rather than deleted — the move is a copy until it has landed, and
+    nothing is thrown away if the hub disagrees.
+    """
+    from routers.hub import _guard_desktop
+    from services.hub import client as hub
+
+    await _require_owner(db, project, current_user.id)
+    _guard_desktop()
+
+    bundle = await transfer.build(db, project, visibility=body.visibility)
+    try:
+        resp = await hub.request(
+            db, current_user.id, "POST", "/projects/import", json_body=bundle.model_dump(mode="json")
+        )
+    except hub.HubNotConnected as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except hub.HubError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    if resp.status_code >= 400:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"The hub would not take the project: {resp.text[:200]}",
+        )
+
+    result = PromoteResult(**resp.json())
+    project.is_archived = True
+    project.archived_at = datetime.now(timezone.utc)
+    await db.commit()
+    logger.info("Promoted project %s to hub as %s", project.id, result.project_id)
+    return result
 
 
 @router.post(
