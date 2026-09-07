@@ -66,6 +66,28 @@ export async function createProject(
   return resp.data;
 }
 
+export type PromoteResult = {
+  project_id: string;
+  tasks: number;
+  canvas_nodes: number;
+  pins: number;
+  members: number;
+};
+
+/**
+ * Send a project on this computer up to the hub, where a member list means
+ * something. The local copy is archived, not destroyed.
+ */
+export async function promoteProject(
+  id: string,
+  visibility: "shared" | "company",
+): Promise<PromoteResult> {
+  const resp = await apiClient.post<PromoteResult>(`/projects/${id}/promote`, {
+    visibility,
+  });
+  return resp.data;
+}
+
 // ── People ────────────────────────────────────────────────────────────────────
 
 /**

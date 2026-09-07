@@ -4,6 +4,34 @@
 
 ## Changelog
 
+### v4.7.1 — 2026-09-06
+**Sharing a project actually shares it, and the canvas answers again**
+
+A project created on this computer lives in this computer's database and no
+other. Adding someone to one wrote a member row, created an account for them
+and sent them a notification — all of it locally, none of it anywhere they
+could ever reach. The project then displayed a "Shared" badge. Nothing had
+been shared, and nothing had leaked.
+
+- **A local project can now be moved to the hub.** Its tasks (with their
+  parent/child structure), its canvas boards, its pinned notes and anyone you
+  had already added all travel with it. The copy on this computer is archived,
+  not deleted.
+- **You choose its reach on the way over**: only the people you name, or
+  everyone at the firm.
+- **A local project no longer claims to be shared.** The badge reads "Not
+  shared yet", and the People panel says plainly that nobody else can open it —
+  and lists anyone who was added and cannot see any of it.
+- **Sub-task folding works.** It shipped in v4.7.0 unable to run at all: the
+  board folds below half zoom, but the board's own zoom floor *was* half, so
+  the threshold could never be crossed. The floor is now much lower.
+- **You can zoom the canvas out considerably further.**
+- **Undo and redo work on the canvas.** The toolbar had grown underneath the
+  pool panel, so clicks on the last few buttons landed on the panel instead.
+  The logic was never at fault.
+
+---
+
 ### v4.7.0 — 2026-09-05
 **Invoices find their own way onto a project budget, and a crowded canvas folds itself up**
 
