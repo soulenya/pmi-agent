@@ -797,11 +797,15 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     return { parent, depth, deepest };
   }, [nodes, edges, boxFor]);
 
-  // Zooming back in past the first stage is the other way to open everything.
-  const staging = zoom < foldZoom(tree.deepest);
+  /** How many stages have folded at this zoom. Opening a card lasts one stage. */
+  const stage = useMemo(() => {
+    let n = 0;
+    for (let d = 1; d <= tree.deepest; d += 1) if (zoom < foldZoom(d)) n += 1;
+    return n;
+  }, [zoom, tree.deepest]);
   useEffect(() => {
-    if (!staging) setOpened(new Set());
-  }, [staging]);
+    setOpened(new Set());
+  }, [stage]);
 
   /**
    * What is folded away right now, which card each folded one flew into, and
@@ -812,16 +816,18 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     const into = new Map<string, string>();
     const count = new Map<string, number>();
     if (tree.parent.size === 0) return { away, into, count };
-    /** An opened card holds its whole family out, however far you zoom. */
+    /** An opened card holds its family out — until it folds away itself. */
     const held = (id: string) => {
       let hops = 0;
       for (let up = tree.parent.get(id); up && hops < 64; up = tree.parent.get(up)) {
+        if (away.has(up)) return false;
         if (opened.has(up)) return true;
         hops += 1;
       }
       return false;
     };
-    for (const [id, d] of tree.depth) {
+    // Shallowest first, so a card's owner is already decided when it is asked.
+    for (const [id, d] of [...tree.depth].sort((a, b) => a[1] - b[1])) {
       if (zoom < foldZoom(d) && !held(id)) away.add(id);
     }
     for (const id of away) {

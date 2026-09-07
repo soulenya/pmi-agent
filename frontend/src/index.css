@@ -213,8 +213,11 @@
    whenever "Animation effects" is off, which is the default on plenty of
    machines, and these are the difference between folding and vanishing. */
 
-/* The node wrapper's own transform is its position, so only its contents move. */
-.react-flow__node > * {
+/* The node wrapper's own transform is its position, so only its contents move.
+   React Flow's handles and resize grips are direct children too, and they carry
+   transforms of their own that place them: overwrite those and every edge
+   touching a folded card attaches in the wrong place, for good. */
+.react-flow__node > *:not(.react-flow__handle):not(.react-flow__resize-control) {
   transition:
     transform 220ms cubic-bezier(0.4, 0, 0.2, 1),
     opacity 220ms ease;
@@ -222,8 +225,13 @@
 
 /* The offsets are board pixels aimed at whichever parent is swallowing the
    card, so it flies there and shrinks into it rather than fading where it is. */
-.react-flow__node.canvas-folded > * {
+.react-flow__node.canvas-folded > *:not(.react-flow__handle):not(.react-flow__resize-control) {
   transform: translate(var(--fold-dx, 0px), var(--fold-dy, 0px)) scale(0.08);
+  opacity: 0;
+}
+
+/* The handles cannot be moved, so they are simply taken out of sight. */
+.react-flow__node.canvas-folded > .react-flow__handle {
   opacity: 0;
 }
 
