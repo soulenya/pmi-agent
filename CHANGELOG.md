@@ -4,6 +4,30 @@
 
 ## Changelog
 
+### v4.7.2 — 2026-09-07
+**The canvas folds instead of blinking, and the resize grips are catchable**
+
+Reported as "animations skip and snap on Windows but not on Mac". Three
+separate causes, and only one of them was really about Windows.
+
+- **A folded task family now collapses.** It was being removed from the page
+  outright, on every platform; the Mac's smooth zoom simply masked the pop.
+  Folded cards now stay put and shrink away over 180 ms, and return the same
+  way. Edges touching them fade with them.
+- **Wheel zoom is eased.** Every wheel event used to be applied raw, which is
+  smooth under a trackpad's fine deltas and a staircase under the fat notches a
+  Windows mouse sends. A notch is now eased; trackpad deltas are still applied
+  instantly, so nothing changes on a Mac. The point under the cursor stays
+  pinned either way.
+- **Resize grips have a margin.** They were about four pixels wide and shrank
+  further as you zoomed out, so at 60% zoom you were aiming at roughly one and
+  a half real pixels. They now carry an invisible margin measured in screen
+  pixels rather than board pixels: 11–18 px of reach at a corner, at any zoom.
+- **Not fixed, by design:** the solar-system planet zoom is replaced by a fade
+  when the operating system asks for reduced motion. Windows 11 reports that
+  whenever Settings → Accessibility → Visual effects → **Animation effects** is
+  off, which macOS does not. Turning it back on restores the zoom.
+
 ### v4.7.1 — 2026-09-06
 **Sharing a project actually shares it, and the canvas answers again**
 
@@ -2255,6 +2279,7 @@ Tagged as milestone **`v0.9.0`** (commit `28fb46d`) — core features working we
 | 5 | Docker | On some machines, Docker Desktop takes >90s to start, causing the first-run setup to time out and fail | Open |
 | 6 | Windows only | `backend/.venv` setup and `launcher.py` are Windows-only; Linux/macOS require manual setup | Open |
 | 7 | Voyage AI | Free tier (200M tokens/month) is sufficient for personal use but may be insufficient for large-scale document ingestion | By design |
+| 8 | Windows / Animation | Windows 11 reports `prefers-reduced-motion` whenever Settings → Accessibility → Visual effects → **Animation effects** is off, so the solar-system planet zoom becomes a plain fade. macOS only reports it when Reduce Motion is explicitly ticked. Turning Animation effects back on restores it | By design |
 
 ### Resolved This Session (Builds 34–35)
 
