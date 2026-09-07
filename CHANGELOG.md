@@ -4,6 +4,35 @@
 
 ## Changelog
 
+### v4.7.4 — 2026-09-07
+**Opened cards fold again, and the lines stay attached**
+
+Three faults in the staged folding that shipped hours earlier, all found by
+zooming out after opening a few folded families.
+
+- **An opened card kept holding its family out after it had folded away
+  itself.** `held()` walked up the tree looking for an opened ancestor without
+  checking whether that ancestor was still on screen, so a sticky stayed at
+  full size on an empty board while the task card it belonged to had long since
+  flown into the root. The walk now stops at the first ancestor that has
+  folded, and the tree is now visited shallowest-first so an owner's fate is
+  always decided before its children ask about it.
+- **Opening a card disabled folding at every deeper zoom.** `opened` was only
+  cleared on the way back in, so once you had opened everything the board never
+  simplified again however far you zoomed out. It is now cleared whenever the
+  zoom crosses a stage boundary in either direction: opening a card lasts for
+  the stage you opened it in.
+- **Folding detached the connecting lines.** `RefNode` returns a fragment, so
+  React Flow's handles are direct children of `.react-flow__node` — and the
+  fold rule was written as `.canvas-folded > *`, which overwrote the
+  `translate(-50%, -50%)` React Flow puts on each handle to place it. Both
+  handles collapsed onto one point. React Flow re-measures handle bounds from
+  `getBoundingClientRect()` whenever a node's box changes, so any re-measure
+  while a card was folded baked the wrong attachment points in permanently, and
+  the edges came back detached or looping. The rule now excludes
+  `.react-flow__handle` and `.react-flow__resize-control`; folded handles are
+  faded out instead of moved.
+
 ### v4.7.3 — 2026-09-07
 **The board folds a layer at a time, and dropping a card files it**
 

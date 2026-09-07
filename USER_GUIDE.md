@@ -630,7 +630,7 @@ An endless whiteboard for thinking a project through. Pick a tool from the bar i
 
 **Standing back folds the detail away, a layer at a time.** Zoom out and the board collapses in stages: the deepest sub-tasks fold into their parent first, then that parent folds into its own parent, until at the far end a whole project is one card. Each card that has swallowed something shows a count of what is tucked underneath — "+7". They fly into the card that took them and shrink away rather than blinking out, and come back the same way when you zoom in. Click the count to open one family while the rest stay folded, so you can look into a single task without losing the wider view; it stays open until you click it again or zoom back in past the first stage.
 
-Notes, shapes, text boxes and links fold too, one stage earlier than the work does, into the task card they are joined by a line to — or into the nearest task card if they are joined to nothing. So the decoration clears first and the plan stays readable.
+Notes, shapes, text boxes and links fold too, one stage earlier than the work does, into the task card they are joined by a line to — or into the nearest task card if they are joined to nothing. So the decoration clears first and the plan stays readable. Opening a card lasts for the zoom you opened it at: move a stage further out or further in and the board goes back to folding on its own.
 
 **The canvas and the timeline are one plan.** Drag a line between two task cards and it becomes a real dependency — the timeline reschedules and the critical path moves, and the board tells you it has done so. Delete the line and the dependency goes with it.
 

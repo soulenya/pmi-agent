@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 245;
+export const BUILD_NUMBER = 246;
 export const BUILD_DATE = "2026-09-07";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 246,
+    date: "2026-09-07",
+    title: "Opened cards fold again, and the lines stay attached",
+    changes: [
+      "Opening a folded card no longer stops the board folding for good. It holds that family out while you stay at this zoom, and the board goes back to folding by itself as soon as you move a stage in or out.",
+      "A card that has folded away can no longer hold its own notes and stickies out on the board after it has gone.",
+      "Connecting lines stay attached to their cards. Folding was moving the points a line joins on to, so lines came back detached or looping wildly once you zoomed in again.",
+    ],
+  },
   {
     build: 245,
     date: "2026-09-07",
