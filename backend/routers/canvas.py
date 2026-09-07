@@ -437,6 +437,7 @@ async def create_edge(
     succ_task = tasks.get(body.target_node_id)
     if pred_task and succ_task and pred_task != succ_task:
         await _link_tasks(db, project.id, pred_task, succ_task, current_user.id)
+        await _adopt_task(db, project.id, pred_task, succ_task)
 
     edge = CanvasEdge(
         canvas_id=canvas.id, created_by=current_user.id, **body.model_dump()
@@ -445,6 +446,39 @@ async def create_edge(
     await db.commit()
     await db.refresh(edge)
     return CanvasEdgeOut.model_validate(edge)
+
+
+async def _parents(db: AsyncSession, project_id: uuid.UUID) -> dict[uuid.UUID, uuid.UUID | None]:
+    rows = (
+        await db.execute(
+            select(Task.id, Task.parent_task_id).where(Task.project_id == project_id)
+        )
+    ).all()
+    return {r[0]: r[1] for r in rows}
+
+
+async def _adopt_task(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    parent_id: uuid.UUID,
+    child_id: uuid.UUID,
+) -> None:
+    """Drawing a line from one task to another also makes it a sub-task."""
+    above = await _parents(db, project_id)
+    if child_id not in above or parent_id not in above:
+        return
+    if above[child_id] == parent_id:
+        return
+    hop: uuid.UUID | None = parent_id
+    for _ in range(64):
+        if hop is None:
+            break
+        if hop == child_id:
+            return  # the would-be parent already sits under the child
+        hop = above.get(hop)
+    child = await db.get(Task, child_id)
+    if child is not None:
+        child.parent_task_id = parent_id
 
 
 async def _link_tasks(
@@ -524,6 +558,25 @@ async def delete_edge(
                 TaskDependency.successor_id == succ_task,
             )
         )
+        child = await db.get(Task, succ_task)
+        if child is not None and child.parent_task_id == pred_task:
+            # Hand it back to whichever line still points at it, so removing
+            # one of several does not orphan a task that is still joined up.
+            others = (
+                await db.execute(
+                    select(CanvasEdge).where(
+                        CanvasEdge.canvas_id == canvas.id,
+                        CanvasEdge.target_node_id == edge.target_node_id,
+                        CanvasEdge.id != edge.id,
+                    )
+                )
+            ).scalars().all()
+            spare = await _task_ids_for(
+                db, canvas.id, [e.source_node_id for e in others]
+            )
+            child.parent_task_id = next(
+                (t for t in spare.values() if t != succ_task), None
+            )
     await db.delete(edge)
     await db.commit()
 
