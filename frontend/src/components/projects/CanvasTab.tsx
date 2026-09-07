@@ -125,6 +125,11 @@ const GRID = 8;
 const UNDO_DEPTH = 40;
 /** Zoom out past this and a task's sub-task cards fold into it. */
 const FOLD_ZOOM = 0.5;
+/** Must sit below FOLD_ZOOM, or a task family can never fold away. */
+const MIN_ZOOM = 0.15;
+const MAX_ZOOM = 2;
+/** A wheel step at least this big came from a notched mouse, not a trackpad. */
+const WHEEL_NOTCH = 50;
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 // Workroom pins whose kind the canvas can draw as a reference node.
@@ -699,6 +704,34 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     if (!folding) setOpened(new Set());
   }, [folding]);
 
+  // Wheel zoom, done here so a notched mouse eases instead of jumping. React
+  // Flow applies every wheel event raw, which is smooth under a trackpad's fine
+  // deltas and a staircase under Windows' fat ones.
+  useEffect(() => {
+    const el = wrapper.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) return; // a pinch; React Flow still owns those
+      const over = e.target as HTMLElement | null;
+      if (over?.closest(".react-flow__minimap, .react-flow__panel")) return;
+      e.preventDefault();
+      const { x, y, zoom: from } = flow.getViewport();
+      const step = e.deltaMode === 1 ? e.deltaY * 18 : e.deltaY;
+      const to = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, from * 2 ** (-step * 0.002)));
+      if (to === from) return;
+      const rect = el.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      // Pin the board point under the cursor while the scale changes.
+      flow.setViewport(
+        { zoom: to, x: px - ((px - x) / from) * to, y: py - ((py - y) / from) * to },
+        { duration: Math.abs(step) >= WHEEL_NOTCH ? 130 : 0 },
+      );
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [flow]);
+
   /** Task cards whose task sits under another task card on this same board. */
   const kids = useMemo(() => {
     const cardFor = new Map<string, string>();
@@ -751,7 +784,10 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       const held = n.data as unknown as NodeData;
       return {
         ...n,
-        hidden: hide,
+        // Left in the DOM and shrunk by CSS. `hidden` would blink it out.
+        className: cn(n.className, hide && "canvas-folded"),
+        // React Flow writes pointer-events inline, so a stylesheet cannot do this.
+        style: hide ? { ...n.style, pointerEvents: "none" as const } : n.style,
         data: { ...held, folded: under } as unknown as Record<string, unknown>,
       };
     });
@@ -760,7 +796,9 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   const shownEdges = useMemo(() => {
     if (folded.away.size === 0) return edges;
     return edges.map((e) =>
-      folded.away.has(e.source) || folded.away.has(e.target) ? { ...e, hidden: true } : e,
+      folded.away.has(e.source) || folded.away.has(e.target)
+        ? { ...e, className: cn(e.className, "canvas-folded") }
+        : e,
     );
   }, [edges, folded]);
 
@@ -1404,6 +1442,8 @@ function Board({ projectId, source = "local", canEdit }: Props) {
           if (editable) e.preventDefault();
         }}
         className="relative h-[70vh] w-full overflow-hidden rounded-lg border border-border bg-background"
+        // Lets the resize grips keep a constant grab margin in screen pixels.
+        style={{ "--canvas-zoom": zoom } as CSSProperties}
       >
         <ReactFlow
           nodes={shownNodes}
@@ -1471,8 +1511,9 @@ function Board({ projectId, source = "local", canEdit }: Props) {
           panOnDrag={tool === "select"}
           selectionOnDrag={false}
           fitView
-          // Must sit below FOLD_ZOOM, or a task family can never fold away.
-          minZoom={0.15}
+          minZoom={MIN_ZOOM}
+          maxZoom={MAX_ZOOM}
+          zoomOnScroll={false}
           proOptions={{ hideAttribution: false }}
           defaultViewport={data?.viewport}
           className={cn(
