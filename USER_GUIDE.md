@@ -622,13 +622,13 @@ An endless whiteboard for thinking a project through. Pick a tool from the bar i
 
 **An unfilled shape does not block what is under it.** Draw a box around a text box and the text box is still yours to click; grab the shape by its border. If you want a shape that does block — a solid block of colour — mark it **solid** in the panel.
 
-**Boxes grow as you type.** A note or text box that runs out of room gets taller rather than giving you a scroll bar. Drag its resize handle to set a height yourself and it stays exactly where you put it.
+**Boxes grow as you type.** A note or text box that runs out of room gets taller rather than giving you a scroll bar. Drag its resize handle to set a height yourself and it stays exactly where you put it. You do not have to land exactly on the border: the corners and edges have an invisible margin around them, and it stays the same size on screen however far out you are zoomed.
 
 **Real work goes on the board too.** The **pool** on the right lists everything the project holds — its tasks, its budgets, its documents, bookmarks, files and email threads — grouped by kind with a count on each group and a filter box at the top. Drag one onto the canvas, or click it to drop it in the middle. Tick **Show what is already placed** to put a second copy of something down. Those cards are live: a task card turns red when it is overdue, a budget card shows what has been spent against its allotment and turns amber as it nears the limit, and a card whose item has been deleted says so. **Double-click a card** to open the real thing behind it.
 
 **A task card is the task.** Change the status on a task card and the task changes with it — the Tasks tab, the timeline and the project's counts all follow.
 
-**Standing back folds the detail away.** Zoom out past about half size and a task's sub-task cards fold into the parent card, which shows a count of what is tucked underneath — "+7". Zoom back in and they come out again on their own. Click the count to open one family while the rest stay folded, so you can look into a single task without losing the wider view; it stays open until you click it again or zoom in. Only task cards fold, and only into their own parent — notes, shapes and drawings are never hidden.
+**Standing back folds the detail away.** Zoom out past about half size and a task's sub-task cards fold into the parent card, which shows a count of what is tucked underneath — "+7". They shrink away rather than blinking out, and come back the same way when you zoom in. Click the count to open one family while the rest stay folded, so you can look into a single task without losing the wider view; it stays open until you click it again or zoom in. Only task cards fold, and only into their own parent — notes, shapes and drawings are never hidden.
 
 **The canvas and the timeline are one plan.** Drag a line between two task cards and it becomes a real dependency — the timeline reschedules and the critical path moves, and the board tells you it has done so. Delete the line and the dependency goes with it.
 

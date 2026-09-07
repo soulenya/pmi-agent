@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 243;
-export const BUILD_DATE = "2026-09-06";
+export const BUILD_NUMBER = 244;
+export const BUILD_DATE = "2026-09-07";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 244,
+    date: "2026-09-07",
+    title: "The canvas folds instead of blinking, and the resize grips are catchable",
+    changes: [
+      "Zooming out folds a task family away gently instead of making it disappear, and zooming back in brings it back the same way.",
+      "Zooming with a mouse wheel is smooth. Every notch used to be applied as one jump, which is why the canvas moved in steps on Windows and glided on a Mac.",
+      "The point under your cursor stays put while you zoom.",
+      "You no longer have to land exactly on the edge of a box to resize it. The corners and edges have an invisible margin around them that stays the same size however far you are zoomed out.",
+      "If planet and panel animations look abrupt on Windows, it is because Windows reports that you have asked for reduced motion whenever Settings, Accessibility, Visual effects, Animation effects is switched off.",
+    ],
+  },
   {
     build: 243,
     date: "2026-09-06",
