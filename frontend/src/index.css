@@ -208,3 +208,38 @@
   }
 }
 
+/* ── Canvas ────────────────────────────────────────────────────────────────
+   Deliberately not gated on prefers-reduced-motion: Windows reports that
+   whenever "Animation effects" is off, which is the default on plenty of
+   machines, and these are the difference between folding and vanishing. */
+
+/* The node wrapper's own transform is its position, so only its contents move. */
+.react-flow__node > * {
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+.react-flow__node.canvas-folded > * {
+  transform: scale(0.4);
+  opacity: 0;
+}
+
+.react-flow__edge {
+  transition: opacity 180ms ease;
+}
+
+.react-flow__edge.canvas-folded {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Resize grips are a few pixels wide and shrink further as you zoom out, so
+   they get an invisible margin that stays the same size on screen. */
+.react-flow__resize-control.handle::after,
+.react-flow__resize-control.line::after {
+  content: "";
+  position: absolute;
+  inset: calc(-9px / var(--canvas-zoom, 1));
+}
+
