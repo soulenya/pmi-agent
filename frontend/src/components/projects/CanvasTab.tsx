@@ -381,14 +381,15 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       ),
     onSuccess: (_created, c) => {
       queryClient.invalidateQueries({ queryKey: key });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["project-timeline", source, projectId] });
       // A line between two task cards is not decoration: the backend turns it
-      // into a real dependency, and the timeline redraws. Say so.
+      // into a real dependency and makes the second a sub-task of the first.
       const nodes = data?.nodes ?? [];
       const from = nodes.find((n) => n.id === c.source);
       const to = nodes.find((n) => n.id === c.target);
       if (from?.kind === "task" && to?.kind === "task") {
-        setNotice("The timeline now waits for the first task before the second.");
+        setNotice("The second task is now a sub-task of the first, and waits for it.");
       }
     },
     onError: (err: unknown) => {
@@ -733,10 +734,12 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   /** The task tree drawn on this board: who owns whom, and how deep each sits. */
   const tree = useMemo(() => {
     const cardFor = new Map<string, string>();
+    const isTask = new Set<string>();
     for (const n of nodes) {
       const held = n.data as unknown as NodeData;
-      if (held?.node?.kind === "task" && held.node.ref_id) {
-        cardFor.set(held.node.ref_id, n.id);
+      if (held?.node?.kind === "task") {
+        isTask.add(n.id);
+        if (held.node.ref_id) cardFor.set(held.node.ref_id, n.id);
       }
     }
     const parent = new Map<string, string>();
@@ -745,17 +748,54 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       const owner = above ? cardFor.get(above) : undefined;
       if (owner && owner !== n.id) parent.set(n.id, owner);
     }
+    // Stickies and the like sit outside the task tree, so they hang off the
+    // task card they are joined to, or the nearest one if they are joined to
+    // nothing, and fold a stage before the work does.
+    const loose = new Set<string>();
+    const anchors = nodes.filter((n) => isTask.has(n.id));
+    if (anchors.length > 0) {
+      const mid = (n: Node) => {
+        const b = boxFor(n);
+        return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+      };
+      const joined = new Map<string, string>();
+      for (const e of edges) {
+        if (isTask.has(e.source) && !isTask.has(e.target)) joined.set(e.target, e.source);
+        else if (isTask.has(e.target) && !isTask.has(e.source)) joined.set(e.source, e.target);
+      }
+      for (const n of nodes) {
+        if (isTask.has(n.id) || parent.has(n.id)) continue;
+        loose.add(n.id);
+        const tied = joined.get(n.id);
+        if (tied) {
+          parent.set(n.id, tied);
+          continue;
+        }
+        const me = mid(n);
+        let best = anchors[0];
+        let far = Infinity;
+        for (const a of anchors) {
+          const p = mid(a);
+          const d = (p.x - me.x) ** 2 + (p.y - me.y) ** 2;
+          if (d < far) {
+            far = d;
+            best = a;
+          }
+        }
+        parent.set(n.id, best.id);
+      }
+    }
     const depth = new Map<string, number>();
     let deepest = 0;
     for (const id of parent.keys()) {
-      let d = 0;
+      let d = loose.has(id) ? 1 : 0;
       // The hop cap is what stops a cycle in the data from spinning here.
       for (let up = parent.get(id); up && d < 64; up = parent.get(up)) d += 1;
       depth.set(id, d);
       deepest = Math.max(deepest, d);
     }
     return { parent, depth, deepest };
-  }, [nodes]);
+  }, [nodes, edges, boxFor]);
 
   // Zooming back in past the first stage is the other way to open everything.
   const staging = zoom < foldZoom(tree.deepest);
@@ -1258,9 +1298,40 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     [snapGrid, nodes, boxFor, edit, folded],
   );
 
+  /** Dropping a card onto another joins the two, which nests one task in another. */
+  const joinOnDrop = useCallback(
+    (node: Node) => {
+      if (!editable) return;
+      const me = boxFor(node);
+      const mx = me.x + me.width / 2;
+      const my = me.y + me.height / 2;
+      const onto = nodes
+        .filter((n) => n.id !== node.id && !folded.away.has(n.id))
+        .filter((n) => {
+          const b = boxFor(n);
+          return mx >= b.x && mx <= b.x + b.width && my >= b.y && my <= b.y + b.height;
+        })
+        .sort((a, b) => (b.zIndex ?? 0) - (a.zIndex ?? 0))[0];
+      if (!onto) return;
+      if (edges.some((e) => e.source === onto.id && e.target === node.id)) return;
+      const link: Connection = {
+        source: onto.id,
+        target: node.id,
+        sourceHandle: null,
+        targetHandle: null,
+      };
+      setEdges((eds) => addEdge(link, eds));
+      addEdgeMutation.mutate(link);
+    },
+    [editable, nodes, edges, boxFor, folded, setEdges, addEdgeMutation],
+  );
+
   const onNodeDragStop = useCallback(
-    (_: unknown, node: Node, dragged: Node[]) => settle(node, dragged),
-    [settle],
+    (_: unknown, node: Node, dragged: Node[]) => {
+      settle(node, dragged);
+      if (!dragged || dragged.length <= 1) joinOnDrop(node);
+    },
+    [settle, joinOnDrop],
   );
 
   const onSelectionDragStop = useCallback(
