@@ -216,12 +216,14 @@
 /* The node wrapper's own transform is its position, so only its contents move. */
 .react-flow__node > * {
   transition:
-    transform 180ms ease,
-    opacity 180ms ease;
+    transform 220ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 220ms ease;
 }
 
+/* The offsets are board pixels aimed at whichever parent is swallowing the
+   card, so it flies there and shrinks into it rather than fading where it is. */
 .react-flow__node.canvas-folded > * {
-  transform: scale(0.4);
+  transform: translate(var(--fold-dx, 0px), var(--fold-dy, 0px)) scale(0.08);
   opacity: 0;
 }
 

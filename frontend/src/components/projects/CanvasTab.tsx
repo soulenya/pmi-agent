@@ -123,9 +123,13 @@ const SAVE_DEBOUNCE_MS = 700;
 const SNAP_PX = 6;
 const GRID = 8;
 const UNDO_DEPTH = 40;
-/** Zoom out past this and a task's sub-task cards fold into it. */
-const FOLD_ZOOM = 0.5;
-/** Must sit below FOLD_ZOOM, or a task family can never fold away. */
+/** Zoom out past this and a top-level task's children fold into it. */
+const FOLD_ZOOM = 0.34;
+/** Every level deeper folds one stage earlier, at this much more zoom. */
+const FOLD_STEP = 1.5;
+/** The zoom at which a card this far down the task tree folds into its parent. */
+const foldZoom = (depth: number) => FOLD_ZOOM * FOLD_STEP ** (depth - 1);
+/** Must sit below FOLD_ZOOM, or the last stage could never be reached. */
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 2;
 /** A wheel step at least this big came from a notched mouse, not a trackpad. */
@@ -697,12 +701,6 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   // ── Folding a task family when you zoom out ───────────────────────────────
   const zoom = useStore((s) => s.transform[2]);
   const [opened, setOpened] = useState<Set<string>>(new Set());
-  const folding = zoom < FOLD_ZOOM;
-
-  // Zooming back in is the other way to open everything.
-  useEffect(() => {
-    if (!folding) setOpened(new Set());
-  }, [folding]);
 
   // Wheel zoom, done here so a notched mouse eases instead of jumping. React
   // Flow applies every wheel event raw, which is smooth under a trackpad's fine
@@ -732,8 +730,8 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     return () => el.removeEventListener("wheel", onWheel);
   }, [flow]);
 
-  /** Task cards whose task sits under another task card on this same board. */
-  const kids = useMemo(() => {
+  /** The task tree drawn on this board: who owns whom, and how deep each sits. */
+  const tree = useMemo(() => {
     const cardFor = new Map<string, string>();
     for (const n of nodes) {
       const held = n.data as unknown as NodeData;
@@ -741,57 +739,98 @@ function Board({ projectId, source = "local", canEdit }: Props) {
         cardFor.set(held.node.ref_id, n.id);
       }
     }
-    const out = new Map<string, string[]>();
+    const parent = new Map<string, string>();
     for (const n of nodes) {
       const above = (n.data as unknown as NodeData)?.resolved?.parent_ref_id;
       const owner = above ? cardFor.get(above) : undefined;
-      if (owner && owner !== n.id) out.set(owner, [...(out.get(owner) ?? []), n.id]);
+      if (owner && owner !== n.id) parent.set(n.id, owner);
     }
-    return out;
+    const depth = new Map<string, number>();
+    let deepest = 0;
+    for (const id of parent.keys()) {
+      let d = 0;
+      // The hop cap is what stops a cycle in the data from spinning here.
+      for (let up = parent.get(id); up && d < 64; up = parent.get(up)) d += 1;
+      depth.set(id, d);
+      deepest = Math.max(deepest, d);
+    }
+    return { parent, depth, deepest };
   }, [nodes]);
 
-  /** What is folded away right now, and how many sit under each open card. */
+  // Zooming back in past the first stage is the other way to open everything.
+  const staging = zoom < foldZoom(tree.deepest);
+  useEffect(() => {
+    if (!staging) setOpened(new Set());
+  }, [staging]);
+
+  /**
+   * What is folded away right now, which card each folded one flew into, and
+   * how many ended up under each card still on screen.
+   */
   const folded = useMemo(() => {
     const away = new Set<string>();
+    const into = new Map<string, string>();
     const count = new Map<string, number>();
-    if (!folding || kids.size === 0) return { away, count };
-    const gather = (id: string, into: Set<string>) => {
-      for (const kid of kids.get(id) ?? []) {
-        if (into.has(kid)) continue; // a cycle would otherwise never end
-        into.add(kid);
-        gather(kid, into);
+    if (tree.parent.size === 0) return { away, into, count };
+    /** An opened card holds its whole family out, however far you zoom. */
+    const held = (id: string) => {
+      let hops = 0;
+      for (let up = tree.parent.get(id); up && hops < 64; up = tree.parent.get(up)) {
+        if (opened.has(up)) return true;
+        hops += 1;
       }
+      return false;
     };
-    for (const parent of kids.keys()) {
-      if (opened.has(parent)) continue;
-      const mine = new Set<string>();
-      gather(parent, mine);
-      if (mine.size === 0) continue;
-      count.set(parent, mine.size);
-      for (const id of mine) away.add(id);
+    for (const [id, d] of tree.depth) {
+      if (zoom < foldZoom(d) && !held(id)) away.add(id);
     }
-    // A card that is itself folded away carries no count of its own.
-    for (const id of away) count.delete(id);
-    return { away, count };
-  }, [folding, kids, opened]);
+    for (const id of away) {
+      let up = tree.parent.get(id);
+      let hops = 0;
+      // Whichever ancestor is still on screen is the one that swallows it.
+      while (up && away.has(up) && hops < 64) {
+        up = tree.parent.get(up);
+        hops += 1;
+      }
+      if (!up) continue;
+      into.set(id, up);
+      count.set(up, (count.get(up) ?? 0) + 1);
+    }
+    return { away, into, count };
+  }, [zoom, tree, opened]);
 
   const shownNodes = useMemo(() => {
     if (folded.away.size === 0 && folded.count.size === 0) return nodes;
+    const at = new Map(nodes.map((n) => [n.id, boxFor(n)]));
     return nodes.map((n) => {
       const hide = folded.away.has(n.id);
       const under = folded.count.get(n.id) ?? 0;
       if (!hide && under === 0) return n;
-      const held = n.data as unknown as NodeData;
+      const data = n.data as unknown as NodeData;
+      let style = n.style;
+      if (hide) {
+        const me = at.get(n.id);
+        const owner = folded.into.get(n.id);
+        const box = owner ? at.get(owner) : undefined;
+        const travel: Record<string, string> =
+          me && box
+            ? {
+                "--fold-dx": `${box.x + box.width / 2 - (me.x + me.width / 2)}px`,
+                "--fold-dy": `${box.y + box.height / 2 - (me.y + me.height / 2)}px`,
+              }
+            : {};
+        // React Flow writes pointer-events inline, so a stylesheet cannot do this.
+        style = { ...style, ...travel, pointerEvents: "none" } as CSSProperties;
+      }
       return {
         ...n,
-        // Left in the DOM and shrunk by CSS. `hidden` would blink it out.
+        // Left in the DOM and moved by CSS. `hidden` would blink it out.
         className: cn(n.className, hide && "canvas-folded"),
-        // React Flow writes pointer-events inline, so a stylesheet cannot do this.
-        style: hide ? { ...n.style, pointerEvents: "none" as const } : n.style,
-        data: { ...held, folded: under } as unknown as Record<string, unknown>,
+        style,
+        data: { ...data, folded: under } as unknown as Record<string, unknown>,
       };
     });
-  }, [nodes, folded]);
+  }, [nodes, folded, boxFor]);
 
   const shownEdges = useMemo(() => {
     if (folded.away.size === 0) return edges;
