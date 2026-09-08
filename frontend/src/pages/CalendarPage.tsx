@@ -4,13 +4,13 @@ import { NavLink } from "react-router-dom";
 import { ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Users, X, RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimezone } from "@/contexts/AppContext";
-import { listTasks } from "@/api/tasks";
 import { listMeetings } from "@/api/meetings";
 import { getGoogleStatus, listGoogleCalendarEvents } from "@/api/google";
-import type { Task } from "@/types/tasks";
 import type { MeetingNote } from "@/types/meetings";
 import type { GoogleCalendarEvent } from "@/api/google";
 import { AskGerryButton } from "@/components/AskGerryButton";
+import { HubBadge } from "@/components/HubBadge";
+import { useAllTasks, type SourcedTask as Task } from "@/hooks/useAllWork";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -79,11 +79,12 @@ function DayPanel({
               {tasks.map((t) => (
                 <NavLink
                   key={t.id}
-                  to="/tasks"
+                  to={`/tasks?task=${t.id}`}
                   className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent text-sm transition-colors"
                 >
                   <CheckSquare className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="flex-1 truncate">{t.title}</span>
+                  <HubBadge source={t.source} />
                   <span
                     className={cn(
                       "shrink-0 text-[10px] rounded-full px-1.5 py-0.5",
@@ -181,11 +182,7 @@ export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showGCalEvents, setShowGCalEvents] = useState(true);
 
-  const { data: tasks = [] } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: () => listTasks(),
-    staleTime: 60_000,
-  });
+  const { tasks } = useAllTasks();
 
   const { data: meetings = [] } = useQuery({
     queryKey: ["meetings"],

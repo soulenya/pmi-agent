@@ -1,15 +1,24 @@
 import { useEffect, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen, LayoutList, Columns2, ListChecks, Trash2, MoveRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listTasks, createTask, updateTask, deleteTask, listProjects } from "@/api/tasks";
+import { createTask, updateTask, deleteTask, type Source } from "@/api/tasks";
 import { getGoogleStatus, listGoogleTasks, importGoogleTasks } from "@/api/google";
-import type { Task, TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
+import type { TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
 import type { GoogleTask } from "@/api/google";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 import { TaskSourceActions, sourceSummary } from "@/components/tasks/TaskSourceActions";
 import { AskGerryButton } from "@/components/AskGerryButton";
+import { HubBadge } from "@/components/HubBadge";
+import {
+  useAllProjects,
+  useAllTasks,
+  useInvalidateTasks,
+  type SourcedTask,
+} from "@/hooks/useAllWork";
+
+type Task = SourcedTask;
 const STATUS_ICONS: Record<TaskStatus, React.ReactNode> = {
   backlog: <Circle className="h-4 w-4 text-muted-foreground" />,
   todo: <Circle className="h-4 w-4 text-blue-500" />,
@@ -35,16 +44,25 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
   critical: "text-red-500 font-semibold",
 };
 
-function NewTaskForm({ onClose }: { onClose: () => void }) {
-  const qc = useQueryClient();
+function NewTaskForm({
+  onClose,
+  projectId,
+  source,
+}: {
+  onClose: () => void;
+  /** Set when the list is filtered to one project: the task is made there. */
+  projectId?: string;
+  source: Source;
+}) {
+  const invalidate = useInvalidateTasks();
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [dueDate, setDueDate] = useState("");
 
   const mutation = useMutation({
-    mutationFn: (body: TaskCreate) => createTask(body),
+    mutationFn: (body: TaskCreate) => createTask(body, source),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
+      invalidate();
       onClose();
     },
   });
@@ -56,6 +74,7 @@ function NewTaskForm({ onClose }: { onClose: () => void }) {
       title: title.trim(),
       priority,
       due_date: dueDate || undefined,
+      project_id: projectId || undefined,
     });
   };
 
@@ -122,12 +141,12 @@ function TaskRow({
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
 }) {
-  const qc = useQueryClient();
+  const invalidate = useInvalidateTasks();
 
   const statusMutation = useMutation({
     mutationFn: (newStatus: TaskStatus) =>
-      updateTask(task.id, { status: newStatus }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+      updateTask(task.id, { status: newStatus }, task.source),
+    onSuccess: invalidate,
   });
 
   const nextStatus: Record<TaskStatus, TaskStatus> = {
@@ -185,6 +204,7 @@ function TaskRow({
         >
           {task.title}
         </span>
+        <HubBadge source={task.source} className="ml-2 align-middle" />
         {task.description && (
           <p className="mt-0.5 text-xs text-muted-foreground truncate">
             {task.description}
@@ -311,6 +331,7 @@ function KanbanCard({
         {task.title}
       </p>
       <div className="flex flex-wrap items-center gap-1.5">
+        <HubBadge source={task.source} />
         <span className={cn("text-[10px] font-medium", PRIORITY_COLORS[task.priority])}>
           {task.priority}
         </span>
@@ -360,21 +381,21 @@ function KanbanBoard({
   allTasks: Task[];
   onOpen: (task: Task) => void;
 }) {
-  const qc = useQueryClient();
+  const invalidate = useInvalidateTasks();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: TaskStatus }) =>
-      updateTask(id, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    mutationFn: ({ task, status }: { task: Task; status: TaskStatus }) =>
+      updateTask(task.id, { status }, task.source),
+    onSuccess: invalidate,
   });
 
   function handleDrop(colStatus: TaskStatus) {
     if (!draggingId) return;
     const task = tasks.find((t) => t.id === draggingId);
     if (task && task.status !== colStatus) {
-      statusMutation.mutate({ id: draggingId, status: colStatus });
+      statusMutation.mutate({ task, status: colStatus });
     }
     setDraggingId(null);
     setDragOverCol(null);
@@ -443,7 +464,7 @@ function KanbanBoard({
 // ── Google Tasks Import Modal ────────────────────────────────────────────────
 
 function GoogleTasksImportModal({ onClose }: { onClose: () => void }) {
-  const qc = useQueryClient();
+  const invalidate = useInvalidateTasks();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: googleTasks = [], isLoading } = useQuery({
@@ -454,7 +475,7 @@ function GoogleTasksImportModal({ onClose }: { onClose: () => void }) {
   const importMutation = useMutation({
     mutationFn: () => importGoogleTasks(Array.from(selectedIds)),
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
+      invalidate();
       onClose();
       console.info(`Imported ${result.imported} tasks from Google Tasks`);
     },
@@ -542,7 +563,7 @@ export function TasksPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<TaskStatus>("todo");
   const [bulkProject, setBulkProject] = useState("");
-  const qcBulk = useQueryClient();
+  const invalidate = useInvalidateTasks();
 
   // View preference
   const [view, setView] = useState<"list" | "kanban">(() => {
@@ -560,16 +581,8 @@ export function TasksPage() {
     searchParams.get("project_id") ?? ""
   );
 
-  const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: () => listTasks(),
-  });
-
-  const { data: projects = [] } = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => listProjects(),
-    staleTime: 60_000,
-  });
+  const { tasks, isLoading } = useAllTasks();
+  const { projects } = useAllProjects();
 
   const { data: googleStatus } = useQuery({
     queryKey: ["google-status"],
@@ -636,29 +649,34 @@ export function TasksPage() {
 
   function clearSelection() { setSelectedIds(new Set()); }
 
+  const chosen = () => tasks.filter((t) => selectedIds.has(t.id));
+
   async function bulkUpdateStatus() {
-    await Promise.all([...selectedIds].map((id) => updateTask(id, { status: bulkStatus })));
-    qcBulk.invalidateQueries({ queryKey: ["tasks"] });
+    await Promise.all(chosen().map((t) => updateTask(t.id, { status: bulkStatus }, t.source)));
+    invalidate();
     clearSelection();
   }
 
+  // A task can only be moved into a project that lives where it does.
+  const bulkTarget = projects.find((p) => p.id === bulkProject);
+  const movable = bulkTarget ? chosen().filter((t) => t.source === bulkTarget.source) : [];
+
   async function bulkMoveProject() {
-    if (!bulkProject) return;
-    await Promise.all([...selectedIds].map((id) => updateTask(id, { project_id: bulkProject })));
-    qcBulk.invalidateQueries({ queryKey: ["tasks"] });
+    if (!bulkTarget) return;
+    await Promise.all(movable.map((t) => updateTask(t.id, { project_id: bulkProject }, t.source)));
+    invalidate();
     clearSelection();
   }
 
   async function bulkDelete() {
     if (!window.confirm(`Delete ${selectedIds.size} task${selectedIds.size > 1 ? "s" : ""}? This cannot be undone.`)) return;
-    await Promise.all([...selectedIds].map((id) => deleteTask(id)));
-    qcBulk.invalidateQueries({ queryKey: ["tasks"] });
+    await Promise.all(chosen().map((t) => deleteTask(t.id, t.source)));
+    invalidate();
     clearSelection();
   }
 
-  const activeProjectName = projectFilter
-    ? (projects.find((p) => p.id === projectFilter)?.name ?? "")
-    : "";
+  const activeProject = projectFilter ? projects.find((p) => p.id === projectFilter) : undefined;
+  const activeProjectName = activeProject?.name ?? "";
 
   // Top-level tasks only (no subtasks in main list/kanban)
   const topLevel = filtered.filter((t) => t.parent_task_id === null);
@@ -677,6 +695,7 @@ export function TasksPage() {
       {liveSelectedTask && (
         <TaskDrawer
           task={liveSelectedTask}
+          source={liveSelectedTask.source}
           onClose={() => setSelectedTask(null)}
           onDeleted={() => setSelectedTask(null)}
         />
@@ -780,7 +799,9 @@ export function TasksPage() {
           >
             <option value="">All Projects</option>
             {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>
+                {p.name}{p.source === "hub" ? " · hub" : ""}
+              </option>
             ))}
           </select>
         )}
@@ -799,7 +820,13 @@ export function TasksPage() {
       </div>
 
       {/* New task form */}
-      {showNewTask && <NewTaskForm onClose={() => setShowNewTask(false)} />}
+      {showNewTask && (
+        <NewTaskForm
+          onClose={() => setShowNewTask(false)}
+          projectId={activeProject?.id}
+          source={activeProject?.source ?? "local"}
+        />
+      )}
 
       {/* Content */}
       {isLoading ? (
@@ -873,15 +900,23 @@ export function TasksPage() {
               >
                 <option value="">Move to…</option>
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                  <option key={p.id} value={p.id}>
+                    {p.name}{p.source === "hub" ? " · hub" : ""}
+                  </option>
                 ))}
               </select>
               {bulkProject && (
                 <button
                   onClick={bulkMoveProject}
-                  className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-accent"
+                  disabled={movable.length === 0}
+                  title={
+                    movable.length < selectedIds.size
+                      ? "Only tasks that already live where that project does can move into it"
+                      : undefined
+                  }
+                  className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-accent disabled:opacity-50"
                 >
-                  <MoveRight className="h-3 w-3" /> Move
+                  <MoveRight className="h-3 w-3" /> Move{movable.length < selectedIds.size ? ` ${movable.length}` : ""}
                 </button>
               )}
             </div>

@@ -4,7 +4,41 @@
 
 ## Changelog
 
-### v4.8.0 — 2026-09-08
+### v4.8.1 — 2026-09-08 (unreleased; ships with 5.0.0)
+**Shared work shows up everywhere your own work does**
+
+Phase 1 of the UI simplification. The hub proxy already allowed `/tasks`,
+`/projects`, `/portfolio` and `/conversations` through; five pages simply
+never asked.
+
+- **`hooks/useAllWork.ts`** — `useAllTasks()` / `useAllProjects()` query both
+  sources when the hub is connected and return one list, each row tagged
+  `source`. `useAllTasks` also drops local tasks whose project is archived:
+  Move-to-hub archives the local project but leaves its tasks in place, so
+  without this every moved task was listed twice (seen live: In Q Tel's
+  tasks appeared once local, once hub). `useInvalidateTasks()` refreshes
+  `["tasks"]` and `["hub","tasks"]`. `projectSpacePath()` picks the route by
+  source.
+- **`TasksPage`** uses them. Every mutation goes to `task.source`; bulk move
+  only takes tasks whose source matches the target project's; `NewTaskForm`
+  takes `projectId` + `source` from the active filter. Project dropdowns say
+  `· hub` on hub projects.
+- **`TaskDrawer`** gained `source?: Source`, threaded into update, delete,
+  sub-task create/list, comments, attachments; the project selector only offers
+  projects from the same source. `listTaskComments`, `addTaskComment`,
+  `addTaskAttachment`, `removeTaskAttachment` gained a `source` parameter.
+- **`CalendarPage`, `DashboardPage`** use `useAllTasks` / `useAllProjects`;
+  calendar task rows link to `/tasks?task=<id>`.
+- **`PortfolioPage`** fetches both portfolios, tags nodes with `source`,
+  prefixes edge ids with the source, opens cards via `projectSpacePath`, and
+  says so when the hub did not answer.
+- **`ChatPage`** always renders the rail; `listConversations(source)` adds an
+  "On the hub" section. Note: the hub's `/conversations` lists conversations
+  you own there, so a project conversation another member started is not yet
+  listed — Phase 2 adds `project_id` to conversations and fixes that.
+- **`HubBadge`** component: the small `hub` pill used on every merged row.
+
+### v4.8.0 — 2026-09-08 (unreleased; ships with 5.0.0)
 **Fewer doors: one way into a project, and two pages retired**
 
 Phase 0 of the UI simplification plan: dead

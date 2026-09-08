@@ -195,16 +195,20 @@ export async function deleteTask(id: string, source: Source = "local"): Promise<
   await apiClient.delete(at(source, `/tasks/${id}`));
 }
 
-export async function listTaskComments(taskId: string): Promise<TaskComment[]> {
-  const resp = await apiClient.get<TaskComment[]>(`/tasks/${taskId}/comments`);
+export async function listTaskComments(
+  taskId: string,
+  source: Source = "local",
+): Promise<TaskComment[]> {
+  const resp = await apiClient.get<TaskComment[]>(at(source, `/tasks/${taskId}/comments`));
   return resp.data;
 }
 
 export async function addTaskComment(
   taskId: string,
-  content: string
+  content: string,
+  source: Source = "local",
 ): Promise<TaskComment> {
-  const resp = await apiClient.post<TaskComment>(`/tasks/${taskId}/comments`, {
+  const resp = await apiClient.post<TaskComment>(at(source, `/tasks/${taskId}/comments`), {
     content,
   });
   return resp.data;
@@ -212,17 +216,21 @@ export async function addTaskComment(
 
 export async function addTaskAttachment(
   taskId: string,
-  body: { name: string; url: string; source?: "upload" | "drive"; drive_file_id?: string }
+  body: { name: string; url: string; source?: "upload" | "drive"; drive_file_id?: string },
+  source: Source = "local",
 ): Promise<Task> {
-  const resp = await apiClient.post<Task>(`/tasks/${taskId}/attachments`, body);
+  const resp = await apiClient.post<Task>(at(source, `/tasks/${taskId}/attachments`), body);
   return resp.data;
 }
 
 export async function removeTaskAttachment(
   taskId: string,
-  attachmentId: string
+  attachmentId: string,
+  source: Source = "local",
 ): Promise<Task> {
-  const resp = await apiClient.delete<Task>(`/tasks/${taskId}/attachments/${attachmentId}`);
+  const resp = await apiClient.delete<Task>(
+    at(source, `/tasks/${taskId}/attachments/${attachmentId}`),
+  );
   return resp.data;
 }
 

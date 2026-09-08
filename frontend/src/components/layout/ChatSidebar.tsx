@@ -491,7 +491,7 @@ export function ChatSidebar() {
   // Conversations list
   const { data: conversations = [], isFetched: conversationsFetched } = useQuery({
     queryKey: ["conversations"],
-    queryFn: listConversations,
+    queryFn: () => listConversations(),
     enabled: open,
     staleTime: 30_000,
   });

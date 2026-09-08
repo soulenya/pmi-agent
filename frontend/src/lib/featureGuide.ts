@@ -86,7 +86,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Track tasks with sub-tasks nested under their parent, and file one under another by dropping its canvas card on top",
       "Collect a project's invoices from Drive folders, the inbox or a file you hand over, and share a budget from your own machine after a warning about who will read it",
       "Pin material, link projects to one another, and see what waits on what",
-      "Move a project made on this computer to the hub to share it \u2014 with the people you name, or everyone at the firm",
+      "Move a project made on this computer to the hub to share it \u2014 with the people you name, or everyone at the firm; its tasks then show on your board, calendar, dashboard and portfolio with a hub pill",
       "Ask Gerry to read a project, add a batch of tasks from a contract, break a task into sub-tasks, or schedule its work \u2014 shared hub projects included",
     ],
   },

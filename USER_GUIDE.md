@@ -682,7 +682,7 @@ If the wait no longer applies, **waive** the gate. A waived gate stops flagging 
 
 **Projects → Portfolio**, or the Portfolio moon in the Work planet.
 
-Every project you can see, drawn as a card and laid out left to right by what waits on what. Each card carries the project's goal, how much work is open, how much is late, how many gates are still open, and the next milestone with its date. Dependencies and gates are arrows; parallel work is a dashed line; an open gate's arrow moves. Double-click a card to open that project.
+Every project you can see, on this computer and on the hub, drawn as a card and laid out left to right by what waits on what. Hub projects carry a small **hub** pill. Each card carries the project's goal, how much work is open, how much is late, how many gates are still open, and the next milestone with its date. Dependencies and gates are arrows; parallel work is a dashed line; an open gate's arrow moves. Double-click a card to open that project where it lives.
 
 A project you cannot see is not on the graph at all. A link running into one is shown without a name, and the header counts them: the kind of relationship is not a secret, but the name of the project on the other end is.
 
@@ -779,9 +779,11 @@ You sign in as yourself, not as the app. Everything you look at and everything y
 
 Open **Projects**. Below your own projects, a **Shared on the hub** area lists the projects the firm has shared with you, with the account you're signed in as. Open one and you get the same project space as a local project — overview, canvas, timeline, tasks, budget, material and chat — marked **On the hub**.
 
+**Shared work shows up everywhere your own work does.** The Tasks board, the Calendar, the Dashboard's agenda and overdue list, and the Portfolio graph all list hub tasks and hub projects alongside the ones on this computer, each marked with a small **hub** pill. Change a hub task's status from the board, open it in the task drawer, drag it across the kanban — the change goes to the hub. A task can only be moved into a project that lives where it does: local into local, hub into hub. With a project filter set on the Tasks page, **New Task** creates the task in that project, wherever it lives.
+
 The tabs all work there. Two things differ:
 
-- **The conversation is held on the hub**, so it is shared by everyone on the project. It opens in the app; the attachment box and the conversation list on the left belong to this computer's own chats and are not shown.
+- **The conversation is held on the hub**, so it is shared by everyone on the project. It opens in the app, and the list on the left shows this computer's own conversations with an **On the hub** section beneath them for the shared ones you started. The attachment box belongs to this computer's own chats and is not shown.
 - **Material pinned to a hub project lives with the project**, not in your Knowledge Base. Everyone on the project sees every pin. A pinned file whose contents are encrypted on the computer that added it says so — see *Material* above.
 
 If a project you expected isn't listed, either it hasn't been shared with you or your hub connection has lapsed — reconnect from Settings.
