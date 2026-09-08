@@ -36,7 +36,10 @@ async def ensure_workroom(
 
     if room is None:
         conv = await ConversationRepository(db).create(
-            user_id=user_id, title=f"Project: {project.name.strip()[:180]}"
+            user_id=user_id,
+            title=f"Project: {project.name.strip()[:180]}",
+            project_id=project.id,
+            kind="project",
         )
         room = Workroom(
             id=uuid.uuid4(),
@@ -51,7 +54,10 @@ async def ensure_workroom(
     elif room.conversation_id is None:
         # Rooms made before this ran, and any that lost their conversation.
         conv = await ConversationRepository(db).create(
-            user_id=room.user_id, title=f"Project: {project.name.strip()[:180]}"
+            user_id=room.user_id,
+            title=f"Project: {project.name.strip()[:180]}",
+            project_id=project.id,
+            kind="project",
         )
         room.conversation_id = conv.id
         await db.flush()

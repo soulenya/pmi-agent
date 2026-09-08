@@ -77,6 +77,7 @@ async def conversation_role(
     means whoever happened to create the project. Everyone working on the
     project needs the same conversation, so membership decides here.
     """
+    from models.db.conversation import Conversation
     from models.db.workroom import Workroom
 
     room = (
@@ -84,9 +85,17 @@ async def conversation_role(
             select(Workroom).where(Workroom.conversation_id == conv_id).limit(1)
         )
     ).scalar_one_or_none()
-    if room is None or room.project_id is None:
+    project_id = room.project_id if room is not None else None
+    if project_id is None:
+        # Conversations made since migration 042 name their project directly.
+        project_id = (
+            await db.execute(
+                select(Conversation.project_id).where(Conversation.id == conv_id)
+            )
+        ).scalar_one_or_none()
+    if project_id is None:
         return None
-    project = await db.get(Project, room.project_id)
+    project = await db.get(Project, project_id)
     if project is None:
         return None
     return await resolve_role(db, project, user_id)

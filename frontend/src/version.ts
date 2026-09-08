@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 248;
+export const BUILD_NUMBER = 249;
 export const BUILD_DATE = "2026-09-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 249,
+    date: "2026-09-08",
+    title: "Gerry knows which project you are in",
+    changes: [
+      "Open a project and the side panel becomes that project's Gerry: its header names the project, the thread is the project's conversation, and every question you type carries which project and which tab you are on. Leave the project and the panel goes back to the conversation you had open.",
+      "The project's Chat tab is a real conversation now, on the page, instead of a link that took you away from the canvas and the tasks. Open full screen is in its corner if you want the big page.",
+      "Ask Gerry inside a project goes to the project's conversation rather than starting a fresh one, so the answer comes with the goal, the pins and the tasks in hand.",
+      "The conversation list is grouped: Projects & rooms, Conversations, then Asked about something, Voice sessions and Routines folded with a count.",
+      "A project's conversation belongs to the project. Everyone on a shared project sees it in their list, whoever started it.",
+      "Typed questions no longer show the page-context line Gerry was sent; you see what you typed.",
+    ],
+  },
   {
     build: 248,
     date: "2026-09-08",

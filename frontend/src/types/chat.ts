@@ -1,5 +1,7 @@
 // ── Conversations ─────────────────────────────────────────────────────────────
 
+export type ConversationKind = "general" | "project" | "room" | "voice" | "routine" | "ask";
+
 export interface Conversation {
   id: string;
   user_id: string;
@@ -7,6 +9,10 @@ export interface Conversation {
   agent_type: string | null;
   is_pinned: boolean;
   is_archived: boolean;
+  /** A local copy of a conversation the hub keeps. */
+  hub_mirror?: boolean;
+  project_id?: string | null;
+  kind?: ConversationKind;
   created_at: string;
   updated_at: string;
 }
@@ -14,6 +20,8 @@ export interface Conversation {
 export interface ConversationCreate {
   title?: string;
   agent_type?: string;
+  project_id?: string;
+  kind?: ConversationKind;
 }
 
 export interface ConversationUpdate {

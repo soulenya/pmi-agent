@@ -240,7 +240,9 @@ async def join_shared(db: AsyncSession, user_id: uuid.UUID, file_id: str) -> Wor
     data = _parse_manifest(blob.get("content") or b"")
 
     title = str(data.get("title", "Shared room")).strip()[:200]
-    conv = await ConversationRepository(db).create(user_id=user_id, title=f"Workroom: {title}")
+    conv = await ConversationRepository(db).create(
+        user_id=user_id, title=f"Workroom: {title}", kind="room"
+    )
     room = Workroom(
         user_id=user_id,
         title=title,

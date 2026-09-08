@@ -151,6 +151,44 @@ function ConversationItem({
 
 // â”€â”€ Tool activity strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// ── Conversation groups ───────────────────────────────────────────────────────
+
+const GROUPS: { key: string; label: string; kinds: string[]; openByDefault: boolean }[] = [
+  { key: "work", label: "Projects & rooms", kinds: ["project", "room"], openByDefault: true },
+  { key: "general", label: "Conversations", kinds: ["general"], openByDefault: true },
+  { key: "ask", label: "Asked about something", kinds: ["ask"], openByDefault: false },
+  { key: "voice", label: "Voice sessions", kinds: ["voice"], openByDefault: false },
+  { key: "routine", label: "Routines", kinds: ["routine"], openByDefault: false },
+];
+
+function ConversationGroup({
+  label,
+  count,
+  openByDefault,
+  children,
+}: {
+  label: string;
+  count: number;
+  openByDefault: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(openByDefault);
+  if (count === 0) return null;
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+      >
+        <span>{label}</span>
+        <span className="font-normal">{open ? "" : count}</span>
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 export function ChatPage({ source = "local" }: { source?: Source } = {}) {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const onHub = source === "hub";
@@ -834,17 +872,32 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
         )}
 
         <div className="flex-1 space-y-1 overflow-y-auto">
-          {conversations.map((c) => (
-            <ConversationItem
-              key={c.id}
-              id={c.id}
-              title={c.title}
-              isActive={!onHub && c.id === conversationId}
-              onClick={() => navigate(`/chat/${c.id}`)}
-              onRename={(id, newTitle) => renameMutation.mutate({ id, title: newTitle })}
-              onArchive={(id) => archiveMutation.mutate(id)}
-            />
-          ))}
+          {/* A hub mirror is the same conversation as its hub row below; list it once. */}
+          {GROUPS.map((g) => {
+            const items = conversations.filter(
+              (c) => !c.hub_mirror && g.kinds.includes(c.kind ?? "general"),
+            );
+            return (
+              <ConversationGroup
+                key={g.key}
+                label={g.label}
+                count={items.length}
+                openByDefault={g.openByDefault}
+              >
+                {items.map((c) => (
+                  <ConversationItem
+                    key={c.id}
+                    id={c.id}
+                    title={c.title}
+                    isActive={!onHub && c.id === conversationId}
+                    onClick={() => navigate(`/chat/${c.id}`)}
+                    onRename={(id, newTitle) => renameMutation.mutate({ id, title: newTitle })}
+                    onArchive={(id) => archiveMutation.mutate(id)}
+                  />
+                ))}
+              </ConversationGroup>
+            );
+          })}
 
           {hubConversations.length > 0 && (
             <div className="space-y-1 pt-2">

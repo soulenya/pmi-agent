@@ -63,6 +63,8 @@ async def ensure_mirror(
             title=remote.get("title"),
             agent_type=remote.get("agent_type"),
             hub_mirror=True,
+            project_id=_uuid_or_none(remote.get("project_id")),
+            kind=remote.get("kind") or "project",
         )
         db.add(local)
     else:
@@ -71,8 +73,17 @@ async def ensure_mirror(
         if not local.hub_mirror:
             return None
         local.title = remote.get("title") or local.title
+        if local.project_id is None:
+            local.project_id = _uuid_or_none(remote.get("project_id"))
     await db.flush()
     return local
+
+
+def _uuid_or_none(value: object) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(str(value)) if value else None
+    except ValueError:
+        return None
 
 
 async def pull(db: AsyncSession, user_id: uuid.UUID, conv_id: uuid.UUID) -> int:
