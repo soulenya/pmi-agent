@@ -55,6 +55,8 @@ import {
   Image as ImageIcon,
   Loader2,
   MousePointer2,
+  PanelRightClose,
+  PanelRightOpen,
   PenLine,
   Redo2,
   Square,
@@ -193,6 +195,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   );
   const [railFilter, setRailFilter] = useState("");
   const [showPlaced, setShowPlaced] = useState(false);
+  const [poolOpen, setPoolOpen] = useState(true);
   const drawing = useRef(false);
 
   const key = ["project-canvas", source, projectId] as const;
@@ -1647,7 +1650,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
               "flex flex-col items-start gap-2",
               // The pool is pinned top-right at w-60; without this the toolbar
               // grows underneath it and its last buttons cannot be clicked.
-              editable && pool.length > 0 && "max-w-[calc(100%-18rem)]",
+              editable && pool.length > 0 && poolOpen && "max-w-[calc(100%-18rem)]",
             )}
           >
             {editable ? (
@@ -1833,12 +1836,36 @@ function Board({ projectId, source = "local", canEdit }: Props) {
             </Panel>
           ) : null}
 
-          {editable && pool.length > 0 ? (
+          {editable && pool.length > 0 && !poolOpen ? (
+            <Panel position="top-right">
+              <button
+                type="button"
+                title="Show the pool"
+                onClick={() => setPoolOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card/95 px-2 py-1 text-xs shadow-sm hover:bg-muted"
+              >
+                <PanelRightOpen className="h-3.5 w-3.5" />
+                Pool · {pool.length}
+              </button>
+            </Panel>
+          ) : null}
+
+          {editable && pool.length > 0 && poolOpen ? (
             <Panel
               position="top-right"
               className="flex max-h-[70%] w-60 flex-col rounded-md border border-border bg-card/95 p-2 shadow-sm"
             >
-              <p className="text-xs font-medium text-foreground">The pool</p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs font-medium text-foreground">The pool</p>
+                <button
+                  type="button"
+                  title="Hide the pool so it is not over the board"
+                  onClick={() => setPoolOpen(false)}
+                  className="-mr-1 -mt-1 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <PanelRightClose className="h-3.5 w-3.5" />
+                </button>
+              </div>
               <p className="mb-2 text-[11px] leading-snug text-muted-foreground">
                 Everything this project holds. Drag onto the board, or click to
                 drop it in the middle.

@@ -591,7 +591,10 @@ export default function InboxPage() {
   const [batchDrafted, setBatchDrafted] = useState(0);
   const [showSig, setShowSig] = useState(false);
   const [showCompose, setShowCompose] = useState(false);
-  const [view, setView] = useState<"inbox" | "drafts">("inbox");
+  // /emails used to be its own page; it now arrives here as ?view=drafts.
+  const [view, setView] = useState<"inbox" | "drafts">(() =>
+    searchParams.get("view") === "drafts" ? "drafts" : "inbox",
+  );
 
   const signature = useQuery<SignatureData>({
     queryKey: ["gmail-signature"],

@@ -8,7 +8,6 @@ import {
   Circle,
   Clock,
   AlertCircle,
-  ExternalLink,
   Layers,
   Pencil,
   X,
@@ -467,9 +466,7 @@ function ProjectCard({
     new Date(project.target_date) < new Date() &&
     project.status !== "completed";
 
-  // A hub project is opened through the hub space; it has no local detail page.
-  const detailTo =
-    source === "hub" ? `/hub/projects/${project.id}/space` : `/projects/${project.id}`;
+  // One door into a project, wherever it lives.
   const spaceTo =
     source === "hub" ? `/hub/projects/${project.id}/space` : `/projects/${project.id}/space`;
 
@@ -490,7 +487,7 @@ function ProjectCard({
                 style={{ color: project.color ?? "#1e6db5" }}
               />
               <NavLink
-                to={detailTo}
+                to={spaceTo}
                 className="font-semibold text-sm leading-snug truncate hover:underline"
               >
                 {project.name}
@@ -531,13 +528,6 @@ function ProjectCard({
               title="Open project space"
             >
               <Layers className="h-3.5 w-3.5" />
-            </NavLink>
-            <NavLink
-              to={detailTo}
-              className="flex items-center gap-1 rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-              title="View project detail"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
             </NavLink>
           </div>
         </div>

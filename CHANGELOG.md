@@ -4,6 +4,33 @@
 
 ## Changelog
 
+### v4.8.0 — 2026-09-08
+**Fewer doors: one way into a project, and two pages retired**
+
+Phase 0 of the UI simplification plan: dead
+wood only, no behaviour changes, every old route redirects.
+
+- **One door into a project.** The card title went to `/projects/:id`, the
+  legacy `ProjectDetailPage` (a bare kanban), while the card button went to
+  `/projects/:id/space`. Both now go to the space; `/projects/:id` redirects;
+  `ProjectDetailPage.tsx` deleted.
+- **`/emails` redirects to `/inbox?view=drafts`.** `EmailsPage` was never in
+  `solarSystem.ts` and was already embedded in `InboxPage` as the Drafts view;
+  the inbox now reads `?view=` on load. The palette entry and the
+  email-draft notification link point at the inbox. `EmailsPage.tsx` stays as
+  the component the inbox renders.
+- **Investor Relations retired.** Six hard-coded company facts, a titled
+  conversation, and filtered copies of the Regulatory and Research lists.
+  Moon, route and `InvestorPage.tsx` removed; `/investor` redirects to
+  `/regulatory`; feature-guide entry removed.
+- **`components/layout/Sidebar.tsx` deleted** — the pre-v2.0 sidebar, no
+  importers since the solar system landed.
+- **Canvas pool is collapsible.** The pool is a React Flow `Panel` pinned
+  top-right over the board, so on a narrow window it covers cards and steals
+  their drags (this is how a stray node got created during v4.7.3 testing).
+  A close button on its header hides it to a `Pool · N` chip; the toolbar's
+  width cap is lifted while it is hidden.
+
 ### v4.7.4 — 2026-09-07
 **Opened cards fold again, and the lines stay attached**
 

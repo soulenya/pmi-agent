@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 246;
-export const BUILD_DATE = "2026-09-07";
+export const BUILD_NUMBER = 247;
+export const BUILD_DATE = "2026-09-08";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 247,
+    date: "2026-09-08",
+    title: "Fewer doors: one way into a project, and two pages retired",
+    changes: [
+      "A project card now opens the project space whichever part of it you click. The older single-board page it used to open is gone; old links to it land in the space.",
+      "Email Drafts is a view inside Gmail, where it already lived. The separate page and its menu entry are gone; old links land on the Drafts view.",
+      "Investor Relations is retired. Its company facts were typed in by hand and never updated, and everything else on it was a filtered copy of Regulatory and Research. The 510(k), DHF and spec document types stay in Regulatory.",
+      "The canvas pool can be tucked away. It sits over the top-right of the board, which on a narrow window is where your cards are; the new button on its header hides it and a small Pool button brings it back.",
+      "This is the first of a series of releases that simplify the app without removing what it does.",
+    ],
+  },
   {
     build: 246,
     date: "2026-09-07",

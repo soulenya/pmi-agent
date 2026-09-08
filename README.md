@@ -62,10 +62,9 @@ Key design principles:
 | **Research Browser**       | A real browser window driven from inside the app: address bar, back/forward, tabs, bookmarks, and persistent logins. "Ask Gerry about this page" reads the rendered page (after its JavaScript, behind your logins) into a new conversation; "Browse with Gerry" keeps the current page in his context on every turn; "Save to Knowledge Base" files it permanently. Gerry never navigates on his own |
 | **Meeting Notes**          | Auto-detects video calls (Zoom/Teams/Meet) and records + transcribes system audio, then AI-summarizes with one-click action item extraction → Tasks; manual transcript paste also supported; meetings and transcripts are searchable from chat |
 | **Gmail**                  | Full inbox: browse standard Gmail folders (Inbox, Sent, Drafts, Starred, Important, Archived, Spam, Trash, All Mail), sort your mail (newest/oldest/sender/unread first), read/search/tag emails, reply, reply-all & forward, mark read or unread (opening a thread clears its highlight automatically), long threads open with only the unread part expanded behind a Gerry-written summary, move to Trash, open attachments in Google Workspace, add attachments straight to the Knowledge Base, and compose & send your own email directly (no approval needed for mail you write yourself) |
-| **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications; submit for approval to send from your Gmail account     |
+| **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications; submit for approval to send from your Gmail account. A view inside Gmail |
 | **Regulatory**             | File explorer for regulatory documents (DHF, IFU, 510(k), ISO 13485): browse/create folders, upload, import from Drive, edit, rename, move, and delete — write access gated per user |
 | **Slide Decks**            | Ask for a presentation and Gerry builds a real deck in the company house style — fourteen layouts, brand colours and type measured from the company's own deck, uploaded to Drive as native Google Slides. Every deck carries a security classification you choose; the theme itself lives in the shared templates folder, so the look changes without a release |
-| **Investor Relations**     | IR hub: company snapshot, regulatory proof-points, AI-drafted pitch context, research feed, and IR specialist chat                          |
 | **Approvals**              | Approve/reject anywhere — inline in the email thread, inline in chat, from any notification, or from the global top-bar approvals drawer — with automatic execution and full audit trail |
 | **Notifications**          | Actionable notifications — approve/reject approvals directly from the bell, with deep links to the right page for everything else          |
 | **Feedback**               | Top-bar button to report a bug or request a feature; submissions are routed to the owner's notifications                                   |
@@ -499,7 +498,7 @@ Open **Gmail** from the Communications area (Google must be connected). Use the 
 
 ### Email Drafts
 
-Navigate to **Email Drafts** → **New Email Draft** → fill in topic and context → **Generate**. Review, then submit for approval to send from your Gmail account. Errors are shown inline if generation fails.
+Open **Gmail**, switch to the **Drafts** view → **New Email Draft** → fill in topic and context → **Generate**. Review, then submit for approval to send from your Gmail account. Errors are shown inline if generation fails.
 
 ---
 

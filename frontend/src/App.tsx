@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { Suspense, lazy, useState, type ReactNode } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -29,19 +29,16 @@ const PortfolioPage = lazy(() => import("@/pages/PortfolioPage").then(m => ({ de
 const ProjectSpacePage = lazy(() => import("@/pages/ProjectSpacePage").then(m => ({ default: m.ProjectSpacePage })));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const MeetingsPage = lazy(() => import("@/pages/MeetingsPage").then(m => ({ default: m.MeetingsPage })));
-const EmailsPage = lazy(() => import("@/pages/EmailsPage").then(m => ({ default: m.EmailsPage })));
 const InboxPage = lazy(() => import("@/pages/InboxPage"));
 const ContactsPage = lazy(() => import("@/pages/ContactsPage").then(m => ({ default: m.ContactsPage })));
 const BackupsPage = lazy(() => import("@/pages/BackupsPage").then(m => ({ default: m.BackupsPage })));
 const AuditPage = lazy(() => import("@/pages/AuditPage").then(m => ({ default: m.AuditPage })));
 const UsersPage = lazy(() => import("@/pages/UsersPage").then(m => ({ default: m.UsersPage })));
-const ProjectDetailPage = lazy(() => import("@/pages/ProjectDetailPage").then(m => ({ default: m.ProjectDetailPage })));
 const CalendarPage = lazy(() => import("@/pages/CalendarPage").then(m => ({ default: m.CalendarPage })));
 const GoogleIntegrationPage = lazy(() => import("@/pages/GoogleIntegrationPage"));
 const OdooIntegrationPage = lazy(() => import("@/pages/OdooIntegrationPage"));
 const GeneratedFilesPage = lazy(() => import("@/pages/GeneratedFilesPage").then(m => ({ default: m.GeneratedFilesPage })));
 const ScheduledTasksPage = lazy(() => import("@/pages/ScheduledTasksPage").then(m => ({ default: m.ScheduledTasksPage })));
-const InvestorPage = lazy(() => import("@/pages/InvestorPage"));
 const AgentsPage = lazy(() => import("@/pages/AgentsPage").then(m => ({ default: m.AgentsPage })));
 const WorkroomsPage = lazy(() => import("@/pages/WorkroomsPage").then(m => ({ default: m.WorkroomsPage })));
 const BudgetsPage = lazy(() => import("@/pages/BudgetsPage").then(m => ({ default: m.BudgetsPage })));
@@ -70,6 +67,12 @@ function Page({ children }: { children: ReactNode }) {
       </Suspense>
     </ErrorBoundary>
   );
+}
+
+/** The old project page; the space has held everything it showed since v4.5. */
+function ProjectRedirect() {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={`/projects/${id}/space`} replace />;
 }
 
 function ThemedApp() {
@@ -106,7 +109,7 @@ function ThemedApp() {
             <Route path="browser" element={<Page><ResearchBrowserPage /></Page>} />
             <Route path="projects" element={<Page><ProjectsPage /></Page>} />
             <Route path="projects/portfolio" element={<Page><PortfolioPage /></Page>} />
-            <Route path="projects/:id" element={<Page><ProjectDetailPage /></Page>} />
+            <Route path="projects/:id" element={<ProjectRedirect />} />
             <Route path="projects/:id/space" element={<Page><ProjectSpacePage /></Page>} />
             <Route path="projects/:id/space/:tab" element={<Page><ProjectSpacePage /></Page>} />
             {/* The same space, rendered against the hub's copy rather than this one's. */}
@@ -114,7 +117,7 @@ function ThemedApp() {
             <Route path="hub/projects/:id/space/:tab" element={<Page><ProjectSpacePage source="hub" /></Page>} />
             <Route path="settings" element={<Page><SettingsPage /></Page>} />
             <Route path="meetings" element={<Page><MeetingsPage /></Page>} />
-            <Route path="emails" element={<Page><EmailsPage /></Page>} />
+            <Route path="emails" element={<Navigate to="/inbox?view=drafts" replace />} />
             <Route path="inbox" element={<Page><InboxPage /></Page>} />
             <Route path="contacts" element={<Page><ContactsPage /></Page>} />
             <Route path="backups" element={<Page><BackupsPage /></Page>} />
@@ -126,7 +129,7 @@ function ThemedApp() {
             <Route path="files" element={<Page><GeneratedFilesPage /></Page>} />
             <Route path="workrooms" element={<Page><WorkroomsPage /></Page>} />
             <Route path="budgets" element={<Page><BudgetsPage /></Page>} />
-            <Route path="investor" element={<Page><InvestorPage /></Page>} />
+            <Route path="investor" element={<Navigate to="/regulatory" replace />} />
           </Route>
         </Route>
       </Routes>

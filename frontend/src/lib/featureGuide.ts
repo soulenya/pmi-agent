@@ -241,7 +241,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   compliance: {
     tagline: "Stay on the right side of the rules.",
     capabilities: [
-      "Regulations, investors, approvals and your audit trail in one area",
+      "Regulations, approvals and your audit trail in one area",
       "Compliance answers grounded in your regulated document library",
       "Gerry keeps a tamper-evident record of sensitive actions",
     ],
@@ -252,14 +252,6 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Track regulatory requirements, standards and submission status",
       "Ask Gerry compliance questions — answers cite your regulated documents",
       "Gerry knows PMI's regulatory context (510(k), ISO 13485, key standards) from the company profile",
-    ],
-  },
-  investor: {
-    tagline: "Keep investors in the loop.",
-    capabilities: [
-      "Organise investor information and updates in one place",
-      "Ask Gerry to help prepare investor communications — sends always need your approval",
-      "Investor identities stay confidential — Gerry treats them as NDA-covered",
     ],
   },
   approvals: {
