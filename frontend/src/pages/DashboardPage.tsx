@@ -22,11 +22,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listPendingApprovals, listNotifications, listConversations } from "@/api/chat";
-import { listTasks, listProjects } from "@/api/tasks";
+import { useAllProjects, useAllTasks, type SourcedTask as Task } from "@/hooks/useAllWork";
+import { HubBadge } from "@/components/HubBadge";
 import { listMeetings } from "@/api/meetings";
 import { getTodayBriefing } from "@/api/regulatory";
 import { getGoogleStatus, listGoogleCalendarEvents, type GoogleCalendarEvent } from "@/api/google";
-import type { Task } from "@/types/tasks";
 import type { MeetingNote } from "@/types/meetings";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -99,6 +99,7 @@ function TaskAgendaItem({ task }: { task: Task }) {
     <NavLink to={`/tasks?task=${task.id}`} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/40 transition-colors">
       <span className="shrink-0">{DASH_STATUS_ICON[task.status]}</span>
       <span className="flex-1 min-w-0 text-sm truncate">{task.title}</span>
+      <HubBadge source={task.source} />
       {task.due_date && (
         <span className={cn("shrink-0 text-xs", overdue ? "text-destructive font-medium" : "text-muted-foreground")}>
           {overdue ? `${Math.abs(daysFromNow(task.due_date))}d ago` : "Today"}
@@ -147,6 +148,7 @@ function WeekTaskRow({ task }: { task: Task }) {
     <NavLink to={`/tasks?task=${task.id}`} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/40 transition-colors">
       <span className="shrink-0">{DASH_STATUS_ICON[task.status]}</span>
       <span className="flex-1 min-w-0 text-sm truncate">{task.title}</span>
+      <HubBadge source={task.source} />
       {task.due_date && (
         <span className={cn("shrink-0 text-xs rounded-full px-1.5 py-0.5", days !== null && days <= 1 ? "bg-orange-100 text-orange-700" : "bg-muted text-muted-foreground")}>
           {days === 0 ? "Today" : days === 1 ? "Tomorrow" : formatShortDate(task.due_date)}
@@ -159,12 +161,12 @@ function WeekTaskRow({ task }: { task: Task }) {
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const { data: tasks = [] } = useQuery({ queryKey: ["tasks"], queryFn: () => listTasks(), staleTime: 60_000 });
+  const { tasks } = useAllTasks();
   const { data: approvals = [] } = useQuery({ queryKey: ["approvals", "pending"], queryFn: () => listPendingApprovals(), refetchInterval: 30_000 });
   const { data: notifications = [] } = useQuery({ queryKey: ["notifications"], queryFn: listNotifications, staleTime: 60_000 });
-  const { data: conversations = [] } = useQuery({ queryKey: ["conversations"], queryFn: listConversations, staleTime: 60_000 });
+  const { data: conversations = [] } = useQuery({ queryKey: ["conversations"], queryFn: () => listConversations(), staleTime: 60_000 });
   const { data: meetings = [] } = useQuery({ queryKey: ["meetings"], queryFn: listMeetings, staleTime: 60_000 });
-  const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: () => listProjects(false), staleTime: 60_000 });
+  const { projects } = useAllProjects();
   const { data: briefing, isLoading: briefingLoading, refetch: refetchBriefing, isFetching } = useQuery({
     queryKey: ["briefing", "today"], queryFn: () => getTodayBriefing(), staleTime: 5 * 60_000,
   });

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 247;
+export const BUILD_NUMBER = 248;
 export const BUILD_DATE = "2026-09-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 248,
+    date: "2026-09-08",
+    title: "Shared work shows up everywhere your own work does",
+    changes: [
+      "Tasks in projects you moved to the hub now appear on the Tasks board, the Calendar, the Dashboard's agenda and overdue list, and the Portfolio graph, each with a small hub pill. Until now those pages only asked this computer, so the work you actually do was missing from them.",
+      "Changing a hub task from any of those places sends the change to the hub: status from the board, drag across the kanban, every field in the task drawer, sub-tasks, comments, attachments.",
+      "A task can only move into a project that lives where it does. The bulk Move button says how many of the selected tasks it can take.",
+      "With a project chosen on the Tasks page, New Task creates the task in that project, wherever it lives.",
+      "Clicking a task on the Calendar opens that task, not just the Tasks page.",
+      "A conversation held on the hub now shows the conversation list on the left, with an On the hub section for the shared conversations you started.",
+    ],
+  },
   {
     build: 247,
     date: "2026-09-08",

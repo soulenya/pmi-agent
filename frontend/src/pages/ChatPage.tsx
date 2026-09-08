@@ -32,6 +32,7 @@ import { deleteDocument } from "@/api/documents";
 import { grantDriveEdit } from "@/api/google";
 import { speakText } from "@/api/voice";
 import { useVoiceConversation } from "@/hooks/useVoiceConversation";
+import { useHubConnected } from "@/hooks/useAllWork";
 import { useAuthStore } from "@/stores/authStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -337,7 +338,18 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
   // â”€â”€ Conversation list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: conversations = [] } = useQuery({
     queryKey: ["conversations"],
-    queryFn: listConversations,
+    queryFn: () => listConversations(),
+  });
+
+  // Shared projects keep their chat on the hub; list those too, so a hub
+  // conversation is not a dead end you can only leave through the project.
+  const hubConnected = useHubConnected();
+  const { data: hubConversations = [] } = useQuery({
+    queryKey: ["hub", "conversations"],
+    queryFn: () => listConversations("hub"),
+    enabled: hubConnected,
+    staleTime: 30_000,
+    retry: false,
   });
 
   // Active workrooms — shown as a pinned section above the conversation list.
@@ -778,9 +790,8 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
   return (
     <div className="flex h-full gap-4">
       {/* â”€â”€ Conversation sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {/* The rail lists this machine's conversations; a hub project's belongs to
-          the project, so it is reached from there. */}
-      {!onHub && (
+      {/* The rail lists this machine's conversations and, below them, the ones
+          kept on the hub for shared projects. */}
       <aside className="flex w-56 flex-col gap-2 border-r pr-4">
         <button
           onClick={() => createConvMutation.mutate()}
@@ -828,15 +839,37 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
               key={c.id}
               id={c.id}
               title={c.title}
-              isActive={c.id === conversationId}
+              isActive={!onHub && c.id === conversationId}
               onClick={() => navigate(`/chat/${c.id}`)}
               onRename={(id, newTitle) => renameMutation.mutate({ id, title: newTitle })}
               onArchive={(id) => archiveMutation.mutate(id)}
             />
           ))}
+
+          {hubConversations.length > 0 && (
+            <div className="space-y-1 pt-2">
+              <div className="border-t pt-2 px-1">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  On the hub
+                </span>
+              </div>
+              {hubConversations.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => navigate(`/hub/chat/${c.id}`)}
+                  className={cn(
+                    "w-full truncate rounded-md px-3 py-1.5 text-left text-sm transition-colors",
+                    onHub && c.id === conversationId ? "bg-accent" : "hover:bg-accent/50",
+                  )}
+                  title={c.title ?? undefined}
+                >
+                  {c.title || "Untitled"}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </aside>
-      )}
 
       {/* â”€â”€ Message thread â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="relative flex flex-1 flex-col overflow-hidden" {...dropProps}>

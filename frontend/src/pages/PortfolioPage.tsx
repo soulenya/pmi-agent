@@ -30,7 +30,10 @@ import "@xyflow/react/dist/style.css";
 import { AlertTriangle, Loader2, Network, ShieldAlert } from "lucide-react";
 
 import { getPortfolio } from "@/api/projectLinks";
+import type { Source } from "@/api/tasks";
 import type { PortfolioEdge, PortfolioNode, ProjectLinkKind } from "@/types/tasks";
+import { HubBadge } from "@/components/HubBadge";
+import { projectSpacePath, useHubConnected } from "@/hooks/useAllWork";
 import { cn } from "@/lib/utils";
 
 const COL_WIDTH = 300;
@@ -52,7 +55,8 @@ const EDGE_COLOURS: Record<ProjectLinkKind, string> = {
 };
 
 type ProjectNodeData = PortfolioNode & {
-  onOpen: (id: string) => void;
+  source: Source;
+  onOpen: (id: string, source: Source) => void;
 } & Record<string, unknown>;
 
 function ProjectCard({ data }: NodeProps<Node<ProjectNodeData>>) {
@@ -60,7 +64,7 @@ function ProjectCard({ data }: NodeProps<Node<ProjectNodeData>>) {
   const gated = data.open_gates > 0;
   return (
     <div
-      onDoubleClick={() => data.onOpen(data.id)}
+      onDoubleClick={() => data.onOpen(data.id, data.source)}
       title="Double-click to open this project"
       className={cn(
         "w-60 cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition",
@@ -70,7 +74,10 @@ function ProjectCard({ data }: NodeProps<Node<ProjectNodeData>>) {
       style={data.color ? { borderTopColor: data.color, borderTopWidth: 3 } : undefined}
     >
       <Handle type="target" position={Position.Left} className="!h-2 !w-2" />
-      <p className="truncate text-sm font-medium">{data.name}</p>
+      <div className="flex items-center gap-2">
+        <p className="min-w-0 flex-1 truncate text-sm font-medium">{data.name}</p>
+        <HubBadge source={data.source} />
+      </div>
       {data.goal && (
         <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{data.goal}</p>
       )}
@@ -143,16 +150,40 @@ function columns(projects: PortfolioNode[], links: PortfolioEdge[]): Map<string,
 
 function PortfolioGraph() {
   const navigate = useNavigate();
-  const { data, isLoading, isError } = useQuery({
+  const hubConnected = useHubConnected();
+  const local = useQuery({
     queryKey: ["portfolio", "local"],
     queryFn: () => getPortfolio(),
   });
+  // Your real projects live on the hub; a graph that only asked this computer
+  // could not show them at all.
+  const hub = useQuery({
+    queryKey: ["portfolio", "hub"],
+    queryFn: () => getPortfolio("hub"),
+    enabled: hubConnected,
+    retry: false,
+  });
+  const isLoading = local.isLoading || (hubConnected && hub.isLoading);
+  const isError = local.isError;
+
+  const data = useMemo(() => {
+    if (!local.data) return undefined;
+    const projects = [
+      ...local.data.projects.map(p => ({ ...p, source: "local" as Source })),
+      ...(hub.data?.projects ?? []).map(p => ({ ...p, source: "hub" as Source })),
+    ];
+    const links = [
+      ...local.data.links.map(l => ({ ...l, id: `local:${l.id}` })),
+      ...(hub.data?.links ?? []).map(l => ({ ...l, id: `hub:${l.id}` })),
+    ];
+    return { projects, links };
+  }, [local.data, hub.data]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProjectNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const open = useCallback(
-    (id: string) => navigate(`/projects/${id}/space`),
+    (id: string, source: Source) => navigate(projectSpacePath(id, source)),
     [navigate],
   );
 
@@ -249,6 +280,11 @@ function PortfolioGraph() {
           {data.links.length} {data.links.length === 1 ? "link" : "links"} · double-click a
           card to open it
         </span>
+        {hubConnected && hub.isError && (
+          <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600 dark:text-amber-400">
+            The hub did not answer, so its projects are missing from this graph
+          </span>
+        )}
         {hidden > 0 && (
           <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600 dark:text-amber-400">
             {hidden} {hidden === 1 ? "link goes" : "links go"} to a project you cannot see

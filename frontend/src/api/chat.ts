@@ -10,8 +10,10 @@ import type {
 
 // ── Conversations ─────────────────────────────────────────────────────────────
 
-export async function listConversations(): Promise<Conversation[]> {
-  const resp = await apiClient.get<Conversation[]>("/conversations");
+export async function listConversations(source: "local" | "hub" = "local"): Promise<Conversation[]> {
+  const resp = await apiClient.get<Conversation[]>(
+    source === "hub" ? "/hub/api/conversations" : "/conversations",
+  );
   return resp.data;
 }
 

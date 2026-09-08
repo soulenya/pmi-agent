@@ -22,14 +22,15 @@ import {
   createTask,
   listTaskComments,
   addTaskComment,
-  listProjects,
   listTasks,
   addTaskAttachment,
   removeTaskAttachment,
+  type Source,
 } from "@/api/tasks";
 import { getGoogleStatus } from "@/api/google";
 import { DriveBrowser } from "@/components/google/DriveBrowser";
 import { TaskSourceActions } from "@/components/tasks/TaskSourceActions";
+import { useAllProjects, useInvalidateTasks } from "@/hooks/useAllWork";
 import type { DriveItem } from "@/api/google";
 import type { Task, TaskCreate, TaskStatus, TaskPriority, TaskUpdate, TaskAttachment } from "@/types/tasks";
 
@@ -142,15 +143,18 @@ const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
   cancelled: "cancelled",
 };
 
-function SubtasksSection({ parentTask }: { parentTask: Task }) {
-  const qc = useQueryClient();
+/** The cache key each source's task list lives under. */
+const tasksKey = (source: Source) => (source === "hub" ? ["hub", "tasks"] : ["tasks"]);
+
+function SubtasksSection({ parentTask, source }: { parentTask: Task; source: Source }) {
+  const invalidate = useInvalidateTasks();
   const [newTitle, setNewTitle] = useState("");
   const [adding, setAdding] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: allTasks = [] } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: () => listTasks(),
+    queryKey: tasksKey(source),
+    queryFn: () => listTasks(undefined, source),
     staleTime: 30_000,
   });
 
@@ -159,9 +163,9 @@ function SubtasksSection({ parentTask }: { parentTask: Task }) {
   const pct = subtasks.length > 0 ? Math.round((doneCount / subtasks.length) * 100) : 0;
 
   const addMutation = useMutation({
-    mutationFn: (body: TaskCreate) => createTask(body),
+    mutationFn: (body: TaskCreate) => createTask(body, source),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
+      invalidate();
       setNewTitle("");
       setAdding(false);
     },
@@ -169,13 +173,13 @@ function SubtasksSection({ parentTask }: { parentTask: Task }) {
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: TaskStatus }) =>
-      updateTask(id, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+      updateTask(id, { status }, source),
+    onSuccess: invalidate,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteTask(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    mutationFn: (id: string) => deleteTask(id, source),
+    onSuccess: invalidate,
   });
 
   function handleAdd(e: React.FormEvent) {
@@ -296,7 +300,7 @@ function SubtasksSection({ parentTask }: { parentTask: Task }) {
 
 // ── Attachments section ─────────────────────────────────────────────────────
 
-function AttachmentsSection({ task }: { task: Task }) {
+function AttachmentsSection({ task, source }: { task: Task; source: Source }) {
   const qc = useQueryClient();
   const [showDriveBrowser, setShowDriveBrowser] = useState(false);
 
@@ -308,18 +312,18 @@ function AttachmentsSection({ task }: { task: Task }) {
 
   const addMutation = useMutation({
     mutationFn: (body: { name: string; url: string; source: "drive"; drive_file_id: string }) =>
-      addTaskAttachment(task.id, body),
+      addTaskAttachment(task.id, body, source),
     onSuccess: (updated) => {
-      qc.setQueryData(["tasks"], (prev: Task[] | undefined) =>
+      qc.setQueryData(tasksKey(source), (prev: Task[] | undefined) =>
         prev?.map((t) => (t.id === updated.id ? updated : t)) ?? []
       );
     },
   });
 
   const removeMutation = useMutation({
-    mutationFn: (attachmentId: string) => removeTaskAttachment(task.id, attachmentId),
+    mutationFn: (attachmentId: string) => removeTaskAttachment(task.id, attachmentId, source),
     onSuccess: (updated) => {
-      qc.setQueryData(["tasks"], (prev: Task[] | undefined) =>
+      qc.setQueryData(tasksKey(source), (prev: Task[] | undefined) =>
         prev?.map((t) => (t.id === updated.id ? updated : t)) ?? []
       );
     },
@@ -397,10 +401,13 @@ interface TaskDrawerProps {
   task: Task;
   onClose: () => void;
   onDeleted: () => void;
+  /** Where the task lives; every write goes back there. */
+  source?: Source;
 }
 
-export function TaskDrawer({ task, onClose, onDeleted }: TaskDrawerProps) {
+export function TaskDrawer({ task, onClose, onDeleted, source = "local" }: TaskDrawerProps) {
   const qc = useQueryClient();
+  const invalidate = useInvalidateTasks();
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // Editable local state (mirrors task fields)
@@ -435,35 +442,33 @@ export function TaskDrawer({ task, onClose, onDeleted }: TaskDrawerProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const { data: projects = [] } = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => listProjects(),
-    staleTime: 60_000,
-  });
+  // A task can only move between projects that live where it does.
+  const { projects: allProjects } = useAllProjects();
+  const projects = allProjects.filter((p) => p.source === source);
 
   const { data: comments = [], isLoading: commentsLoading } = useQuery({
-    queryKey: ["task-comments", task.id],
-    queryFn: () => listTaskComments(task.id),
+    queryKey: ["task-comments", source, task.id],
+    queryFn: () => listTaskComments(task.id, source),
     staleTime: 30_000,
   });
 
   const updateMutation = useMutation({
-    mutationFn: (body: TaskUpdate) => updateTask(task.id, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    mutationFn: (body: TaskUpdate) => updateTask(task.id, body, source),
+    onSuccess: invalidate,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => deleteTask(task.id),
+    mutationFn: () => deleteTask(task.id, source),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
+      invalidate();
       onDeleted();
     },
   });
 
   const commentMutation = useMutation({
-    mutationFn: (content: string) => addTaskComment(task.id, content),
+    mutationFn: (content: string) => addTaskComment(task.id, content, source),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["task-comments", task.id] });
+      qc.invalidateQueries({ queryKey: ["task-comments", source, task.id] });
       setCommentText("");
     },
   });
@@ -646,13 +651,13 @@ export function TaskDrawer({ task, onClose, onDeleted }: TaskDrawerProps) {
           <div className="border-t" />
 
           {/* Attachments */}
-          <AttachmentsSection task={task} />
+          <AttachmentsSection task={task} source={source} />
 
           {/* Divider */}
           <div className="border-t" />
 
           {/* Subtasks */}
-          <SubtasksSection parentTask={task} />
+          <SubtasksSection parentTask={task} source={source} />
 
           {/* Divider */}
           <div className="border-t" />
