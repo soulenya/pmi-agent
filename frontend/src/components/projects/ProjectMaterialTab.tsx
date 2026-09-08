@@ -76,7 +76,7 @@ function itemLink(item: WorkroomItem): string | null {
     case "regulatory_doc":
       return `/regulatory?doc=${encodeURIComponent(item.ref_id)}`;
     case "generated_file":
-      return "/files";
+      return "/documents?tab=made-by-gerry";
     default:
       return null;
   }

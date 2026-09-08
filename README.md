@@ -60,7 +60,7 @@ Key design principles:
 | **Knowledge Base**         | Upload and semantically search internal documents (PDFs, DOCX, TXT); auto-chunked and embedded. Little Gerry can also read an entire document in full when asked to summarize or analyze it, including scanned pages and figures — a Gantt chart, timeline or plotted chart is read off the drawing, with each bar's dates reported rather than the labels alone. Long scans are read in sections and paged through to the end, and any section that could not be read completely is named |
 | **Search**                 | Semantic vector search across all uploaded documents with category filtering                                                               |
 | **Research**               | AI-assisted literature/regulatory research with cited responses                                                                            |
-| **Research Browser**       | A real browser window driven from inside the app: address bar, back/forward, tabs, bookmarks, and persistent logins. "Ask Gerry about this page" reads the rendered page (after its JavaScript, behind your logins) into a new conversation; "Browse with Gerry" keeps the current page in his context on every turn; "Save to Knowledge Base" files it permanently. Gerry never navigates on his own |
+| **Research Browser**       | A real browser window driven from inside the app: address bar, back/forward, tabs, bookmarks, and persistent logins. "Ask Gerry about this page" reads the rendered page (after its JavaScript, behind your logins) into a new conversation; "Browse with Gerry" keeps the current page in his context on every turn; "Add to Knowledge Base" files it permanently. Gerry never navigates on his own |
 | **Meeting Notes**          | Auto-detects video calls (Zoom/Teams/Meet) and records + transcribes system audio, then AI-summarizes with one-click action item extraction → Tasks; manual transcript paste also supported; meetings and transcripts are searchable from chat |
 | **Gmail**                  | Full inbox: browse standard Gmail folders (Inbox, Sent, Drafts, Starred, Important, Archived, Spam, Trash, All Mail), sort your mail (newest/oldest/sender/unread first), read/search/tag emails, reply, reply-all & forward, mark read or unread (opening a thread clears its highlight automatically), long threads open with only the unread part expanded behind a Gerry-written summary, move to Trash, open attachments in Google Workspace, add attachments straight to the Knowledge Base, and compose & send your own email directly (no approval needed for mail you write yourself) |
 | **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications; submit for approval to send from your Gmail account. A view inside Gmail |
@@ -437,9 +437,13 @@ A new slide is built from the same fourteen layouts and the same theme as a gene
 
 ### Knowledge Base & Search
 
-1. Navigate to **Knowledge Base** → **Upload Document** → select a PDF, DOCX, or TXT file and assign a category
+The Knowledge Base page has three tabs: **Library**, **Search** and **Made by Gerry** (files Gerry generated).
+
+1. **Library** → **Upload** → select a PDF, DOCX, or TXT file and assign a category
 2. The document is automatically chunked, embedded (using your configured embedding provider), and indexed
-3. Navigate to **Search** to query with natural language — results are ranked by semantic similarity
+3. **Search** tab — or the top search box's *Search the Knowledge Base for …* row — queries with natural language; results are ranked by semantic similarity and open the document
+
+Every **Add to Knowledge Base** button (email attachment or thread, meeting notes, a file Gerry made, a page in the research browser, a Drive import) opens the same dialog: title, category, regulated. A byte-identical duplicate is named with an **Add anyway** option rather than skipped. Library rows carry a badge for where the document came from.
 
 > **Embedding provider must be configured first.** Go to Settings → AI Engine and enter your Voyage AI API key (free at [dash.voyageai.com](https://dash.voyageai.com)) before importing documents. Voyage AI is the recommended provider and stores vectors at native 1024 dimensions for superior retrieval quality.
 
@@ -457,7 +461,7 @@ Navigate to **Research Browser** and press **Open browser**. A separate browser 
 
 - **Ask Gerry about this page** — captures the rendered page and opens a new conversation with it attached.
 - **Browse with Gerry** — a toggle; while on, the page you are viewing is included with every chat message and refreshed as you navigate. Nothing is stored.
-- **Save to Knowledge Base** — files the page under *Web Research* with its source URL so it becomes searchable and citable.
+- **Add to Knowledge Base** — files the page (default category *Web Research*) with its source URL so it becomes searchable and citable.
 - **Pin to workroom** — adds the page to a workroom's pinned items.
 - **Fit to window** — parks the browser over the page area, clear of the navigation rail and the chat panel.
 

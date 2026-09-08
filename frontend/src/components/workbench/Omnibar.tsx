@@ -264,6 +264,15 @@ export function Omnibar() {
         run: () => ask(q),
       });
     }
+    if (q.length >= 3) {
+      out.push({
+        key: "kb-search",
+        group: "Knowledge Base",
+        icon: <FileText className="h-4 w-4" />,
+        label: `Search the Knowledge Base for "${q}"`,
+        run: () => go(`/documents?tab=search&q=${encodeURIComponent(q)}`),
+      });
+    }
     return out;
   }, [value, isCommand, local.data, hub.data, ask, go]);
 

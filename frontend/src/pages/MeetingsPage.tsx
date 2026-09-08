@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SaveToKnowledgeBaseDialog } from "@/components/SaveToKnowledgeBaseDialog";
 import {
   listMeetings,
   createMeeting,
@@ -407,20 +408,9 @@ function MeetingCard({ note, focus = false }: { note: MeetingNote; focus?: boole
     onSuccess: () => qc.invalidateQueries({ queryKey: ["meetings"] }),
   });
 
-  const addToKbMutation = useMutation({
-    mutationFn: () => addMeetingToKnowledgeBase(note.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["meetings"] }),
-    onError: (e) => {
-      const detail = (e as { response?: { status?: number; data?: { detail?: { message?: string } | string } } })?.response;
-      if (detail?.status === 409) {
-        const d = detail.data?.detail;
-        window.alert(typeof d === "object" && d?.message ? d.message : "These notes are already in the Knowledge Base.");
-        qc.invalidateQueries({ queryKey: ["meetings"] });
-      }
-    },
-  });
-
-  const inKb = Boolean(note.kb_document_id) || addToKbMutation.isSuccess;
+  const [kbOpen, setKbOpen] = useState(false);
+  const [kbAdded, setKbAdded] = useState(false);
+  const inKb = Boolean(note.kb_document_id) || kbAdded;
 
   return (
     <div
@@ -489,8 +479,8 @@ function MeetingCard({ note, focus = false }: { note: MeetingNote; focus?: boole
             </button>
           )}
           <button
-            onClick={() => addToKbMutation.mutate()}
-            disabled={addToKbMutation.isPending || inKb}
+            onClick={() => setKbOpen(true)}
+            disabled={inKb}
             title={
               inKb
                 ? "Already in the Knowledge Base — delete the KB copy first to re-add, or delete this note if you no longer need it here"
@@ -503,15 +493,27 @@ function MeetingCard({ note, focus = false }: { note: MeetingNote; focus?: boole
                 : "bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-500/20",
             )}
           >
-            {addToKbMutation.isPending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : inKb ? (
-              <Check className="h-3 w-3" />
-            ) : (
-              <BookPlus className="h-3 w-3" />
-            )}
-            {inKb ? "In Knowledge Base" : "Add to KB"}
+            {inKb ? <Check className="h-3 w-3" /> : <BookPlus className="h-3 w-3" />}
+            {inKb ? "In Knowledge Base" : "Add to Knowledge Base"}
           </button>
+          {kbOpen && (
+            <SaveToKnowledgeBaseDialog
+              subject="these meeting notes"
+              defaultTitle={note.title}
+              onSubmit={(meta) =>
+                addMeetingToKnowledgeBase(note.id, {
+                  title: meta.title,
+                  category_id: meta.category_id,
+                  is_regulated: meta.is_regulated,
+                })
+              }
+              onDone={() => {
+                setKbAdded(true);
+                qc.invalidateQueries({ queryKey: ["meetings"] });
+              }}
+              onClose={() => setKbOpen(false)}
+            />
+          )}
           <button
             onClick={() => setExpanded((p) => !p)}
             className="rounded-md p-1.5 hover:bg-accent text-muted-foreground"

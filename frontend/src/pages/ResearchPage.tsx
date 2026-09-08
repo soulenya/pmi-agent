@@ -109,7 +109,7 @@ function RunResearchForm({ onClose }: { onClose: () => void }) {
             onChange={(e) => setIngestToKb(e.target.checked)}
             className="rounded"
           />
-          Save to Knowledge Base
+          Add the report to the Knowledge Base
         </label>
       </div>
 

@@ -185,7 +185,10 @@ export async function deleteBookmark(id: string): Promise<void> {
   await apiClient.delete(`/api/browser/bookmarks/${id}`);
 }
 
-export async function savePageToKb(page: CapturedPage): Promise<SavedToKb> {
-  const { data } = await apiClient.post<SavedToKb>("/api/browser/save-to-kb", page);
+export async function savePageToKb(
+  page: CapturedPage,
+  meta: { category_id?: string | null; is_regulated?: boolean; force?: boolean } = {},
+): Promise<SavedToKb> {
+  const { data } = await apiClient.post<SavedToKb>("/api/browser/save-to-kb", { ...page, ...meta });
   return data;
 }

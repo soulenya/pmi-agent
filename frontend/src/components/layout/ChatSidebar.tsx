@@ -60,7 +60,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/browser":    "Research Browser",
   "/approvals":  "Approvals",
   "/settings":   "Settings",
-  "/files":      "Generated Files",
+  "/files":      "Made by Gerry",
 };
 
 function routeLabel(pathname: string): string {

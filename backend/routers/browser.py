@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from dependencies import get_current_user
 from models.db.browser import BrowserBookmark
+from models.db.document import DocumentCategory
 from models.db.user import User
 from repositories.document_repo import DocumentCategoryRepository
 from services import browser_context
@@ -51,6 +52,9 @@ class BookmarkIn(BaseModel):
 
 class SaveToKbIn(PageIn):
     category: str | None = Field(default=None, max_length=100)
+    category_id: uuid.UUID | None = None
+    is_regulated: bool = False
+    force: bool = False
 
 
 def _clean_url(url: str) -> str:
@@ -191,9 +195,14 @@ async def save_to_kb(
     title = (body.title or "").strip() or url
     markdown = f"# {title}\n\nSource: {url}\n\n---\n\n{text[:_MAX_PAGE_CHARS]}\n"
 
-    category = await DocumentCategoryRepository(db).get_or_create(
-        (body.category or _KB_CATEGORY).strip() or _KB_CATEGORY
-    )
+    if body.category_id is not None:
+        category = await db.get(DocumentCategory, body.category_id)
+        if category is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found.")
+    else:
+        category = await DocumentCategoryRepository(db).get_or_create(
+            (body.category or _KB_CATEGORY).strip() or _KB_CATEGORY
+        )
 
     try:
         doc = await DocumentIngestionService(db, embedding_svc).ingest(
@@ -201,13 +210,28 @@ async def save_to_kb(
             raw_bytes=markdown.encode("utf-8"),
             title=title[:300],
             category_id=category.id,
-            is_regulated=False,
+            is_regulated=body.is_regulated,
             created_by_id=current_user.id,
+            allow_duplicate=body.force,
+            source_type="url",
         )
-    except DuplicateDocumentError:
+    except DuplicateDocumentError as exc:
+        existing = exc.existing
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="That exact page is already in the Knowledge Base.",
+            detail={
+                "code": "duplicate_document",
+                "message": (
+                    f"That page is already in the Knowledge Base as \u201c{existing.title}\u201d. "
+                    f"Save again only if you intend to keep a copy."
+                ),
+                "existing": {
+                    "id": str(existing.id),
+                    "title": existing.title,
+                    "file_name": existing.file_name,
+                    "created_at": existing.created_at.isoformat() if existing.created_at else None,
+                },
+            },
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

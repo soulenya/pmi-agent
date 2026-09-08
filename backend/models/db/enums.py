@@ -68,6 +68,9 @@ class DocumentSourceType(str, enum.Enum):
     URL = "url"
     EMAIL = "email"
     GENERATED = "generated"
+    MEETING = "meeting"
+    RESEARCH = "research"
+    ODOO = "odoo"
 
 
 class DocumentStatus(str, enum.Enum):

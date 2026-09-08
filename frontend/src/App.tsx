@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { BrowserRouter, Navigate, Route, Routes, useParams } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { Suspense, lazy, useState, type ReactNode } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -18,7 +18,6 @@ const ChatPage = lazy(() => import("@/pages/ChatPage").then(m => ({ default: m.C
 const ApprovalsPage = lazy(() => import("@/pages/ApprovalsPage").then(m => ({ default: m.ApprovalsPage })));
 const AssistantPage = lazy(() => import("@/pages/AssistantPage").then(m => ({ default: m.AssistantPage })));
 const DocumentsPage = lazy(() => import("@/pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
-const SearchPage = lazy(() => import("@/pages/SearchPage").then(m => ({ default: m.SearchPage })));
 const TasksPage = lazy(() => import("@/pages/TasksPage").then(m => ({ default: m.TasksPage })));
 const RegulatoryPage = lazy(() => import("@/pages/RegulatoryPage").then(m => ({ default: m.RegulatoryPage })));
 const NotificationsPage = lazy(() => import("@/pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
@@ -34,7 +33,6 @@ const AuditPage = lazy(() => import("@/pages/AuditPage").then(m => ({ default: m
 const UsersPage = lazy(() => import("@/pages/UsersPage").then(m => ({ default: m.UsersPage })));
 const CalendarPage = lazy(() => import("@/pages/CalendarPage").then(m => ({ default: m.CalendarPage })));
 const OdooIntegrationPage = lazy(() => import("@/pages/OdooIntegrationPage"));
-const GeneratedFilesPage = lazy(() => import("@/pages/GeneratedFilesPage").then(m => ({ default: m.GeneratedFilesPage })));
 const BudgetsPage = lazy(() => import("@/pages/BudgetsPage").then(m => ({ default: m.BudgetsPage })));
 
 const queryClient = new QueryClient({
@@ -69,6 +67,14 @@ function ProjectRedirect() {
   return <Navigate to={`/projects/${id}/space`} replace />;
 }
 
+/** Semantic search now lives inside the Knowledge Base; keep ?q= when arriving. */
+function SearchRedirect() {
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+  params.set("tab", "search");
+  return <Navigate to={`/documents?${params.toString()}`} replace />;
+}
+
 function ThemedApp() {
   const [theme] = useState<ThemeValue>(() => {
     try { return (localStorage.getItem("pmi-theme") as ThemeValue) || "system"; }
@@ -95,7 +101,7 @@ function ThemedApp() {
             <Route path="approvals" element={<Page><ApprovalsPage /></Page>} />
             <Route path="assistant" element={<Page><AssistantPage /></Page>} />
             <Route path="documents" element={<Page><DocumentsPage /></Page>} />
-            <Route path="search" element={<Page><SearchPage /></Page>} />
+            <Route path="search" element={<SearchRedirect />} />
             <Route path="tasks" element={<Page><TasksPage /></Page>} />
             <Route path="scheduled-tasks" element={<Navigate to="/tasks?tab=routines" replace />} />
             <Route path="regulatory" element={<Page><RegulatoryPage /></Page>} />
@@ -121,7 +127,7 @@ function ThemedApp() {
             <Route path="calendar" element={<Page><CalendarPage /></Page>} />
             <Route path="google" element={<Navigate to="/settings?tab=connections" replace />} />
             <Route path="odoo" element={<Page><OdooIntegrationPage /></Page>} />
-            <Route path="files" element={<Page><GeneratedFilesPage /></Page>} />
+            <Route path="files" element={<Navigate to="/documents?tab=made-by-gerry" replace />} />
             <Route path="workrooms" element={<Navigate to="/projects?view=rooms" replace />} />
             <Route path="budgets" element={<Page><BudgetsPage /></Page>} />
             <Route path="investor" element={<Navigate to="/regulatory" replace />} />

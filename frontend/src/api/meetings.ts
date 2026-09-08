@@ -96,8 +96,11 @@ export async function discardRecordings(): Promise<RecorderStatus> {
   return resp.data;
 }
 
-export async function addMeetingToKnowledgeBase(id: string): Promise<AddToKbResult> {
-  const resp = await apiClient.post<AddToKbResult>(`/meetings/${id}/add-to-kb`, {});
+export async function addMeetingToKnowledgeBase(
+  id: string,
+  meta: { title?: string; category_id?: string | null; is_regulated?: boolean } = {},
+): Promise<AddToKbResult> {
+  const resp = await apiClient.post<AddToKbResult>(`/meetings/${id}/add-to-kb`, meta);
   return resp.data;
 }
 

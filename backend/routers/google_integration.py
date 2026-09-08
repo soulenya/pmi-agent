@@ -154,24 +154,33 @@ async def gmail_attachment_open_in_drive(
     return result
 
 
+class AttachmentImportRequest(BaseModel):
+    filename: str | None = None
+    mime_type: str | None = None
+    title: str | None = None
+    category_id: str | None = None
+    is_regulated: bool = False
+    force: bool = False
+
+
 @router.post("/gmail/message/{message_id}/attachment/{attachment_id}/import-kb")
 async def gmail_attachment_import_kb(
     message_id: str,
     attachment_id: str,
-    req: AttachmentOpenRequest,
+    req: AttachmentImportRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
 ):
     """Import a single Gmail attachment into the Knowledge Base.
 
-    Fetches the attachment bytes and ingests them as their own KB document in
-    the dedicated "Email" category (kept out of the regulated document set),
-    stamped with the source message/attachment id for traceability.
+    Fetches the attachment bytes and ingests them as their own KB document,
+    defaulting to the "Email" category, stamped with the source message id.
     """
     from services.documents.ingestion import DocumentIngestionService, DuplicateDocumentError
     from services.documents.email_import import EMAIL_CATEGORY_NAME
     from repositories.document_repo import DocumentCategoryRepository
+    from uuid import UUID as _UUID
 
     if not gs.get_credentials():
         raise HTTPException(401, "Google account not connected.")
@@ -183,25 +192,45 @@ async def gmail_attachment_import_kb(
         raise HTTPException(404, "Attachment is empty or unavailable.")
 
     fname = (req.filename or "attachment").strip() or "attachment"
-    cat = await DocumentCategoryRepository(db).get_or_create(EMAIL_CATEGORY_NAME)
+    if req.category_id:
+        cat_id = _UUID(req.category_id)
+    else:
+        cat_id = (await DocumentCategoryRepository(db).get_or_create(EMAIL_CATEGORY_NAME)).id
     svc = DocumentIngestionService(db=db, embedding_svc=embedding_svc)
     try:
         doc = await svc.ingest(
             filename=fname,
             raw_bytes=data,
-            title=fname,
-            category_id=cat.id,
-            is_regulated=False,
+            title=(req.title or fname).strip() or fname,
+            category_id=cat_id,
+            is_regulated=req.is_regulated,
             created_by_id=current_user.id,
+            allow_duplicate=req.force,
         )
         doc.source_type = "email"
         # Gmail attachment IDs can exceed 300 chars; source_id is varchar(255).
         # The message id is the stable, traceable reference for the source email.
         doc.source_id = message_id
         doc.source_name = fname
-    except DuplicateDocumentError:
+    except DuplicateDocumentError as exc:
         await db.rollback()
-        return {"status": "skipped_duplicate", "filename": fname}
+        existing = exc.existing
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "duplicate_document",
+                "message": (
+                    f"This file is already in the Knowledge Base as \u201c{existing.title}\u201d. "
+                    f"Import again only if you intend to keep a copy."
+                ),
+                "existing": {
+                    "id": str(existing.id),
+                    "title": existing.title,
+                    "file_name": existing.file_name,
+                    "created_at": existing.created_at.isoformat() if existing.created_at else None,
+                },
+            },
+        )
     except ValueError:
         await db.rollback()
         raise HTTPException(

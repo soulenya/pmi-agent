@@ -44,7 +44,9 @@ import {
   showBrowser,
   takeBrowserActions,
   toUrl,
+  type CapturedPage,
 } from "@/api/browser";
+import { SaveToKnowledgeBaseDialog } from "@/components/SaveToKnowledgeBaseDialog";
 import { addWorkroomItem, listWorkrooms } from "@/api/workrooms";
 import { listProjects } from "@/api/tasks";
 import { createNode, getDefaultCanvas } from "@/api/canvas";
@@ -74,6 +76,7 @@ export function ResearchBrowserPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pinOpen, setPinOpen] = useState(false);
+  const [kbPage, setKbPage] = useState<CapturedPage | null>(null);
   const [canvasOpen, setCanvasOpen] = useState(false);
   const addressFocused = useRef(false);
   const slotRef = useRef<HTMLDivElement>(null);
@@ -275,8 +278,9 @@ export function ResearchBrowserPage() {
         setMessage("There was nothing readable on that page.");
         return;
       }
-      const saved = await savePageToKb(page);
-      setMessage(`Saved "${saved.title}" to the Knowledge Base (${saved.chunk_count} chunks).`);
+      // The dialog lives in the main window, which is behind the browser.
+      void hideBrowser();
+      setKbPage(page);
     });
 
   const handlePin = (roomId: string, roomTitle: string) =>
@@ -396,8 +400,26 @@ export function ResearchBrowserPage() {
             ) : (
               <Library className="h-4 w-4 shrink-0" />
             )}
-            Save to Knowledge Base
+            Add to Knowledge Base
           </button>
+          {kbPage && (
+            <SaveToKnowledgeBaseDialog
+              subject="this page"
+              defaultTitle={kbPage.title || hostOf(kbPage.url)}
+              onSubmit={(meta) =>
+                savePageToKb(
+                  { ...kbPage, title: meta.title },
+                  { category_id: meta.category_id, is_regulated: meta.is_regulated, force: meta.force },
+                ).then((saved) => {
+                  setMessage(`Saved "${saved.title}" to the Knowledge Base (${saved.chunk_count} chunks).`);
+                })
+              }
+              onClose={() => {
+                setKbPage(null);
+                void showBrowser();
+              }}
+            />
+          )}
 
           <div className="relative">
             <button
