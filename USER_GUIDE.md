@@ -44,15 +44,14 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 19. [Meeting Notes](#meeting-notes)
 20. [Regulatory Documents](#regulatory-documents)
 21. [Slide Decks](#slide-decks)
-22. [Investor Relations](#investor-relations)
-23. [Google Workspace](#google-workspace)
-24. [Odoo ERP](#odoo-erp)
-25. [Manage Budgets](#manage-budgets)
-26. [Approvals Queue](#approvals-queue)
-27. [Notifications](#notifications)
-28. [Settings](#settings)
-29. [Updating Little Gerry](#updating-little-gerry)
-30. [Tips & Example Prompts](#tips--example-prompts)
+22. [Google Workspace](#google-workspace)
+23. [Odoo ERP](#odoo-erp)
+24. [Manage Budgets](#manage-budgets)
+25. [Approvals Queue](#approvals-queue)
+26. [Notifications](#notifications)
+27. [Settings](#settings)
+28. [Updating Little Gerry](#updating-little-gerry)
+29. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -199,11 +198,10 @@ Your profile is **yours alone**. It is stored against your account, never shared
 | **The hub** | Connect once and see the projects the firm shares, live from the shared server — nothing is copied onto your computer |
 | **Calendar** | Local events + Google Calendar side by side |
 | **Gmail** | Full inbox — browse standard folders (Inbox, Sent, Drafts, Starred, etc.), sort your mail, read, search, filter by tag, reply/reply-all/forward, mark read or unread, move to Trash, collapse read parts of a thread behind a Gerry summary, open attachments or add them to the Knowledge Base, and compose & send your own emails |
-| **Email Drafts** | Ask Little Gerry to draft an email, then approve it to send — or write your own from the Gmail composer |
+| **Email Drafts** | Ask Little Gerry to draft an email, then approve it to send — or write your own from the Gmail composer. Lives under the **Drafts** view of Gmail |
 | **Meeting Notes** | Auto-records and transcribes your video calls, then AI-summarizes them — or paste a transcript manually |
 | **Regulatory** | Track DHF, IFU, 510(k), and ISO documents with AI drafting |
 | **Slide Decks** | Ask for a presentation and Gerry builds one in the company house style, marked with the security classification you choose |
-| **Investor Relations** | Company snapshot, regulatory proof-points, IR doc registry with AI drafting, and research feed |
 | **Approvals** | Human-in-the-loop queue — approve/reject with automatic action execution |
 | **Notifications** | Real-time alerts for tasks, approvals, and AI activity |
 | **Audit Trail** | Immutable log of every AI action and document change |
@@ -853,7 +851,7 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 
 ## Email Drafts
 
-Navigate to **Email Drafts** in the sidebar → **New Email Draft**.
+Open **Gmail** and switch to the **Drafts** view at the top of the page, then **New Email Draft**.
 
 1. Fill in the **topic**, **recipient context**, and any **key points**
 2. Click **Generate** — Little Gerry drafts the email using Claude
@@ -963,19 +961,6 @@ Give Gerry permission for a presentation (see [Letting Gerry edit a Drive file](
 **She won't cover anything up.** Before adding a box she reads where everything on the slide already sits, and a position that would overlap existing text or an image is refused rather than drawn on top. If you ask for a footnote without saying where, she puts it along the bottom margin, above anything already down there.
 
 Rewriting a box keeps that box's own font, size, colour and spacing — see the note under [Letting Gerry edit a Drive file](#letting-gerry-edit-a-drive-file).
-
----
-
-## Investor Relations
-
-Navigate to **Investor Relations** in the sidebar.
-
-- **Company Snapshot** — key facts about PMI and VACTOR for quick investor reference (stage, TAM, regulatory path, IP status)
-- **Regulatory Document Registry** — shows your 510(k), DHF, and spec documents with one-click AI drafting to generate pitch-ready regulatory summaries
-- **Recent Research** — quick access to completed research reports relevant to investors
-- **Chat with IR Specialist** — opens a new conversation routed directly to the Investor Relations specialist agent, which has deep context on pitch materials, market sizing, and grant research
-
-> AI-generated pitch content is for internal reference only. Never share AI-drafted investor materials without qualified human review.
 
 ---
 

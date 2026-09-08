@@ -30,7 +30,6 @@ import {
   CalendarClock,
   Compass,
   Globe,
-  TrendingUp,
   Boxes,
   Sparkles,
   Bot,
@@ -155,7 +154,6 @@ export const PLANETS: Planet[] = [
     size: 56,
     moons: [
       { id: "regulatory", route: "/regulatory", label: "Regulatory", icon: ShieldCheck },
-      { id: "investor", route: "/investor", label: "Investor Relations", icon: TrendingUp },
       { id: "approvals", route: "/approvals", label: "Approvals", icon: ShieldCheck, badge: "approvals" },
       { id: "audit", route: "/audit", label: "Audit Trail", icon: ScrollText },
     ],

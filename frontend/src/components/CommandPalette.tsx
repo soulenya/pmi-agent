@@ -43,7 +43,7 @@ const ALL_ITEMS: PaletteItem[] = [
   { id: "nav-research", label: "Research", group: "Navigation", icon: <FlaskConical className="h-4 w-4" />, action: (nav) => nav("/research") },
   { id: "nav-browser", label: "Research Browser", group: "Navigation", icon: <Compass className="h-4 w-4" />, action: (nav) => nav("/browser") },
   { id: "nav-meetings", label: "Meeting Notes", group: "Navigation", icon: <Mic className="h-4 w-4" />, action: (nav) => nav("/meetings") },
-  { id: "nav-emails", label: "Email Drafts", group: "Navigation", icon: <Mail className="h-4 w-4" />, action: (nav) => nav("/emails") },
+  { id: "nav-emails", label: "Email Drafts", group: "Navigation", icon: <Mail className="h-4 w-4" />, action: (nav) => nav("/inbox?view=drafts") },
   { id: "nav-regulatory", label: "Regulatory", group: "Navigation", icon: <ShieldCheck className="h-4 w-4" />, action: (nav) => nav("/regulatory") },
   { id: "nav-approvals", label: "Approvals", group: "Navigation", icon: <ShieldCheck className="h-4 w-4" />, action: (nav) => nav("/approvals") },
   { id: "nav-notifications", label: "Notifications", group: "Navigation", icon: <Bell className="h-4 w-4" />, action: (nav) => nav("/notifications") },
