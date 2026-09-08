@@ -77,11 +77,10 @@ export const RAIL: RailItem[] = [
     route: "/documents",
     pages: [
       { route: "/documents", label: "Knowledge Base" },
-      { route: "/search", label: "Search" },
-      { route: "/research", label: "Research" },
       { route: "/browser", label: "Browser" },
-      { route: "/files", label: "Made by Gerry" },
+      { route: "/research", label: "Research" },
     ],
+    also: ["/search", "/files"],
   },
   {
     id: "calendar",

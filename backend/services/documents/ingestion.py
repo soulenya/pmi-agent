@@ -225,6 +225,7 @@ class DocumentIngestionService:
         is_regulated: bool,
         created_by_id: UUID,
         allow_duplicate: bool = False,
+        source_type: str = "upload",
     ) -> Document:
         """
         Full ingestion pipeline.  Returns the persisted Document.
@@ -260,7 +261,7 @@ class DocumentIngestionService:
             category_id=category_id,
             title=title,
             file_name=filename,
-            source_type="upload",
+            source_type=source_type,
             mime_type=mime_type,
             file_size_bytes=len(raw_bytes),
             checksum_sha256=checksum,

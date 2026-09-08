@@ -149,10 +149,11 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   documents: {
     tagline: "Store what Gerry should know.",
     capabilities: [
+      "Three tabs: Library, Search (ask in plain language, filter by category) and Made by Gerry (files she generated)",
       "Upload PDFs, Word docs and text — searchable in seconds",
-      "Import from Google Drive, email threads or Odoo datasets",
-      "Ask Gerry to add a Drive file, an attachment or one of her own files",
-      "Keep regulated files in their own categories with tighter controls",
+      "Every Add to Knowledge Base button — email, meetings, browser, Drive, Gerry's files — asks the same three things: title, category, regulated",
+      "Duplicates are named, not skipped: choose Add anyway or stop",
+      "Each document shows where it came from: From email, From a meeting, Made by Gerry, From the web, From Drive",
     ],
   },
   search: {

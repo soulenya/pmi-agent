@@ -153,6 +153,7 @@ async def run_research(
                     category_id=None,
                     is_regulated=False,
                     created_by_id=current_user.id,
+                    source_type="research",
                 )
                 report = await repo.update(report.id, ingested_as_document_id=doc.id)
                 await db.commit()

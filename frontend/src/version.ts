@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 250;
+export const BUILD_NUMBER = 251;
 export const BUILD_DATE = "2026-09-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 251,
+    date: "2026-09-08",
+    title: "One way into the Knowledge Base",
+    changes: [
+      "Every Add to Knowledge Base button now opens the same small dialog: a title, a category and whether the document is regulated. Email attachments, whole threads, meeting notes, files Gerry made, pages in the research browser and Drive imports all ask the same three questions and then land where you said.",
+      "If the same file is already in there, the dialog names the existing copy and offers Add anyway. No more silent skips or bare error text.",
+      "The Knowledge Base page has three tabs: Library, Search and Made by Gerry. Semantic Search and Generated Files stopped being separate pages; the old links still land in the right tab.",
+      "Type a phrase in the top search box and one of the rows is Search the Knowledge Base for it. A search result now opens that document.",
+      "Each document in the library shows where it came from: From email, From a meeting, Made by Gerry, From the web, From Drive, Research report, From Odoo.",
+    ],
+  },
   {
     build: 250,
     date: "2026-09-08",

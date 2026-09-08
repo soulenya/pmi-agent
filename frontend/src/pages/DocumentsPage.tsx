@@ -31,6 +31,9 @@ import type { Document, DocumentChunk } from "@/types/documents";
 import { DocumentViewer } from "@/components/DocumentViewer";
 import { AskGerryButton } from "@/components/AskGerryButton";import { DriveBrowser } from "@/components/google/DriveBrowser";
 import { getGoogleStatus, driveImportToKnowledgeBase } from "@/api/google";
+import { SaveToKnowledgeBaseDialog, type KbMeta } from "@/components/SaveToKnowledgeBaseDialog";
+import { SearchPage } from "@/pages/SearchPage";
+import { GeneratedFilesPage } from "@/pages/GeneratedFilesPage";
 import type { DriveItem } from "@/api/google";
 import {
   Upload,
@@ -431,7 +434,22 @@ function ChunkDrawer({ docId }: { docId: string }) {
   );
 }
 
-// â”€â”€ Document row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/** Where a document came from. Plain uploads carry no badge. */
+const SOURCE_LABEL: Record<string, string> = {
+  email: "From email",
+  gmail_thread: "From email",
+  gmail_attachment: "From email",
+  gmail_invoice: "From email",
+  meeting: "From a meeting",
+  generated: "Made by Gerry",
+  url: "From the web",
+  research: "Research report",
+  odoo: "From Odoo",
+  google_drive: "From Drive",
+  google_docs: "From Drive",
+  drive_doc: "From Drive",
+  workroom: "From a workroom",
+};
 
 function DocumentRow({
   doc,
@@ -499,6 +517,11 @@ function DocumentRow({
             {doc.is_regulated && (
               <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700">
                 Regulated
+              </span>
+            )}
+            {SOURCE_LABEL[doc.source_type] && (
+              <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground" title="Where this came from">
+                {SOURCE_LABEL[doc.source_type]}
               </span>
             )}
             {sync && (
@@ -1014,6 +1037,28 @@ export function DocumentsPage() {
     getDocument(id).then(setViewDoc).catch(() => undefined);
   }, [searchParams, setSearchParams]);
 
+  // ?upload=1 (omnibar "/kb") opens the upload modal straight away.
+  useEffect(() => {
+    if (searchParams.get("upload") !== "1") return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("upload");
+    setSearchParams(next, { replace: true });
+    setShowUpload(true);
+  }, [searchParams, setSearchParams]);
+
+  // Tabs: the library itself, semantic search across it, and files Gerry made.
+  const searchQ = searchParams.get("q") ?? "";
+  const tabParam = searchParams.get("tab");
+  const tab: "library" | "search" | "made-by-gerry" =
+    tabParam === "search" || searchQ ? "search" : tabParam === "made-by-gerry" ? "made-by-gerry" : "library";
+  const setTab = (t: "library" | "search" | "made-by-gerry") => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("q");
+    if (t === "library") next.delete("tab");
+    else next.set("tab", t);
+    setSearchParams(next, { replace: true });
+  };
+
   const uploadMutation = useMutation({
     mutationFn: ({
       file,
@@ -1118,7 +1163,9 @@ export function DocumentsPage() {
     staleTime: 60_000,
   });
 
-  async function handleDriveImport(items: DriveItem[]) {
+  const [drivePending, setDrivePending] = useState<DriveItem[] | null>(null);
+
+  async function handleDriveImport(items: DriveItem[], meta: KbMeta) {
     setDriveImporting(true);
     setDriveImportProgress({ current: 0, total: items.length });
     setDriveImportStatus(`Importing 0 of ${items.length}…`);
@@ -1128,7 +1175,8 @@ export function DocumentsPage() {
       const item = items[i];
       setDriveImportStatus(`Importing ${i + 1} of ${items.length}: ${item.name}`);
       try {
-        await driveImportToKnowledgeBase(item.id, item.name, undefined, false);
+        const title = items.length === 1 ? meta.title : item.name;
+        await driveImportToKnowledgeBase(item.id, title, meta.category_id ?? undefined, meta.is_regulated, meta.force);
         succeeded++;
       } catch (e) {
         failures.push(`${item.name}: ${getErrorMessage(e)}`);
@@ -1306,6 +1354,7 @@ export function DocumentsPage() {
       )}
 
       {/* Category sidebar */}
+      {tab === "library" && (
       <aside className="flex w-48 shrink-0 flex-col gap-1 border-r pr-4">
         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3">
           Categories
@@ -1336,12 +1385,35 @@ export function DocumentsPage() {
           </button>
         ))}
       </aside>
+      )}
 
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden gap-4">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Knowledge Base</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold">Knowledge Base</h1>
+            <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-0.5 text-sm">
+              {(
+                [
+                  ["library", "Library"],
+                  ["search", "Search"],
+                  ["made-by-gerry", "Made by Gerry"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setTab(key)}
+                  className={cn(
+                    "rounded-md px-3 py-1 transition-colors",
+                    tab === key ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             {googleStatus?.connected && (
               <button
@@ -1412,15 +1484,43 @@ export function DocumentsPage() {
         {showDriveBrowser && (
           <DriveBrowser
             onClose={() => { if (!driveImporting) setShowDriveBrowser(false); }}
-            onSelect={handleDriveImport}
+            onSelect={(items) => setDrivePending(items)}
             importing={driveImporting}
             importStatus={driveImportStatus}
             importProgress={driveImportProgress}
           />
         )}
+        {drivePending && (
+          <SaveToKnowledgeBaseDialog
+            subject={drivePending.length === 1 ? "this Drive file" : `${drivePending.length} Drive files`}
+            defaultTitle={
+              drivePending.length === 1
+                ? drivePending[0].name.replace(/\.[^.]+$/, "")
+                : drivePending.map((d) => d.name).join(", ")
+            }
+            titleLocked={drivePending.length > 1}
+            onSubmit={async (meta) => {
+              const items = drivePending;
+              setDrivePending(null);
+              await handleDriveImport(items, meta);
+            }}
+            onClose={() => setDrivePending(null)}
+          />
+        )}
+
+        {tab === "search" && (
+          <div className="flex-1 overflow-y-auto pr-1">
+            <SearchPage key={searchQ} embedded initialQuery={searchQ} />
+          </div>
+        )}
+        {tab === "made-by-gerry" && (
+          <div className="flex-1 overflow-y-auto pr-1">
+            <GeneratedFilesPage embedded />
+          </div>
+        )}
 
         {/* Stats bar */}
-        {!isLoading && allDocs.length > 0 && (
+        {tab === "library" && !isLoading && allDocs.length > 0 && (
           <div className="grid grid-cols-4 gap-3">
             {[
               { label: "Total documents", value: allDocs.length },
@@ -1438,19 +1538,20 @@ export function DocumentsPage() {
           </div>
         )}
 
-        {isLoading && (
+        {tab === "library" && isLoading && (
           <div className="flex justify-center py-12">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         )}
 
-        {!isLoading && documents.length === 0 && (
+        {tab === "library" && !isLoading && documents.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
             <FileText className="h-8 w-8 opacity-40" />
             <p className="text-sm">No documents yet. Upload the first one.</p>
           </div>
         )}
 
+        {tab === "library" && (
         <div className="space-y-2 overflow-y-auto flex-1">
           {documents.map((doc) => (
             <DocumentRow
@@ -1468,10 +1569,11 @@ export function DocumentsPage() {
             />
           ))}
         </div>
+        )}
 
-        {readyDocs.length > 0 && (
+        {tab === "library" && readyDocs.length > 0 && (
           <p className="text-xs text-muted-foreground text-right">
-            {readyDocs.length} document{readyDocs.length !== 1 ? "s" : ""} ready Â· {totalChunks} chunks indexed
+            {readyDocs.length} document{readyDocs.length !== 1 ? "s" : ""} ready · {totalChunks} chunks indexed
           </p>
         )}
       </div>

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -117,6 +118,8 @@ async def delete_file(name: str, _user=Depends(get_current_user)):
 
 class ToKnowledgeBaseRequest(BaseModel):
     title: str | None = None
+    category_id: uuid.UUID | None = None
+    is_regulated: bool = False
     force: bool = False
     keep: bool = False  # True = copy semantics (leave the generated file in place)
 
@@ -148,10 +151,11 @@ async def move_file_to_knowledge_base(
             filename=name,
             raw_bytes=raw,
             title=title,
-            category_id=None,
-            is_regulated=False,
+            category_id=body.category_id if body else None,
+            is_regulated=bool(body.is_regulated) if body else False,
             created_by_id=current_user.id,
             allow_duplicate=bool(body.force) if body else False,
+            source_type="generated",
         )
     except DuplicateDocumentError as exc:
         existing = exc.existing

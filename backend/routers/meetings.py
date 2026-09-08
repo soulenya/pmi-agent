@@ -539,13 +539,21 @@ def _meeting_to_markdown(meeting: MeetingNote) -> str:
     return "\n".join(parts)
 
 
+class AddToKbIn(BaseModel):
+    title: str | None = None
+    category_id: uuid.UUID | None = None
+    is_regulated: bool = False
+
+
 @router.post("/{meeting_id}/add-to-kb", response_model=AddToKbOut)
 async def add_meeting_to_kb(
     meeting_id: uuid.UUID,
+    body: AddToKbIn | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AddToKbOut:
     """Ingest a meeting note (summary + transcript) into the knowledge base."""
+    body = body or AddToKbIn()
     result = await db.execute(select(MeetingNote).where(MeetingNote.id == meeting_id))
     meeting = result.scalar_one_or_none()
     if not meeting:
@@ -574,7 +582,7 @@ async def add_meeting_to_kb(
         meeting.kb_document_id = None  # KB copy was deleted — allow re-add
 
     markdown = _meeting_to_markdown(meeting)
-    safe_title = (meeting.title or "Meeting").strip()[:200]
+    safe_title = ((body.title or meeting.title or "Meeting").strip() or "Meeting")[:200]
 
     embedding_svc = await get_embedding_service_for_db(db)
     ingestion = DocumentIngestionService(db, embedding_svc)
@@ -583,10 +591,11 @@ async def add_meeting_to_kb(
             filename=f"{safe_title}.md",
             raw_bytes=markdown.encode("utf-8"),
             title=safe_title,
-            category_id=None,
-            is_regulated=False,
+            category_id=body.category_id,
+            is_regulated=body.is_regulated,
             created_by_id=current_user.id,
             allow_duplicate=True,
+            source_type="meeting",
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("Meeting KB ingest failed")

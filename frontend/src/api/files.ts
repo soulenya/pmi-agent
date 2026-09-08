@@ -51,10 +51,11 @@ export async function moveGeneratedFileToKB(
   name: string,
   title: string,
   keep = false,
+  meta: { category_id?: string | null; is_regulated?: boolean; force?: boolean } = {},
 ): Promise<KbMoveResult> {
   const r = await apiClient.post<KbMoveResult>(
     `/api/files/${encodeURIComponent(name)}/to-knowledge-base`,
-    { title, keep },
+    { title, keep, ...meta },
   );
   return r.data;
 }

@@ -275,6 +275,7 @@ async def odoo_ingest(
                 category_id=None,
                 is_regulated=False,
                 created_by_id=user.id,
+                source_type="odoo",
             )
             imported += 1
         except DuplicateDocumentError:

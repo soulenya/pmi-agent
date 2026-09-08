@@ -30,6 +30,7 @@ import {
 import { apiClient } from "@/api/client";
 import { hasNativeSaveFile, saveFileNative, openExternal } from "@/lib/externalLinks";
 import { EmailsPage } from "@/pages/EmailsPage";
+import { SaveToKnowledgeBaseDialog, type KbMeta } from "@/components/SaveToKnowledgeBaseDialog";
 import { AskGerryButton } from "@/components/AskGerryButton";
 import { DropOverlay } from "@/components/DropOverlay";
 import { useFileDrop } from "@/hooks/useFileDrop";
@@ -304,31 +305,34 @@ function AttachmentItem({ messageId, att }: { messageId: string; att: ThreadAtta
   });
 
   // Import this attachment into the Knowledge Base as its own document.
-  const importKb = useMutation({
-    mutationFn: async () => {
-      const res = await apiClient.post(
-        `${GOOGLE_PREFIX}/gmail/message/${messageId}/attachment/${att.attachment_id}/import-kb`,
-        { filename: att.filename, mime_type: att.mime_type },
-        { timeout: 2 * 60 * 1000 },
-      );
-      return res.data as { status: string; filename: string };
-    },
-  });
+  const [kbOpen, setKbOpen] = useState(false);
+  const [kbAdded, setKbAdded] = useState(false);
+  const importKb = async (meta: KbMeta) => {
+    await apiClient.post(
+      `${GOOGLE_PREFIX}/gmail/message/${messageId}/attachment/${att.attachment_id}/import-kb`,
+      { filename: att.filename, mime_type: att.mime_type, ...meta },
+      { timeout: 2 * 60 * 1000 },
+    );
+  };
 
   function kbTitle() {
-    if (importKb.isPending) return "Adding to Knowledge Base…";
-    if (importKb.isSuccess)
-      return importKb.data?.status === "skipped_duplicate"
-        ? "Already in the Knowledge Base"
-        : "Added to the Knowledge Base";
-    return "Add to Knowledge Base";
+    return kbAdded ? "Added to the Knowledge Base" : "Add to Knowledge Base";
   }
 
   function KbIcon() {
-    if (importKb.isPending) return <Loader2 className="w-3 h-3 animate-spin" />;
-    if (importKb.isSuccess) return <Check className="w-3 h-3 text-green-400" />;
+    if (kbAdded) return <Check className="w-3 h-3 text-green-400" />;
     return <BookPlus className="w-3 h-3" />;
   }
+
+  const kbDialog = kbOpen && (
+    <SaveToKnowledgeBaseDialog
+      subject="this attachment"
+      defaultTitle={att.filename.replace(/\.[^.]+$/, "")}
+      onSubmit={importKb}
+      onDone={() => setKbAdded(true)}
+      onClose={() => setKbOpen(false)}
+    />
+  );
 
   if (isImage) {
     return (
@@ -349,14 +353,15 @@ function AttachmentItem({ messageId, att }: { messageId: string; att: ThreadAtta
             {att.filename} {att.size ? `(${formatBytes(att.size)})` : ""}
           </button>
           <button
-            onClick={() => importKb.mutate()}
-            disabled={importKb.isPending || importKb.isSuccess}
+            onClick={() => setKbOpen(true)}
+            disabled={kbAdded}
             title={kbTitle()}
             className="px-2 py-1 text-zinc-500 hover:text-amber-400 border-l border-zinc-800 disabled:opacity-100"
           >
             <KbIcon />
           </button>
         </div>
+        {kbDialog}
       </div>
     );
   }
@@ -392,8 +397,8 @@ function AttachmentItem({ messageId, att }: { messageId: string; att: ThreadAtta
           <Download className="w-3 h-3" />
         </button>
         <button
-          onClick={() => importKb.mutate()}
-          disabled={importKb.isPending || importKb.isSuccess}
+          onClick={() => setKbOpen(true)}
+          disabled={kbAdded}
           title={kbTitle()}
           className="px-2 py-1 text-zinc-500 hover:text-amber-400 border-l border-zinc-700 disabled:opacity-100"
         >
@@ -416,9 +421,7 @@ function AttachmentItem({ messageId, att }: { messageId: string; att: ThreadAtta
           Couldn’t open in Google Workspace. Try Download instead.
         </span>
       )}
-      {importKb.isError && (
-        <span className="text-[11px] text-red-400 mt-1 px-1">{getError(importKb.error)}</span>
-      )}
+      {kbDialog}
     </div>
   );
 }
@@ -1712,10 +1715,6 @@ function ThreadReader({
 }) {
   const qc = useQueryClient();
   const [showImport, setShowImport] = useState(false);
-  const [title, setTitle] = useState(
-    detail.subject ? `Email: ${detail.subject}` : "Email thread",
-  );
-  const [includeAttachments, setIncludeAttachments] = useState(true);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   const last = detail.messages[detail.messages.length - 1];
@@ -1924,28 +1923,25 @@ function ThreadReader({
     onError: (e) => setNotice({ kind: "error", text: getError(e) }),
   });
 
-  const importThread = useMutation({
-    mutationFn: async () => {
-      const res = await apiClient.post(
-        `${GOOGLE_PREFIX}/gmail/thread/import`,
-        {
-          thread_id: detail.thread_id,
-          title: title.trim() || null,
-          include_attachments: includeAttachments,
-        },
-        { timeout: 5 * 60 * 1000 },
-      );
-      return res.data as { title: string; attachments: { status: string }[] };
-    },
-    onSuccess: (data) => {
-      const imported = data.attachments.filter((a) => a.status === "imported").length;
-      let text = `Added “${data.title}” to the Email knowledge base.`;
-      if (imported) text += ` Imported ${imported} attachment${imported === 1 ? "" : "s"}.`;
-      setNotice({ kind: "ok", text });
-      setShowImport(false);
-    },
-    onError: (e) => setNotice({ kind: "error", text: getError(e) }),
-  });
+  const importThread = async (meta: KbMeta) => {
+    const res = await apiClient.post(
+      `${GOOGLE_PREFIX}/gmail/thread/import`,
+      {
+        thread_id: detail.thread_id,
+        title: meta.title,
+        category_id: meta.category_id,
+        is_regulated: meta.is_regulated,
+        force: meta.force,
+        include_attachments: true,
+      },
+      { timeout: 5 * 60 * 1000 },
+    );
+    const data = res.data as { title: string; attachments: { status: string }[] };
+    const imported = data.attachments.filter((a) => a.status === "imported").length;
+    let text = `Added “${data.title}” to the Knowledge Base.`;
+    if (imported) text += ` Imported ${imported} attachment${imported === 1 ? "" : "s"}.`;
+    setNotice({ kind: "ok", text });
+  };
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -2006,7 +2002,7 @@ function ThreadReader({
           </button>
           <button
             onClick={() => {
-              setShowImport((v) => !v);
+              setShowImport(true);
               setShowReply(false);
               setNotice(null);
             }}
@@ -2056,32 +2052,12 @@ function ThreadReader({
       )}
 
       {showImport && (
-        <div className="mb-4 rounded-lg border border-zinc-700 bg-zinc-900 p-4 space-y-2">
-          <label className="block text-xs text-zinc-500">
-            Title in knowledge base
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 w-full text-sm px-2 py-1 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 focus:outline-none focus:border-zinc-500"
-            />
-          </label>
-          <label className="flex items-center gap-2 text-xs text-zinc-400">
-            <input
-              type="checkbox"
-              checked={includeAttachments}
-              onChange={(e) => setIncludeAttachments(e.target.checked)}
-              className="accent-green-600"
-            />
-            Also import attachments
-          </label>
-          <button
-            onClick={() => importThread.mutate()}
-            disabled={importThread.isPending}
-            className="text-xs px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 text-white disabled:opacity-50 transition-colors"
-          >
-            {importThread.isPending ? "Importing…" : "Import to Knowledge Base"}
-          </button>
-        </div>
+        <SaveToKnowledgeBaseDialog
+          subject="this email thread"
+          defaultTitle={detail.subject ? `Email: ${detail.subject}` : "Email thread"}
+          onSubmit={importThread}
+          onClose={() => setShowImport(false)}
+        />
       )}
 
       {notice && (

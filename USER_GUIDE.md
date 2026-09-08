@@ -335,10 +335,32 @@ A **Workroom** is a persistent co-work space you share with Little Gerry — bui
 
 The Knowledge Base is Little Gerry's long-term memory about PMI and VACTOR.
 
+The page has three tabs:
+
+| Tab | What is there |
+|-----|---------------|
+| **Library** | Every document, by category, with the upload, Drive import, duplicate scan and share tools. |
+| **Search** | Ask in plain language and get the passages that match, ranked and cited. Click a result to open the document. |
+| **Made by Gerry** | Files Gerry created in conversations and routines. Add one to the library, send it to Drive, preview or download it. |
+
+The old **Search** and **Generated Files** pages redirect here.
+
+### One way in
+
+Every **Add to Knowledge Base** button in the app — on an email attachment, an email thread, a meeting's notes, a file Gerry made, a page in the research browser, a Drive import — opens the same small dialog and asks the same three things:
+
+1. **Title** — prefilled from the source; change it if you like.
+2. **Category** — pick one or leave it as None.
+3. **Regulated document** — tick it for ISO, FDA, DHF and similar controlled records. Gerry treats those as controlled and cites them as such.
+
+If the same file is already in the library, the dialog names the existing copy and its date and offers **Add anyway**. Nothing is skipped silently.
+
+Each document in the library carries a small badge saying where it came from — *From email*, *From a meeting*, *Made by Gerry*, *From the web*, *From Drive*, *Research report*, *From Odoo*. Plain uploads have no badge.
+
 ### Uploading a document
 
 1. Navigate to **Knowledge Base**
-2. Click **Upload Document**
+2. Click **Upload**
 3. Select a PDF, DOCX, or TXT file
 4. Assign a **category** (e.g., Regulatory, Clinical, Engineering)
 5. The document is automatically split into chunks, embedded, and indexed — ready to search in seconds
@@ -360,7 +382,7 @@ A document with no text layer — a scan, a photo of a page, an image — is rea
 
 ### Importing from Google Drive
 
-On the Documents page, use **Import from Drive** to search your Drive and pull files directly into the Knowledge Base.
+In the Library tab, use **Import from Drive** to search your Drive and pick files. One dialog then asks for the category and whether the batch is regulated (a single file can also be retitled), and the files are pulled into the Knowledge Base.
 
 ### Avoiding duplicates
 
@@ -382,7 +404,7 @@ one already in the Knowledge Base:
 
 ## Semantic Search
 
-Navigate to **Search**.
+Open **Knowledge Base → Search**, or type a phrase in the top search box and choose **Search the Knowledge Base for …**.
 
 - Type a natural language question or phrase
 - Select a category filter (optional) to narrow results
@@ -424,7 +446,7 @@ Things you can do with the page you're on:
 |--------|--------------|
 | **Ask Gerry about this page** | Reads the page as you see it and opens a new conversation with the text attached. Good for "summarise this", "what's the catch here?", "how does this compare to what we do?" |
 | **Browse with Gerry** | A toggle. While it's on, whatever page you're on goes along with every message you send, and updates as you move around. Ask "what do you make of this?" without capturing anything. Turn it off when you're done. |
-| **Save to Knowledge Base** | Files the page away permanently under *Web Research*, with a link back to where it came from. It turns up in search and Gerry can cite it, even if the site later changes or disappears. |
+| **Add to Knowledge Base** | Files the page away permanently, with a link back to where it came from. The usual dialog asks for a title, a category (*Web Research* if you leave it) and whether it is regulated. It turns up in search and Gerry can cite it, even if the site later changes or disappears. |
 | **Pin to workroom** | Adds the page to a workroom's pinned items, so it's part of that room's context from then on. |
 | **Send to canvas** | Drops the page onto a project's canvas as a card. Pick the project and the card lands on the board with the page's title, ready to be moved and linked. |
 | **Fit to window** | Sizes the browser to the page area, clear of the left rail and the chat panel. |

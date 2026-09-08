@@ -1249,7 +1249,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
           navigate("/regulatory");
           break;
         case "generated_file":
-          navigate("/files");
+          navigate("/documents?tab=made-by-gerry");
           break;
         case "email_thread":
           navigate("/inbox");

@@ -4,6 +4,56 @@
 
 ## Changelog
 
+### v5.0.1 — 2026-09-08 (unreleased; ships with 5.0.0)
+**One way into the Knowledge Base**
+
+Phase 3 of the UI simplification. Every intake point shares one dialog and
+one 409 shape; Search and Generated Files fold into the Knowledge Base page.
+
+- **`components/SaveToKnowledgeBaseDialog.tsx`** — `SaveToKnowledgeBaseDialog`
+  (`subject`, `defaultTitle`, `titleLocked` for batches, `defaultCategoryId`,
+  `allowRegulated`, `onSubmit(meta): Promise`, `onDone`, `onClose`). Asks
+  title / category / regulated; on a 409 it shows the existing copy and an
+  **Add anyway** button that re-submits with `force`. Exports `KbMeta`,
+  `KbDuplicate`, `duplicateFrom(err)` (understands both
+  `{code:"duplicate_document", existing:{…}}` and the meetings
+  `{code:"already_in_kb", document_id}` shape) and `errorText(err, fallback)`.
+  Invalidates `["documents"]` and `["categories"]` on success.
+- **Wired in**: `InboxPage` (attachment button and thread "Add to Knowledge
+  Base" — the old inline title / include-attachments form is gone),
+  `MeetingsPage` (was a bare mutation + `window.alert`), `GeneratedFilesPage`,
+  `ResearchBrowserPage` (captures the page first, hides the browser window,
+  shows the dialog, restores the window on close), `DocumentsPage` Drive
+  import (one dialog for the batch; single-file imports can be retitled,
+  multi-file keep their names and share category / regulated / force).
+  `ResearchPage` checkbox relabelled "Add the report to the Knowledge Base";
+  Odoo's batch import keeps its own flow.
+- **Backend intake metadata**: `POST /google/gmail/message/{id}/attachment/{id}/import-kb`
+  takes `AttachmentImportRequest{filename, mime_type, title, category_id,
+  is_regulated, force}` and raises the shared 409 instead of returning
+  `skipped_duplicate`; `POST /meetings/{id}/add-to-kb` takes optional
+  `AddToKbIn{title, category_id, is_regulated}`; `POST /api/files/{name}/to-knowledge-base`
+  gains `category_id`, `is_regulated`; `POST /browser/save-to-kb` gains
+  `category_id` (resolved by id, 404 if missing; else the "Web Research"
+  category), `is_regulated`, `force` and raises the shared 409.
+- **`DocumentIngestionService.ingest(..., source_type="upload")`** — callers
+  now stamp origin: `email`, `meeting`, `generated`, `url`, `research`,
+  `odoo`, `google_drive`. `DocumentSourceType` gains `MEETING`, `RESEARCH`,
+  `ODOO`; the column is `String(50)`, no migration. `DocumentRow` shows a
+  "From …" badge from `SOURCE_LABEL`.
+- **Knowledge Base tabs**: `/documents?tab=library|search|made-by-gerry`
+  (`?q=` implies `search`). `SearchPage` takes `embedded` + `initialQuery` and
+  runs the query on mount; a result navigates to `/documents?doc=<id>`, which
+  opens the viewer. `GeneratedFilesPage` takes `embedded`. `?upload=1` opens
+  the upload modal (omnibar `/kb`). Routes: `/search` → `SearchRedirect`
+  (keeps `?q=`), `/files` → `/documents?tab=made-by-gerry`; `CanvasTab`,
+  `ProjectMaterialTab`, `ChatSidebar` labels updated. `lib/workbench.ts`
+  Knowledge pages: Knowledge Base, Browser, Research; `/search` and `/files`
+  listed under `also`.
+- **Omnibar**: any query of three or more characters adds a
+  "Search the Knowledge Base for …" row → `/documents?tab=search&q=`.
+- Fixed a `Â·` mojibake in the Knowledge Base footer.
+
 ### v5.0.0 — 2026-09-08 (unreleased; the release that ships the series)
 **A workbench instead of a solar system**
 

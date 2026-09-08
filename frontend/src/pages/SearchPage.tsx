@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { semanticSearch, listCategories } from "@/api/documents";
 import type { SearchResult } from "@/types/documents";
@@ -70,7 +70,7 @@ function ResultCard({ result, searchTerm }: { result: SearchResult; searchTerm: 
     <div className="rounded-lg border bg-card p-4">
       <div className="mb-2 flex items-start justify-between gap-3">
         <button
-          onClick={() => navigate(`/documents`)}
+          onClick={() => navigate(`/documents?doc=${result.document_id}`)}
           className="flex items-center gap-1.5 text-sm font-medium hover:underline"
         >
           <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -102,8 +102,11 @@ function ResultCard({ result, searchTerm }: { result: SearchResult; searchTerm: 
 
 // ── Search page ───────────────────────────────────────────────────────────────
 
-export function SearchPage() {
-  const [query, setQuery] = useState("");
+export function SearchPage({
+  embedded = false,
+  initialQuery = "",
+}: { embedded?: boolean; initialQuery?: string } = {}) {
+  const [query, setQuery] = useState(initialQuery);
   const [topK, setTopK] = useState(5);
   const [categoryId, setCategoryId] = useState("");
   const [history, setHistory] = useState<string[]>(loadHistory);
@@ -135,6 +138,12 @@ export function SearchPage() {
     searchMutation.mutate();
   };
 
+  // Arriving with ?q= (from the omnibar or a redirect) runs the search at once.
+  useEffect(() => {
+    if (initialQuery.trim().length >= 2) searchMutation.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const applyHistoryItem = (q: string) => {
     setQuery(q);
   };
@@ -145,13 +154,15 @@ export function SearchPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Semantic Search</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Search the knowledge base using natural language.
-        </p>
-      </div>
+    <div className={embedded ? "max-w-3xl space-y-5" : "mx-auto max-w-2xl space-y-6"}>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl font-bold">Semantic Search</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Search the knowledge base using natural language.
+          </p>
+        </div>
+      )}
 
       {/* Search bar */}
       <div className="flex gap-2">
