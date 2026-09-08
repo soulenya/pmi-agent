@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createConversation } from "@/api/chat";
 import { uploadAttachment } from "@/api/attachments";
 import { useChatSidebarStore } from "@/stores/chatSidebarStore";
+import { useProjectHere } from "@/hooks/useProjectHere";
 
 export interface AskGerryFile {
   /** The raw file bytes to attach so Gerry can read the real contents. */
@@ -21,21 +22,45 @@ export interface AskGerryOptions {
 }
 
 /**
- * Returns an `askGerry` function that starts a NEW conversation seeded with a
- * question about a specific item, optionally uploading the item's file so Gerry
- * can read its contents, then opens the persistent chat window on it.
+ * Returns an `askGerry` function that opens the assistant panel on a question
+ * about a specific item.
  *
- * The seed message is auto-sent by the ChatSidebar once its websocket connects.
+ * Inside a project the question goes to the project's own conversation, so
+ * Gerry answers with the project's goal, pins and tasks in hand. Anywhere else
+ * it starts a NEW conversation, optionally uploading the item's file so Gerry
+ * can read its contents.
+ *
+ * The seed message is auto-sent by the panel once its websocket connects.
  */
 export function useAskGerry() {
   const qc = useQueryClient();
   const setOpen = useChatSidebarStore((s) => s.setOpen);
   const setActive = useChatSidebarStore((s) => s.setActiveConversationId);
   const setPending = useChatSidebarStore((s) => s.setPendingMessage);
+  const here = useProjectHere();
+  const projectConversationId = here?.conversationId ?? null;
 
   return useCallback(
     async ({ title, prompt, file }: AskGerryOptions) => {
-      const conv = await createConversation({ title: title.slice(0, 120) });
+      if (projectConversationId) {
+        // Attachments belong to this computer's conversations; a hub one
+        // carries the question only.
+        if (file && here?.source !== "hub") {
+          try {
+            const f = new File([file.blob], file.filename, {
+              type: file.blob.type || "application/octet-stream",
+            });
+            await uploadAttachment(projectConversationId, f);
+          } catch {
+            /* attachment is optional */
+          }
+        }
+        setPending(prompt);
+        setOpen(true);
+        return;
+      }
+
+      const conv = await createConversation({ title: title.slice(0, 120), kind: "ask" });
 
       // Best-effort: upload the file so Gerry reads its real contents. Some
       // file types aren't text-extractable (images, spreadsheets) — if the
@@ -56,6 +81,6 @@ export function useAskGerry() {
       setActive(conv.id);
       setOpen(true);
     },
-    [qc, setOpen, setActive, setPending],
+    [qc, setOpen, setActive, setPending, projectConversationId, here?.source],
   );
 }

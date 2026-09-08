@@ -226,6 +226,7 @@ Navigate to **AI Assistant** in the sidebar.
 - **Long conversations** open on your most recent messages. Scroll up and click **Load earlier messages** to walk back through the rest — there's no limit on how far back a conversation can go, and nothing is ever dropped
 - **Stopping Gerry mid-answer:** a **Stop** button appears while she's working. Whatever she has already written is kept and marked *Stopped*, and any file or draft she'd already produced stays — stopping doesn't undo finished work, it just prevents the next step. Stop also works when the connection has dropped, which is when it's usually most wanted
 - Hover over a conversation in the left panel to rename or archive it
+- The left panel is grouped: **Projects & rooms**, **Conversations**, then **Asked about something**, **Voice sessions** and **Routines** folded up with a count. Conversations kept on the hub for shared projects sit under **On the hub**
 - Click **+** to start a new conversation
 
 ### What Little Gerry can do automatically
@@ -265,7 +266,14 @@ Almost everywhere in the app you'll see an **"Ask Gerry about this"** button (a 
 
 - Click it and Little Gerry opens a **fresh conversation already primed with that item's details**, so you can dive straight into questions without copying anything over.
 - For real files — email attachments and generated files — Little Gerry reads the **actual contents** of the file, so you can ask about what's inside.
-- Each "Ask Gerry" chat opens in the Little Gerry side panel and becomes its own conversation you can return to later.
+- Each "Ask Gerry" chat opens in the Little Gerry side panel and becomes its own conversation you can return to later. In the conversation list they sit under **Asked about something**.
+- **Inside a project, Ask Gerry goes to the project's own conversation** instead of starting a new one, so the answer comes with the project's goal, pinned material and tasks already in hand.
+
+### The panel follows you into a project
+
+Open a project space and the side panel becomes that project's Gerry. Its header shows the project's name (with a **hub** pill if the project is shared), the thread is the project's conversation, and every question you type tells Gerry which project and which tab you are on — you never have to say "in the In Q Tel project" again. Leave the project and the panel goes back to whichever conversation you had open before.
+
+The project's **Chat** tab shows the same conversation, larger, without leaving the canvas, the tasks or the timeline behind. **Open full screen** in its corner takes you to the full chat page if you want it.
 
 ### Sizing the side panel
 

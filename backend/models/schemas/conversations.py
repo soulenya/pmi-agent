@@ -13,9 +13,14 @@ from models.db.enums import ApprovalStatus, IntentType, RiskLevel
 
 # ── Conversation ──────────────────────────────────────────────────────────────
 
+ConversationKind = Literal["general", "project", "room", "voice", "routine", "ask"]
+
+
 class ConversationCreate(BaseModel):
     title: str | None = Field(None, max_length=500)
     agent_type: str | None = None
+    project_id: uuid.UUID | None = None
+    kind: ConversationKind = "general"
 
 
 class ConversationOut(BaseModel):
@@ -25,6 +30,9 @@ class ConversationOut(BaseModel):
     agent_type: str | None
     is_pinned: bool
     is_archived: bool
+    hub_mirror: bool = False
+    project_id: uuid.UUID | None = None
+    kind: str = "general"
     created_at: datetime
     updated_at: datetime
 

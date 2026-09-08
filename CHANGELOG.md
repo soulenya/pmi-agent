@@ -4,6 +4,72 @@
 
 ## Changelog
 
+### v4.9.0 — 2026-09-08 (unreleased; ships with 5.0.0)
+**Gerry knows which project you are in**
+
+Phase 2 of the UI simplification. One migration, one extracted component,
+and the panel stops saying `[Context: viewing the "Projects" page]` when you
+are standing in In Q Tel.
+
+- **Migration 042** — `conversations.project_id uuid` (bare, not a FK: a hub
+  mirror names a project this database never has) and `conversations.kind
+  varchar(20) NOT NULL DEFAULT 'general'` (`general | project | room | voice |
+  routine | ask`). Backfilled from `workrooms.conversation_id` (project/room),
+  `scheduled_tasks.conversation_id` (routine), the title `Voice session`
+  (voice) and the Ask-Gerry title prefixes (ask). Local result: 207 general,
+  45 voice, 27 ask, 10 project, 2 routine, 1 room.
+  *Applying it on a machine with the app running:* the ALTER waited on the
+  app's idle-in-transaction pool connections and queued an ACCESS EXCLUSIVE
+  lock behind them, which would have hung every read of `conversations`.
+  Resolved by `pg_terminate_backend` on the two idle sessions. The installer's
+  migrate step runs before the backend starts, so end users do not hit this.
+- **Backend** — `ConversationCreate`/`ConversationOut` carry `project_id`,
+  `kind`, `hub_mirror`. `ConversationRepository.create` accepts them;
+  `list_for_user` gains `visible_projects` and ORs `project_id IN (...)` so a
+  project's conversation is listed for every member, not only its creator;
+  `list_for_project` added. `GET /conversations?project_id=` lists a project's
+  conversations gated by `resolve_role`. `conversation_role` falls back to
+  `Conversation.project_id` when there is no workroom row. Creation sites
+  stamp the kind: project workroom (`project` + `project_id`), standalone and
+  shared rooms (`room`), scheduler (`routine`), voice (`voice`), Ask Gerry
+  (`ask`). `conv_sync.ensure_mirror` copies `project_id`/`kind` from the hub.
+- **`components/chat/ConversationPane.tsx`** — extracted from `ChatSidebar`:
+  messages, socket, streaming, tool activity, artifacts, stop, resend, Drive-
+  edit confirm, context menu, input. Props: `conversationId`, `source`,
+  `contextPrefix`, `seed`/`onSeedSent`, `onConnectingChange`, `compact`. A hub
+  conversation is pulled before the first read and pushed after each `done`,
+  as `ChatPage` already did. User messages are shown with the leading
+  `[Context: …]` line stripped. `ChatPage` itself is unchanged apart from the
+  rail (voice, attachments and pagination fold into the pane in Phase 6).
+- **`hooks/useProjectHere.ts`** — reads `/(hub/)?projects/:id/space/:tab` off
+  the route and the project name + workroom conversation off the
+  `["project-space", source, id]` query the space page already holds.
+  `projectContextPrefix()` builds the per-turn context line.
+- **`ChatSidebar`** rewritten as chrome around `ConversationPane`. When
+  `useProjectHere()` is non-null it binds to the project's conversation,
+  shows the project name and hub pill, hides the picker and `+`, offers
+  "Start one" if the project has no conversation, and sends the project
+  prefix. Otherwise it behaves as before. The picker and the auto-select skip
+  `hub_mirror` rows.
+- **`ProjectSpacePage`** Chat tab renders `ConversationPane` inline
+  (`compact={false}`) with an "Open full screen" link; `ensureProjectWorkroom`
+  no longer navigates away.
+- **`useAskGerry`** — inside a project, seeds the project's conversation
+  (uploading the file only for local ones); elsewhere creates a conversation
+  with `kind: "ask"`.
+- **`ChatPage`** rail grouped by kind (`Projects & rooms`, `Conversations`,
+  then `Asked about something`, `Voice sessions`, `Routines` collapsed with a
+  count); `hub_mirror` rows hidden from the local groups since the same id is
+  listed under "On the hub".
+- Verified live against the hub: panel header `In Q Tel · hub`, no picker;
+  asked "which project are we in, and which tab am I on?" from the canvas tab
+  and got *"You're in the "In Q Tel" project, on its canvas tab."*; both
+  messages present on the hub via `/hub/api/conversations/…/messages`; Chat
+  tab showed the same thread inline; navigating to `/tasks` unbound the panel.
+  **Those two test messages remain in the In Q Tel project conversation** —
+  there is no message-delete endpoint and the hub database is not touched by
+  hand.
+
 ### v4.8.1 — 2026-09-08 (unreleased; ships with 5.0.0)
 **Shared work shows up everywhere your own work does**
 

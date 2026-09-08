@@ -28,6 +28,12 @@ class Conversation(Base):
     is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # A local copy of a shared project's chat, carrying the hub's own id.
     hub_mirror: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Bare uuid, not a FK: a hub mirror names a project this database never has.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )
+    # general | project | room | voice | routine | ask
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="general")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

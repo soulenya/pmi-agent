@@ -1,28 +1,32 @@
 /**
- * ChatSidebar — persistent assistant panel visible on all pages.
- * Collapsed: 32px tab showing Bot icon + "ASSISTANT" text.
- * Expanded: resizable docked column, or a free-floating panel when popped out.
- * Sends page context prefix so the AI knows what the user is viewing.
+ * ChatSidebar — the assistant panel that sits beside every page.
+ *
+ * Collapsed: a 32px tab. Expanded: a resizable docked column, or a free-floating
+ * panel when popped out. The conversation itself is a ConversationPane; this
+ * file is the chrome around it and the choice of which conversation it shows.
+ *
+ * Inside a project space the panel is the project's: it shows the project's
+ * conversation, names the project in its header, and tells Gerry which project
+ * and tab every question came from. Leave the project and it goes back to the
+ * conversation you had open before.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
   ChevronRight,
   Loader2,
   Maximize2,
+  MessageSquarePlus,
   Minimize2,
   PanelRight,
   PictureInPicture2,
-  RotateCcw,
-  Send,
-  Square,
-  Wrench,
 } from "lucide-react";
-import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
-import ConfirmDriveEditModal, { type DriveEditRequest } from "@/components/ConfirmDriveEditModal";
+
+import { ConversationPane } from "@/components/chat/ConversationPane";
+import { HubBadge } from "@/components/HubBadge";
 import {
   useChatSidebarStore,
   type FloatRect,
@@ -33,18 +37,11 @@ import {
   FLOAT_MIN_WIDTH,
   FLOAT_MIN_HEIGHT,
 } from "@/stores/chatSidebarStore";
-import { createConversation, listConversations, listMessages, stopTurn } from "@/api/chat";
-import { grantDriveEdit } from "@/api/google";
-import { useAuthStore } from "@/stores/authStore";
-import { useCanvasSinkStore, type TextDropKind } from "@/stores/canvasSinkStore";
-import { useToastStore } from "@/stores/toastStore";
-import { useResizableTextarea } from "@/hooks/useResizableTextarea";
-import { useChatInputSizeStore } from "@/stores/chatInputSizeStore";
-import type { Message, WSToolStatusFrame } from "@/types/chat";
+import { createConversation, listConversations } from "@/api/chat";
+import { ensureProjectWorkroom } from "@/api/tasks";
+import { projectContextPrefix, useProjectHere } from "@/hooks/useProjectHere";
 import { cn } from "@/lib/utils";
 import { modLabel } from "@/lib/platform";
-
-const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
 
 const ROUTE_LABELS: Record<string, string> = {
   "/":           "Solar System",
@@ -56,7 +53,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/calendar":   "Calendar",
   "/documents":  "Knowledge Base",
   "/meetings":   "Meeting Notes",
-  "/emails":     "Emails",
+  "/inbox":      "Gmail",
   "/regulatory": "Regulatory",
   "/projects":   "Projects",
   "/research":   "Research",
@@ -73,12 +70,6 @@ function routeLabel(pathname: string): string {
     if (pathname.startsWith(key) && key !== "/") return label;
   }
   return "this page";
-}
-
-interface ToolActivity {
-  tool_name: string;
-  status: "running" | "done";
-  label: string;
 }
 
 function clampWidth(w: number): number {
@@ -124,106 +115,6 @@ export function ChatSidebarToggle() {
   );
 }
 
-// ── Right-click menu ───────────────────────────────────────────────────────
-
-const CANVAS_KINDS: { kind: TextDropKind; label: string }[] = [
-  { kind: "text", label: "Text" },
-  { kind: "sticky", label: "Sticky note" },
-  { kind: "shape", label: "Shape" },
-];
-
-function ChatContextMenu({
-  x,
-  y,
-  text,
-  inInput,
-  canDropOnCanvas,
-  onCopy,
-  onPaste,
-  onAddToCanvas,
-  onClose,
-}: {
-  x: number;
-  y: number;
-  text: string;
-  inInput: boolean;
-  canDropOnCanvas: boolean;
-  onCopy: () => void;
-  onPaste: () => void;
-  onAddToCanvas: (kind: TextDropKind) => void;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const away = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose();
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("pointerdown", away);
-    window.addEventListener("keydown", key);
-    return () => {
-      window.removeEventListener("pointerdown", away);
-      window.removeEventListener("keydown", key);
-    };
-  }, [onClose]);
-
-  const items: {
-    label: string;
-    hint?: string;
-    disabled?: boolean;
-    onClick: () => void;
-  }[] = [
-    { label: "Copy", hint: modLabel("C"), disabled: !text, onClick: onCopy },
-  ];
-  if (inInput) {
-    items.push({ label: "Paste", hint: modLabel("V"), onClick: onPaste });
-  }
-  const canvasReady = Boolean(text) && canDropOnCanvas;
-  for (const { kind, label } of CANVAS_KINDS) {
-    items.push({
-      label,
-      disabled: !canvasReady,
-      onClick: () => onAddToCanvas(kind),
-    });
-  }
-
-  return (
-    <div
-      ref={ref}
-      style={{
-        left: Math.min(x, window.innerWidth - 216),
-        top: Math.min(y, window.innerHeight - 16 - (items.length + 1) * 28),
-      }}
-      className="fixed z-[60] w-52 rounded-md border border-border bg-card py-1 shadow-md"
-    >
-      {items.map((item, i) => (
-        <div key={item.label}>
-          {i === items.length - CANVAS_KINDS.length && (
-            <div className="mt-1 border-t px-3 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-              {canDropOnCanvas ? "Add to the canvas as" : "Add to the canvas — none open"}
-            </div>
-          )}
-          <button
-            type="button"
-            disabled={item.disabled}
-            onClick={() => {
-              item.onClick();
-              onClose();
-            }}
-            className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-xs text-foreground hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
-          >
-            <span>{item.label}</span>
-            <span className="text-[10px] text-muted-foreground">{item.hint}</span>
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Main sidebar ───────────────────────────────────────────────────────────────
 
 export function ChatSidebar() {
@@ -241,127 +132,13 @@ export function ChatSidebar() {
     floatRect,
     setFloatRect,
   } = useChatSidebarStore();
-  const { accessToken: token } = useAuthStore();
   const location = useLocation();
   const qc = useQueryClient();
-
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
-  const [streamingContent, setStreamingContent] = useState<string | null>(null);
-  const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
-  const [turnArtifacts, setTurnArtifacts] = useState<ArtifactLink[]>([]);
-  const [pendingDriveEdit, setPendingDriveEdit] = useState<DriveEditRequest | null>(null);
-  const [grantingDriveEdit, setGrantingDriveEdit] = useState(false);
-  const [driveEditError, setDriveEditError] = useState<string | null>(null);
-  // True once a sent message has gone 45s with no streaming/tool activity —
-  // gates the "No reply? Resend" chip so it never flashes during normal turns.
-  const [turnStuck, setTurnStuck] = useState(false);
-  const [stopping, setStopping] = useState(false);
-
-  // A turn is in flight while the last message is the user's, or text is streaming.
-  const turnRunning =
-    streamingContent !== null ||
-    (messages.length > 0 && messages[messages.length - 1].role === "user");
-
-  const handleStop = useCallback(async () => {
-    if (!activeConversationId) return;
-    setStopping(true);
-    try {
-      await stopTurn(activeConversationId);
-    } catch {
-      /* the turn may still land; leave the UI as it is */
-    } finally {
-      setStopping(false);
-    }
-  }, [activeConversationId]);
-
-  useEffect(() => {
-    const waiting =
-      messages.length > 0 &&
-      messages[messages.length - 1].role === "user" &&
-      streamingContent === null;
-    if (!waiting) {
-      setTurnStuck(false);
-      return;
-    }
-    const t = window.setTimeout(() => setTurnStuck(true), 45_000);
-    return () => window.clearTimeout(t);
-  }, [messages, streamingContent, toolActivities]);
-  // The conversation id whose websocket is currently OPEN, used to fire a
-  // queued "Ask Gerry about this" seed message once connected.
-  const [wsReadyConvId, setWsReadyConvId] = useState<string | null>(null);
-
-  const wsRef        = useRef<WebSocket | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const sidebarHeight = useChatInputSizeStore((s) => s.sidebarHeight);
-  const setSidebarHeight = useChatInputSizeStore((s) => s.setSidebarHeight);
-  const { ref: textareaRef, startResize } = useResizableTextarea({
-    value: inputText,
-    manualHeight: sidebarHeight,
-    setManualHeight: setSidebarHeight,
-    autoMax: 220,
-    min: 36,
-    max: 400,
-  });
-
-  // ── Right-click menu ───────────────────────────────────────────────────────
-  // The panel sits over every page, so a selection here has to keep its own
-  // clipboard keys and needs somewhere obvious to go.
-  const [menu, setMenu] = useState<{
-    x: number;
-    y: number;
-    text: string;
-    inInput: boolean;
-  } | null>(null);
-  const dropOnCanvas = useCanvasSinkStore((s) => s.dropText);
-  const pushToast = useToastStore((s) => s.push);
-
-  const openMenu = useCallback((e: React.MouseEvent) => {
-    const el = e.target as HTMLElement;
-    const input = el instanceof HTMLTextAreaElement ? el : null;
-    const text = input
-      ? input.value.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0)
-      : (window.getSelection()?.toString() ?? "");
-    e.preventDefault();
-    setMenu({ x: e.clientX, y: e.clientY, text, inInput: Boolean(input) });
-  }, []);
-
-  const copyText = useCallback(
-    async (text: string) => {
-      try {
-        await navigator.clipboard.writeText(text);
-      } catch {
-        pushToast("error", `The clipboard refused. Use ${modLabel("C")} instead.`);
-      }
-    },
-    [pushToast],
-  );
-
-  const pasteIntoInput = useCallback(async () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    let text = "";
-    try {
-      text = await navigator.clipboard.readText();
-    } catch {
-      pushToast("error", `The clipboard refused. Use ${modLabel("V")} instead.`);
-      return;
-    }
-    if (!text) return;
-    const start = el.selectionStart ?? el.value.length;
-    const end = el.selectionEnd ?? start;
-    setInputText(el.value.slice(0, start) + text + el.value.slice(end));
-    const caret = start + text.length;
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(caret, caret);
-    });
-  }, [textareaRef, pushToast]);
 
   // Keyboard shortcut Ctrl+/ (Cmd+/ on macOS)
-  useEffect(() => {    function onKey(e: KeyboardEvent) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === "/") { e.preventDefault(); toggle(); }
     }
     window.addEventListener("keydown", onKey);
@@ -488,7 +265,10 @@ export function ChatSidebar() {
     );
   }, [popped, effectiveWidth, setWidth, setFloatRect]);
 
-  // Conversations list
+  // ── Which conversation ─────────────────────────────────────────────────────
+  const here = useProjectHere();
+  const bound = here !== null;
+
   const { data: conversations = [], isFetched: conversationsFetched } = useQuery({
     queryKey: ["conversations"],
     queryFn: () => listConversations(),
@@ -496,7 +276,6 @@ export function ChatSidebar() {
     staleTime: 30_000,
   });
 
-  // Create conversation on first open
   const createMutation = useMutation({
     mutationFn: () => createConversation(),
     onSuccess: (conv) => {
@@ -505,24 +284,32 @@ export function ChatSidebar() {
     },
   });
 
+  // A project made before every project got a conversation: give it one here.
+  const startProjectConversation = useMutation({
+    mutationFn: () => ensureProjectWorkroom(here!.id, here!.source),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["project-space", here?.source, here?.id] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+
   // Guard against React StrictMode running this effect twice on mount, which
   // would otherwise create two empty conversations back-to-back.
   const ensuringConvRef = useRef(false);
 
-  // Ensure we have an active conversation when open.
+  // Ensure we have a general conversation when open and not inside a project.
   useEffect(() => {
     // Wait until the list has actually loaded. useQuery returns an empty array
     // as a placeholder before the fetch resolves; acting on that placeholder is
-    // what spawned dozens of empty "untitled" conversations (one per sidebar
-    // open, doubled by StrictMode).
-    if (!open || !conversationsFetched || activeConversationId) return;
+    // what spawned dozens of empty "untitled" conversations.
+    if (!open || bound || !conversationsFetched || activeConversationId) return;
 
-    if (conversations.length > 0) {
-      setActiveConversationId(conversations[0].id);
+    const own = conversations.filter((c) => !c.hub_mirror);
+    if (own.length > 0) {
+      setActiveConversationId(own[0].id);
       return;
     }
 
-    // Genuinely no conversations exist yet — create exactly one.
     if (ensuringConvRef.current || createMutation.isPending) return;
     ensuringConvRef.current = true;
     createMutation.mutate(undefined, {
@@ -532,6 +319,7 @@ export function ChatSidebar() {
     });
   }, [
     open,
+    bound,
     conversationsFetched,
     activeConversationId,
     conversations,
@@ -539,181 +327,18 @@ export function ChatSidebar() {
     setActiveConversationId,
   ]);
 
-  // Load messages when conversation changes
-  useEffect(() => {
-    if (!activeConversationId) return;
-    listMessages(activeConversationId).then(setMessages).catch(() => {});
-  }, [activeConversationId]);
+  const conversationId = bound ? here.conversationId : activeConversationId;
+  const source = bound ? here.source : "local";
 
-  // Auto-scroll
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, toolActivities]);
+  const isOnChatPage = location.pathname === "/chat" || location.pathname.startsWith("/chat/");
+  const pageLabel = routeLabel(location.pathname);
+  const contextPrefix = bound
+    ? projectContextPrefix(here)
+    : !isOnChatPage && pageLabel !== "Chat"
+      ? `[Context: I am currently viewing the "${pageLabel}" page]`
+      : undefined;
 
-  // WebSocket connect
-  const connectWS = useCallback(
-    (convId: string) => {
-      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
-      if (!token) return;
-      const ws = new WebSocket(`${WS_BASE}/ws/chat/${convId}?token=${encodeURIComponent(token)}`);
-      wsRef.current = ws;
-      setIsConnecting(true);
-      setWsReadyConvId(null);
-
-      ws.onopen = () => { setIsConnecting(false); setWsReadyConvId(convId); };
-      ws.onclose = () => { setIsConnecting(false); setWsReadyConvId(null); };
-
-      ws.onmessage = (ev) => {
-        try {
-          const frame = JSON.parse(ev.data);
-          if (frame.type === "token" && frame.content) {
-            setStreamingContent((prev) => (prev ?? "") + frame.content);
-            setToolActivities([]);
-            return;
-          }
-          if (frame.type === "tool_status") {
-            const ts = frame as WSToolStatusFrame;
-            setToolActivities((prev) => {
-              const idx = [...prev].reverse().findIndex((a) => a.tool_name === ts.tool_name);
-              const trueIdx = idx >= 0 ? prev.length - 1 - idx : -1;
-              if (trueIdx >= 0 && prev[trueIdx].status === "running") {
-                const next = [...prev];
-                next[trueIdx] = { tool_name: ts.tool_name, status: ts.status, label: ts.label ?? ts.tool_name };
-                return next;
-              }
-              return [...prev, { tool_name: ts.tool_name, status: ts.status, label: ts.label ?? ts.tool_name }];
-            });
-            return;
-          }
-          if (frame.type === "artifact_link") {
-            const art = (frame as { artifact?: ArtifactLink }).artifact;
-            if (art?.label) {
-              setTurnArtifacts((prev) =>
-                prev.some((p) => p.label === art.label && p.route === art.route && p.url === art.url)
-                  ? prev
-                  : [...prev, art],
-              );
-            }
-            return;
-          }
-          if (frame.type === "confirm_drive_edit") {
-            // Gerry asked to edit one Drive file — no grant exists until Allow.
-            const req = frame as DriveEditRequest;
-            if (req.file_id) setPendingDriveEdit(req);
-            return;
-          }
-          if (frame.type === "done") {
-            // Reload persisted messages from DB
-            if (convId) listMessages(convId).then(setMessages).catch(() => {});
-            setStreamingContent(null);
-            setToolActivities([]);
-            setTurnArtifacts([]); // the persisted message carries the chips now
-            return;
-          }
-          if (frame.type === "error") {
-            const detail = frame.detail ?? "An error occurred.";
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: crypto.randomUUID(),
-                conversation_id: convId,
-                role: "assistant" as const,
-                content: `⚠️ ${detail}`,
-                agent_type: null,
-                model_name: null,
-                cited_chunk_ids: [],
-                tool_calls: null,
-                tool_results: null,
-                created_at: new Date().toISOString(),
-              },
-            ]);
-            setStreamingContent(null);
-            setToolActivities([]);
-            setTurnArtifacts([]);
-          }
-        } catch { /* ignore */ }
-      };
-    },
-    [token],
-  );
-
-  useEffect(() => {
-    if (open && activeConversationId) connectWS(activeConversationId);
-    return () => { wsRef.current?.close(); wsRef.current = null; };
-  }, [open, activeConversationId, connectWS]);
-
-  // Reset streaming state when conversation changes
-  useEffect(() => {
-    setStreamingContent(null);
-    setToolActivities([]);
-  }, [activeConversationId]);
-
-  // Auto-send a queued "Ask Gerry about this" seed message once the websocket
-  // for its conversation is open. The seed is self-contained (no page context).
-  useEffect(() => {
-    if (!pendingMessage || !activeConversationId) return;
-    if (wsReadyConvId !== activeConversationId) return;
-    const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        conversation_id: activeConversationId,
-        role: "user" as const,
-        content: pendingMessage,
-        agent_type: null,
-        model_name: null,
-        cited_chunk_ids: [],
-        tool_calls: null,
-        tool_results: null,
-        created_at: new Date().toISOString(),
-      },
-    ]);
-    ws.send(JSON.stringify({ type: "human", content: pendingMessage }));
-    setPendingMessage(null);
-  }, [pendingMessage, activeConversationId, wsReadyConvId, setPendingMessage]);
-
-  function sendMessage() {
-    const text = inputText.trim();
-    if (!text || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-
-    // Prepend page context on non-chat pages
-    const isOnChatPage = location.pathname === "/chat" || location.pathname.startsWith("/chat/");
-    const label = routeLabel(location.pathname);
-    const fullText = (!isOnChatPage && label !== "Chat")
-      ? `[Context: I am currently viewing the "${label}" page]\n\n${text}`
-      : text;
-
-    // Optimistically add user message
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        conversation_id: activeConversationId ?? "",
-        role: "user" as const,
-        content: text,
-        agent_type: null,
-        model_name: null,
-        cited_chunk_ids: [],
-        tool_calls: null,
-        tool_results: null,
-        created_at: new Date().toISOString(),
-      },
-    ]);
-
-    wsRef.current.send(JSON.stringify({ type: "human", content: fullText }));
-    setInputText("");
-    textareaRef.current?.focus();
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  }
+  const onSeedSent = useCallback(() => setPendingMessage(null), [setPendingMessage]);
 
   // ── Collapsed tab ──────────────────────────────────────────────────────────
   if (!open) {
@@ -745,38 +370,49 @@ export function ChatSidebar() {
         onPointerUp={popped ? endRectDrag : undefined}
         onPointerCancel={popped ? endRectDrag : undefined}
         className={cn(
-          "flex items-center justify-between border-b px-3 py-2.5",
+          "flex items-center justify-between gap-2 border-b px-3 py-2.5",
           popped && "cursor-grab select-none active:cursor-grabbing",
         )}
       >
-        <div className="flex items-center gap-2">
-          <Bot className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold">Little Gerry</span>
-          {isConnecting && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+        <div className="flex min-w-0 items-center gap-2">
+          <Bot className="h-4 w-4 shrink-0 text-primary" />
+          {bound ? (
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-sm font-semibold" title={here.name ?? undefined}>
+                {here.name ?? "Project"}
+              </span>
+              <HubBadge source={here.source} />
+            </span>
+          ) : (
+            <span className="text-sm font-semibold">Little Gerry</span>
+          )}
+          {isConnecting && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" />}
         </div>
-        <div className="flex items-center gap-1">
-          {/* Conversation picker */}
-          {conversations.length > 0 && (
+        <div className="flex shrink-0 items-center gap-1">
+          {!bound && conversations.length > 0 && (
             <select
               value={activeConversationId ?? ""}
               onChange={(e) => setActiveConversationId(e.target.value || null)}
-              className="rounded border bg-background px-1.5 py-0.5 text-xs max-w-[120px] truncate"
+              className="max-w-[120px] truncate rounded border bg-background px-1.5 py-0.5 text-xs"
             >
-              {conversations.map((c) => (
+              {/* A hub mirror is read inside its project, where it is kept in step. */}
+              {conversations.filter((c) => !c.hub_mirror).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.title || "New conversation"}
                 </option>
               ))}
             </select>
           )}
-          <button
-            onClick={() => createMutation.mutate()}
-            disabled={createMutation.isPending}
-            className="rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-            title="New conversation"
-          >
-            +
-          </button>
+          {!bound && (
+            <button
+              onClick={() => createMutation.mutate()}
+              disabled={createMutation.isPending}
+              className="rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              title="New conversation"
+            >
+              +
+            </button>
+          )}
           <button
             onClick={toggleExpanded}
             className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -801,170 +437,67 @@ export function ChatSidebar() {
         </div>
       </div>
 
-      {/* Messages */}
-      <div
-        onContextMenu={openMenu}
-        className="flex-1 overflow-y-auto px-2 py-2 space-y-2"
-      >
-        {messages.length === 0 && !isConnecting && (
-          <p className="text-center text-xs text-muted-foreground py-8 px-4">
-            Ask me anything about your work, documents, or tasks.
+      {bound && (
+        <p className="border-b bg-muted/40 px-3 py-1 text-[11px] text-muted-foreground">
+          This is the project's conversation. Gerry knows the project, its goal, what is pinned, and
+          which tab you are on.
+        </p>
+      )}
+
+      {bound && here.loaded && !here.conversationId ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            This project has no conversation with Gerry yet.
           </p>
-        )}
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} compact />
-        ))}
-        {streamingContent !== null && (
-          <MessageBubble
-            message={{
-              id: "__streaming__",
-              conversation_id: activeConversationId ?? "",
-              role: "assistant",
-              content: streamingContent,
-              agent_type: null,
-              model_name: null,
-              cited_chunk_ids: [],
-              tool_calls: null,
-              tool_results: turnArtifacts,
-              created_at: new Date().toISOString(),
-            }}
-            compact
-          />
-        )}
-        {toolActivities.map((a) => (
-          <div key={a.tool_name} className="flex items-center gap-2 text-xs text-muted-foreground px-2">
-            <Wrench className="h-3 w-3 animate-pulse text-primary" />
-            <span className="truncate">{a.label}</span>
-          </div>
-        ))}
-        {turnRunning && (
           <button
-            onClick={handleStop}
-            disabled={stopping}
-            className="ml-2 flex w-fit items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-60"
-            title="Stop here. Anything Gerry has already done is kept."
+            type="button"
+            disabled={startProjectConversation.isPending}
+            onClick={() => startProjectConversation.mutate()}
+            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
           >
-            <Square className="h-3 w-3" />
-            {stopping ? "Stopping…" : "Stop"}
+            <MessageSquarePlus className="h-4 w-4" />
+            {startProjectConversation.isPending ? "Starting…" : "Start one"}
           </button>
-        )}
-        {/* Hung turn — 45s with no reply and nothing streaming */}
-        {turnStuck &&
-          streamingContent === null &&
-          messages.length > 0 &&
-          messages[messages.length - 1].role === "user" && (
-            <button
-              onClick={() => {
-                const last = [...messages].reverse().find((m) => m.role === "user");
-                if (!last?.content || wsRef.current?.readyState !== WebSocket.OPEN) return;
-                setToolActivities([]);
-                setTurnStuck(false);
-                setMessages((prev) => [
-                  ...prev,
-                  { ...last, id: crypto.randomUUID(), created_at: new Date().toISOString() },
-                ]);
-                wsRef.current.send(JSON.stringify({ type: "human", content: last.content }));
-              }}
-              className="ml-2 flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
-              title="Send the last message again"
-            >
-              <RotateCcw className="h-3 w-3" />
-              No reply? Resend
-            </button>
+          {startProjectConversation.isError && (
+            <p className="text-xs text-rose-600">The conversation could not be started.</p>
           )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input */}
-      <div className="border-t p-2" onContextMenu={openMenu}>
-        <div className="relative flex items-end gap-1.5 rounded-lg border bg-muted/30 px-2.5 py-1.5">
-          <div
-            onPointerDown={startResize}
-            onDoubleClick={() => setSidebarHeight(null)}
-            title="Drag to resize • double-click to auto-fit"
-            className="absolute -top-1.5 left-1/2 z-10 h-3 w-9 -translate-x-1/2 cursor-ns-resize rounded-full border bg-muted shadow-sm hover:bg-muted-foreground/30"
-          />
-          <textarea
-            ref={textareaRef}
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Message Little Gerry… (Enter to send)"
-            rows={1}
-            className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-          />
-          <button
-            onClick={sendMessage}
-            disabled={!inputText.trim()}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90"
-          >
-            <Send className="h-3.5 w-3.5" />
-          </button>
         </div>
-      </div>
-
-      {menu && (
-        <ChatContextMenu
-          x={menu.x}
-          y={menu.y}
-          text={menu.text}
-          inInput={menu.inInput}
-          canDropOnCanvas={Boolean(dropOnCanvas)}
-          onCopy={() => void copyText(menu.text)}
-          onPaste={() => void pasteIntoInput()}
-          onAddToCanvas={(kind) => dropOnCanvas?.(menu.text, kind)}
-          onClose={() => setMenu(null)}
+      ) : (
+        <ConversationPane
+          conversationId={conversationId}
+          source={source}
+          contextPrefix={contextPrefix}
+          seed={pendingMessage}
+          onSeedSent={onSeedSent}
+          onConnectingChange={setIsConnecting}
+          compact
+          emptyHint={
+            bound
+              ? `Ask about ${here.name ?? "this project"}: its tasks, its material, what is late, what to do next.`
+              : "Ask me anything about your work, documents, or tasks."
+          }
         />
       )}
     </>
   );
 
-  const driveEditModal = pendingDriveEdit && (
-    <ConfirmDriveEditModal
-      request={pendingDriveEdit}
-      busy={grantingDriveEdit}
-      error={driveEditError}
-      onAllow={async () => {
-        setGrantingDriveEdit(true);
-        setDriveEditError(null);
-        try {
-          await grantDriveEdit(pendingDriveEdit.file_id);
-          qc.invalidateQueries({ queryKey: ["drive-edit-grants"] });
-          setPendingDriveEdit(null);
-        } catch (err) {
-          const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-          setDriveEditError(typeof detail === "string" ? detail : "Couldn't grant permission.");
-        } finally {
-          setGrantingDriveEdit(false);
-        }
-      }}
-      onDeny={() => {
-        setDriveEditError(null);
-        setPendingDriveEdit(null);
-      }}
-    />
-  );
-
   // ── Popped out: floats over the app, drag the header to move it ────────────
   if (popped && rect) {
     return (
-      <>
+      <div
+        className="fixed z-40 flex flex-col overflow-hidden rounded-lg border bg-background shadow-2xl"
+        style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
+      >
+        {panelContents}
         <div
-          className="fixed z-40 flex flex-col overflow-hidden rounded-lg border bg-background shadow-2xl"
-          style={{ left: rect.x, top: rect.y, width: rect.w, height: rect.h }}
-        >
-          {panelContents}
-          <div
-            onPointerDown={startRectDrag("resize")}
-            onPointerMove={onRectDrag}
-            onPointerUp={endRectDrag}
-            onPointerCancel={endRectDrag}
-            title="Drag to resize"
-            className="absolute bottom-0 right-0 z-10 h-4 w-4 cursor-nwse-resize rounded-tl border-l border-t bg-muted/60 hover:bg-muted-foreground/30"
-          />
-        </div>
-        {driveEditModal}
-      </>
+          onPointerDown={startRectDrag("resize")}
+          onPointerMove={onRectDrag}
+          onPointerUp={endRectDrag}
+          onPointerCancel={endRectDrag}
+          title="Drag to resize"
+          className="absolute bottom-0 right-0 z-10 h-4 w-4 cursor-nwse-resize rounded-tl border-l border-t bg-muted/60 hover:bg-muted-foreground/30"
+        />
+      </div>
     );
   }
 
@@ -985,7 +518,6 @@ export function ChatSidebar() {
         className="absolute inset-y-0 left-0 z-20 w-1.5 cursor-ew-resize hover:bg-primary/40"
       />
       {panelContents}
-      {driveEditModal}
     </div>
   );
 }

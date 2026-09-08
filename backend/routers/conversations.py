@@ -41,7 +41,12 @@ from repositories.conversation_repo import (
     NotificationRepository,
 )
 from services.audit.logger import AuditLogger, get_audit_logger
-from services.projects.access import conversation_role, role_at_least
+from services.projects.access import (
+    conversation_role,
+    resolve_role,
+    role_at_least,
+    visible_project_ids,
+)
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -75,15 +80,26 @@ async def list_conversations(
     include_archived: bool = Query(False),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    project_id: uuid.UUID | None = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[ConversationOut]:
     repo = ConversationRepository(db)
+    if project_id is not None:
+        # A project's conversations belong to the project, whoever started
+        # them, so membership decides here rather than ownership.
+        from models.db.task import Project
+
+        project = await db.get(Project, project_id)
+        if project is None or await resolve_role(db, project, current_user.id) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
+        return await repo.list_for_project(project_id, include_archived=include_archived)
     conversations = await repo.list_for_user(
         current_user.id,
         include_archived=include_archived,
         limit=limit,
         offset=offset,
+        visible_projects=await visible_project_ids(db, current_user.id),
     )
     return conversations
 
@@ -99,6 +115,8 @@ async def create_conversation(
         user_id=current_user.id,
         title=body.title,
         agent_type=body.agent_type,
+        project_id=body.project_id,
+        kind=body.kind,
     )
     await db.commit()
     return conv

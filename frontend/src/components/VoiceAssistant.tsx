@@ -296,6 +296,7 @@ export function VoiceAssistant() {
       const conv = await createConversation({
         title: "Voice session",
         agent_type: "house_manager",
+        kind: "voice",
       });
       setConversationId(conv.id);
       queryClient.invalidateQueries({ queryKey: ["conversations"] });

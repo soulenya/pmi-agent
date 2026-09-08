@@ -152,6 +152,7 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
         conv = await conv_repo.create(
             user_id=task.user_id,
             title=f"[Scheduled] {task.title}"[:200],
+            kind="routine",
         )
         task.conversation_id = conv.id
 

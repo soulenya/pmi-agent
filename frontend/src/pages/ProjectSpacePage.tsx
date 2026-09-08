@@ -26,6 +26,7 @@ import {
 import type { Source } from "@/api/tasks";
 import type { HeldItem, ProjectVisibility } from "@/types/tasks";
 import { TimelineTab } from "@/components/projects/TimelineTab";
+import { ConversationPane } from "@/components/chat/ConversationPane";
 import { CanvasTab } from "@/components/projects/CanvasTab";
 import { ProjectLinksPanel } from "@/components/projects/ProjectLinksPanel";
 import { ProjectPeoplePanel } from "@/components/projects/PeoplePanel";
@@ -96,13 +97,10 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
 
   const workroomMutation = useMutation({
     mutationFn: () => ensureProjectWorkroom(id!, source),
-    onSuccess: room => {
+    onSuccess: () => {
+      // The Chat tab and the side panel both read the space, so this is all it takes.
       qc.invalidateQueries({ queryKey: ["project-space", source, id] });
-      if (room.conversation_id) {
-        navigate(onHub ? `/hub/chat/${room.conversation_id}` : `/chat/${room.conversation_id}`);
-      } else if (!onHub) {
-        navigate("/workrooms");
-      }
+      qc.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
 
@@ -378,16 +376,31 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
         )}
 
         {active === "chat" && (
-          <div className="space-y-3">
+          <div className="flex h-full min-h-[60vh] flex-col rounded-xl border bg-card">
             {workroom?.conversation_id ? (
-              <NavLink
-                to={onHub ? `/hub/chat/${workroom.conversation_id}` : `/chat/${workroom.conversation_id}`}
-                className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
-              >
-                <MessageSquare className="h-4 w-4" /> Continue the project conversation
-              </NavLink>
-            ) : (
               <>
+                <div className="flex items-center justify-between gap-3 border-b px-4 py-2">
+                  <p className="text-xs text-muted-foreground">
+                    The project's conversation. Gerry knows the goal, the pinned material and
+                    the tasks; ask about them here or from the panel on the right.
+                  </p>
+                  <NavLink
+                    to={onHub ? `/hub/chat/${workroom.conversation_id}` : `/chat/${workroom.conversation_id}`}
+                    className="shrink-0 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    Open full screen
+                  </NavLink>
+                </div>
+                <ConversationPane
+                  conversationId={workroom.conversation_id}
+                  source={source}
+                  contextPrefix={`[Context: I am inside the project "${project.name}", on its chat tab]`}
+                  compact={false}
+                  emptyHint={`Ask about ${project.name}: its tasks, its material, what is late, what to do next.`}
+                />
+              </>
+            ) : (
+              <div className="space-y-3 p-6">
                 <p className="text-sm text-muted-foreground">
                   This project has no conversation with Gerry yet.
                 </p>
@@ -405,7 +418,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
                     The conversation could not be started.
                   </p>
                 )}
-              </>
+              </div>
             )}
           </div>
         )}

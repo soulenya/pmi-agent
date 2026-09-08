@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import func, select, tuple_, update
+from sqlalchemy import func, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.approval import ApprovalIntent
@@ -24,8 +24,16 @@ class ConversationRepository:
         user_id: uuid.UUID,
         title: str | None = None,
         agent_type: str | None = None,
+        project_id: uuid.UUID | None = None,
+        kind: str = "general",
     ) -> Conversation:
-        conv = Conversation(user_id=user_id, title=title, agent_type=agent_type)
+        conv = Conversation(
+            user_id=user_id,
+            title=title,
+            agent_type=agent_type,
+            project_id=project_id,
+            kind=kind,
+        )
         self.db.add(conv)
         await self.db.flush()
         await self.db.refresh(conv)
@@ -37,13 +45,36 @@ class ConversationRepository:
         include_archived: bool = False,
         limit: int = 50,
         offset: int = 0,
+        project_id: uuid.UUID | None = None,
+        visible_projects: list[uuid.UUID] | None = None,
     ) -> list[Conversation]:
+        # Yours, plus every conversation owned by a project you can see: a
+        # project's chat belongs to the project, whoever happened to start it.
+        mine = Conversation.user_id == user_id
+        if visible_projects:
+            mine = or_(mine, Conversation.project_id.in_(visible_projects))
         stmt = (
             select(Conversation)
-            .where(Conversation.user_id == user_id)
+            .where(mine)
             .order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc())
             .limit(limit)
             .offset(offset)
+        )
+        if not include_archived:
+            stmt = stmt.where(Conversation.is_archived.is_(False))
+        if project_id is not None:
+            stmt = stmt.where(Conversation.project_id == project_id)
+        result = await self.db.execute(stmt)
+        return list(result.scalars())
+
+    async def list_for_project(
+        self, project_id: uuid.UUID, include_archived: bool = False
+    ) -> list[Conversation]:
+        """Every conversation a project owns, whoever started it."""
+        stmt = (
+            select(Conversation)
+            .where(Conversation.project_id == project_id)
+            .order_by(Conversation.updated_at.desc())
         )
         if not include_archived:
             stmt = stmt.where(Conversation.is_archived.is_(False))

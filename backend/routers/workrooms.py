@@ -186,7 +186,7 @@ async def create_workroom(
     # Every room gets its own conversation — chatting there carries the
     # WORKROOM CONTEXT block on every turn.
     conv = await ConversationRepository(db).create(
-        user_id=current_user.id, title=f"Workroom: {body.title.strip()}"
+        user_id=current_user.id, title=f"Workroom: {body.title.strip()}", kind="room"
     )
     room = Workroom(
         user_id=current_user.id,
