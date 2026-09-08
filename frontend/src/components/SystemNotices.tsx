@@ -74,7 +74,7 @@ export function SystemNoticesBanner() {
   }
 
   return (
-    <div className="pointer-events-none fixed left-1/2 top-3 z-[70] flex w-full max-w-xl -translate-x-1/2 flex-col gap-2 px-4">
+    <div className="pointer-events-none fixed left-1/2 top-16 z-[70] flex w-full max-w-xl -translate-x-1/2 flex-col gap-2 px-4">
       {visible.slice(0, 4).map((n) => {
         const { box, Icon } = SEVERITY_STYLE[n.severity] ?? SEVERITY_STYLE.info;
         return (

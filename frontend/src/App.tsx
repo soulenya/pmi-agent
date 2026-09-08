@@ -25,22 +25,16 @@ const NotificationsPage = lazy(() => import("@/pages/NotificationsPage").then(m 
 const ResearchPage = lazy(() => import("@/pages/ResearchPage").then(m => ({ default: m.ResearchPage })));
 const ResearchBrowserPage = lazy(() => import("@/pages/ResearchBrowserPage").then(m => ({ default: m.ResearchBrowserPage })));
 const ProjectsPage = lazy(() => import("@/pages/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
-const PortfolioPage = lazy(() => import("@/pages/PortfolioPage").then(m => ({ default: m.PortfolioPage })));
 const ProjectSpacePage = lazy(() => import("@/pages/ProjectSpacePage").then(m => ({ default: m.ProjectSpacePage })));
 const SettingsPage = lazy(() => import("@/pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const MeetingsPage = lazy(() => import("@/pages/MeetingsPage").then(m => ({ default: m.MeetingsPage })));
 const InboxPage = lazy(() => import("@/pages/InboxPage"));
 const ContactsPage = lazy(() => import("@/pages/ContactsPage").then(m => ({ default: m.ContactsPage })));
-const BackupsPage = lazy(() => import("@/pages/BackupsPage").then(m => ({ default: m.BackupsPage })));
 const AuditPage = lazy(() => import("@/pages/AuditPage").then(m => ({ default: m.AuditPage })));
 const UsersPage = lazy(() => import("@/pages/UsersPage").then(m => ({ default: m.UsersPage })));
 const CalendarPage = lazy(() => import("@/pages/CalendarPage").then(m => ({ default: m.CalendarPage })));
-const GoogleIntegrationPage = lazy(() => import("@/pages/GoogleIntegrationPage"));
 const OdooIntegrationPage = lazy(() => import("@/pages/OdooIntegrationPage"));
 const GeneratedFilesPage = lazy(() => import("@/pages/GeneratedFilesPage").then(m => ({ default: m.GeneratedFilesPage })));
-const ScheduledTasksPage = lazy(() => import("@/pages/ScheduledTasksPage").then(m => ({ default: m.ScheduledTasksPage })));
-const AgentsPage = lazy(() => import("@/pages/AgentsPage").then(m => ({ default: m.AgentsPage })));
-const WorkroomsPage = lazy(() => import("@/pages/WorkroomsPage").then(m => ({ default: m.WorkroomsPage })));
 const BudgetsPage = lazy(() => import("@/pages/BudgetsPage").then(m => ({ default: m.BudgetsPage })));
 
 const queryClient = new QueryClient({
@@ -93,7 +87,8 @@ function ThemedApp() {
             <Route path="gerry" element={<Page><SolarSystemPage /></Page>} />
             <Route path="planet/:planetId" element={<Page><SolarSystemPage /></Page>} />
             <Route path="dashboard" element={<Page><DashboardPage /></Page>} />
-            <Route path="agents" element={<Page><AgentsPage /></Page>} />
+            <Route path="today" element={<Page><DashboardPage /></Page>} />
+            <Route path="agents" element={<Navigate to="/settings?tab=ai" replace />} />
             <Route path="chat" element={<Page><ChatPage /></Page>} />
             <Route path="chat/:conversationId" element={<Page><ChatPage /></Page>} />
             <Route path="hub/chat/:conversationId" element={<Page><ChatPage source="hub" /></Page>} />
@@ -102,13 +97,13 @@ function ThemedApp() {
             <Route path="documents" element={<Page><DocumentsPage /></Page>} />
             <Route path="search" element={<Page><SearchPage /></Page>} />
             <Route path="tasks" element={<Page><TasksPage /></Page>} />
-            <Route path="scheduled-tasks" element={<Page><ScheduledTasksPage /></Page>} />
+            <Route path="scheduled-tasks" element={<Navigate to="/tasks?tab=routines" replace />} />
             <Route path="regulatory" element={<Page><RegulatoryPage /></Page>} />
             <Route path="notifications" element={<Page><NotificationsPage /></Page>} />
             <Route path="research" element={<Page><ResearchPage /></Page>} />
             <Route path="browser" element={<Page><ResearchBrowserPage /></Page>} />
             <Route path="projects" element={<Page><ProjectsPage /></Page>} />
-            <Route path="projects/portfolio" element={<Page><PortfolioPage /></Page>} />
+            <Route path="projects/portfolio" element={<Navigate to="/projects?view=graph" replace />} />
             <Route path="projects/:id" element={<ProjectRedirect />} />
             <Route path="projects/:id/space" element={<Page><ProjectSpacePage /></Page>} />
             <Route path="projects/:id/space/:tab" element={<Page><ProjectSpacePage /></Page>} />
@@ -120,14 +115,14 @@ function ThemedApp() {
             <Route path="emails" element={<Navigate to="/inbox?view=drafts" replace />} />
             <Route path="inbox" element={<Page><InboxPage /></Page>} />
             <Route path="contacts" element={<Page><ContactsPage /></Page>} />
-            <Route path="backups" element={<Page><BackupsPage /></Page>} />
+            <Route path="backups" element={<Navigate to="/settings?tab=system" replace />} />
             <Route path="audit" element={<Page><AuditPage /></Page>} />
             <Route path="users" element={<Page><UsersPage /></Page>} />
             <Route path="calendar" element={<Page><CalendarPage /></Page>} />
-            <Route path="google" element={<Page><GoogleIntegrationPage /></Page>} />
+            <Route path="google" element={<Navigate to="/settings?tab=connections" replace />} />
             <Route path="odoo" element={<Page><OdooIntegrationPage /></Page>} />
             <Route path="files" element={<Page><GeneratedFilesPage /></Page>} />
-            <Route path="workrooms" element={<Page><WorkroomsPage /></Page>} />
+            <Route path="workrooms" element={<Navigate to="/projects?view=rooms" replace />} />
             <Route path="budgets" element={<Page><BudgetsPage /></Page>} />
             <Route path="investor" element={<Navigate to="/regulatory" replace />} />
           </Route>

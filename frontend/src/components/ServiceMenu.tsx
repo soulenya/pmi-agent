@@ -61,6 +61,70 @@ const ACTIONS = [
   },
 ] as const;
 
+/** The same four actions as a flat row, for Settings › System. */
+export function ServiceControls() {
+  const [confirmKey, setConfirmKey] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (path: string) => callService(path),
+    onSuccess: (data) => {
+      setFeedback({ ok: data.success, msg: data.message });
+      setConfirmKey(null);
+      setTimeout(() => setFeedback(null), 4000);
+    },
+    onError: (e: Error) => {
+      setFeedback({ ok: false, msg: e.message });
+      setConfirmKey(null);
+      setTimeout(() => setFeedback(null), 4000);
+    },
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {ACTIONS.map(({ key, label, icon: Icon, path, confirm, className }) => {
+          const isConfirming = confirmKey === key;
+          const isRunning = mutation.isPending && mutation.variables === path;
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={mutation.isPending}
+              onClick={() => {
+                if (confirm && !isConfirming) {
+                  setConfirmKey(key);
+                  return;
+                }
+                mutation.mutate(path);
+              }}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50",
+                isConfirming && "border-destructive bg-destructive/10",
+                className,
+              )}
+            >
+              {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+              {isConfirming ? `Confirm: ${label}` : label}
+            </button>
+          );
+        })}
+      </div>
+      {feedback && (
+        <p
+          className={cn(
+            "flex items-center gap-2 text-xs",
+            feedback.ok ? "text-green-700 dark:text-green-400" : "text-destructive",
+          )}
+        >
+          {feedback.ok ? <CheckCircle className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+          {feedback.msg}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ServiceMenu() {
   const [open, setOpen] = useState(false);
   const [confirmKey, setConfirmKey] = useState<string | null>(null);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { NavLink } from "react-router-dom";
+import { NavLink, useSearchParams } from "react-router-dom";
 import {
   FolderOpen,
   Plus,
@@ -14,6 +14,7 @@ import {
   Archive,
   Loader2,
   Network,
+  Handshake,
   Laptop,
   Cloud,
 } from "lucide-react";
@@ -30,6 +31,8 @@ import type {
   ProjectVisibility,
 } from "@/types/tasks";
 import { AskGerryButton } from "@/components/AskGerryButton";
+import { PortfolioPage } from "@/pages/PortfolioPage";
+import { WorkroomsPage } from "@/pages/WorkroomsPage";
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 const STATUS_DONE: TaskStatus[] = ["done", "cancelled"];
@@ -608,7 +611,17 @@ function ProjectCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function ProjectsPage() {
-  const [showForm, setShowForm] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  // One place for things you are working on: the projects, the rooms that
+  // have no project, and the graph of how projects depend on each other.
+  const view = (searchParams.get("view") ?? "projects") as "projects" | "rooms" | "graph";
+  const setView = (v: "projects" | "rooms" | "graph") => {
+    const next = new URLSearchParams(searchParams);
+    if (v === "projects") next.delete("view");
+    else next.set("view", v);
+    setSearchParams(next);
+  };
+  const [showForm, setShowForm] = useState(searchParams.get("new") === "1");
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editingHubProject, setEditingHubProject] = useState<Project | null>(null);
 
@@ -654,6 +667,59 @@ export function ProjectsPage() {
 
   const unassigned = allTasks.filter((t) => !t.project_id);
 
+  const viewTabs = (
+    <div className="flex gap-1 rounded-lg border bg-muted p-1">
+      {([
+        ["projects", "Projects", FolderOpen],
+        ["rooms", "Rooms", Handshake],
+        ["graph", "Graph", Network],
+      ] as const).map(([v, label, Icon]) => (
+        <button
+          key={v}
+          onClick={() => setView(v)}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+            view === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Icon className="h-3.5 w-3.5" />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (view === "graph") {
+    return (
+      <div className="flex h-full flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Projects</h1>
+          {viewTabs}
+        </div>
+        <div className="min-h-0 flex-1 rounded-xl border overflow-hidden">
+          <PortfolioPage />
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "rooms") {
+    return (
+      <div className="flex flex-col gap-4 p-6 max-w-6xl mx-auto">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Rooms</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              A room is a place to work with Gerry that is not a project: a goal, pinned material and a running journal. Every project has one built in.
+            </p>
+          </div>
+          {viewTabs}
+        </div>
+        <WorkroomsPage />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6 p-6 max-w-6xl mx-auto">
       {/* Edit modal */}
@@ -681,13 +747,7 @@ export function ProjectsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <NavLink
-            to="/projects/portfolio"
-            className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
-          >
-            <Network className="h-4 w-4" />
-            Portfolio
-          </NavLink>
+          {viewTabs}
           <button
             onClick={() => setShowForm((x) => !x)}
             className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"

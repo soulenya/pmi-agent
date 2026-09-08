@@ -128,11 +128,11 @@ export function ScheduledTasksPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <CalendarClock className="h-6 w-6" /> Scheduled Tasks
+            <CalendarClock className="h-6 w-6" /> Routines
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Tell Little Gerry to do recurring work — like a weekly report — and it runs
-            automatically. Generated files land on the Generated Files page.
+            Standing instructions for Little Gerry — a weekly report, a Monday check — that run
+            on their own. Generated files land under Knowledge › Made by Gerry.
           </p>
         </div>
         <button
@@ -276,7 +276,7 @@ export function ScheduledTasksPage() {
       ) : tasks.length === 0 ? (
         <div className="rounded-xl border border-dashed py-16 text-center">
           <Clock className="mx-auto h-8 w-8 text-muted-foreground/40 mb-3" />
-          <p className="text-sm text-muted-foreground">No scheduled tasks yet.</p>
+          <p className="text-sm text-muted-foreground">No routines yet.</p>
           <p className="text-xs text-muted-foreground mt-1">
             Create one to have Little Gerry produce reports on a recurring schedule.
           </p>

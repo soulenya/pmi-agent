@@ -33,9 +33,10 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   dashboard: {
     tagline: "Today at a glance.",
     capabilities: [
-      "See pending approvals, notifications, today's meetings and recent activity in one place",
+      "What is due today, what is overdue, and what is waiting for you \u2014 approvals, suggestions, notifications \u2014 across this computer and the hub",
       "Read your AI-generated daily briefing",
-      "Jump straight to whatever needs your attention",
+      "Click a task and it opens over the page; Esc puts you back where you were",
+      "Ctrl+K in the search box jumps to anything by name, or asks Gerry a question",
     ],
   },
   assistant: {
@@ -327,7 +328,8 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
  * unknown route.
  */
 export function resolveGuide(pathname: string): ResolvedGuide | null {
-  const loc = locateRoute(pathname);
+  // The workbench's home has no moon; it is the dashboard under a plainer name.
+  const loc = locateRoute(pathname === "/today" ? "/dashboard" : pathname);
 
   let id: string | undefined;
   let title: string | undefined;

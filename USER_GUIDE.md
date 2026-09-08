@@ -91,7 +91,7 @@ automatically. Updates are delivered in-app on both platforms.
 |--------|-----|
 | Start | Double-click the desktop shortcut or `Start Little Gerry.bat` |
 | Stop | Close the window (a confirmation dialog appears) or use the system tray → Stop All Services |
-| Restart services | Click `···` in the sidebar → Restart Services |
+| Restart services | You › Settings › System › Services → Restart Services (also in the tray menu) |
 
 ---
 
@@ -208,7 +208,14 @@ Your profile is **yours alone**. It is stored against your account, never shared
 | **Odoo ERP** | Connect your Odoo account (API key) so Little Gerry can read and propose ERP actions |
 | **Settings** | Configure AI providers, appearance, and Google integration |
 
-> **Finding your way around.** The home screen is a **solar system**: Little Gerry is the sun (click her to chat), **Dashboard**, the **Daily Assistant** and **Workrooms** orbit close in, and five planets group the modules — **Work**, **Knowledge**, **Communications**, **Odoo**, and **Compliance** — with each feature page as a moon. The narrow **left rail** shows the sun and the five planets from anywhere in the app: click a planet to zoom into it, or simply **hover over it** and a menu glides out listing its moons so you can jump straight to any page in one click. The **chat bubble under the sun** returns you to your last open Gerry conversation from any page. Esc zooms back out a level.
+> **Finding your way around.** The app is a **workbench**: a narrow rail on the left, a search box at the top, the page in the middle, and Gerry on the right.
+>
+> - The **rail** has eight places, always in the same order: **Today**, **Projects**, **Tasks**, **Mail**, **Knowledge**, **Calendar**, **Compliance**, **Finance**. Hover for the name. A place that holds more than one page shows a thin row of tabs under the search box — Mail has Inbox and Contacts, Knowledge has the Knowledge Base, Search, Research, Browser and Made by Gerry, Compliance has Regulatory, Approvals and Audit trail. Below the eight, the **last five places you were** — a project, a conversation — appear as two-letter chips so what you were just doing is one click back. At the bottom, **You**: your settings, users, notifications, help, feedback, what's new and sign out.
+> - The **search box** (Ctrl+K from anywhere) does three things. Type a *name* and it lists matching projects, tasks, documents, conversations and people — Enter jumps, and a task opens over the page you are on rather than taking you away. Type a *question* and Enter sends it to Gerry in the panel. Type **/** for commands: `/task`, `/project`, `/kb`, `/routine`, `/meeting`, `/settings`.
+> - **Home is Today**: what is due, what is overdue, what is waiting for you, the briefing, and your recent conversations.
+> - **Esc** closes whatever is open over the page.
+>
+> The solar-system layout this replaced is still there for now: **You › Old layout**, or Settings › Profile › Appearance › Layout. It goes in a later release.
 
 > **Going back.** The **‹ ›** arrows at the top left retrace your steps, exactly as a browser's back and forward do. Leave a project for the chat and one press of **‹** puts you back where you were. **Alt+←** and **Alt+→** do the same from the keyboard (**⌘[** and **⌘]** on a Mac).
 
@@ -308,7 +315,7 @@ The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Go
 
 A **Workroom** is a persistent co-work space you share with Little Gerry — built for work that spans days or weeks, like a regulatory submission, an audit prep, or a fundraise.
 
-- **Create a room** from the Workrooms satellite next to the sun (or the Workrooms section in the chat sidebar). Give it a title and a **goal** — what you're working toward.
+- **Create a room** from **Projects › Rooms** (or the Workrooms section in the chat sidebar). Give it a title and a **goal** — what you're working toward. Every project has a room built in; the Rooms view is for the ones that are not a project.
 - **Change the goal whenever the work turns.** Edit the Goal box and click **Save goal**; the change is written into the room's journal with the previous wording, the new wording and your name, so it travels into the room chat. Gerry always works from the goal as it stands now, knows you edit it yourself without telling her, and will read the current wording back to you rather than insisting it's still the original. Renaming a room is recorded the same way.
 - **Pin artifacts** to the room: Drive docs, Knowledge Base documents, generated files, notes, **websites**, email threads, tasks, Odoo records, regulatory documents, and budgets. Pick the category, click **Browse …** and a picker opens listing everything of that kind — search it, click the item, and it's pinned with the right label and reference filled in for you (Drive opens the full Drive browser, so you can pin several files at once; **Note** just asks for the text). If you already know a raw ID, **Or pin by reference** still lets you type it in by hand. When a budget is pinned, Gerry's budget writes are journaled in the room automatically.
   - **Websites** keep a source where you can find it again — paste the address (`iqt.org/mission` is enough, no need to type `https://`) and optionally say what it is. Pinned websites are clickable in the room and open in your browser, and Gerry sees the address every turn, so she can re-read the page instead of searching for it again.
@@ -317,8 +324,8 @@ A **Workroom** is a persistent co-work space you share with Little Gerry — bui
 - **She won't wander into another room's files.** Drive results tell Gerry which room a document belongs to. If she opens one pinned to a different room she says so first, and if she's about to *edit* it she stops and asks you to confirm — so last month's deck doesn't get rewritten because the filename looked close enough.
 - **You can both work in the same document.** When Gerry reads a Drive file or a deck she sees when it was last saved and by whom. If you've touched it in the last half hour she treats what she just read as the live version — she won't re-apply edits she already made, or overwrite wording you've just changed. If you've been editing while she works, tell her to re-read before she reports on progress.
 - **Log progress** in the room's journal ("Sent draft to Lindsey for review"). The latest entries travel with the room chat, so Gerry always knows where things stand.
-- **Gerry works between sessions**: give a room a **standing task** ("check for new FDA guidance every morning") from the Scheduled Tasks page or by asking Gerry in the room — runs happen in the room chat with full room context. Each morning a **digest** posts into active rooms (pinned docs edited, deadlines approaching, progress logged), and Gerry proposes a **next step** you can accept (creates a task, pinned to the room) or dismiss. A room waits until you've answered its current next step before proposing another, so they don't stack up while you're busy elsewhere.
-  - Every scheduled run starts from a blank slate — Gerry cannot see the previous run's answer, so she has to do the work again rather than reword last week's report. Any file a run produces appears on the Scheduled Tasks page with the usual **Download**, **Open in Workspace**, **Add to KB** and **Pin** buttons. If a run ever claims a file that isn't really there, the run is marked failed instead of passing as a report.
+- **Gerry works between sessions**: give a room a **standing task** ("check for new FDA guidance every morning") from **Tasks › Routines** or by asking Gerry in the room — runs happen in the room chat with full room context. Each morning a **digest** posts into active rooms (pinned docs edited, deadlines approaching, progress logged), and Gerry proposes a **next step** you can accept (creates a task, pinned to the room) or dismiss. A room waits until you've answered its current next step before proposing another, so they don't stack up while you're busy elsewhere.
+  - Every scheduled run starts from a blank slate — Gerry cannot see the previous run's answer, so she has to do the work again rather than reword last week's report. Any file a run produces appears under **Tasks › Routines** with the usual **Download**, **Open in Workspace**, **Add to KB** and **Pin** buttons. If a run ever claims a file that isn't really there, the run is marked failed instead of passing as a report.
 - **Share a room with a teammate**: click **Share to Drive** and the room's definition (goal + pinned items) is published to a "Little Gerry Workrooms" folder on the shared Drive. Teammates see it under **Shared on Drive** and can **join** — they get their own mirror of the room with their own Gerry, chat, and journal. Use **Push update** to publish changes and **Pull latest** to refresh your mirror (pulling adds new pins, never deletes yours).
 - **Archive** a room when the work wraps up — archived rooms stop injecting context but keep their history; restore them anytime.
 
@@ -688,7 +695,7 @@ If the wait no longer applies, **waive** the gate. A waived gate stops flagging 
 
 #### The Portfolio
 
-**Projects → Portfolio**, or the Portfolio moon in the Work planet.
+**Projects → Graph** (the third view on the Projects page).
 
 Every project you can see, on this computer and on the hub, drawn as a card and laid out left to right by what waits on what. Hub projects carry a small **hub** pill. Each card carries the project's goal, how much work is open, how much is late, how many gates are still open, and the next milestone with its date. Dependencies and gates are arrows; parallel work is a dashed line; an open gate's arrow moves. Double-click a card to open that project where it lives.
 
@@ -976,7 +983,7 @@ Rewriting a box keeps that box's own font, size, colour and spacing — see the 
 
 ## Google Workspace
 
-Navigate to **Settings → Google Integration**.
+Navigate to **Settings › Connections › Google Workspace**.
 
 ### Connecting
 
@@ -1041,7 +1048,7 @@ Open **Odoo ERP** from the home screen to connect your Odoo account.
 
 ## Manage Budgets
 
-Navigate to **Manage Budgets** (a moon on the **Enterprise** planet). A personal financial-management aid — **not** the company's official books.
+Navigate to **Finance › Budgets**. A personal financial-management aid — **not** the company's official books.
 
 - **Create a budget** with a title, optional allotment, and categories — it's created as a **Google Sheet in the company's shared budgets folder** on Drive, so every budget lives in one known place. You own your sheet and can open it anytime.
 - **One ledger, two surfaces**: add, edit, or delete entries in Little Gerry OR directly in Google Sheets — changes reflect in both. The page refreshes automatically while open, and every edit re-checks the sheet first so nothing gets clobbered.

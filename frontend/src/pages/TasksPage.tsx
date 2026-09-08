@@ -11,6 +11,7 @@ import { TaskDrawer } from "@/components/tasks/TaskDrawer";
 import { TaskSourceActions, sourceSummary } from "@/components/tasks/TaskSourceActions";
 import { AskGerryButton } from "@/components/AskGerryButton";
 import { HubBadge } from "@/components/HubBadge";
+import { ScheduledTasksPage } from "@/pages/ScheduledTasksPage";
 import {
   useAllProjects,
   useAllTasks,
@@ -556,7 +557,9 @@ function GoogleTasksImportModal({ onClose }: { onClose: () => void }) {
 
 export function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [showNewTask, setShowNewTask] = useState(false);
+  // Routines are Gerry's standing jobs; they share this page so "task" means one thing in the rail.
+  const tab = searchParams.get("tab") === "routines" ? "routines" : "tasks";
+  const [showNewTask, setShowNewTask] = useState(searchParams.get("new") === "1");
   const [showGoogleImport, setShowGoogleImport] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>("active");
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -691,6 +694,31 @@ export function TasksPage() {
 
   return (
     <div className={cn("flex flex-col gap-6 p-6 mx-auto", view === "kanban" ? "max-w-full" : "max-w-4xl")}>
+      {/* Tasks | Routines */}
+      <div className="flex gap-1 rounded-lg border bg-muted p-1 self-start">
+        {(["tasks", "routines"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              if (t === "routines") next.set("tab", "routines");
+              else next.delete("tab");
+              setSearchParams(next);
+            }}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              tab === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t === "tasks" ? "Tasks" : "Routines"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "routines" ? (
+        <ScheduledTasksPage />
+      ) : (
+        <>
       {/* Task detail drawer */}
       {liveSelectedTask && (
         <TaskDrawer
@@ -934,6 +962,8 @@ export function TasksPage() {
             Cancel
           </button>
         </div>
+      )}
+        </>
       )}
     </div>
   );
