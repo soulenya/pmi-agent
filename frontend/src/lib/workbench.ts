@@ -20,7 +20,7 @@ export interface RailPage {
   route: string;
   label: string;
   /** Show a count from the badge store. */
-  badge?: "approvals" | "notifications" | "assistant";
+  badge?: "waiting" | "assistant";
 }
 
 export interface RailItem {
@@ -40,8 +40,12 @@ export const RAIL: RailItem[] = [
     label: "Today",
     icon: Sun,
     route: "/today",
-    pages: [{ route: "/today", label: "Today" }, { route: "/assistant", label: "Suggestions", badge: "assistant" }],
-    also: ["/dashboard"],
+    pages: [
+      { route: "/today", label: "Today" },
+      { route: "/waiting", label: "Waiting for you", badge: "waiting" },
+      { route: "/assistant", label: "Suggestions", badge: "assistant" },
+    ],
+    also: ["/dashboard", "/approvals", "/notifications"],
   },
   {
     id: "projects",
@@ -99,7 +103,6 @@ export const RAIL: RailItem[] = [
     route: "/regulatory",
     pages: [
       { route: "/regulatory", label: "Regulatory" },
-      { route: "/approvals", label: "Approvals", badge: "approvals" },
       { route: "/audit", label: "Audit trail" },
     ],
   },

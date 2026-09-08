@@ -15,12 +15,11 @@ import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
 // bundle as the login form.
 const DashboardPage = lazy(() => import("@/pages/DashboardPage").then(m => ({ default: m.DashboardPage })));
 const ChatPage = lazy(() => import("@/pages/ChatPage").then(m => ({ default: m.ChatPage })));
-const ApprovalsPage = lazy(() => import("@/pages/ApprovalsPage").then(m => ({ default: m.ApprovalsPage })));
+const WaitingPage = lazy(() => import("@/pages/WaitingPage").then(m => ({ default: m.WaitingPage })));
 const AssistantPage = lazy(() => import("@/pages/AssistantPage").then(m => ({ default: m.AssistantPage })));
 const DocumentsPage = lazy(() => import("@/pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
 const TasksPage = lazy(() => import("@/pages/TasksPage").then(m => ({ default: m.TasksPage })));
 const RegulatoryPage = lazy(() => import("@/pages/RegulatoryPage").then(m => ({ default: m.RegulatoryPage })));
-const NotificationsPage = lazy(() => import("@/pages/NotificationsPage").then(m => ({ default: m.NotificationsPage })));
 const ResearchPage = lazy(() => import("@/pages/ResearchPage").then(m => ({ default: m.ResearchPage })));
 const ResearchBrowserPage = lazy(() => import("@/pages/ResearchBrowserPage").then(m => ({ default: m.ResearchBrowserPage })));
 const ProjectsPage = lazy(() => import("@/pages/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
@@ -98,14 +97,15 @@ function ThemedApp() {
             <Route path="chat" element={<Page><ChatPage /></Page>} />
             <Route path="chat/:conversationId" element={<Page><ChatPage /></Page>} />
             <Route path="hub/chat/:conversationId" element={<Page><ChatPage source="hub" /></Page>} />
-            <Route path="approvals" element={<Page><ApprovalsPage /></Page>} />
+            <Route path="waiting" element={<Page><WaitingPage /></Page>} />
+            <Route path="approvals" element={<Navigate to="/waiting?tab=approvals" replace />} />
             <Route path="assistant" element={<Page><AssistantPage /></Page>} />
             <Route path="documents" element={<Page><DocumentsPage /></Page>} />
             <Route path="search" element={<SearchRedirect />} />
             <Route path="tasks" element={<Page><TasksPage /></Page>} />
             <Route path="scheduled-tasks" element={<Navigate to="/tasks?tab=routines" replace />} />
             <Route path="regulatory" element={<Page><RegulatoryPage /></Page>} />
-            <Route path="notifications" element={<Page><NotificationsPage /></Page>} />
+            <Route path="notifications" element={<Navigate to="/waiting?tab=notifications" replace />} />
             <Route path="research" element={<Page><ResearchPage /></Page>} />
             <Route path="browser" element={<Page><ResearchBrowserPage /></Page>} />
             <Route path="projects" element={<Page><ProjectsPage /></Page>} />

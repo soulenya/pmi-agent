@@ -4,6 +4,54 @@
 
 ## Changelog
 
+### v5.0.2 — 2026-09-08 (unreleased; ships with 5.0.0)
+**One place for what is waiting**
+
+Phase 4 of the UI simplification.
+
+- **`components/waiting/WaitingForYou.tsx`** — the one list: tabs Approvals /
+  Suggestions / Notifications, props `tab`, `onTabChange`, `limit` (Today and
+  the bell cap rows and link "+N more" to `/waiting?tab=`), `onNavigate`.
+  Exports `useWaitingCounts()` (`approvals`, `suggestions`, `notifications`
+  unread, `total` = approvals + unread), `defaultWaitingTab()`,
+  `notificationRoute()` (moved from the dropdown; `approval_required` →
+  `/waiting?tab=approvals`, `briefing_ready` → `/today`), `WAITING_TABS`,
+  `isWaitingTab()`. Approvals tab reuses `ApprovalCard compact` +
+  `useResolveApproval` and carries the "Clear N expired" button; Suggestions
+  tab renders compact rows with Accept / Already done / Dismiss (two-click)
+  using `acceptSuggestion` / `completeSuggestion` / `dismissSuggestion`;
+  Notifications tab has Mark all read. **A notification's Approve/Reject shows
+  only while its `entity_id` is in the pending approvals list** — read state
+  no longer decides it.
+- **`components/waiting/WaitingBell.tsx`** — the single header bell (badge
+  amber when approvals pending, else destructive) opening a right drawer with
+  the list and a "Full page" link. Replaces `ApprovalsDrawer` and
+  `NotificationDropdown` in both `WorkbenchHeader` and the orbit `Header`.
+- **`pages/WaitingPage.tsx`** at `/waiting?tab=`; `/approvals` →
+  `/waiting?tab=approvals`, `/notifications` → `/waiting?tab=notifications`.
+  `ApprovalsPage.tsx`, `NotificationsPage.tsx`, `ApprovalsDrawer.tsx`,
+  `NotificationDropdown.tsx` deleted.
+- **`lib/workbench.ts`**: Today pages = Today, Waiting for you (`badge:
+  "waiting"`), Suggestions; Compliance drops its Approvals tab; `RailPage.badge`
+  is now `"waiting" | "assistant"`. `Rail` and `SectionTabs` read
+  `useWaitingCounts()` (the private `useBadges` is gone). You menu →
+  Notifications opens `/waiting?tab=notifications`.
+- **Today (`DashboardPage`)**: the three count tiles are replaced by the
+  `WaitingForYou` list inline (`limit={4}`, "See all").
+- **`lib/formatWhen.ts`** — `formatWhen(value, {overdue?, time?})` → Today /
+  Tomorrow / Yesterday / "Sun, Sep 13" / "Jul 5, 2027" / "3 days overdue";
+  `formatAgo(value)` → just now / 5m ago / 2h ago / 3d ago, then the date.
+  Both read `pmi-timezone`; a bare `YYYY-MM-DD` is treated as a calendar day.
+  Used on Today, Tasks list + kanban, project Tasks tab, TaskDrawer,
+  DocumentsPage and Settings (their local `timeAgo` / `relTime` /
+  `formatShortDate` copies removed).
+- **`lib/suggestionKinds.ts`** — `SUGGESTION_KIND_META` + `stripRoomPrefix`
+  moved out of `AssistantPage` so the list and the page share them.
+- Links updated: Omnibar pages (Approvals / Notifications), ChatSidebar
+  route labels, BriefingPanel approvals section, Inbox batch notice,
+  TaskSourceActions / Assistant / Odoo toasts ("under Waiting for you").
+  Feature guide gains a `waiting` entry; `resolveGuide` maps `/waiting`.
+
 ### v5.0.1 — 2026-09-08 (unreleased; ships with 5.0.0)
 **One way into the Knowledge Base**
 

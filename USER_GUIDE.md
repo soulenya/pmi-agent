@@ -47,11 +47,10 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 22. [Google Workspace](#google-workspace)
 23. [Odoo ERP](#odoo-erp)
 24. [Manage Budgets](#manage-budgets)
-25. [Approvals Queue](#approvals-queue)
-26. [Notifications](#notifications)
-27. [Settings](#settings)
-28. [Updating Little Gerry](#updating-little-gerry)
-29. [Tips & Example Prompts](#tips--example-prompts)
+25. [Waiting for you](#waiting-for-you)
+26. [Settings](#settings)
+27. [Updating Little Gerry](#updating-little-gerry)
+28. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -259,9 +258,9 @@ You can approve wherever is most convenient — no need to change pages:
 
 - **In the email thread** — when Gerry drafts a reply, the draft appears at the top of that thread with **Approve**, **Edit**, and **Reject** buttons.
 - **In the chat** — when Gerry proposes an action mid-conversation, the approval card appears right there in the conversation.
-- **From the top bar** — the clipboard icon (with a pending count) opens the **approvals drawer** on any page.
-- **From a notification** — approval notifications include **Approve** and **Reject** buttons.
-- The **Approvals** page still lists everything in one place.
+- **From the bell** — the bell at the top of any page opens **Waiting for you**; its Approvals tab lists everything pending.
+- **From a notification** — an approval notification shows **Approve** and **Reject** while the decision is still open.
+- **Today → Waiting for you** is the same list as a full page.
 
 Whichever way you approve, a **confirmation appears in the bottom-right corner** telling you the email was sent (or exactly why it couldn't be).
 
@@ -896,7 +895,7 @@ Open **Gmail** and switch to the **Drafts** view at the top of the page, then **
 2. Click **Generate** — Little Gerry drafts the email using Claude
 3. Review and edit the draft
 
-When you're ready, **submit the draft for approval** — the card then shows **Approve & Send** and **Reject** buttons right there, so you can send it without leaving the page (it also appears in the approvals drawer and notifications like any other approval). Approving sends the email from your connected Gmail account. If an approved email can't be sent (for example it's missing a recipient), it's returned here as an editable draft with a note explaining why, so you can fix it and resubmit.
+When you're ready, **submit the draft for approval** — the card then shows **Approve & Send** and **Reject** buttons right there, so you can send it without leaving the page (it also appears under the bell and in notifications like any other approval). Approving sends the email from your connected Gmail account. If an approved email can't be sent (for example it's missing a recipient), it's returned here as an editable draft with a note explaining why, so you can fix it and resubmit.
 
 > You can also compose and send email directly from the [Gmail composer](#gmail-inbox-compose--replies) without going through drafts.
 
@@ -1095,26 +1094,19 @@ Navigate to **Finance › Budgets**. A personal financial-management aid — **n
 
 ---
 
-## Approvals Queue
+## Waiting for you
 
-Navigate to **Approvals**.
+One list of everything that needs you, in three tabs. Open it from the **bell** at the top of any page, from **Today → Waiting for you**, or from the card on the Today page. The number on the bell is decisions waiting plus unread notifications.
 
-Any action Little Gerry proposes that could have real-world consequences (sending an email, creating a calendar event) appears here first with an AI-generated summary.
+| Tab | What is there | What you can do |
+|-----|---------------|-----------------|
+| **Approvals** | Any action Little Gerry proposes that could have real-world consequences — sending an email, creating a calendar event, writing to Odoo — with an AI-generated summary. | **Approve** runs it; **Reject** (with an optional comment) cancels it. Edit a drafted email before approving. **Clear expired** removes requests that timed out. Every decision is logged in the Audit Trail. |
+| **Suggestions** | Gerry's daily-scan suggestions: follow-ups, recommended tasks, imported meeting notes, budget entries. | **Create task** / **Keep** / **File & log** (the accept action depends on the kind), **Already done**, or **Dismiss**. Trust scores, grouping and bulk actions are on the full Suggestions page. |
+| **Notifications** | Task assignments and due-date reminders, new approval requests, briefings, documents added. | Click one to go where it points; **Mark all read** clears the count. |
 
-- Click **Approve** to execute the action
-- Click **Reject** (with an optional comment) to cancel it
-- All approvals and rejections are logged in the Audit Trail
+Approve and Reject buttons appear only while the decision is still open — approve something from the email thread or chat and it disappears from every other surface at once. Reading a notification does not change what you can do about it.
 
----
-
-## Notifications
-
-The bell icon in the sidebar shows unread notifications. Notifications appear for:
-- Task assignments and due date reminders
-- New approval requests
-- AI-generated briefings
-
-Click any notification to navigate to the relevant page.
+The old **Approvals** and **Notifications** pages open this list on the matching tab.
 
 ---
 

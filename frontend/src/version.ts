@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 251;
+export const BUILD_NUMBER = 252;
 export const BUILD_DATE = "2026-09-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 252,
+    date: "2026-09-08",
+    title: "One place for what is waiting",
+    changes: [
+      "One bell at the top. It opens Waiting for you: three tabs for Approvals, Suggestions and Notifications. The number on it is decisions plus unread. The separate approvals drawer and notifications dropdown are gone.",
+      "Waiting for you is also a page (Today > Waiting for you) and a card on Today that shows the first few items with the same tabs. The Approvals and Notifications pages redirect there.",
+      "Approve and Reject only appear while the decision is still open, everywhere. Reading a notification no longer changes what you can do about it.",
+      "Accept a suggestion, mark it Already done or dismiss it from the bell without opening the Suggestions page. The page stays for trust scores and bulk actions.",
+      "Dates read the same way everywhere: Today, Tomorrow, Yesterday, Sun, Sep 13, or 3 days overdue on a late task. Times ago read just now, 5m ago, 2h ago, 3d ago.",
+    ],
+  },
   {
     build: 251,
     date: "2026-09-08",

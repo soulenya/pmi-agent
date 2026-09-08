@@ -259,7 +259,7 @@ function DataBrowser() {
     onSuccess: (res) =>
       setActionMsg(
         `Queued for approval: “${res.title}” (${res.risk_level} risk). ` +
-          "Approve it on the Approvals page to run it.",
+          "Approve it under Waiting for you to run it.",
       ),
     onError: (e: unknown) => {
       const err = e as { response?: { data?: { detail?: string } } };

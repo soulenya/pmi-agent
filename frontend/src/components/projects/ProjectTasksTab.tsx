@@ -29,6 +29,7 @@ import { DRAG_MIME, type RailItem } from "@/components/projects/canvas/board";
 import { useProjectInvalidate } from "@/hooks/useProjectInvalidate";
 import { STATUS_EDGE, TASK_STATUSES } from "@/lib/taskStatus";
 import { cn } from "@/lib/utils";
+import { formatWhen } from "@/lib/formatWhen";
 import type {
   ProjectMember,
   Task,
@@ -68,7 +69,8 @@ function dueLabel(task: Task): { text: string; late: boolean } | null {
   if (!task.due_date) return null;
   const due = new Date(task.due_date);
   const open = task.status !== "done" && task.status !== "cancelled";
-  return { text: due.toLocaleDateString(), late: open && due < new Date() };
+  const late = open && due < new Date();
+  return { text: formatWhen(task.due_date, { overdue: late }), late };
 }
 
 function memberName(members: ProjectMember[], userId: string | null): string | null {

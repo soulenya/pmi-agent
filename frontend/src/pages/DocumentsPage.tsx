@@ -61,6 +61,7 @@ import {
   FileUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatAgo } from "@/lib/formatWhen";
 import axios from "axios";
 
 // â”€â”€ Extract a human-readable error message from an axios/unknown error â”€â”€â”€â”€â”€â”€
@@ -129,13 +130,7 @@ function formatBytes(bytes: number | null) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function timeAgo(iso: string) {
-  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (secs < 60) return "just now";
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
-  return `${Math.floor(secs / 86400)}d ago`;
-}
+const timeAgo = formatAgo;
 
 // â”€â”€ Upload modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 

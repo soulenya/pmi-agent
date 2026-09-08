@@ -88,7 +88,7 @@ export function TaskSourceActions({
     onMutate: () => setDrafting(true),
     onSettled: () => setDrafting(false),
     onSuccess: () =>
-      push("success", "Gerry drafted a reply — approve it on the Approvals page."),
+      push("success", "Gerry drafted a reply — approve it under Waiting for you."),
     onError: () => push("error", "Couldn't draft a reply for that email."),
   });
 

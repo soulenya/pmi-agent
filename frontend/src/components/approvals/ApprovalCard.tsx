@@ -1,6 +1,6 @@
 /**
- * Shared approval UI — used by the Approvals page, the global approvals
- * drawer, inline cards in Inbox threads, and inline cards in Chat.
+ * Shared approval UI — used by the Waiting-for-you list (bell, page, Today),
+ * inline cards in Inbox threads, and inline cards in Chat.
  * One implementation so approve/edit/reject behaves identically everywhere.
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";

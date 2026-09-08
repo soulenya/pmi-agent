@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { User, Cpu, Bell, Palette, Save, Check, Loader2, KeyRound, CheckCircle2, XCircle, RefreshCw, Activity, Database, HardDrive, Wifi, Download, GitBranch, BookOpen, AlertTriangle, RotateCcw, Mic, Star, SlidersHorizontal, Building2, ExternalLink, ScanText, PenLine, Pencil, Trash2, Upload, Sparkles, ChevronDown, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatAgo } from "@/lib/formatWhen";
 import {
   getDataSummary,
   createDataExport,
@@ -987,16 +988,7 @@ Flagship product: VACTOR, [one-line description].
 - If a fact isn't in this file or a KB/tool result, say so — don't guess.
 - For anything beyond this summary, use search_knowledge_base.`;
 
-function relTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m} minute${m === 1 ? "" : "s"} ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
-  const d = Math.floor(h / 24);
-  return `${d} day${d === 1 ? "" : "s"} ago`;
-}
+const relTime = formatAgo;
 
 /** Extract a Drive file/folder ID from a pasted ID or a full Drive URL. */
 function parseDriveFileId(raw: string): string {

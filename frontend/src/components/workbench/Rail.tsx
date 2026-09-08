@@ -5,7 +5,6 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   BookOpen,
@@ -19,11 +18,10 @@ import {
   X,
 } from "lucide-react";
 
-import { getPendingSuggestionCount } from "@/api/assistant";
 import { logout as apiLogout } from "@/api/auth";
-import { listNotifications, listPendingApprovals } from "@/api/chat";
 import { BrowserDock } from "@/components/layout/BrowserDock";
 import { FeedbackModal } from "@/components/layout/FeedbackButton";
+import { useWaitingCounts } from "@/components/waiting/WaitingForYou";
 import { RAIL, railItemFor } from "@/lib/workbench";
 import { resolveGuide } from "@/lib/featureGuide";
 import { cn } from "@/lib/utils";
@@ -33,29 +31,6 @@ import { useFeatureGuideStore } from "@/stores/featureGuideStore";
 import { useRecentPlacesStore } from "@/stores/recentPlacesStore";
 import { useShellStore } from "@/stores/shellStore";
 import { BUILD_NUMBER } from "@/version";
-
-function useBadges() {
-  const { data: approvals = [] } = useQuery({
-    queryKey: ["approvals", "pending"],
-    queryFn: () => listPendingApprovals(),
-    refetchInterval: 30_000,
-  });
-  const { data: notifications = [] } = useQuery({
-    queryKey: ["notifications"],
-    queryFn: listNotifications,
-    staleTime: 30_000,
-  });
-  const { data: suggestions = 0 } = useQuery({
-    queryKey: ["assistant", "suggestions", "count"],
-    queryFn: getPendingSuggestionCount,
-    refetchInterval: 30_000,
-  });
-  return {
-    approvals: approvals.length,
-    notifications: notifications.filter((n) => !n.is_read).length,
-    assistant: suggestions,
-  };
-}
 
 function Dot({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -104,7 +79,7 @@ export function Rail() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const here = railItemFor(pathname);
-  const badges = useBadges();
+  const counts = useWaitingCounts();
   const places = useRecentPlacesStore((s) => s.places);
   const forget = useRecentPlacesStore((s) => s.forget);
 
@@ -113,10 +88,7 @@ export function Rail() {
       {RAIL.map((item) => {
         const Icon = item.icon;
         // Suggestions are a stream, not a queue; their count lives on the tab, not the rail.
-        const count = item.pages.reduce(
-          (n, p) => n + (p.badge && p.badge !== "assistant" ? badges[p.badge] : 0),
-          0,
-        );
+        const count = item.pages.reduce((n, p) => n + (p.badge === "waiting" ? counts.total : 0), 0);
         return (
           <RailButton
             key={item.id}
@@ -189,7 +161,7 @@ function YouMenu({ onNavigate }: { onNavigate: (to: string) => void }) {
   const requestGuide = useFeatureGuideStore((s) => s.requestOpen);
   const showWhatsNew = useBootPopupStore((s) => s.reopenWhatsNew);
   const setShell = useShellStore((s) => s.setShell);
-  const badges = useBadges();
+  const counts = useWaitingCounts();
   const guide = resolveGuide(pathname);
   const isAdmin = user?.role === "admin";
 
@@ -246,7 +218,7 @@ function YouMenu({ onNavigate }: { onNavigate: (to: string) => void }) {
         )}
       >
         {initials}
-        <Dot count={badges.notifications} />
+        <Dot count={counts.notifications} />
       </button>
 
       {open && (
@@ -260,11 +232,11 @@ function YouMenu({ onNavigate }: { onNavigate: (to: string) => void }) {
             <Settings className="h-4 w-4" /> Settings
             <kbd className="ml-auto rounded border bg-background px-1 text-[10px]">Ctrl+,</kbd>
           </button>
-          <button type="button" className={item} onClick={() => go("/notifications")}>
+          <button type="button" className={item} onClick={() => go("/waiting?tab=notifications")}>
             <Bell className="h-4 w-4" /> Notifications
-            {badges.notifications > 0 && (
+            {counts.notifications > 0 && (
               <span className="ml-auto rounded-full bg-destructive px-1.5 text-[10px] text-destructive-foreground">
-                {badges.notifications}
+                {counts.notifications}
               </span>
             )}
           </button>
