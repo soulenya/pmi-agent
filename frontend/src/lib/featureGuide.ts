@@ -5,7 +5,7 @@
  * app. Keyed by the celestial node id (sun / satellite / planet / moon) so the
  * same content powers both the once-per-build auto-popup and the Help button.
  */
-import { HelpCircle, type LucideIcon } from "lucide-react";
+import { Bell, HelpCircle, type LucideIcon } from "lucide-react";
 import { locateRoute, SUN, SATELLITES } from "@/lib/solarSystem";
 
 export interface FeatureGuideEntry {
@@ -260,10 +260,19 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   approvals: {
     tagline: "Nothing happens without your say-so.",
     capabilities: [
-      "Every outbound action — emails, calendar events, ERP changes — waits here for your explicit OK",
-      "Approve from wherever you are: in the email thread, in chat, from a notification, or the top-bar drawer",
+      "Every outbound action — emails, calendar events, ERP changes — waits for your explicit OK",
+      "Approve from wherever you are: in the email thread, in chat, or from the bell at the top",
       "Edit Gerry's drafted emails before approving; rejected drafts return for editing",
       "A clear 'sent' confirmation follows every approved email",
+    ],
+  },
+  waiting: {
+    tagline: "One list of what needs you.",
+    capabilities: [
+      "Approvals, Gerry's suggestions and notifications in one place, with a tab for each",
+      "The bell at the top opens the same list from any page; its number is decisions plus unread",
+      "Approve or reject right here — the buttons only show while the decision is still open",
+      "Accept a suggestion, mark it already done, or dismiss it without leaving the list",
     ],
   },
   audit: {
@@ -286,8 +295,8 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   notifications: {
     tagline: "Stay informed without checking everywhere.",
     capabilities: [
-      "See alerts about approvals, tasks, documents and system activity",
-      "Approve or reject Gerry's pending actions right from the notification",
+      "See alerts about approvals, tasks, documents and system activity under Waiting for you",
+      "Approve or reject Gerry's pending actions right from the notification while the decision is open",
       "Every notification links straight to the page where it matters",
     ],
   },
@@ -329,6 +338,10 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
  * unknown route.
  */
 export function resolveGuide(pathname: string): ResolvedGuide | null {
+  // Pages the workbench added that the old map never had.
+  if (pathname === "/waiting" || pathname.startsWith("/waiting?")) {
+    return { id: "waiting", title: "Waiting for you", icon: Bell, ...FEATURE_GUIDE.waiting };
+  }
   // The workbench's home has no moon; it is the dashboard under a plainer name.
   const loc = locateRoute(pathname === "/today" ? "/dashboard" : pathname);
 

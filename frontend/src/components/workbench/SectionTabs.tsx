@@ -3,10 +3,8 @@
  * the item holds more than one page.
  */
 import { NavLink, useLocation } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 
-import { getPendingSuggestionCount } from "@/api/assistant";
-import { listPendingApprovals } from "@/api/chat";
+import { useWaitingCounts } from "@/components/waiting/WaitingForYou";
 import { railItemFor, railPageFor } from "@/lib/workbench";
 import { cn } from "@/lib/utils";
 
@@ -14,26 +12,14 @@ export function SectionTabs() {
   const { pathname } = useLocation();
   const item = railItemFor(pathname);
   const page = railPageFor(pathname);
-
-  const { data: approvals = [] } = useQuery({
-    queryKey: ["approvals", "pending"],
-    queryFn: () => listPendingApprovals(),
-    refetchInterval: 30_000,
-    enabled: item?.pages.some((p) => p.badge === "approvals") ?? false,
-  });
-  const { data: suggestions = 0 } = useQuery({
-    queryKey: ["assistant", "suggestions", "count"],
-    queryFn: getPendingSuggestionCount,
-    refetchInterval: 30_000,
-    enabled: item?.pages.some((p) => p.badge === "assistant") ?? false,
-  });
+  const counts = useWaitingCounts();
 
   if (!item || item.pages.length < 2) return null;
 
   return (
     <nav className="flex items-center gap-1 border-t px-4">
       {item.pages.map((p) => {
-        const count = p.badge === "approvals" ? approvals.length : p.badge === "assistant" ? suggestions : 0;
+        const count = p.badge === "waiting" ? counts.total : p.badge === "assistant" ? counts.suggestions : 0;
         const active = page?.route === p.route;
         return (
           <NavLink

@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen, LayoutList, Columns2, ListChecks, Trash2, MoveRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatWhen } from "@/lib/formatWhen";
 import { createTask, updateTask, deleteTask, type Source } from "@/api/tasks";
 import { getGoogleStatus, listGoogleTasks, importGoogleTasks } from "@/api/google";
 import type { TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
@@ -248,7 +249,7 @@ function TaskRow({
               isOverdue ? "text-destructive font-medium" : "text-muted-foreground"
             )}
           >
-            {new Date(task.due_date).toLocaleDateString()}
+            {formatWhen(task.due_date, { overdue: !!isOverdue })}
           </span>
         )}
         <AskGerryButton
@@ -343,7 +344,7 @@ function KanbanCard({
               isOverdue ? "text-destructive font-medium" : "text-muted-foreground"
             )}
           >
-            {new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            {formatWhen(task.due_date, { overdue: !!isOverdue })}
           </span>
         )}
         {subtaskCount > 0 && (

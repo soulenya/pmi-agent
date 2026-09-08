@@ -66,8 +66,7 @@ Key design principles:
 | **Email Drafts**           | AI-generated email drafts for regulatory, investor, and operational communications; submit for approval to send from your Gmail account. A view inside Gmail |
 | **Regulatory**             | File explorer for regulatory documents (DHF, IFU, 510(k), ISO 13485): browse/create folders, upload, import from Drive, edit, rename, move, and delete — write access gated per user |
 | **Slide Decks**            | Ask for a presentation and Gerry builds a real deck in the company house style — fourteen layouts, brand colours and type measured from the company's own deck, uploaded to Drive as native Google Slides. Every deck carries a security classification you choose; the theme itself lives in the shared templates folder, so the look changes without a release |
-| **Approvals**              | Approve/reject anywhere — inline in the email thread, inline in chat, from any notification, or from the global top-bar approvals drawer — with automatic execution and full audit trail |
-| **Notifications**          | Actionable notifications — approve/reject approvals directly from the bell, with deep links to the right page for everything else          |
+| **Waiting for you**        | One bell, one list: Approvals, Suggestions and Notifications as three tabs, opened from the bell on any page, from Today, or at `/waiting`. Approve/reject appears only while the decision is still open; accept or dismiss suggestions and mark notifications read from the same list. Automatic execution and full audit trail |
 | **Feedback**               | Top-bar button to report a bug or request a feature; submissions are routed to the owner's notifications                                   |
 | **Setup Wizard**           | Guided first-use onboarding: explains the stack, restores from a backup if you're moving machines, connects Claude + Voyage (pre-set defaults) and Google, captures your name, company profile and writing voice, sets up meeting transcription, a daily briefing and automatic Drive backups, and covers models-per-task, roles & usage. Versioned — existing users are shown only the steps added since they last ran it |
 | **Backup & Restore**       | Export the whole install — database, documents, chat attachments, generated files — into one portable `.lgbackup` archive, and restore it here or on another machine. Documents are decrypted on export and re-encrypted with the destination machine's key on import, so the Fernet key never leaves the OS keyring; API keys and Google tokens are deliberately excluded and re-entered after a cross-machine restore. A safety copy of the current database is taken before any restore, and uninstalling now keeps your data unless you explicitly ask for it to be deleted |
@@ -543,15 +542,17 @@ To disconnect: click **Disconnect Google**. Your local token is deleted immediat
 
 ---
 
-### Approvals
+### Approvals and Waiting for you
 
-Anything Little Gerry wants to do on your behalf needs your sign-off, and you can now give it wherever you are:
+Anything Little Gerry wants to do on your behalf needs your sign-off, and you can give it wherever you are:
 
 - **Inline in the email thread** — a Gerry-drafted reply appears at the top of its Gmail thread with Approve/Edit/Reject buttons.
 - **Inline in chat** — when Gerry proposes an action mid-conversation, the approval card renders right in the conversation.
-- **Global drawer** — the clipboard icon in the top bar (with a live pending count) opens a slide-out panel with every pending approval, on any page.
-- **From a notification** — approval notifications carry Approve/Reject buttons directly.
-- The **Approvals** page remains as the full-page queue and history view.
+- **The bell** — the one bell in the top bar (its count is decisions plus unread) opens **Waiting for you**: tabs for Approvals, Suggestions and Notifications, on any page.
+- **From a notification** — an approval notification shows Approve/Reject while the decision is still open.
+- **Today → Waiting for you** (`/waiting?tab=`) is the same list as a page; `/approvals` and `/notifications` redirect to it.
+
+Dates read the same everywhere — Today, Tomorrow, "Sun, Sep 13", "3 days overdue" — via one `formatWhen()`.
 
 ---
 

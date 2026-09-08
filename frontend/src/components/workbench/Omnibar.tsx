@@ -78,7 +78,8 @@ const PAGES: { label: string; to: string }[] = RAIL.flatMap((item) =>
 ).concat([
   { label: "Settings", to: "/settings" },
   { label: "Users", to: "/users" },
-  { label: "Notifications", to: "/notifications" },
+  { label: "Notifications", to: "/waiting?tab=notifications" },
+  { label: "Approvals", to: "/waiting?tab=approvals" },
   { label: "Little Gerry", to: "/chat" },
 ]);
 

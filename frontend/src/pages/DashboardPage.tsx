@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
@@ -5,7 +6,6 @@ import remarkGfm from "remark-gfm";
 import { useTimezone } from "@/contexts/AppContext";
 import {
   MessageSquare,
-  ShieldCheck,
   Bell,
   RefreshCw,
   AlertTriangle,
@@ -16,14 +16,19 @@ import {
   Users,
   CheckCircle2,
   Circle,
-  Sparkles,
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { listPendingApprovals, listNotifications, listConversations } from "@/api/chat";
+import { formatWhen } from "@/lib/formatWhen";
+import { listConversations } from "@/api/chat";
 import { useAllProjects, useAllTasks, type SourcedTask as Task } from "@/hooks/useAllWork";
 import { HubBadge } from "@/components/HubBadge";
-import { getPendingSuggestionCount } from "@/api/assistant";
+import {
+  WaitingForYou,
+  defaultWaitingTab,
+  useWaitingCounts,
+  type WaitingTab,
+} from "@/components/waiting/WaitingForYou";
 import { peekTask } from "@/stores/peekStore";
 import { listMeetings } from "@/api/meetings";
 import { getTodayBriefing } from "@/api/regulatory";
@@ -59,11 +64,6 @@ function daysFromNow(iso: string): number {
   return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
 }
 
-function formatShortDate(iso: string): string {
-  const timezone = (() => { try { return localStorage.getItem("pmi-timezone") ?? "UTC"; } catch { return "UTC"; } })();
-  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: timezone });
-}
-
 const DASH_STATUS_ICON: Record<string, React.ReactNode> = {
   backlog: <Circle className="h-3 w-3 text-muted-foreground" />,
   todo: <Circle className="h-3 w-3 text-blue-400" />,
@@ -84,7 +84,7 @@ function TaskAgendaItem({ task }: { task: Task }) {
       <HubBadge source={task.source} />
       {task.due_date && (
         <span className={cn("shrink-0 text-xs", overdue ? "text-destructive font-medium" : "text-muted-foreground")}>
-          {overdue ? `${Math.abs(daysFromNow(task.due_date))}d ago` : "Today"}
+          {formatWhen(task.due_date, { overdue: true })}
         </span>
       )}
     </button>
@@ -117,7 +117,7 @@ function CalendarEventItem({ event, timezone, showDate = false }: { event: Googl
         <span className="hidden sm:block shrink-0 max-w-[10rem] truncate text-xs text-muted-foreground/70">{event.location}</span>
       )}
       <span className="shrink-0 text-xs text-muted-foreground">
-        {showDate && event.start ? `${formatShortDate(event.start)} · ` : ""}
+        {showDate && event.start ? `${formatWhen(event.start)} · ` : ""}
         {formatEventTime(event.start, timezone)}
       </span>
     </NavLink>
@@ -133,7 +133,7 @@ function WeekTaskRow({ task }: { task: Task }) {
       <HubBadge source={task.source} />
       {task.due_date && (
         <span className={cn("shrink-0 text-xs rounded-full px-1.5 py-0.5", days !== null && days <= 1 ? "bg-orange-100 text-orange-700" : "bg-muted text-muted-foreground")}>
-          {days === 0 ? "Today" : days === 1 ? "Tomorrow" : formatShortDate(task.due_date)}
+          {formatWhen(task.due_date)}
         </span>
       )}
     </button>
@@ -144,16 +144,13 @@ function WeekTaskRow({ task }: { task: Task }) {
 
 export function DashboardPage() {
   const { tasks } = useAllTasks();
-  const { data: approvals = [] } = useQuery({ queryKey: ["approvals", "pending"], queryFn: () => listPendingApprovals(), refetchInterval: 30_000 });
-  const { data: notifications = [] } = useQuery({ queryKey: ["notifications"], queryFn: listNotifications, staleTime: 60_000 });
+  const waitingCounts = useWaitingCounts();
+  const [waitingTab, setWaitingTab] = useState<WaitingTab | null>(null);
   const { data: conversations = [] } = useQuery({ queryKey: ["conversations"], queryFn: () => listConversations(), staleTime: 60_000 });
   const { data: meetings = [] } = useQuery({ queryKey: ["meetings"], queryFn: listMeetings, staleTime: 60_000 });
   const { projects } = useAllProjects();
   const { data: briefing, isLoading: briefingLoading, refetch: refetchBriefing, isFetching } = useQuery({
     queryKey: ["briefing", "today"], queryFn: () => getTodayBriefing(), staleTime: 5 * 60_000,
-  });
-  const { data: suggestions = 0 } = useQuery({
-    queryKey: ["assistant", "suggestions", "count"], queryFn: getPendingSuggestionCount, refetchInterval: 30_000,
   });
   // ── Google Calendar (only queried when Google is connected) ──────────────
   const { data: googleStatus } = useQuery({
@@ -187,10 +184,9 @@ export function DashboardPage() {
     .filter((t) => t.due_date && isThisWeek(t.due_date) && !isToday(t.due_date))
     .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
     .slice(0, 6);
-  const unreadNotifications = notifications.filter((n) => !n.is_read);
   const recentConversations = conversations.filter((c) => !c.hub_mirror).slice(0, 5);
   const activeProjects = projects.filter((p) => p.status === "active");
-  const waiting = approvals.length + unreadNotifications.length + suggestions;
+  const waiting = waitingCounts.total + waitingCounts.suggestions;
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
@@ -220,37 +216,19 @@ export function DashboardPage() {
 
       {/* Waiting for you */}
       {waiting > 0 && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-amber-500/20 px-5 py-3">
+        <div className="rounded-xl border border-amber-500/40 bg-card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-amber-500/20 bg-amber-500/5 px-5 py-3">
             <h2 className="font-semibold flex items-center gap-2 text-sm">
               <Bell className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               Waiting for you
             </h2>
-            <span className="text-xs text-muted-foreground">{waiting} item{waiting !== 1 ? "s" : ""}</span>
+            <NavLink to="/waiting" className="text-xs text-muted-foreground hover:underline">See all &rarr;</NavLink>
           </div>
-          <div className="grid gap-2 p-3 sm:grid-cols-3">
-            <NavLink to="/approvals" className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 hover:bg-accent transition-colors">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{approvals.length} approval{approvals.length !== 1 ? "s" : ""}</p>
-                <p className="text-xs text-muted-foreground">{approvals.length > 0 ? "Need your decision" : "All clear"}</p>
-              </div>
-            </NavLink>
-            <NavLink to="/assistant" className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 hover:bg-accent transition-colors">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{suggestions} suggestion{suggestions !== 1 ? "s" : ""}</p>
-                <p className="text-xs text-muted-foreground">From Gerry's daily scan</p>
-              </div>
-            </NavLink>
-            <NavLink to="/notifications" className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 hover:bg-accent transition-colors">
-              <Bell className="h-4 w-4 text-primary" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{unreadNotifications.length} unread</p>
-                <p className="text-xs text-muted-foreground">Notifications</p>
-              </div>
-            </NavLink>
-          </div>
+          <WaitingForYou
+            tab={waitingTab ?? defaultWaitingTab(waitingCounts)}
+            onTabChange={setWaitingTab}
+            limit={4}
+          />
         </div>
       )}
 

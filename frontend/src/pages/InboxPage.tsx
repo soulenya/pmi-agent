@@ -752,11 +752,11 @@ export default function InboxPage() {
           <span>{batchNotice.text}</span>
           {batchNotice.kind === "ok" && (batchDrafted > 0 || batchNotice.approvals) && (
             <Link
-              to="/approvals"
+              to="/waiting?tab=approvals"
               className="shrink-0 inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 transition-colors"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
-              Go to Approvals for review
+              Review under Waiting for you
             </Link>
           )}
         </div>

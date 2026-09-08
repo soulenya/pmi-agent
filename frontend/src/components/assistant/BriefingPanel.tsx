@@ -332,7 +332,7 @@ export function BriefingPanel() {
         <Section
           icon={<ClipboardCheck className="h-3.5 w-3.5" />}
           title="Approvals"
-          to="/approvals"
+          to="/waiting?tab=approvals"
           count={pendingApprovals.length}
         >
           {pendingApprovals.length === 0 ? (

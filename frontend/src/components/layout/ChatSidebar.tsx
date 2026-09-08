@@ -59,6 +59,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/research":   "Research",
   "/browser":    "Research Browser",
   "/approvals":  "Approvals",
+  "/waiting":    "Waiting for you",
   "/settings":   "Settings",
   "/files":      "Made by Gerry",
 };
