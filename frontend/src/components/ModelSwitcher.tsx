@@ -36,7 +36,7 @@ function providerLabel(provider: string, model: string): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ModelSwitcher() {
+export function ModelSwitcher({ direction = "down" }: { direction?: "down" | "up" } = {}) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("openai");
@@ -156,7 +156,12 @@ export function ModelSwitcher() {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-72 rounded-xl border bg-card shadow-lg">
+        <div
+          className={cn(
+            "absolute z-50 w-72 rounded-xl border bg-card shadow-lg",
+            direction === "up" ? "bottom-full left-0 mb-1.5" : "right-0 top-full mt-1.5",
+          )}
+        >
           {/* Provider tabs */}
           <div className="flex border-b">
             {PROVIDER_ORDER.map((p) => (

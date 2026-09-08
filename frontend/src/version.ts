@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 249;
+export const BUILD_NUMBER = 250;
 export const BUILD_DATE = "2026-09-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,21 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 250,
+    date: "2026-09-08",
+    title: "A workbench instead of a solar system",
+    changes: [
+      "The app now opens on Today: what is due, what is overdue, what is waiting for you, the briefing, and your recent conversations.",
+      "A rail on the left with eight places, always in the same order: Today, Projects, Tasks, Mail, Knowledge, Calendar, Compliance, Finance. Under them, the last five places you were. At the bottom, You: settings, users, notifications, help, feedback, what's new, sign out.",
+      "One search box at the top (Ctrl+K). Type a name and it finds projects, tasks, documents, conversations and people on this computer and on the hub. Type a question and Enter sends it to Gerry. Type / for commands.",
+      "A task you click on Today, the Calendar or in a search result opens over the page you are on. Esc puts you back exactly where you were.",
+      "Settings is five tabs: Profile, AI, Connections, Company, System. Agents, Conversation backups and Google Workspace moved inside them; the Restart, Update and Stop controls live under System. Ctrl+, opens Settings.",
+      "Scheduled tasks are called Routines and sit as a tab on Tasks. Portfolio is the Graph view on Projects, and Rooms is its third view.",
+      "The model picker sits under the message box, in the conversation it belongs to.",
+      "The solar system is still here for now. You › Old layout brings it back for this computer; Settings › Profile › Appearance › Layout makes it stick. It goes in a later release.",
+    ],
+  },
   {
     build: 249,
     date: "2026-09-08",

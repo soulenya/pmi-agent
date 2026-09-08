@@ -11,6 +11,7 @@ import type { GoogleCalendarEvent } from "@/api/google";
 import { AskGerryButton } from "@/components/AskGerryButton";
 import { HubBadge } from "@/components/HubBadge";
 import { useAllTasks, type SourcedTask as Task } from "@/hooks/useAllWork";
+import { peekTask } from "@/stores/peekStore";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -77,10 +78,11 @@ function DayPanel({
             </p>
             <div className="space-y-1">
               {tasks.map((t) => (
-                <NavLink
+                <button
+                  type="button"
                   key={t.id}
-                  to={`/tasks?task=${t.id}`}
-                  className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent text-sm transition-colors"
+                  onClick={() => peekTask(t.id, t.source)}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent text-sm transition-colors"
                 >
                   <CheckSquare className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="flex-1 truncate">{t.title}</span>
@@ -97,7 +99,7 @@ function DayPanel({
                   >
                     {t.priority}
                   </span>
-                </NavLink>
+                </button>
               ))}
             </div>
           </div>

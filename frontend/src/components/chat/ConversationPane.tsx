@@ -17,6 +17,7 @@ import { syncHubConversation } from "@/api/hub";
 import type { Source } from "@/api/tasks";
 import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
 import ConfirmDriveEditModal, { type DriveEditRequest } from "@/components/ConfirmDriveEditModal";
+import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { useResizableTextarea } from "@/hooks/useResizableTextarea";
 import { modLabel } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -577,6 +578,10 @@ export function ConversationPane({
           >
             <Send className="h-3.5 w-3.5" />
           </button>
+        </div>
+        {/* The model belongs to the conversation, so it is chosen here, not in the top bar. */}
+        <div className="mt-1 flex justify-end">
+          <ModelSwitcher direction="up" />
         </div>
       </div>
 

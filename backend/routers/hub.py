@@ -42,6 +42,7 @@ _ALLOWED_PREFIXES = (
     "/portfolio",
     "/conversations",
     "/budgets",
+    "/search/everything",
 )
 
 _SCOPES = ["openid", "email"]

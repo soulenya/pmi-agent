@@ -4,6 +4,78 @@
 
 ## Changelog
 
+### v5.0.0 — 2026-09-08 (unreleased; the release that ships the series)
+**A workbench instead of a solar system**
+
+Phase 5 of the UI simplification. Built behind `ui.shell` (a persisted zustand
+store, `pmi-shell`, default `workbench`); the old shell renders unchanged when
+it is `orbit`, and is deleted in the cleanup release.
+
+- **`lib/workbench.ts`** — the rail model: eight `RailItem`s each with the
+  `pages` it holds (section tabs), `also` prefixes that belong to it (detail
+  pages, hub twins), and `PLANET_TO_RAIL` for `/planet/:id` redirects.
+  `railItemFor()` / `railPageFor()` resolve a pathname.
+- **`components/workbench/Rail.tsx`** — eight icon buttons with hover labels
+  and count dots (approvals + notifications; suggestions count only on the
+  Today tab strip because it is a stream, not a queue); recent places from
+  `stores/recentPlacesStore.ts` (`useRecentPlace(label, tag, path)` is called by
+  `ProjectSpacePage`); `BrowserDock`; and the **You** menu: Settings (Ctrl+,),
+  Notifications, Users (admins), What Gerry can do here, What's new (reopens
+  the modal via `bootPopupStore.reopenWhatsNew`), Send feedback
+  (`FeedbackModal` is now exported), Old layout, Sign out.
+- **`components/workbench/Omnibar.tsx`** — one input, Ctrl+K focuses. Names
+  query `GET /search/everything?q=` locally and, when connected, on the hub
+  (`/search/everything` added to the hub proxy whitelist); results grouped by
+  kind with a hub pill; Enter on a task opens the peek, on a project or
+  conversation navigates by source. Questions (trailing `?`, five+ words, or an
+  interrogative/imperative opener) go to the side panel via
+  `chatSidebarStore.setPendingMessage`. `/` lists commands. Pages match
+  client-side. A hub on an older build returns something else for the path;
+  `fetchEverything` returns `[]` unless `hits` is an array.
+- **Backend `GET /search/everything`** in `routers/search.py`: ilike on
+  project name, task title (open, and only in non-archived visible projects —
+  the archived twin of a moved project would otherwise surface its stale
+  tasks), document title (`deleted_at IS NULL`), conversation title (own,
+  non-mirror), and `email_contacts.search_contacts_store`. Five per kind.
+- **`stores/peekStore.ts` + `components/PeekHost.tsx`** — `peekTask(id,
+  source)` renders `TaskDrawer` over any page from the `useAllTasks` cache.
+  Today, Calendar and the omnibar use it; `/tasks?task=` still works. Esc in
+  the workbench closes the peek instead of zooming out.
+- **`components/workbench/WorkbenchHeader.tsx`** — back/forward, omnibar,
+  meeting recorder, approvals bell, notifications bell, Gerry toggle, and
+  `SectionTabs` (the current rail item's pages, badges on Approvals and
+  Suggestions). Voice, help, feedback, service menu, model switcher, user and
+  logout left the bar.
+- **`AppShell`** branches on the shell. In the workbench: `/` → `/today`,
+  `/gerry` → `/chat`, `/dashboard` → `/today`, `/planet/:id` → its rail
+  root; Ctrl+, → Settings; Esc closes the peek. `SystemNotices` moved from
+  `top-3` to `top-16` so a notice never covers the search box.
+- **Today** (`DashboardPage`, also at `/today`): stat cards replaced by a
+  "Waiting for you" card (approvals, suggestions, unread); Quick Actions card
+  removed (the rail is the launcher); task rows peek; greeting by hour.
+- **Settings** — five tabs (`?tab=`), `?section=` still lands on the right
+  tab. Profile: Profile, Appearance (+ **Layout** select), Notifications. AI:
+  LLM, Models per task, Voice, Writing voice, Extraction schemas, **Agents**
+  (embedded `AgentsPage`). Connections: **Google Workspace** (embedded
+  `GoogleIntegrationPage`), Drive edit permissions, The hub. Company. System:
+  System health, **Services** (`ServiceControls`, the four actions as a row),
+  Backup & restore, **Conversation backups** (embedded `BackupsPage`), Updates,
+  What's New. `/agents`, `/backups`, `/google` redirect in.
+- **Tasks** — `?tab=routines` renders `ScheduledTasksPage` (retitled
+  Routines) inside; `/scheduled-tasks` redirects. `?new=1` opens the form.
+- **Projects** — `?view=projects|rooms|graph`; Rooms renders `WorkroomsPage`,
+  Graph renders `PortfolioPage`; `/workrooms` and `/projects/portfolio`
+  redirect. `?new=1` opens the form.
+- **ModelSwitcher** gained `direction="up"` and sits under the input in
+  `ConversationPane`.
+- Verified live: `/` → `/today`, eight rail items, omnibar; "nelson" listed a
+  task, two meetings, a conversation and two contacts from the real database;
+  Enter on the task opened the drawer over Today and Esc closed it without
+  leaving; "what is overdue this week?" went to the panel; every redirect in
+  the table above resolved; section tabs appeared on Mail, Knowledge and
+  Compliance; You › Old layout brought the solar system back and Settings ›
+  Appearance › Layout returned to the workbench.
+
 ### v4.9.0 — 2026-09-08 (unreleased; ships with 5.0.0)
 **Gerry knows which project you are in**
 

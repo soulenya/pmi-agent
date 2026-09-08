@@ -5,7 +5,6 @@ import remarkGfm from "remark-gfm";
 import { useTimezone } from "@/contexts/AppContext";
 import {
   MessageSquare,
-  CheckSquare,
   ShieldCheck,
   Bell,
   RefreshCw,
@@ -17,13 +16,15 @@ import {
   Users,
   CheckCircle2,
   Circle,
-  FolderOpen,
+  Sparkles,
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listPendingApprovals, listNotifications, listConversations } from "@/api/chat";
 import { useAllProjects, useAllTasks, type SourcedTask as Task } from "@/hooks/useAllWork";
 import { HubBadge } from "@/components/HubBadge";
+import { getPendingSuggestionCount } from "@/api/assistant";
+import { peekTask } from "@/stores/peekStore";
 import { listMeetings } from "@/api/meetings";
 import { getTodayBriefing } from "@/api/regulatory";
 import { getGoogleStatus, listGoogleCalendarEvents, type GoogleCalendarEvent } from "@/api/google";
@@ -72,31 +73,12 @@ const DASH_STATUS_ICON: Record<string, React.ReactNode> = {
   cancelled: <Circle className="h-3 w-3 text-muted-foreground/40" />,
 };
 
-// ── Stat card ─────────────────────────────────────────────────────────────────
-
-function StatCard({
-  label, value, sub, to, urgent, icon: Icon,
-}: {
-  label: string; value: number | string; sub?: string; to: string; urgent?: boolean; icon?: React.ElementType;
-}) {
-  return (
-    <NavLink to={to} className="group rounded-xl border bg-card p-5 hover:bg-accent/30 transition-colors">
-      <div className="flex items-start justify-between">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
-        {Icon && <Icon className={cn("h-4 w-4", urgent ? "text-destructive" : "text-muted-foreground/40")} />}
-      </div>
-      <p className={cn("text-3xl font-bold mt-2", urgent ? "text-destructive" : "text-foreground")}>{value}</p>
-      {sub && <p className={cn("text-xs mt-1", urgent ? "text-destructive/70" : "text-muted-foreground")}>{sub}</p>}
-    </NavLink>
-  );
-}
-
 // ── Agenda items ──────────────────────────────────────────────────────────────
 
 function TaskAgendaItem({ task }: { task: Task }) {
   const overdue = task.due_date && new Date(task.due_date) < new Date();
   return (
-    <NavLink to={`/tasks?task=${task.id}`} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/40 transition-colors">
+    <button type="button" onClick={() => peekTask(task.id, task.source)} className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-accent/40 transition-colors">
       <span className="shrink-0">{DASH_STATUS_ICON[task.status]}</span>
       <span className="flex-1 min-w-0 text-sm truncate">{task.title}</span>
       <HubBadge source={task.source} />
@@ -105,7 +87,7 @@ function TaskAgendaItem({ task }: { task: Task }) {
           {overdue ? `${Math.abs(daysFromNow(task.due_date))}d ago` : "Today"}
         </span>
       )}
-    </NavLink>
+    </button>
   );
 }
 
@@ -145,7 +127,7 @@ function CalendarEventItem({ event, timezone, showDate = false }: { event: Googl
 function WeekTaskRow({ task }: { task: Task }) {
   const days = task.due_date ? daysFromNow(task.due_date) : null;
   return (
-    <NavLink to={`/tasks?task=${task.id}`} className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent/40 transition-colors">
+    <button type="button" onClick={() => peekTask(task.id, task.source)} className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left hover:bg-accent/40 transition-colors">
       <span className="shrink-0">{DASH_STATUS_ICON[task.status]}</span>
       <span className="flex-1 min-w-0 text-sm truncate">{task.title}</span>
       <HubBadge source={task.source} />
@@ -154,7 +136,7 @@ function WeekTaskRow({ task }: { task: Task }) {
           {days === 0 ? "Today" : days === 1 ? "Tomorrow" : formatShortDate(task.due_date)}
         </span>
       )}
-    </NavLink>
+    </button>
   );
 }
 
@@ -169,6 +151,9 @@ export function DashboardPage() {
   const { projects } = useAllProjects();
   const { data: briefing, isLoading: briefingLoading, refetch: refetchBriefing, isFetching } = useQuery({
     queryKey: ["briefing", "today"], queryFn: () => getTodayBriefing(), staleTime: 5 * 60_000,
+  });
+  const { data: suggestions = 0 } = useQuery({
+    queryKey: ["assistant", "suggestions", "count"], queryFn: getPendingSuggestionCount, refetchInterval: 30_000,
   });
   // ── Google Calendar (only queried when Google is connected) ──────────────
   const { data: googleStatus } = useQuery({
@@ -203,18 +188,18 @@ export function DashboardPage() {
     .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
     .slice(0, 6);
   const unreadNotifications = notifications.filter((n) => !n.is_read);
-  const recentConversations = conversations.slice(0, 5);
+  const recentConversations = conversations.filter((c) => !c.hub_mirror).slice(0, 5);
   const activeProjects = projects.filter((p) => p.status === "active");
-  const doneTasks = tasks.filter((t) => t.status === "done").length;
-  const totalTasks = tasks.filter((t) => t.parent_task_id === null).length;
-  const completionPct = totalTasks === 0 ? 0 : Math.round((doneTasks / totalTasks) * 100);
+  const waiting = approvals.length + unreadNotifications.length + suggestions;
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Good morning</h1>
+          <h1 className="text-2xl font-bold">{greeting}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: timezone })}
             {agendaItems > 0 && (
@@ -222,6 +207,7 @@ export function DashboardPage() {
                 &middot; {agendaItems} item{agendaItems !== 1 ? "s" : ""} on today&apos;s agenda
               </span>
             )}
+            <span className="ml-2">&middot; {activeTasks.length} open task{activeTasks.length !== 1 ? "s" : ""} across {activeProjects.length} active project{activeProjects.length !== 1 ? "s" : ""}</span>
           </p>
         </div>
         {overdueTasks.length > 0 && (
@@ -232,13 +218,41 @@ export function DashboardPage() {
         )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Active Tasks" value={activeTasks.length} sub={overdueTasks.length > 0 ? `${overdueTasks.length} overdue` : `${completionPct}% complete`} to="/tasks" urgent={overdueTasks.length > 0} icon={CheckSquare} />
-        <StatCard label="Pending Approvals" value={approvals.length} sub={approvals.length > 0 ? "Needs your decision" : "All clear"} to="/approvals" urgent={approvals.length > 0} icon={ShieldCheck} />
-        <StatCard label="Unread Notifications" value={unreadNotifications.length} sub={unreadNotifications.length > 0 ? "Click to review" : "All caught up"} to="/notifications" urgent={unreadNotifications.length > 0} icon={Bell} />
-        <StatCard label="Active Projects" value={activeProjects.length} sub={`${conversations.length} conversation${conversations.length !== 1 ? "s" : ""}`} to="/projects" icon={FolderOpen} />
-      </div>
+      {/* Waiting for you */}
+      {waiting > 0 && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-amber-500/20 px-5 py-3">
+            <h2 className="font-semibold flex items-center gap-2 text-sm">
+              <Bell className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              Waiting for you
+            </h2>
+            <span className="text-xs text-muted-foreground">{waiting} item{waiting !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="grid gap-2 p-3 sm:grid-cols-3">
+            <NavLink to="/approvals" className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 hover:bg-accent transition-colors">
+              <ShieldCheck className="h-4 w-4 text-primary" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{approvals.length} approval{approvals.length !== 1 ? "s" : ""}</p>
+                <p className="text-xs text-muted-foreground">{approvals.length > 0 ? "Need your decision" : "All clear"}</p>
+              </div>
+            </NavLink>
+            <NavLink to="/assistant" className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 hover:bg-accent transition-colors">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{suggestions} suggestion{suggestions !== 1 ? "s" : ""}</p>
+                <p className="text-xs text-muted-foreground">From Gerry's daily scan</p>
+              </div>
+            </NavLink>
+            <NavLink to="/notifications" className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 hover:bg-accent transition-colors">
+              <Bell className="h-4 w-4 text-primary" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{unreadNotifications.length} unread</p>
+                <p className="text-xs text-muted-foreground">Notifications</p>
+              </div>
+            </NavLink>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2/3 */}
@@ -367,28 +381,6 @@ export function DashboardPage() {
                   ))}
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Quick actions */}
-          <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="border-b px-4 py-3">
-              <h2 className="text-sm font-semibold">Quick Actions</h2>
-            </div>
-            <div className="p-3 grid grid-cols-2 gap-2">
-              {[
-                { to: "/chat", icon: MessageSquare, label: "Ask AI" },
-                { to: "/tasks", icon: CheckSquare, label: "Tasks" },
-                { to: "/projects", icon: FolderOpen, label: "Projects" },
-                { to: "/approvals", icon: ShieldCheck, label: "Approvals" },
-                { to: "/meetings", icon: Users, label: "Meetings" },
-                { to: "/calendar", icon: CalendarDays, label: "Calendar" },
-              ].map(({ to, icon: Icon, label }) => (
-                <NavLink key={to} to={to} className="flex flex-col items-center gap-1.5 rounded-lg border bg-muted/30 py-3 px-2 hover:bg-accent transition-colors">
-                  <Icon className="h-4 w-4 text-primary" />
-                  <span className="text-xs font-medium">{label}</span>
-                </NavLink>
-              ))}
             </div>
           </div>
         </div>

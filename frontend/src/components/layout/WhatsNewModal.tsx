@@ -38,6 +38,13 @@ function readLegacyLocal(): number | null {
 export function WhatsNewModal() {
   const [entries, setEntries] = useState<ChangelogEntry[] | null>(null);
   const setPhase = useBootPopupStore((s) => s.setPhase);
+  const reopenRequests = useBootPopupStore((s) => s.reopenRequests);
+
+  // Asked for from the You menu: show the latest few builds, no bookkeeping.
+  useEffect(() => {
+    if (reopenRequests === 0) return;
+    setEntries(CHANGELOG.slice(0, 3));
+  }, [reopenRequests]);
 
   useEffect(() => {
     let cancelled = false;

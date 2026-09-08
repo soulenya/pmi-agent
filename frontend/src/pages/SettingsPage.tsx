@@ -55,6 +55,11 @@ import {
 import { listExtractionSchemas, saveExtractionSchemas } from "@/api/extractions";
 import { listDriveEditGrants, revokeDriveEdit } from "@/api/google";
 import { connectHub, disconnectHub, getHubStatus } from "@/api/hub";
+import { useShellStore, type Shell } from "@/stores/shellStore";
+import { AgentsPage } from "@/pages/AgentsPage";
+import { BackupsPage } from "@/pages/BackupsPage";
+import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
+import { ServiceControls } from "@/components/ServiceMenu";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
@@ -1730,8 +1735,20 @@ function AppearanceSection({
   settings: AppSettings;
   onChange: (s: SettingsUpdate) => void;
 }) {
+  const shell = useShellStore((s) => s.shell);
+  const setShell = useShellStore((s) => s.setShell);
   return (
     <Section id="appearance" icon={Palette} title="Appearance">
+      <Field label="Layout" hint="The workbench is the rail-and-search layout. The solar system is the layout it replaced, kept for now in case you need it back.">
+        <select
+          value={shell}
+          onChange={(e) => setShell(e.target.value as Shell)}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="workbench">Workbench (rail, search bar, Today)</option>
+          <option value="orbit">Solar system (the old layout)</option>
+        </select>
+      </Field>
       <Field label="Theme" hint="Changes take effect immediately and persist across restarts.">
         <select
           value={settings.theme}
@@ -2605,10 +2622,76 @@ function HubSection() {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+type SettingsTab = "profile" | "ai" | "connections" | "company" | "system";
+
+const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
+  { id: "profile", label: "Profile", icon: User },
+  { id: "ai", label: "AI", icon: Cpu },
+  { id: "connections", label: "Connections", icon: Wifi },
+  { id: "company", label: "Company", icon: Building2 },
+  { id: "system", label: "System", icon: Activity },
+];
+
+// `?section=hub` from the status bar still lands on the right tab.
+const SECTION_TAB: Record<string, SettingsTab> = {
+  profile: "profile",
+  appearance: "profile",
+  notifications: "profile",
+  llm: "ai",
+  "task-models": "ai",
+  voice: "ai",
+  "writing-voice": "ai",
+  "extraction-schemas": "ai",
+  agents: "ai",
+  google: "connections",
+  "drive-edit-permissions": "connections",
+  hub: "connections",
+  company: "company",
+  "system-health": "system",
+  "backup-restore": "system",
+  backups: "system",
+  updates: "system",
+  services: "system",
+  changelog: "system",
+};
+
+/** A page that used to be its own moon, shown as a section here. */
+function Embedded({
+  id,
+  icon,
+  title,
+  description,
+  children,
+}: {
+  id: string;
+  icon: React.ElementType;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Section id={id} icon={icon} title={title} description={description}>
+      <div className="[&_h1]:hidden">{children}</div>
+    </Section>
+  );
+}
+
 export function SettingsPage() {
   const qc = useQueryClient();
+  const [params, setParams] = useSearchParams();
   const [localSettings, setLocalSettings] = useState<SettingsUpdate>({});
   const [settingsSaved, setSettingsSaved] = useState(false);
+
+  const wanted = params.get("tab") as SettingsTab | null;
+  const bySection = params.get("section") ? SECTION_TAB[params.get("section")!] : undefined;
+  const tab: SettingsTab =
+    wanted && TABS.some((t) => t.id === wanted) ? wanted : bySection ?? "profile";
+  const setTab = (t: SettingsTab) => {
+    const next = new URLSearchParams(params);
+    next.set("tab", t);
+    next.delete("section");
+    setParams(next, { replace: true });
+  };
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["settings"],
@@ -2656,14 +2739,14 @@ export function SettingsPage() {
   const hasChanges = Object.keys(localSettings).length > 0;
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-2xl mx-auto">
+    <div className="flex flex-col gap-6 p-6 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Settings</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Account, AI configuration, and preferences — open a section to change it. Highlighted
-            sections have something you haven't looked at yet.
+            Everything about you, the AI, what the app is connected to, and the machine it runs on.
+            Highlighted sections have something you haven't looked at yet.
           </p>
         </div>
         {hasChanges && (
@@ -2675,35 +2758,86 @@ export function SettingsPage() {
         )}
       </div>
 
+      <div className="flex gap-1 rounded-lg border bg-muted p-1 self-start">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                tab === t.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
           <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading settings…
         </div>
       ) : (
         <div className="space-y-5">
-          <ProfileSection />
-          <LLMSection
-            settings={mergedSettings}
-            onChange={handleChange}
-            onReindexComplete={() => {
-              qc.invalidateQueries({ queryKey: ["settings"] });
-              qc.invalidateQueries({ queryKey: ["system-health"] });
-              qc.invalidateQueries({ queryKey: ["settings-health"] });
-            }}
-          />
-          <CompanyProfileSection />
-          <WritingVoiceSection />
-          <TaskModelsSection />
-          <ExtractionSchemasSection />
-          <DriveEditPermissionsSection />
-          <HubSection />
-          <AppearanceSection settings={mergedSettings} onChange={handleChange} />
-          <NotificationsSection settings={mergedSettings} onChange={handleChange} />
-          <VoiceSection settings={mergedSettings} onChange={handleChange} />
-          <SystemHealthSection />
-          <BackupRestoreSection />
-          <UpdateSection />
-          <ChangelogSection />
+          {tab === "profile" && (
+            <>
+              <ProfileSection />
+              <AppearanceSection settings={mergedSettings} onChange={handleChange} />
+              <NotificationsSection settings={mergedSettings} onChange={handleChange} />
+            </>
+          )}
+
+          {tab === "ai" && (
+            <>
+              <LLMSection
+                settings={mergedSettings}
+                onChange={handleChange}
+                onReindexComplete={() => {
+                  qc.invalidateQueries({ queryKey: ["settings"] });
+                  qc.invalidateQueries({ queryKey: ["system-health"] });
+                  qc.invalidateQueries({ queryKey: ["settings-health"] });
+                }}
+              />
+              <TaskModelsSection />
+              <VoiceSection settings={mergedSettings} onChange={handleChange} />
+              <WritingVoiceSection />
+              <ExtractionSchemasSection />
+              <Embedded id="agents" icon={Sparkles} title="Agents" description="The specialists Gerry hands work to, and what each is allowed to do">
+                <AgentsPage />
+              </Embedded>
+            </>
+          )}
+
+          {tab === "connections" && (
+            <>
+              <Embedded id="google" icon={ExternalLink} title="Google Workspace" description="Gmail, Drive, Calendar and Contacts. Connect once per computer.">
+                <GoogleIntegrationPage />
+              </Embedded>
+              <DriveEditPermissionsSection />
+              <HubSection />
+            </>
+          )}
+
+          {tab === "company" && <CompanyProfileSection />}
+
+          {tab === "system" && (
+            <>
+              <SystemHealthSection />
+              <Section id="services" icon={RotateCcw} title="Services" description="Restart, update or stop the app's own services. Also in the tray menu.">
+                <ServiceControls />
+              </Section>
+              <BackupRestoreSection />
+              <Embedded id="backups" icon={HardDrive} title="Conversation backups" description="Signed, tamper-evident exports of every conversation, to disk and to Drive">
+                <BackupsPage />
+              </Embedded>
+              <UpdateSection />
+              <ChangelogSection />
+            </>
+          )}
 
           {hasChanges && (
             <div className="flex justify-end">

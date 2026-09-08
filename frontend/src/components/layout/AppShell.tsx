@@ -9,15 +9,33 @@ import { WhatsNewModal } from "./WhatsNewModal";
 import { FeatureGuideModal } from "./FeatureGuideModal";
 import { useNotificationWS } from "@/hooks/useNotificationWS";
 import { CommandPalette } from "@/components/CommandPalette";
+import { PeekHost } from "@/components/PeekHost";
 import { VoiceAssistant } from "@/components/VoiceAssistant";
 import { LiveMeetingAssist } from "@/components/meetings/LiveMeetingAssist";
 import { SystemNoticesBanner } from "@/components/SystemNotices";
 import { Toaster } from "@/components/Toaster";
+import { Rail } from "@/components/workbench/Rail";
+import { WorkbenchHeader } from "@/components/workbench/WorkbenchHeader";
 import { AppContextProvider } from "@/contexts/AppContext";
 import { useNavStore } from "@/stores/navStore";
+import { usePeekStore } from "@/stores/peekStore";
+import { useShellStore } from "@/stores/shellStore";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import { parentRoute } from "@/lib/solarSystem";
+import { PLANET_TO_RAIL } from "@/lib/workbench";
 import { cn } from "@/lib/utils";
+
+/** Where an old-shell route lands in the workbench. Null means it stays. */
+function workbenchRedirect(pathname: string): string | null {
+  if (pathname === "/") return "/today";
+  if (pathname === "/gerry") return "/chat";
+  if (pathname === "/dashboard") return "/today";
+  if (pathname.startsWith("/planet/")) {
+    const id = pathname.slice("/planet/".length);
+    return PLANET_TO_RAIL[id] ?? "/today";
+  }
+  return null;
+}
 
 export function AppShell() {
   useNotificationWS();
@@ -26,6 +44,8 @@ export function AppShell() {
   const navigate = useNavigate();
   const syncFromPathname = useNavStore((s) => s.syncFromPathname);
   const voiceActive = useVoiceAssistantStore((s) => s.active);
+  const shell = useShellStore((s) => s.shell);
+  const workbench = shell === "workbench";
 
   // Mirror the router URL into the celestial navigation store.
   useEffect(() => {
@@ -38,6 +58,13 @@ export function AppShell() {
       window.localStorage.setItem("nav.lastPath", location.pathname);
     } catch { /* ignore */ }
   }, [location.pathname]);
+
+  // The old shell's screens have no place in the workbench; send them on.
+  useEffect(() => {
+    if (!workbench) return;
+    const to = workbenchRedirect(location.pathname);
+    if (to) navigate(to + location.search, { replace: true });
+  }, [workbench, location.pathname, location.search, navigate]);
 
   // Guard: a file dropped outside a drop zone must never navigate the WebView
   // away to the file itself. Zones call stopPropagation, so this only catches
@@ -67,43 +94,50 @@ export function AppShell() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k" && !workbench) {
         e.preventDefault();
         setPaletteOpen((o) => !o);
         return;
       }
-      // Esc zooms out one level — unless something else owns the key
-      // (voice session, command palette, an open dialog, or a focused field).
-      if (e.key === "Escape" && !e.defaultPrevented && !paletteOpen && !voiceActive) {
-        const target = e.target as HTMLElement | null;
-        const inField =
-          target &&
-          (target.tagName === "INPUT" ||
-            target.tagName === "TEXTAREA" ||
-            target.isContentEditable);
-        const dialogOpen = document.querySelector('[role="dialog"][data-state="open"]');
-        if (!inField && !dialogOpen) {
-          const parent = parentRoute(location.pathname);
-          if (parent) navigate(parent);
-        }
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault();
+        navigate("/settings");
+        return;
       }
+      if (e.key !== "Escape" || e.defaultPrevented || paletteOpen || voiceActive) return;
+      const target = e.target as HTMLElement | null;
+      const inField =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      const dialogOpen = document.querySelector('[role="dialog"][data-state="open"]');
+      if (inField || dialogOpen) return;
+      // In the workbench Esc closes what is open over the page; there is no "up".
+      if (workbench) {
+        if (usePeekStore.getState().peek) usePeekStore.getState().close();
+        return;
+      }
+      const parent = parentRoute(location.pathname);
+      if (parent) navigate(parent);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [paletteOpen, voiceActive, location.pathname, navigate]);
+  }, [paletteOpen, voiceActive, location.pathname, navigate, workbench]);
 
   const isCanvas =
-    location.pathname === "/" ||
-    location.pathname === "/gerry" ||
-    location.pathname.startsWith("/planet/");
+    !workbench &&
+    (location.pathname === "/" ||
+      location.pathname === "/gerry" ||
+      location.pathname.startsWith("/planet/"));
 
   return (
     <AppContextProvider>
       <div className="flex h-screen overflow-hidden bg-background">
-        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-        <AncestorRail />
+        {!workbench && <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />}
+        {workbench ? <Rail /> : <AncestorRail />}
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Header onOpenPalette={() => setPaletteOpen(true)} />
+          {workbench ? <WorkbenchHeader /> : <Header onOpenPalette={() => setPaletteOpen(true)} />}
           <ServiceStatusBar />
           <div className="flex flex-1 overflow-hidden">
             <main
@@ -118,6 +152,7 @@ export function AppShell() {
           </div>
           <StatusBar />
         </div>
+        <PeekHost />
         <VoiceAssistant />
         <LiveMeetingAssist />
         <SystemNoticesBanner />

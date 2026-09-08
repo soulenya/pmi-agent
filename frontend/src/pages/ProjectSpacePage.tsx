@@ -27,6 +27,7 @@ import type { Source } from "@/api/tasks";
 import type { HeldItem, ProjectVisibility } from "@/types/tasks";
 import { TimelineTab } from "@/components/projects/TimelineTab";
 import { ConversationPane } from "@/components/chat/ConversationPane";
+import { useRecentPlace } from "@/stores/recentPlacesStore";
 import { CanvasTab } from "@/components/projects/CanvasTab";
 import { ProjectLinksPanel } from "@/components/projects/ProjectLinksPanel";
 import { ProjectPeoplePanel } from "@/components/projects/PeoplePanel";
@@ -84,6 +85,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
     queryFn: () => getProjectSpace(id!, source),
     enabled: Boolean(id),
   });
+  useRecentPlace(data?.project.name, onHub ? "hub project" : "project", `${base}/space`);
 
   const visibilityMutation = useMutation({
     mutationFn: (visibility: ProjectVisibility) =>

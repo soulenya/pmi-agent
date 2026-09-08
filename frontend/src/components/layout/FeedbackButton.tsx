@@ -23,7 +23,7 @@ export function FeedbackButton() {
   );
 }
 
-function FeedbackModal({ onClose }: { onClose: () => void }) {
+export function FeedbackModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [category, setCategory] = useState<FeedbackCategory>("bug");
   const [message, setMessage] = useState("");
