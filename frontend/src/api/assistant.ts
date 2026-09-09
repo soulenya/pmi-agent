@@ -38,6 +38,8 @@ export interface AcceptResult {
   status: string;
   suggestion_id: string;
   task_id?: string | null;
+  /** One sentence saying what actually happened (for the confirmation toast). */
+  message?: string | null;
 }
 
 export interface ScanResult {

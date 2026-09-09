@@ -49,10 +49,11 @@ SETTING_LAST_RUN = "assistant_scan.last_run"
 DEFAULT_ENABLED = True
 DEFAULT_HOUR = 7
 
-# A source's suggestion is only suppressed for good once it has been dismissed
-# at least this many times. A single dismissal lets it resurface on the next
-# scan, protecting against an accidental dismissal.
-DISMISS_SUPPRESS_THRESHOLD = 2
+# A dismissed suggestion stays dismissed. One click means "not this" — there is
+# an Undo on the Assistant page for the accidental case, so nothing needs to
+# resurface on its own. (Was 2: a single dismissal came back the next day,
+# which read as the assistant ignoring the answer.)
+DISMISS_SUPPRESS_THRESHOLD = 1
 
 # Two suggestions whose title+summary embeddings are at least this cosine-similar
 # are treated as the same item even when worded differently (and even across
@@ -60,14 +61,21 @@ DISMISS_SUPPRESS_THRESHOLD = 2
 # genuinely distinct action items separate.
 SEMANTIC_DUP_THRESHOLD = 0.90
 
-# How far back to look for an existing suggestion when checking semantic
-# near-duplicates. Older resolved items shouldn't keep blocking new ones.
-SEMANTIC_DUP_WINDOW_DAYS = 21
+# How far back to look for an existing suggestion when checking semantic /
+# same-title near-duplicates. Older resolved items shouldn't keep blocking new
+# ones.
+SEMANTIC_DUP_WINDOW_DAYS = 45
 
 # Only the free-text, LLM-worded suggestion kinds get semantic dedup. Structured
 # items (google tasks, meeting imports, Odoo alerts) already have stable source
 # ids, and semantic matching could wrongly merge two distinct ones.
 _SEMANTIC_KINDS = ("followup_email", "task_recommendation")
+
+# Kinds where the same *title* (case/punctuation-insensitive) surfacing under a
+# different source id is still the same item. Meeting imports are keyed by
+# message+attachment, so every reply that re-attaches "Term Sheet.pdf" would
+# otherwise import it again.
+_TITLE_DEDUP_KINDS = ("followup_email", "task_recommendation", "meeting_import")
 
 _IMPORTABLE_EXT = (".pdf", ".docx", ".doc", ".txt", ".md")
 
@@ -141,6 +149,20 @@ def _norm_key(text: str) -> str:
     together; the semantic guard handles larger rewordings."""
     norm = " ".join("".join(c if c.isalnum() else " " for c in text.lower()).split())
     return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:16]
+
+
+def _title_text(row: AssistantSuggestion) -> str:
+    """The text that identifies a suggestion regardless of its source id —
+    the recommended task's title, the attachment's filename, else the title."""
+    payload = row.payload or {}
+    if row.kind == "task_recommendation":
+        task = payload.get("task") or {}
+        if task.get("title"):
+            return str(task["title"])
+        return row.title.removeprefix("Create task: ")
+    if row.kind == "meeting_import" and payload.get("filename"):
+        return str(payload["filename"])
+    return row.title
 
 
 # ── owner / dedup helpers ─────────────────────────────────────────────────────
@@ -382,10 +404,9 @@ async def run_daily_scan(
         """Whether an existing row should suppress a fresh recommendation.
 
         Blocks when the user already acted on it — it is still pending, was
-        accepted (a task/note/follow-up was already created), or was marked
+        accepted (a task/note/follow-up was already created), was marked
         completed (already done) — or has dismissed it at least
-        ``DISMISS_SUPPRESS_THRESHOLD`` times. A single dismissal does
-        not block, so an accidentally dismissed item resurfaces once.
+        ``DISMISS_SUPPRESS_THRESHOLD`` times.
         """
         if prior is None:
             return False
@@ -398,14 +419,36 @@ async def run_daily_scan(
             return True
         return False
 
-    async def _skip_before_work(kind: str, source_id: str) -> bool:
+    # Normalized-title → row, for kinds where the same title under a different
+    # source id is the same item. Preloaded below; extended as rows are added.
+    title_index: dict[tuple[str, str], AssistantSuggestion] = {}
+
+    def _title_blocked(kind: str, title_key: str | None) -> bool:
+        if not title_key or kind not in _TITLE_DEDUP_KINDS:
+            return False
+        return _is_blocked(title_index.get((kind, title_key)))
+
+    def _remember_title(kind: str, title_key: str | None, row: AssistantSuggestion) -> None:
+        if title_key and kind in _TITLE_DEDUP_KINDS:
+            title_index[(kind, title_key)] = row
+
+    async def _skip_before_work(
+        kind: str, source_id: str, *, title_key: str | None = None
+    ) -> bool:
         """Pre-check for expensive imports: skip when already seen or blocked."""
         if (kind, source_id) in seen:
+            return True
+        if _title_blocked(kind, title_key):
             return True
         return _is_blocked(await _prior(kind, source_id))
 
     async def _add(
-        kind: str, source_id: str, *, dedup_text: str | None = None, **fields
+        kind: str,
+        source_id: str,
+        *,
+        dedup_text: str | None = None,
+        title_key: str | None = None,
+        **fields,
     ) -> AssistantSuggestion | None:
         key = (kind, source_id)
         if key in seen:
@@ -418,19 +461,23 @@ async def run_daily_scan(
             # Dismissed fewer than the threshold → resurface the same row with
             # refreshed content instead of inserting a duplicate (the
             # (user, kind, source_id) triple is unique). The dismissal_count is
-            # preserved so a second dismissal still suppresses it for good.
+            # preserved so a further dismissal still suppresses it for good.
             for field, value in fields.items():
                 setattr(prior, field, value)
             prior.status = "pending"
             prior.resolved_at = None
             new_suggestions.append(prior)
+            _remember_title(kind, title_key, prior)
             if dedup_text is not None:
                 vec = await _embed_text(dedup_text)
                 if vec is not None:
                     active_vecs.setdefault(kind, []).append((prior, vec))
             return prior
-        # No exact-source match: guard against a semantically equivalent item that
-        # was surfaced under a different source id or worded differently.
+        # No exact-source match: the same item may already exist under another
+        # source id — same normalized title (cheap, exact) or a semantically
+        # equivalent wording (embedding). Either blocks the insert.
+        if _title_blocked(kind, title_key):
+            return None
         vec: list[float] | None = None
         if dedup_text is not None:
             vec = await _embed_text(dedup_text)
@@ -445,6 +492,7 @@ async def run_daily_scan(
         )
         db.add(s)
         new_suggestions.append(s)
+        _remember_title(kind, title_key, s)
         if vec is not None:
             active_vecs.setdefault(kind, []).append((s, vec))
         return s
@@ -457,15 +505,21 @@ async def run_daily_scan(
             await db.execute(
                 select(AssistantSuggestion).where(
                     AssistantSuggestion.user_id == user.id,
-                    AssistantSuggestion.kind.in_(_SEMANTIC_KINDS),
+                    AssistantSuggestion.kind.in_(
+                        tuple(set(_SEMANTIC_KINDS) | set(_TITLE_DEDUP_KINDS))
+                    ),
                     AssistantSuggestion.created_at >= cutoff,
-                )
+                ).order_by(AssistantSuggestion.created_at)
             )
         ).scalars().all()
-        texts = [f"{r.title}\n{r.summary or ''}".strip() for r in recent]
+        for r in recent:
+            # Latest row for a title wins (ordered ascending above).
+            title_index[(r.kind, _norm_key(_title_text(r)))] = r
+        semantic_rows = [r for r in recent if r.kind in _SEMANTIC_KINDS]
+        texts = [f"{r.title}\n{r.summary or ''}".strip() for r in semantic_rows]
         if texts:
             vecs = await embedding_svc.embed_batch(texts)
-            for r, v in zip(recent, vecs):
+            for r, v in zip(semantic_rows, vecs):
                 active_vecs.setdefault(r.kind, []).append((r, v))
     except Exception as exc:  # noqa: BLE001 — dedup preload is best-effort
         logger.info("Assistant scan: semantic preload failed (%s)", exc)
@@ -536,6 +590,7 @@ async def run_daily_scan(
             "followup_email",
             f"thread:{thread_id}",
             dedup_text=f"{title}\n{fu_summary}",
+            title_key=_norm_key(title),
             title=title,
             summary=fu_summary,
             source_type="gmail_thread",
@@ -581,6 +636,7 @@ async def run_daily_scan(
             "task_recommendation",
             source_id,
             dedup_text=f"{title}\n{description}",
+            title_key=_norm_key(title),
             title=f"Create task: {title}"[:500],
             summary=description,
             source_type=src_type,
@@ -653,7 +709,9 @@ async def run_daily_scan(
             if not data:
                 continue
             src_id = f"{mid}:{att.get('attachment_id', '')}"[:255]
-            if await _skip_before_work("meeting_import", src_id):
+            # Same filename already imported (any reply re-attaching it) → skip
+            # before the expensive ingest, not after.
+            if await _skip_before_work("meeting_import", src_id, title_key=_norm_key(fn)):
                 continue
             doc = await _ingest(
                 db, embedding_svc, user.id, fn, data,
@@ -664,6 +722,7 @@ async def run_daily_scan(
             await _add(
                 "meeting_import",
                 src_id,
+                title_key=_norm_key(fn),
                 title=f"Imported summary: {fn}"[:500],
                 summary=f"From email: {m.get('subject', '')}",
                 source_type="gmail_attachment",
@@ -703,6 +762,8 @@ async def run_daily_scan(
                 continue
             filename = Path(name).stem + ".txt"
             raw_bytes = text.encode("utf-8")
+        if _title_blocked("meeting_import", _norm_key(filename)):
+            continue
         doc = await _ingest(
             db, embedding_svc, user.id, filename, raw_bytes,
             title=f"[Gemini] {name}",
@@ -721,6 +782,7 @@ async def run_daily_scan(
         await _add(
             "meeting_import",
             fid,
+            title_key=_norm_key(filename),
             title=f"Imported Gemini notes: {name}"[:500],
             summary="Gemini meeting notes from Google Drive",
             source_type="drive_doc",

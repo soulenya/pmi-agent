@@ -28,6 +28,8 @@ import {
   type KindStats,
   type SuggestionKind,
 } from "@/api/assistant";
+import { apiErrorText } from "@/components/waiting/WaitingForYou";
+import { useToastStore } from "@/stores/toastStore";
 import { proposeOdooAction, type OdooWriteAction } from "@/api/odoo";
 import { cn } from "@/lib/utils";
 import { SUGGESTION_KIND_META as KIND_META, stripRoomPrefix } from "@/lib/suggestionKinds";
@@ -367,9 +369,21 @@ export function AssistantPage() {
     queryFn: getSuggestionStats,
   });
 
+  const toast = useToastStore((s) => s.push);
+  const onFail = (what: string) => (e: unknown) => {
+    queryClient.invalidateQueries({ queryKey: ["assistant"] });
+    if ((e as { response?: { status?: number } })?.response?.status === 409) return;
+    toast("error", apiErrorText(e, `${what} failed.`), 9000);
+  };
+
   const acceptMutation = useMutation({
     mutationFn: (id: string) => acceptSuggestion(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assistant"] }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["assistant"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast("success", res.message || "Accepted.");
+    },
+    onError: onFail("Accept"),
   });
 
   const showUndo = (id: string, title: string) => {
@@ -382,13 +396,20 @@ export function AssistantPage() {
     mutationFn: (s: AssistantSuggestion) => dismissSuggestion(s.id),
     onSuccess: (_res, s) => {
       queryClient.invalidateQueries({ queryKey: ["assistant"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
       showUndo(s.id, s.title);
     },
+    onError: onFail("Dismiss"),
   });
 
   const completeMutation = useMutation({
     mutationFn: (id: string) => completeSuggestion(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assistant"] }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["assistant"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      toast("success", res.message || "Marked already done.");
+    },
+    onError: onFail("Already done"),
   });
 
   const bulkMutation = useMutation({

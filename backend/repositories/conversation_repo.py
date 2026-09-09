@@ -425,3 +425,20 @@ class NotificationRepository:
             .where(Notification.user_id == user_id, Notification.is_read.is_(False))
             .values(is_read=True, read_at=datetime.now(timezone.utc))
         )
+
+    async def mark_entity_read(
+        self, user_id: uuid.UUID, entity_type: str, entity_id: uuid.UUID
+    ) -> None:
+        """Read every unread notification that points at one entity — used when
+        the thing itself was acted on (e.g. a suggestion accepted/dismissed), so
+        its echo does not linger in the Notifications list."""
+        await self.db.execute(
+            update(Notification)
+            .where(
+                Notification.user_id == user_id,
+                Notification.entity_type == entity_type,
+                Notification.entity_id == entity_id,
+                Notification.is_read.is_(False),
+            )
+            .values(is_read=True, read_at=datetime.now(timezone.utc))
+        )
