@@ -4,7 +4,18 @@
 
 ## Changelog
 
-### v5.0.0 · build 254 — 2026-09-08 (unreleased; part of the 5.0.0 release)
+### v5.0.1 — 2026-09-09
+**Section tabs you can see**
+
+- `components/workbench/SectionTabs.tsx`: the tabs under the search box are
+  folder tabs now — `text-base`, each outlined and rounded at the top, the
+  active one filled, outlined in the accent colour and open at the bottom onto
+  the page (`after:` covers the strip's baseline). The strip carries the rail
+  item's icon and name on the left and an accent baseline. Badges are `text-xs`.
+- `SystemNotices` toast moved from `top-16` to `top-28` so it no longer covers
+  the taller strip.
+
+### v5.0.0 · build 254 — 2026-09-08 (released 2026-09-08 as v5.0.0)
 **The solar system is gone**
 
 Cleanup pass of the UI simplification; the workbench is the only shell.
