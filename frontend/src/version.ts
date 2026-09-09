@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 255;
+export const BUILD_NUMBER = 256;
 export const BUILD_DATE = "2026-09-09";
 
 export interface ChangelogEntry {
@@ -14,6 +14,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 256,
+    date: "2026-09-09",
+    title: "Waiting for you, without the repeats",
+    changes: [
+      "Dismiss means dismissed. A suggestion you dismiss once does not come back the next day (there is still Undo on the Assistant page for a slip).",
+      "A suggestion Gerry already knows about — same task title, same email thread, same attachment name — is not suggested again under a new heading. This is what was making 'Already done' items reappear.",
+      "The Gmail invoice check ignores email signature logos and pasted pictures (image001.png and friends), only proposes a picture when the email states an amount, and stays quiet when accepting could do nothing. Fifteen of those junk rows on your list were dismissed for you.",
+      "An overdue task reminds you once, then not again until you have read it and a week has passed — not a fresh 'Overdue' row every day.",
+      "Accept, Already done and Dismiss now tell you what happened ('Filed \"Invoice.pdf\" to \"Invoices\"; logged 1,250.00 to \"CLIN 001\"', 'Marked already done'), and say so plainly when the server refused. Before, File & log could fail silently.",
+      "Notifications no longer echo every suggestion. Those live in the Suggestions tab; the bell counts approvals, suggestions and other unread notifications once each.",
+    ],
+  },
   {
     build: 255,
     date: "2026-09-09",

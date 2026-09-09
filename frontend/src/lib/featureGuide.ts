@@ -219,10 +219,10 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     tagline: "One list of what needs you.",
     capabilities: [
       "Approvals, Gerry's suggestions and notifications in one place, with a tab for each",
-      "The bell at the top opens the same list from any page; its number is decisions plus unread",
+      "The bell at the top opens the same list from any page; its number is decisions, suggestions and unread notifications, each counted once",
       "Approve or reject right here — the buttons only show while the decision is still open",
       "Every outbound action — emails, calendar events, ERP changes — waits for your explicit OK; edit a drafted email before approving",
-      "Accept a suggestion, mark it already done, or dismiss it without leaving the list",
+      "Accept a suggestion, mark it already done, or dismiss it without leaving the list — each confirms what it did, and nothing you dismiss comes back on its own",
     ],
   },
   audit: {

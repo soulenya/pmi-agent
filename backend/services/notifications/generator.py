@@ -16,16 +16,26 @@ from repositories.conversation_repo import NotificationRepository
 
 logger = logging.getLogger(__name__)
 
+# An overdue task is re-notified at most this often, and only once the
+# previous reminder has been read.
+OVERDUE_REPEAT_DAYS = 7
+
 
 async def generate_notifications(db: AsyncSession) -> list[Notification]:
     """
     Scan for overdue tasks and approvals expiring within 24 h.
-    Creates a Notification record for each if one hasn't been created in the last 24 h.
+
+    Overdue tasks: one notification per task while it stays overdue. A fresh
+    reminder is only created once the previous one has been read AND is at
+    least ``OVERDUE_REPEAT_DAYS`` old — a daily run must not stack five
+    "Overdue: ..." rows for the same task.
+    Expiring approvals: at most one per approval per 24 h.
     Commits and returns the list of newly created Notification objects.
     """
     created: list[Notification] = []
     now = datetime.now(timezone.utc)
     window_start = now - timedelta(hours=24)
+    overdue_repeat_start = now - timedelta(days=OVERDUE_REPEAT_DAYS)
 
     # ── 1. Overdue tasks ───────────────────────────────────────────────────────
     overdue_tasks_result = await db.execute(
@@ -41,18 +51,22 @@ async def generate_notifications(db: AsyncSession) -> list[Notification]:
         if user_id is None:
             continue
 
-        # Deduplicate: skip if already notified in last 24 h
-        existing = (
+        # Deduplicate: skip while the last reminder is unread or recent.
+        latest = (
             await db.execute(
-                select(Notification).where(
+                select(Notification)
+                .where(
                     Notification.entity_type == "task",
                     Notification.entity_id == task.id,
                     Notification.type == NotificationType.TASK_DUE,
-                    Notification.created_at >= window_start,
                 )
+                .order_by(Notification.created_at.desc())
+                .limit(1)
             )
         ).scalar_one_or_none()
-        if existing is not None:
+        if latest is not None and (
+            not latest.is_read or latest.created_at >= overdue_repeat_start
+        ):
             continue
 
         due_label = task.due_date.date() if task.due_date else "unknown"

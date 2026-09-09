@@ -21,6 +21,7 @@ from dependencies import get_current_user
 from models.db.assistant import AssistantSuggestion
 from models.db.enums import TaskPriority, TaskStatus
 from models.db.user import User
+from repositories.conversation_repo import NotificationRepository
 from repositories.task_repo import TaskRepository
 from services.assistant import daily_scan
 from services.embeddings.service import EmbeddingService, get_embedding_service_db
@@ -105,6 +106,8 @@ class AcceptResult(BaseModel):
     status: str
     suggestion_id: uuid.UUID
     task_id: uuid.UUID | None = None
+    # One plain sentence saying what actually happened, for the confirmation toast.
+    message: str | None = None
 
 
 class BulkSuggestionRequest(BaseModel):
@@ -276,6 +279,14 @@ async def _get_owned(db: AsyncSession, user: User, suggestion_id: uuid.UUID) -> 
     return s
 
 
+async def _settle(db: AsyncSession, s: AssistantSuggestion) -> None:
+    """The suggestion was acted on: its echo in Notifications is read now."""
+    try:
+        await NotificationRepository(db).mark_entity_read(s.user_id, "assistant_suggestion", s.id)
+    except Exception:  # noqa: BLE001 — bookkeeping only
+        logger.exception("Failed to read notifications for suggestion %s", s.id)
+
+
 @router.post("/suggestions/{suggestion_id}/accept", response_model=AcceptResult)
 async def accept_suggestion(
     suggestion_id: uuid.UUID,
@@ -287,6 +298,7 @@ async def accept_suggestion(
         raise HTTPException(409, f"Suggestion already {s.status}")
 
     task_id: uuid.UUID | None = None
+    message = "Accepted."
 
     if s.kind in ("task_recommendation", "followup_email", "workroom_todo"):
         task = (s.payload or {}).get("task") or {}
@@ -308,6 +320,7 @@ async def accept_suggestion(
         task_id = created.id
         s.result_entity_type = "task"
         s.result_entity_id = created.id
+        message = f'Task created: "{title[:80]}".'
 
         # A workroom to-do lives in its room: pin the task + journal the accept.
         if s.kind == "workroom_todo":
@@ -334,6 +347,10 @@ async def accept_suggestion(
 
     # meeting_import: accepting means "keep it" — the document is already in the KB.
     # followup_task: accepting means "acknowledged".
+    if s.kind == "meeting_import":
+        message = "Kept in the Knowledge Base."
+    elif s.kind == "followup_task":
+        message = "Acknowledged."
 
     # budget_entry: accepting writes the suggested entry into the budget's
     # sheet. The accept click IS the user's explicit action, so it does not
@@ -374,6 +391,7 @@ async def accept_suggestion(
             raise HTTPException(409, str(exc)) from exc
         s.result_entity_type = "budget"
         s.result_entity_id = budget.id
+        message = f'Logged {float(entry["amount"]):,.2f} to "{budget.title}".'
 
     # gmail_invoice: accepting files the email attachment into the budget's
     # linked invoice folder (when one exists) and adds the ledger entry when
@@ -457,11 +475,21 @@ async def accept_suggestion(
             )
         s.result_entity_type = "budget"
         s.result_entity_id = budget.id
+        parts: list[str] = []
+        if filed_to:
+            parts.append(f'filed "{want_name}" to "{folder.folder_name}"' if folder else "filed")
+        elif folder is not None:
+            parts.append(f'could not file "{want_name}" (see log)')
+        if entry.get("amount") is not None:
+            parts.append(f'logged {float(entry["amount"]):,.2f} to "{budget.title}"')
+        joined = "; ".join(parts)
+        message = (joined[:1].upper() + joined[1:] + ".") if joined else "Accepted."
 
     s.status = "accepted"
     s.resolved_at = datetime.now(timezone.utc)
+    await _settle(db, s)
     await db.commit()
-    return AcceptResult(status="accepted", suggestion_id=s.id, task_id=task_id)
+    return AcceptResult(status="accepted", suggestion_id=s.id, task_id=task_id, message=message)
 
 
 async def _dismiss_row(
@@ -481,6 +509,7 @@ async def _dismiss_row(
     s.status = "dismissed"
     s.dismissal_count = (s.dismissal_count or 0) + 1
     s.resolved_at = datetime.now(timezone.utc)
+    await _settle(db, s)
 
 
 @router.post("/suggestions/{suggestion_id}/dismiss", response_model=AcceptResult)
@@ -496,7 +525,11 @@ async def dismiss_suggestion(
 
     await _dismiss_row(db, s, embedding_svc)
     await db.commit()
-    return AcceptResult(status="dismissed", suggestion_id=s.id)
+    return AcceptResult(
+        status="dismissed",
+        suggestion_id=s.id,
+        message="Dismissed — it will not be suggested again.",
+    )
 
 
 @router.post("/suggestions/{suggestion_id}/complete", response_model=AcceptResult)
@@ -507,9 +540,9 @@ async def complete_suggestion(
 ):
     """Mark a suggestion as already done.
 
-    Unlike dismissal (which resurfaces once to guard against accidents), a
-    completed suggestion is permanently suppressed — future scans will never
-    recommend the same item again.
+    A completed suggestion is permanently suppressed — future scans will never
+    recommend the same item again (same source, same title, or a near-identical
+    wording).
     """
     s = await _get_owned(db, user, suggestion_id)
     if s.status != "pending":
@@ -517,8 +550,13 @@ async def complete_suggestion(
 
     s.status = "completed"
     s.resolved_at = datetime.now(timezone.utc)
+    await _settle(db, s)
     await db.commit()
-    return AcceptResult(status="completed", suggestion_id=s.id)
+    return AcceptResult(
+        status="completed",
+        suggestion_id=s.id,
+        message="Marked already done — it will not be suggested again.",
+    )
 
 
 @router.post("/suggestions/bulk", response_model=BulkResult)
@@ -550,6 +588,7 @@ async def bulk_resolve_suggestions(
         if body.action == "complete":
             s.status = "completed"
             s.resolved_at = now
+            await _settle(db, s)
         else:
             await _dismiss_row(db, s, embedding_svc)
         processed += 1
@@ -565,10 +604,10 @@ async def undo_dismiss_suggestion(
 ):
     """Revert an accidental dismissal back to pending.
 
-    Decrements the dismissal counter so the undo also undoes the "dismissed
-    twice → suppress forever" progression. (A dismissed ``meeting_import`` may
-    have removed its imported document; that document is re-imported by the next
-    scan when the suggestion resurfaces, not here.)
+    Decrements the dismissal counter so the row is no longer suppressed. (A
+    dismissed ``meeting_import`` may have removed its imported document; that
+    document is re-imported by the next scan when the suggestion resurfaces,
+    not here.)
     """
     s = await _get_owned(db, user, suggestion_id)
     if s.status != "dismissed":

@@ -4,6 +4,47 @@
 
 ## Changelog
 
+### v5.0.2 · build 256 — 2026-09-09
+**Waiting for you, without the repeats**
+
+Fixes the duplicate suggestions/notifications that made the bell and the
+Assistant page bloat, and the silent File & log.
+
+- `services/assistant/daily_scan.py`: `DISMISS_SUPPRESS_THRESHOLD` 2 → 1 (one
+  dismissal suppresses; Undo on the Assistant page covers slips). New
+  title-level dedup: `_TITLE_DEDUP_KINDS` (followup_email, task_recommendation,
+  meeting_import) keep a `title_index` of `_norm_key(_title_text(row))` over
+  the last `SEMANTIC_DUP_WINDOW_DAYS` (21 → 45); `_add` / `_skip_before_work`
+  take `title_key` and refuse a row whose normalized title matches a blocked
+  one under any source id. Meeting imports check the filename before the
+  ingest (Gmail and Gemini paths). Observed: 81 meeting_import rows collapsed
+  to 64 distinct filenames.
+- `services/budget_folder_service.gmail_check_budget`: skips attachments that
+  are `inline` or match `_SIGNATURE_IMAGE_RE` (image001.png, ~WRD0001.jpg,
+  Outlook-*.png…); an image is only proposed when the email states an amount;
+  nothing is proposed when there is no amount AND no invoice folder (accept
+  would 400); `source_id` is `gmailinv:{thread_id}:{filename}` and any message
+  that already has a suggestion (payload `message_id`) is skipped, so replies
+  in a thread don't resurface an attachment. `thread_id` added to payload.
+- `services/google_service.gmail_get_attachments`: each item gains `inline`
+  (Content-ID header or inline Content-Disposition).
+- `services/notifications/generator.py`: an overdue task is re-notified only
+  when the latest TASK_DUE notification is read AND older than
+  `OVERDUE_REPEAT_DAYS` (7) — was a new row every 24 h.
+- `routers/assistant.py`: `AcceptResult.message` says what happened (task
+  created / filed to folder / logged amount / marked done / dismissed).
+  `_settle()` marks the suggestion's echo notifications read on accept,
+  complete, dismiss and bulk. `NotificationRepository.mark_entity_read` added.
+- Frontend `WaitingForYou.tsx`: `isSuggestionEcho()` hides
+  `entity_type === "assistant_suggestion"` rows from the Notifications tab and
+  the unread count; bell total = approvals + pending suggestions + unread.
+  Accept / Already done / Dismiss toast the server `message` on success and the
+  server `detail` on failure (409s are already toasted by the API client).
+  `AssistantPage.tsx` does the same.
+- One-time cleanup on this install: 15 pending `gmail_invoice` rows for
+  signature images (image.png, image001/002.png, ~WRD2920.jpg) were dismissed
+  via the bulk endpoint; 3 real PDFs remain pending.
+
 ### v5.0.1 — 2026-09-09
 **Section tabs you can see**
 

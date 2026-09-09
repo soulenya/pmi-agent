@@ -43,7 +43,23 @@ import { ApprovalCard, useResolveApproval } from "@/components/approvals/Approva
 import { formatAgo } from "@/lib/formatWhen";
 import { SUGGESTION_KIND_META, stripRoomPrefix } from "@/lib/suggestionKinds";
 import { cn } from "@/lib/utils";
+import { useToastStore } from "@/stores/toastStore";
 import type { Notification } from "@/types/chat";
+
+/**
+ * Every suggestion also writes a notification when it is created. Those echoes
+ * live in the Suggestions tab already, so the Notifications tab (and the unread
+ * count) leave them out — otherwise each item shows up twice.
+ */
+export function isSuggestionEcho(n: Notification): boolean {
+  return n.entity_type === "assistant_suggestion";
+}
+
+/** The server's one-line explanation of a failed request, if it gave one. */
+export function apiErrorText(e: unknown, fallback: string): string {
+  const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  return typeof detail === "string" && detail ? detail : fallback;
+}
 
 export type WaitingTab = "approvals" | "suggestions" | "notifications";
 
@@ -57,7 +73,7 @@ export function isWaitingTab(v: string | null | undefined): v is WaitingTab {
   return v === "approvals" || v === "suggestions" || v === "notifications";
 }
 
-/** Counts for badges. `total` is what the bell shows: decisions + unread. */
+/** Counts for badges. `total` is what the bell shows: decisions + suggestions + unread. */
 export function useWaitingCounts() {
   const { data: approvals = [] } = useQuery({
     queryKey: ["approvals", "pending"],
@@ -74,12 +90,12 @@ export function useWaitingCounts() {
     queryFn: getPendingSuggestionCount,
     refetchInterval: 30_000,
   });
-  const unread = notifications.filter((n) => !n.is_read).length;
+  const unread = notifications.filter((n) => !n.is_read && !isSuggestionEcho(n)).length;
   return {
     approvals: approvals.length,
     suggestions,
     notifications: unread,
-    total: approvals.length + unread,
+    total: approvals.length + suggestions + unread,
   };
 }
 
@@ -310,6 +326,7 @@ export function WaitingForYou({ tab, onTabChange, limit, onNavigate, className }
     queryKey: ["notifications"],
     queryFn: listNotifications,
     refetchInterval: 30_000,
+    select: (rows) => rows.filter((n) => !isSuggestionEcho(n)),
   });
   const { data: suggestions = [], isLoading: suggestionsLoading } = useQuery({
     queryKey: ["assistant", "suggestions", "pending"],
@@ -343,9 +360,32 @@ export function WaitingForYou({ tab, onTabChange, limit, onNavigate, className }
     qc.invalidateQueries({ queryKey: ["assistant"] });
     qc.invalidateQueries({ queryKey: ["notifications"] });
   };
-  const accept = useMutation({ mutationFn: (id: string) => acceptSuggestion(id), onSuccess: bump });
-  const done = useMutation({ mutationFn: (id: string) => completeSuggestion(id), onSuccess: bump });
-  const dismiss = useMutation({ mutationFn: (id: string) => dismissSuggestion(id), onSuccess: bump });
+  const toast = useToastStore((s) => s.push);
+  const settled = (fallback: string) => (res: { message?: string | null }) => {
+    bump();
+    toast("success", res.message || fallback);
+  };
+  const failed = (what: string) => (e: unknown) => {
+    bump();
+    // The API client already toasts 409s (server refused on a rule).
+    if ((e as { response?: { status?: number } })?.response?.status === 409) return;
+    toast("error", apiErrorText(e, `${what} failed.`), 9000);
+  };
+  const accept = useMutation({
+    mutationFn: (id: string) => acceptSuggestion(id),
+    onSuccess: settled("Accepted."),
+    onError: failed("Accept"),
+  });
+  const done = useMutation({
+    mutationFn: (id: string) => completeSuggestion(id),
+    onSuccess: settled("Marked already done."),
+    onError: failed("Already done"),
+  });
+  const dismiss = useMutation({
+    mutationFn: (id: string) => dismissSuggestion(id),
+    onSuccess: settled("Dismissed."),
+    onError: failed("Dismiss"),
+  });
   const suggestionBusy = accept.isPending || done.isPending || dismiss.isPending;
 
   const go = (path: string) => {

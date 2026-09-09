@@ -470,13 +470,33 @@ async def intake_upload(
 
 _GMAIL_QUERY = 'newer_than:2d has:attachment (invoice OR receipt OR bill OR "amount due")'
 
+# Filenames mail clients give to embedded signature logos / pasted screenshots
+# (Outlook: image001.png, ~WRD0001.jpg; Gmail: image.png; Apple: Outlook-xxxx.png).
+_SIGNATURE_IMAGE_RE = re.compile(
+    r"^(image\d*|~wrd\d+|outlook-[\w-]+|oledata|pastedimage\d*)\.(png|jpe?g|gif|bmp)$",
+    re.IGNORECASE,
+)
+_IMAGE_MIMES = ("image/png", "image/jpeg", "image/jpg")
+
+
+def _looks_like_signature_image(att: dict) -> bool:
+    if att.get("inline"):
+        return True
+    return bool(_SIGNATURE_IMAGE_RE.match((att.get("filename") or "").strip()))
+
 
 async def gmail_check_budget(db: AsyncSession, budget: Budget) -> int:
     """Look for fresh invoice-ish emails and suggest them for this budget.
 
     Accepting a ``gmail_invoice`` suggestion files the attachment into the
     budget's linked invoice folder (when one exists) and adds the ledger
-    entry. Returns the number of new suggestions."""
+    entry. Returns the number of new suggestions.
+
+    Kept quiet on purpose: embedded signature images are ignored, an image is
+    only proposed when the email states an amount, nothing is proposed when
+    accepting could do nothing (no amount AND no invoice folder), and the
+    dedup key is the *thread* + filename so a reply in the same conversation
+    does not resurface an attachment that was already reviewed."""
     from services import google_service as gs
     from services.invoice_service import parse_amount
 
@@ -501,6 +521,21 @@ async def gmail_check_budget(db: AsyncSession, budget: Budget) -> int:
         msg_id = m.get("id") or m.get("message_id")
         if not msg_id:
             continue
+        thread_id = str(m.get("thread_id") or "").strip() or msg_id
+        # Rows created before thread-keying are keyed by message id; never
+        # re-propose a message that already has a suggestion in any status.
+        already = (
+            await db.execute(
+                select(AssistantSuggestion.id).where(
+                    AssistantSuggestion.user_id == budget.user_id,
+                    AssistantSuggestion.kind == "gmail_invoice",
+                    AssistantSuggestion.payload["budget_id"].astext == str(budget.id),
+                    AssistantSuggestion.payload["message_id"].astext == str(msg_id),
+                ).limit(1)
+            )
+        ).first()
+        if already is not None:
+            continue
         try:
             atts = await _run(lambda mid=msg_id: gs.gmail_get_attachments(mid))
         except Exception:  # noqa: BLE001
@@ -508,7 +543,8 @@ async def gmail_check_budget(db: AsyncSession, budget: Budget) -> int:
         usable = [
             a for a in atts
             if (a.get("mime_type") or "").split(";")[0].strip().lower()
-            in ("application/pdf", "image/png", "image/jpeg", "image/jpg", "text/csv")
+            in ("application/pdf", *_IMAGE_MIMES, "text/csv")
+            and not _looks_like_signature_image(a)
         ]
         if not usable:
             continue
@@ -520,6 +556,11 @@ async def gmail_check_budget(db: AsyncSession, budget: Budget) -> int:
                 except Exception:  # noqa: BLE001
                     meta = {}
             amount = parse_amount(f"{meta.get('subject', '')}\n{meta.get('body', '')}")
+            mime = (att.get("mime_type") or "").split(";")[0].strip().lower()
+            if amount is None and (folder is None or mime in _IMAGE_MIMES):
+                # Nothing accept could do (no entry, nowhere to file) — or an
+                # image the email never puts a figure on. Not worth a click.
+                continue
             sender = (meta.get("from", "").split("<")[0] or "").strip().strip('"')
             action = (
                 f'filed to "{folder.folder_name}" and logged'
@@ -528,7 +569,7 @@ async def gmail_check_budget(db: AsyncSession, budget: Budget) -> int:
             s = await _suggest_entry(
                 db,
                 budget,
-                source_id=f"gmailinv:{msg_id}:{att['filename']}",
+                source_id=f"gmailinv:{thread_id}:{att['filename']}",
                 title=(
                     f'Invoice from {sender or "email"}: '
                     + (f"{_fmt(amount, budget.currency)} " if amount is not None else "")
@@ -549,6 +590,7 @@ async def gmail_check_budget(db: AsyncSession, budget: Budget) -> int:
                 kind="gmail_invoice",
                 extra_payload={
                     "message_id": msg_id,
+                    "thread_id": thread_id,
                     "attachment_filename": att["filename"],
                     "folder_row_id": str(folder.id) if folder is not None else None,
                 },

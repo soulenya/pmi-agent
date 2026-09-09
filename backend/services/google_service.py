@@ -810,9 +810,12 @@ def gmail_get_attachment(message_id: str, attachment_id: str) -> bytes:
 def gmail_get_attachments(message_id: str) -> list[dict]:
     """Return downloadable file attachments for a Gmail message.
 
-    Each item: ``{filename, mime_type, attachment_id, size, data (bytes)}``.
-    Inline parts without a filename are skipped. Used by the daily assistant
-    scan to auto-import meeting-summary attachments into the Knowledge Base.
+    Each item: ``{filename, mime_type, attachment_id, size, inline, data (bytes)}``.
+    ``inline`` is True for parts embedded in the HTML body (a Content-ID or an
+    inline Content-Disposition) — signature logos and pasted screenshots, not
+    files someone attached on purpose. Parts without a filename are skipped.
+    Used by the daily assistant scan to auto-import meeting-summary attachments
+    into the Knowledge Base and by the per-budget Gmail invoice check.
     """
     svc = _build("gmail", "v1")
     msg = svc.users().messages().get(userId="me", id=message_id, format="full").execute()
@@ -823,6 +826,13 @@ def gmail_get_attachments(message_id: str) -> list[dict]:
         body = part.get("body", {}) or {}
         att_id = body.get("attachmentId")
         if filename and att_id:
+            headers = {
+                (h.get("name") or "").lower(): h.get("value") or ""
+                for h in part.get("headers", []) or []
+            }
+            inline = bool((headers.get("content-id") or "").strip()) or (
+                headers.get("content-disposition", "").strip().lower().startswith("inline")
+            )
             att = (
                 svc.users()
                 .messages()
@@ -837,6 +847,7 @@ def gmail_get_attachments(message_id: str) -> list[dict]:
                 "mime_type": part.get("mimeType", ""),
                 "attachment_id": att_id,
                 "size": body.get("size", 0),
+                "inline": inline,
                 "data": raw,
             })
         for child in part.get("parts", []) or []:

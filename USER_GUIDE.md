@@ -304,7 +304,7 @@ The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Go
 - **Dismiss all** on a box clears that whole group in one click.
 - **The boxes are ordered by what you actually use.** Little Gerry keeps score of how often you keep versus dismiss each type of suggestion. The kinds you accept sit at the top and open automatically; the kinds you always bin sink to the bottom and arrive closed, saying so. Groups of two or fewer always stay open. Opening or closing a box yourself overrides this until you reload.
 - Each suggestion is something to **review** — the assistant never acts on its own. You decide what to do with it.
-- **Already done** marks a suggestion as handled. Unlike Dismiss (which lets an item come back once, in case you clicked it by accident), a completed suggestion is never recommended again.
+- **Already done** marks a suggestion as handled. Like Dismiss, a completed suggestion is never recommended again — not from the same source, not under a reworded title. Dismissed by mistake? **Undo** appears for a few seconds.
 - **Select several at once** — tick the checkbox on each card (or **Select all** in the bar above the list) and use **Mark done** or **Dismiss** to clear them in one go.
 - Suggestions are generated about **once per day**; the scan runs automatically in the background while the app is open.
 - Requires **Google Workspace** to be connected (see [Google Workspace](#google-workspace)) for the email/schedule sections. Without it, the assistant still shows your tasks, approvals, and Odoo data.
@@ -1089,7 +1089,7 @@ Navigate to **Finance › Budgets**. A personal financial-management aid — **n
 - **The budget watches itself**: crossing 80% or 100% of an allotment raises a notification (once per crossing), categories warn when they hit their caps, and the first scan of each month delivers a rollup of last month's spending. Budgets at 80%+ raise a notification you will see under Waiting for you, and room digests report pinned budgets whose totals changed since yesterday. All read-only — nudges never touch your sheet.
 - **Invoices connect**: ask Gerry to file an invoice from an email ("file the invoice from OVYL's email") — it lands in the company's invoice folder on Drive for the invoice sheet's daily pipeline. If the amount is readable and a budget matches, Gerry suggests the ledger entry on the Assistant page — accept or dismiss, never silent.
 - **Linked folders**: link invoice or receipts folders from Drive to any budget. Gerry scans them read-only — reads each PDF/image/CSV (OCR when needed), extracts vendor, date, and amount, picks a category, and totals what she found. Every document becomes a suggestion you review inside the budget (accept, dismiss, or accept all). Your files are never modified or moved.
-- **Per-budget automation**: turn on daily folder scans and daily Gmail invoice checks per budget. Accepting a Gmail find files the attachment into your linked invoice folder and logs the entry — nothing ever happens without your accept.
+- **Per-budget automation**: turn on daily folder scans and daily Gmail invoice checks per budget. Accepting a Gmail find files the attachment into your linked invoice folder and logs the entry — nothing ever happens without your accept. The check ignores signature logos and pasted pictures, only proposes a picture when the email states an amount, and never proposes something accepting could do nothing with.
 - **Master budgets**: reference any other budget to pull its numbers in — shown live, and optionally as synced "[Budget]" line items in the master's sheet so its totals include the sub-budget on both surfaces. A sub-budget contributes **two** lines, its spend and its allocations, so allocated money stays allocated all the way up the tree.
 - **On a project**: attach a budget to a project and everyone on the project can read the whole ledger, allocations included. Only you can change it — see [The Budget tab](#the-budget-tab).
 - **Cross-check against Odoo**: every budget has a compare panel — bounce your tracking off live ERP invoices, sales, customers, or bank balances, side by side. Advisory only.
@@ -1101,15 +1101,17 @@ Navigate to **Finance › Budgets**. A personal financial-management aid — **n
 
 ## Waiting for you
 
-One list of everything that needs you, in three tabs. Open it from the **bell** at the top of any page, from **Today → Waiting for you**, or from the card on the Today page. The number on the bell is decisions waiting plus unread notifications.
+One list of everything that needs you, in three tabs. Open it from the **bell** at the top of any page, from **Today → Waiting for you**, or from the card on the Today page. The number on the bell is decisions waiting, plus pending suggestions, plus unread notifications — each item counted once.
 
 | Tab | What is there | What you can do |
 |-----|---------------|-----------------|
 | **Approvals** | Any action Little Gerry proposes that could have real-world consequences — sending an email, creating a calendar event, writing to Odoo — with an AI-generated summary. | **Approve** runs it; **Reject** (with an optional comment) cancels it. Edit a drafted email before approving. **Clear expired** removes requests that timed out. Every decision is logged in the Audit Trail. |
-| **Suggestions** | Gerry's daily-scan suggestions: follow-ups, recommended tasks, imported meeting notes, budget entries. | **Create task** / **Keep** / **File & log** (the accept action depends on the kind), **Already done**, or **Dismiss**. Trust scores, grouping and bulk actions are on the full Suggestions page. |
-| **Notifications** | Task assignments and due-date reminders, new approval requests, briefings, documents added. | Click one to go where it points; **Mark all read** clears the count. |
+| **Suggestions** | Gerry's daily-scan suggestions: follow-ups, recommended tasks, imported meeting notes, budget entries. | **Create task** / **Keep** / **File & log** (the accept action depends on the kind), **Already done**, or **Dismiss**. Each one confirms what it did in a toast ("Filed … to …; logged …", "Marked already done") — or says why the server refused. Trust scores, grouping and bulk actions are on the full Suggestions page. |
+| **Notifications** | Task assignments and due-date reminders, new approval requests, briefings, documents added. Suggestions are not repeated here — they have their own tab. | Click one to go where it points; **Mark all read** clears the count. |
 
 Approve and Reject buttons appear only while the decision is still open — approve something from the email thread or chat and it disappears from every other surface at once. Reading a notification does not change what you can do about it.
+
+**Nothing comes back on its own.** A suggestion you dismiss or mark already done is not suggested again — not from the same email, not under a reworded title, not from a reply that re-attaches the same file. (Undo is on the Suggestions page if you slip.) An overdue task reminds you once and stays quiet until you have read that reminder and a week has passed.
 
 The old **Approvals** and **Notifications** pages open this list on the matching tab.
 
