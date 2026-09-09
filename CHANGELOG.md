@@ -4,7 +4,7 @@
 
 ## Changelog
 
-### v5.1.0 — 2026-09-08 (unreleased; ships with 5.0.0)
+### v5.0.0 · build 253 — 2026-09-08 (unreleased; part of the 5.0.0 release)
 **One task form, one voice**
 
 Phase 6 of the UI simplification.
@@ -44,7 +44,7 @@ Phase 6 of the UI simplification.
   Documents badge "From a room"; Routines form "Room (optional)"; Research
   Browser "No rooms yet"; TaskSourceActions "Open room".
 
-### v5.0.2 — 2026-09-08 (unreleased; ships with 5.0.0)
+### v5.0.0 · build 252 — 2026-09-08 (unreleased; part of the 5.0.0 release)
 **One place for what is waiting**
 
 Phase 4 of the UI simplification.
@@ -92,7 +92,7 @@ Phase 4 of the UI simplification.
   TaskSourceActions / Assistant / Odoo toasts ("under Waiting for you").
   Feature guide gains a `waiting` entry; `resolveGuide` maps `/waiting`.
 
-### v5.0.1 — 2026-09-08 (unreleased; ships with 5.0.0)
+### v5.0.0 · build 251 — 2026-09-08 (unreleased; part of the 5.0.0 release)
 **One way into the Knowledge Base**
 
 Phase 3 of the UI simplification. Every intake point shares one dialog and
@@ -142,7 +142,7 @@ one 409 shape; Search and Generated Files fold into the Knowledge Base page.
   "Search the Knowledge Base for …" row → `/documents?tab=search&q=`.
 - Fixed a `Â·` mojibake in the Knowledge Base footer.
 
-### v5.0.0 — 2026-09-08 (unreleased; the release that ships the series)
+### v5.0.0 · build 250 — 2026-09-08 (unreleased; part of the 5.0.0 release)
 **A workbench instead of a solar system**
 
 Phase 5 of the UI simplification. Built behind `ui.shell` (a persisted zustand
@@ -214,7 +214,7 @@ it is `orbit`, and is deleted in the cleanup release.
   Compliance; You › Old layout brought the solar system back and Settings ›
   Appearance › Layout returned to the workbench.
 
-### v4.9.0 — 2026-09-08 (unreleased; ships with 5.0.0)
+### v5.0.0 · build 249 — 2026-09-08 (unreleased; part of the 5.0.0 release)
 **Gerry knows which project you are in**
 
 Phase 2 of the UI simplification. One migration, one extracted component,
@@ -280,7 +280,7 @@ are standing in In Q Tel.
   there is no message-delete endpoint and the hub database is not touched by
   hand.
 
-### v4.8.1 — 2026-09-08 (unreleased; ships with 5.0.0)
+### v5.0.0 · build 248 — 2026-09-08 (unreleased; part of the 5.0.0 release)
 **Shared work shows up everywhere your own work does**
 
 Phase 1 of the UI simplification. The hub proxy already allowed `/tasks`,
@@ -314,7 +314,7 @@ never asked.
   listed — Phase 2 adds `project_id` to conversations and fixes that.
 - **`HubBadge`** component: the small `hub` pill used on every merged row.
 
-### v4.8.0 — 2026-09-08 (unreleased; ships with 5.0.0)
+### v5.0.0 · build 247 — 2026-09-08 (unreleased; part of the 5.0.0 release)
 **Fewer doors: one way into a project, and two pages retired**
 
 Phase 0 of the UI simplification plan: dead
