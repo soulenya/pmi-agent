@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 254;
-export const BUILD_DATE = "2026-09-08";
+export const BUILD_NUMBER = 255;
+export const BUILD_DATE = "2026-09-09";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 255,
+    date: "2026-09-09",
+    title: "Section tabs you can see",
+    changes: [
+      "The tabs under the search box (Today, Mail, Knowledge, Calendar, Finance) are bigger and drawn as folder tabs: each one outlined, the one you are on filled and joined to the page below, with the place's name on the left so it is clear what they belong to.",
+    ],
+  },
   {
     build: 254,
     date: "2026-09-08",
