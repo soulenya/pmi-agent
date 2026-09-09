@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 253;
+export const BUILD_NUMBER = 254;
 export const BUILD_DATE = "2026-09-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 254,
+    date: "2026-09-08",
+    title: "The solar system is gone",
+    changes: [
+      "The old layout, its planets and moons, the command palette and the three arcade games are removed. The workbench is the app. Old links (/, /gerry, /planet/...) land in the right place.",
+      "The docked briefing panel is retired; everything it showed is on Today, under the bell, or on its own page.",
+      "What Gerry can do now describes the pages that exist and nothing else.",
+    ],
+  },
   {
     build: 253,
     date: "2026-09-08",
@@ -61,7 +71,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Settings is five tabs: Profile, AI, Connections, Company, System. Agents, Conversation backups and Google Workspace moved inside them; the Restart, Update and Stop controls live under System. Ctrl+, opens Settings.",
       "Scheduled tasks are called Routines and sit as a tab on Tasks. Portfolio is the Graph view on Projects, and Rooms is its third view.",
       "The model picker sits under the message box, in the conversation it belongs to.",
-      "The solar system is still here for now. You › Old layout brings it back for this computer; Settings › Profile › Appearance › Layout makes it stick. It goes in a later release.",
     ],
   },
   {

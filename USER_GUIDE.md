@@ -201,20 +201,17 @@ Your profile is **yours alone**. It is stored against your account, never shared
 | **Meeting Notes** | Auto-records and transcribes your video calls, then AI-summarizes them — or paste a transcript manually |
 | **Regulatory** | Track DHF, IFU, 510(k), and ISO documents with AI drafting |
 | **Slide Decks** | Ask for a presentation and Gerry builds one in the company house style, marked with the security classification you choose |
-| **Approvals** | Human-in-the-loop queue — approve/reject with automatic action execution |
-| **Notifications** | Real-time alerts for tasks, approvals, and AI activity |
+| **Waiting for you** | Approvals, suggestions and notifications in one list under the bell — approve/reject with automatic action execution |
 | **Audit Trail** | Immutable log of every AI action and document change |
 | **Odoo ERP** | Connect your Odoo account (API key) so Little Gerry can read and propose ERP actions |
 | **Settings** | Configure AI providers, appearance, and Google integration |
 
 > **Finding your way around.** The app is a **workbench**: a narrow rail on the left, a search box at the top, the page in the middle, and Gerry on the right.
 >
-> - The **rail** has eight places, always in the same order: **Today**, **Projects**, **Tasks**, **Mail**, **Knowledge**, **Calendar**, **Compliance**, **Finance**. Hover for the name. A place that holds more than one page shows a thin row of tabs under the search box — Mail has Inbox and Contacts, Knowledge has the Knowledge Base, Search, Research, Browser and Made by Gerry, Compliance has Regulatory, Approvals and Audit trail. Below the eight, the **last five places you were** — a project, a conversation — appear as two-letter chips so what you were just doing is one click back. At the bottom, **You**: your settings, users, notifications, help, feedback, what's new and sign out.
+> - The **rail** has eight places, always in the same order: **Today**, **Projects**, **Tasks**, **Mail**, **Knowledge**, **Calendar**, **Compliance**, **Finance**. Hover for the name. A place that holds more than one page shows a thin row of tabs under the search box — Today has Today, Waiting for you and Suggestions; Mail has Inbox and Contacts; Knowledge has the Knowledge Base, Browser and Research; Calendar has Calendar and Meetings; Compliance has Regulatory and Audit trail; Finance has Budgets and Odoo. Below the eight, the **last five places you were** — a project, a conversation — appear as two-letter chips so what you were just doing is one click back. At the bottom, **You**: your settings, users, notifications, help, feedback, what's new and sign out.
 > - The **search box** (Ctrl+K from anywhere) does three things. Type a *name* and it lists matching projects, tasks, documents, conversations and people — Enter jumps, and a task opens over the page you are on rather than taking you away. Type a *question* and Enter sends it to Gerry in the panel. Type **/** for commands: `/task`, `/project`, `/kb`, `/routine`, `/meeting`, `/settings`.
 > - **Home is Today**: what is due, what is overdue, what is waiting for you, the briefing, and your recent conversations.
 > - **Esc** closes whatever is open over the page.
->
-> The solar-system layout this replaced is still there for now: **You › Old layout**, or Settings › Profile › Appearance › Layout. It goes in a later release.
 
 > **Going back.** The **‹ ›** arrows at the top left retrace your steps, exactly as a browser's back and forward do. Leave a project for the chat and one press of **‹** puts you back where you were. **Alt+←** and **Alt+→** do the same from the keyboard (**⌘[** and **⌘]** on a Mac).
 
@@ -301,8 +298,8 @@ Whatever you choose is remembered — width, expanded, popped out and where you 
 
 The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Google Tasks** in the background and gathers suggestions — follow-ups you may owe someone, emails that look like they need a reply, and to-dos worth tracking — so nothing slips through the cracks.
 
-- A **briefing panel** is docked on the right side of the home screen (next to the solar system). At a glance it shows **today's schedule**, **unread email**, **tasks due**, **pending approvals**, **suggestions**, and an **Odoo snapshot** (bank balances) — each section links straight to the right page. Collapse or reopen it with the panel button; Little Gerry remembers your choice.
-- Open **Daily Assistant** itself from its satellite next to the sun (or the briefing panel header). The badge shows the number of pending suggestions.
+- **Today** is where the scan's results meet you: the **Waiting for you** card lists pending suggestions alongside approvals and notifications, and the agenda shows the day's tasks, meetings and calendar events.
+- Open **Suggestions** itself from **Today › Suggestions** (or the Suggestions tab under the bell). The badge shows the number of pending suggestions.
 - **Suggestions are grouped by what they're about** rather than listed one under another. Each room gets a box (*Henry Jackson Foundation · 6*), and email follow-ups group under the person you're waiting on. Every box carries a count and a one-line description; click it to open the suggestions inside.
 - **Dismiss all** on a box clears that whole group in one click.
 - **The boxes are ordered by what you actually use.** Little Gerry keeps score of how often you keep versus dismiss each type of suggestion. The kinds you accept sit at the top and open automatically; the kinds you always bin sink to the bottom and arrive closed, saying so. Groups of two or fewer always stay open. Opening or closing a box yourself overrides this until you reload.
@@ -1089,7 +1086,7 @@ Navigate to **Finance › Budgets**. A personal financial-management aid — **n
 - **Filter and isolate**: tap the category chips above the ledger to filter it (multi-select, live subtotal), or check specific entries and "Isolate selected" to view just those rows for a reference.
 - **Let Gerry help**: a per-budget toggle grants Gerry permission to add and edit entries when you ask in chat ("log $89.99 for the torque wrench against Lab Tools"). She files a line under the right status, so "set aside $5,000 for the enclosure tooling" is recorded as **Allocated**, not spent, and "we invoiced them $12,000 last week" as **Expected**. Edits and deletions also require your explicit confirmation in chat. Reading is always allowed, and you can revoke the grant anytime.
 - **Create from chat** too: ask Gerry to set up a budget with an allotment and categories — her write permission still starts OFF until you enable it.
-- **The budget watches itself**: crossing 80% or 100% of an allotment raises a notification (once per crossing), categories warn when they hit their caps, and the first scan of each month delivers a rollup of last month's spending. Budgets at 80%+ also appear in the home-screen briefing panel, and room digests report pinned budgets whose totals changed since yesterday. All read-only — nudges never touch your sheet.
+- **The budget watches itself**: crossing 80% or 100% of an allotment raises a notification (once per crossing), categories warn when they hit their caps, and the first scan of each month delivers a rollup of last month's spending. Budgets at 80%+ raise a notification you will see under Waiting for you, and room digests report pinned budgets whose totals changed since yesterday. All read-only — nudges never touch your sheet.
 - **Invoices connect**: ask Gerry to file an invoice from an email ("file the invoice from OVYL's email") — it lands in the company's invoice folder on Drive for the invoice sheet's daily pipeline. If the amount is readable and a budget matches, Gerry suggests the ledger entry on the Assistant page — accept or dismiss, never silent.
 - **Linked folders**: link invoice or receipts folders from Drive to any budget. Gerry scans them read-only — reads each PDF/image/CSV (OCR when needed), extracts vendor, date, and amount, picks a category, and totals what she found. Every document becomes a suggestion you review inside the budget (accept, dismiss, or accept all). Your files are never modified or moved.
 - **Per-budget automation**: turn on daily folder scans and daily Gmail invoice checks per budget. Accepting a Gmail find files the attachment into your linked invoice folder and logs the entry — nothing ever happens without your accept.

@@ -4,6 +4,34 @@
 
 ## Changelog
 
+### v5.0.0 · build 254 — 2026-09-08 (unreleased; part of the 5.0.0 release)
+**The solar system is gone**
+
+Cleanup pass of the UI simplification; the workbench is the only shell.
+
+- Deleted: `components/solar/` (SolarSystemCanvas, AncestorRail, ShuttleCursor,
+  IdleSystemLayer, PrecisianDefender, PrecisianSweeper, MarathonInvader /
+  CoreGuardian), `pages/SolarSystemPage.tsx`, `components/CommandPalette.tsx`,
+  `components/layout/Header.tsx`, `components/assistant/BriefingPanel.tsx`,
+  `lib/solarSystem.ts`, `stores/navStore.ts`, `stores/orbitSpeedStore.ts`,
+  `stores/shellStore.ts`. 5,729 lines.
+- `AppShell` is workbench-only: no `shell` branch, no palette, no `parentRoute`
+  Esc; `legacyRedirect()` still sends `/`, `/gerry`, `/dashboard` and
+  `/planet/:id` (via `PLANET_TO_RAIL`) to their places. Routes: `index` and
+  `planet/:planetId` render Today (the shell redirects), `gerry` → `/chat`,
+  `dashboard` → `/today`. `DashboardPage` is in the entry chunk.
+- You menu loses **Old layout**; Settings › Appearance loses **Layout**.
+- `lib/featureGuide.ts` no longer imports the celestial map: `resolveGuide()`
+  is a longest-prefix `ROUTE_GUIDES` table (21 entries). Entries for pages
+  that no longer exist (work, knowledge, communications, compliance,
+  administration, search, files, google, agents, backups, notifications,
+  approvals, scheduled-tasks) are folded into the pages that replaced them.
+  `SATELLITE_IDS` removed.
+- `index.css`: orbit-spin, shuttle cursor, rail-flyout, HAL eye and voice-cta
+  blocks removed (121 lines). `ChatSidebar` route label for `/` is Today.
+- Docs: README and USER_GUIDE no longer mention the old layout, the docked
+  briefing panel or the Approvals / Notifications pages.
+
 ### v5.0.0 · build 253 — 2026-09-08 (unreleased; part of the 5.0.0 release)
 **One task form, one voice**
 

@@ -56,7 +56,6 @@ import {
 import { listExtractionSchemas, saveExtractionSchemas } from "@/api/extractions";
 import { listDriveEditGrants, revokeDriveEdit } from "@/api/google";
 import { connectHub, disconnectHub, getHubStatus } from "@/api/hub";
-import { useShellStore, type Shell } from "@/stores/shellStore";
 import { AgentsPage } from "@/pages/AgentsPage";
 import { BackupsPage } from "@/pages/BackupsPage";
 import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
@@ -1727,20 +1726,8 @@ function AppearanceSection({
   settings: AppSettings;
   onChange: (s: SettingsUpdate) => void;
 }) {
-  const shell = useShellStore((s) => s.shell);
-  const setShell = useShellStore((s) => s.setShell);
   return (
     <Section id="appearance" icon={Palette} title="Appearance">
-      <Field label="Layout" hint="The workbench is the rail-and-search layout. The solar system is the layout it replaced, kept for now in case you need it back.">
-        <select
-          value={shell}
-          onChange={(e) => setShell(e.target.value as Shell)}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="workbench">Workbench (rail, search bar, Today)</option>
-          <option value="orbit">Solar system (the old layout)</option>
-        </select>
-      </Field>
       <Field label="Theme" hint="Changes take effect immediately and persist across restarts.">
         <select
           value={settings.theme}

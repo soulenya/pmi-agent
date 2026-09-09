@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 import { modLabel } from "@/lib/platform";
 
 const ROUTE_LABELS: Record<string, string> = {
-  "/":           "Solar System",
+  "/":           "Today",
   "/gerry":      "Little Gerry",
   "/dashboard":  "Dashboard",
   "/agents":     "Agents",
