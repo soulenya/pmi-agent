@@ -28,6 +28,9 @@ class DocumentExtraction(Base):
     file_name: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     mime_type: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     model: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    # sha256 of the bytes that were read; a later request for identical bytes
+    # reuses this row's transcription instead of paying for vision again.
+    content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # Requested schema (None = free-form extraction)
     schema: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # Parsed structured result (None when parsing failed or free-form)

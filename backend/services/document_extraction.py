@@ -10,13 +10,16 @@ Every run is persisted to ``document_extractions`` for audit and reuse.
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import hashlib
 import json
 import logging
 import mimetypes
 import re
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.document_extraction import DocumentExtraction
@@ -29,6 +32,10 @@ logger = logging.getLogger(__name__)
 # 90-page part is cut off mid-word about eight pages in.
 MAX_PART_PAGES = 8
 MAX_VISION_BYTES = 28 * 1024 * 1024
+
+# Parts of one document are transcribed at the same time, this many at once. A
+# 24-page quote is three parts; read one after another it took over ten minutes.
+MAX_CONCURRENT_PARTS = 4
 
 # A part whose reply was cut off is re-split this many times before giving up.
 MAX_SPLIT_RETRIES = 3
@@ -176,6 +183,28 @@ async def vision_extract_text(
     return row.raw_text if row.status == "ok" else ""
 
 
+async def find_stored_transcription(
+    db: AsyncSession, raw: bytes, user_id: uuid.UUID | None
+) -> DocumentExtraction | None:
+    """The most recent successful read of exactly these bytes, if there is one."""
+    if not raw:
+        return None
+    digest = hashlib.sha256(raw).hexdigest()
+    stmt = (
+        select(DocumentExtraction)
+        .where(
+            DocumentExtraction.content_sha256 == digest,
+            DocumentExtraction.status == "ok",
+            DocumentExtraction.raw_text != "",
+        )
+        .order_by(DocumentExtraction.created_at.desc())
+        .limit(1)
+    )
+    if user_id is not None:
+        stmt = stmt.where(DocumentExtraction.user_id == user_id)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
 async def extract_document(
     db: AsyncSession,
     *,
@@ -187,6 +216,7 @@ async def extract_document(
     user_id: uuid.UUID | None = None,
     source_kind: str = "upload",
     source_ref: str = "",
+    reuse_text: str | None = None,
 ) -> DocumentExtraction:
     """
     Run vision extraction and persist the result (commits internally).
@@ -194,6 +224,10 @@ async def extract_document(
     Returns the DocumentExtraction row: status='ok' with raw_text (+ structured
     when a schema was given), or status='error' with an honest error message.
     Never raises for extraction-level failures — only for programmer errors.
+
+    ``reuse_text`` is a transcription of these same bytes made earlier (see
+    ``find_stored_transcription``); when given, the vision pass is skipped and
+    only the schema / instruction stage runs against it.
     """
     from services.llm.router import ensure_vision_capable, get_llm_client
 
@@ -204,6 +238,7 @@ async def extract_document(
         source_ref=source_ref[:500],
         file_name=file_name[:500],
         schema=schema,
+        content_sha256=hashlib.sha256(raw).hexdigest() if raw else None,
     )
 
     try:
@@ -224,9 +259,9 @@ async def extract_document(
         else:
             parts = [raw]
 
-        texts: list[str] = []
         in_tokens = out_tokens = 0
         truncated_parts = 0
+        gate = asyncio.Semaphore(MAX_CONCURRENT_PARTS)
 
         def _build_prompt(index: int, count: int) -> str:
             prompt = _TRANSCRIBE_PROMPT
@@ -252,16 +287,17 @@ async def extract_document(
                     "Document part exceeds the API size limit even after page "
                     "splitting — reduce the file size (e.g. re-scan at lower DPI)."
                 )
-            chunk = await client.chat(
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        _content_block(part, media_type),
-                        {"type": "text", "text": _build_prompt(index, count)},
-                    ],
-                }],
-                temperature=0.0,
-            )
+            async with gate:
+                chunk = await client.chat(
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            _content_block(part, media_type),
+                            {"type": "text", "text": _build_prompt(index, count)},
+                        ],
+                    }],
+                    temperature=0.0,
+                )
             in_tokens += chunk.input_tokens or 0
             out_tokens += chunk.output_tokens or 0
 
@@ -275,10 +311,10 @@ async def extract_document(
                         "Vision transcription hit the output limit on part %d/%d of %s; "
                         "splitting it and retrying.", index + 1, count, file_name,
                     )
-                    out: list[str] = []
-                    for half in halves:
-                        out.extend(await _transcribe(half, index, count, depth + 1))
-                    return out
+                    sides = await asyncio.gather(
+                        *(_transcribe(half, index, count, depth + 1) for half in halves)
+                    )
+                    return [t for side in sides for t in side]
                 truncated_parts += 1
                 logger.warning(
                     "Vision transcription of %s was cut off and could not be split "
@@ -286,8 +322,13 @@ async def extract_document(
                 )
             return [chunk.content.strip()]
 
-        for i, part in enumerate(parts):
-            texts.extend(await _transcribe(part, i, len(parts)))
+        if reuse_text is not None:
+            texts = [reuse_text]
+        else:
+            results = await asyncio.gather(
+                *(_transcribe(part, i, len(parts)) for i, part in enumerate(parts))
+            )
+            texts = [t for group in results for t in group]
 
         raw_text = "\n\n".join(t for t in texts if t).strip()
         row.raw_text = raw_text
