@@ -12,7 +12,6 @@ import {
   HelpCircle,
   LogOut,
   MessageSquareText,
-  Orbit,
   Settings,
   Users,
   X,
@@ -29,7 +28,6 @@ import { useAuthStore } from "@/stores/authStore";
 import { useBootPopupStore } from "@/stores/bootPopupStore";
 import { useFeatureGuideStore } from "@/stores/featureGuideStore";
 import { useRecentPlacesStore } from "@/stores/recentPlacesStore";
-import { useShellStore } from "@/stores/shellStore";
 import { BUILD_NUMBER } from "@/version";
 
 function Dot({ count }: { count: number }) {
@@ -160,7 +158,6 @@ function YouMenu({ onNavigate }: { onNavigate: (to: string) => void }) {
   const { user, refreshToken, logout } = useAuthStore();
   const requestGuide = useFeatureGuideStore((s) => s.requestOpen);
   const showWhatsNew = useBootPopupStore((s) => s.reopenWhatsNew);
-  const setShell = useShellStore((s) => s.setShell);
   const counts = useWaitingCounts();
   const guide = resolveGuide(pathname);
   const isAdmin = user?.role === "admin";
@@ -278,18 +275,6 @@ function YouMenu({ onNavigate }: { onNavigate: (to: string) => void }) {
             }}
           >
             <MessageSquareText className="h-4 w-4" /> Send feedback
-          </button>
-          <button
-            type="button"
-            className={item}
-            title="Go back to the solar system for this session. Settings › Appearance keeps it."
-            onClick={() => {
-              setOpen(false);
-              setShell("orbit");
-              onNavigate("/");
-            }}
-          >
-            <Orbit className="h-4 w-4" /> Old layout
           </button>
           <div className="my-1 border-t" />
           <button type="button" className={cn(item, "text-destructive")} onClick={handleLogout}>

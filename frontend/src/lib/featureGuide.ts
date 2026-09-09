@@ -2,11 +2,32 @@
  * "What Gerry can do" feature guide.
  *
  * A short, friendly snapshot of what Little Gerry can do in each section of the
- * app. Keyed by the celestial node id (sun / satellite / planet / moon) so the
- * same content powers both the once-per-build auto-popup and the Help button.
+ * app. Keyed by page id so the same content powers both the once-per-build
+ * auto-popup and the Help entry in the You menu.
  */
-import { Bell, HelpCircle, type LucideIcon } from "lucide-react";
-import { locateRoute, SUN, SATELLITES } from "@/lib/solarSystem";
+import {
+  Bell,
+  Bot,
+  Boxes,
+  CalendarDays,
+  Compass,
+  FileText,
+  FlaskConical,
+  FolderKanban,
+  FolderOpen,
+  Handshake,
+  Inbox,
+  Mic,
+  Network,
+  ScrollText,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Sun,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface FeatureGuideEntry {
   tagline: string;
@@ -69,14 +90,6 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   },
 
   // ── Work ────────────────────────────────────────────────────────────────
-  work: {
-    tagline: "Everything to run your work.",
-    capabilities: [
-      "Projects, tasks, schedules, calendar and meeting notes together in one area",
-      "Ask Gerry to plan, track and follow up across all of them",
-      "Turn emails, meetings and chats into tracked work in one step",
-    ],
-  },
   projects: {
     tagline: "Organise work into projects.",
     capabilities: [
@@ -86,7 +99,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Zoom out on the canvas and it folds a layer at a time \u2014 notes first, then sub-tasks into their parent \u2014 with a count you can click to open",
       "Track tasks with sub-tasks nested under their parent, and file one under another by dropping its canvas card on top",
       "Collect a project's invoices from Drive folders, the inbox or a file you hand over, and share a budget from your own machine after a warning about who will read it",
-      "Pin material, link projects to one another, and see what waits on what",
+      "Pin material to the room, link projects to one another, and see what waits on what",
       "Inside a project the side panel is the project's Gerry: it knows the project, its goal, its pins and which tab you are on, and the Chat tab shows the same conversation without leaving the space",
       "Move a project made on this computer to the hub to share it \u2014 with the people you name, or everyone at the firm; its tasks then show on your board, calendar, dashboard and portfolio with a hub pill",
       "Ask Gerry to read a project, add a batch of tasks from a contract, break a task into sub-tasks, or schedule its work \u2014 shared hub projects included",
@@ -109,14 +122,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "One form everywhere: title, project, due, priority, assignee — More for description, dates, tags and milestone. The project decides whether it lives here or on the hub",
       "Create, assign and update tasks just by asking Gerry in chat or by voice",
       "Turn emails, meeting action items or assistant suggestions into tasks automatically",
-    ],
-  },
-  "scheduled-tasks": {
-    tagline: "Put routine work on autopilot.",
-    capabilities: [
-      "Set recurring jobs for Gerry to run on a schedule — daily, weekly or custom",
-      "Automate routine briefings, checks, reports and reminders",
-      "Review each run's output and adjust the schedule any time",
+      "Routines: recurring jobs Gerry runs on a schedule, each run's output kept",
     ],
   },
   calendar: {
@@ -139,14 +145,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   },
 
   // ── Knowledge ───────────────────────────────────────────────────────────
-  knowledge: {
-    tagline: "Answers grounded in your own documents.",
-    capabilities: [
-      "A searchable knowledge base, research tools and generated files",
-      "Ask Gerry anything and get answers backed by your sources — with citations",
-      "Gerry reads whole documents start-to-finish when you ask for summaries or analysis",
-    ],
-  },
+
   documents: {
     tagline: "Store what Gerry should know.",
     capabilities: [
@@ -157,39 +156,12 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Each document shows where it came from: From email, From a meeting, Made by Gerry, From the web, From Drive",
     ],
   },
-  search: {
-    tagline: "Ask, don't dig.",
-    capabilities: [
-      "Search across all your knowledge with natural-language questions",
-      "Get answers with citations back to the source document",
-      "Filter by category to narrow where answers come from",
-    ],
-  },
   research: {
     tagline: "Let Gerry do the digging.",
     capabilities: [
       "Ask Gerry to research a topic on the web and compile the findings for you",
       "Great for background on suppliers, competitors, regulations or markets",
       "Save findings into the knowledge base so they're citable later",
-    ],
-  },
-  files: {
-    tagline: "Everything Gerry has made for you.",
-    capabilities: [
-      "Find and download the documents, spreadsheets and reports Gerry generated",
-      "Open one in Google Docs or add it to the knowledge base, right from the chat card",
-      "Gerry follows your company's document templates from a shared Drive folder",
-      "Use \"Ask Gerry\" on any file to discuss its contents",
-    ],
-  },
-
-  // ── Communications ──────────────────────────────────────────────────────
-  communications: {
-    tagline: "Your email, contacts and Google Workspace.",
-    capabilities: [
-      "Read, draft and send email with Gerry's help — safely, with approval on every AI-drafted send",
-      "A contacts book that builds itself from the people you email",
-      "Manage your Google connection and see everything it enables",
     ],
   },
   inbox: {
@@ -209,16 +181,8 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Gerry fills in addresses when drafting, and asks when it's ambiguous",
     ],
   },
-  google: {
-    tagline: "Connect Gmail, Calendar and Drive.",
-    capabilities: [
-      "One connection powers email, calendar, contacts, Drive and live Google Docs",
-      "Gerry reads on request — writes always go through approvals",
-      "Ask \"is the Drive backed up?\" and Gerry checks last night's backup",
-    ],
-  },
 
-  // ── Odoo / Enterprise ───────────────────────────────────────────────────
+  // ── Finance ───────────────────────────────────────────────────
   odoo: {
     tagline: "Your ERP, a question away.",
     capabilities: [
@@ -242,14 +206,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   },
 
   // ── Compliance ──────────────────────────────────────────────────────────
-  compliance: {
-    tagline: "Stay on the right side of the rules.",
-    capabilities: [
-      "Regulations, approvals and your audit trail in one area",
-      "Compliance answers grounded in your regulated document library",
-      "Gerry keeps a tamper-evident record of sensitive actions",
-    ],
-  },
+
   regulatory: {
     tagline: "Compliance answers you can trust.",
     capabilities: [
@@ -258,21 +215,13 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Gerry knows PMI's regulatory context (510(k), ISO 13485, key standards) from the company profile",
     ],
   },
-  approvals: {
-    tagline: "Nothing happens without your say-so.",
-    capabilities: [
-      "Every outbound action — emails, calendar events, ERP changes — waits for your explicit OK",
-      "Approve from wherever you are: in the email thread, in chat, or from the bell at the top",
-      "Edit Gerry's drafted emails before approving; rejected drafts return for editing",
-      "A clear 'sent' confirmation follows every approved email",
-    ],
-  },
   waiting: {
     tagline: "One list of what needs you.",
     capabilities: [
       "Approvals, Gerry's suggestions and notifications in one place, with a tab for each",
       "The bell at the top opens the same list from any page; its number is decisions plus unread",
       "Approve or reject right here — the buttons only show while the decision is still open",
+      "Every outbound action — emails, calendar events, ERP changes — waits for your explicit OK; edit a drafted email before approving",
       "Accept a suggestion, mark it already done, or dismiss it without leaving the list",
     ],
   },
@@ -285,22 +234,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     ],
   },
 
-  // ── Administration ──────────────────────────────────────────────────────
-  administration: {
-    tagline: "Set Gerry up your way.",
-    capabilities: [
-      "Settings, users, agents, notifications and backups together",
-      "Configure how Little Gerry works for you",
-    ],
-  },
-  notifications: {
-    tagline: "Stay informed without checking everywhere.",
-    capabilities: [
-      "See alerts about approvals, tasks, documents and system activity under Waiting for you",
-      "Approve or reject Gerry's pending actions right from the notification while the decision is open",
-      "Every notification links straight to the page where it matters",
-    ],
-  },
+  // ── You ──────────────────────────────────────────────────────────────────────────────
   users: {
     tagline: "Manage who gets in.",
     capabilities: [
@@ -308,77 +242,55 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Control their roles and permissions — including regulated-document access",
     ],
   },
-  agents: {
-    tagline: "Tune Gerry's specialist helpers.",
-    capabilities: [
-      "Configure the specialist agents Gerry uses — engineering, regulatory, QMS, research and more",
-      "Pick models and adjust behaviour per task",
-    ],
-  },
-  backups: {
-    tagline: "Your conversations, safe and provable.",
-    capabilities: [
-      "Keep signed, append-only snapshots of your chats on your computer and Google Drive",
-      "Check integrity and download any backup",
-    ],
-  },
   settings: {
     tagline: "Control how Gerry looks and behaves.",
     capabilities: [
-      "Set up API keys, AI models, theme, timezone and voice",
-      "View the always-loaded Company Profile and refresh it from the shared Drive file",
-      "Pick Gerry's voice — the newest natural voices are listed first",
-      "Check system health and install updates in-app",
+      "Five tabs: Profile, AI, Connections, Company, System",
+      "Set up API keys, AI models, theme, timezone and voice; tune the specialist agents per task",
+      "Connect Google Workspace, Odoo and the hub; view the always-loaded Company Profile",
+      "Check system health, keep conversation backups, and install updates in-app",
     ],
   },
 };
 
-/**
- * Resolve the current router pathname to the most specific feature-guide entry
- * (moon → satellite → sun → planet). Returns null for the overview canvas or an
- * unknown route.
- */
+/** Longest matching prefix wins. Query strings are ignored on purpose. */
+const ROUTE_GUIDES: { prefix: string; id: string; title: string; icon: LucideIcon }[] = [
+  { prefix: "/today", id: "dashboard", title: "Today", icon: Sun },
+  { prefix: "/dashboard", id: "dashboard", title: "Today", icon: Sun },
+  { prefix: "/waiting", id: "waiting", title: "Waiting for you", icon: Bell },
+  { prefix: "/assistant", id: "assistant", title: "Suggestions", icon: Sparkles },
+  { prefix: "/chat", id: "gerry", title: "Little Gerry", icon: Bot },
+  { prefix: "/hub/chat", id: "gerry", title: "Little Gerry", icon: Bot },
+  { prefix: "/projects/portfolio", id: "portfolio", title: "Graph", icon: Network },
+  { prefix: "/projects", id: "projects", title: "Projects", icon: FolderOpen },
+  { prefix: "/hub/projects", id: "projects", title: "Projects", icon: FolderOpen },
+  { prefix: "/workrooms", id: "workrooms", title: "Rooms", icon: Handshake },
+  { prefix: "/tasks", id: "tasks", title: "Tasks", icon: FolderKanban },
+  { prefix: "/calendar", id: "calendar", title: "Calendar", icon: CalendarDays },
+  { prefix: "/meetings", id: "meetings", title: "Meetings", icon: Mic },
+  { prefix: "/documents", id: "documents", title: "Knowledge Base", icon: FileText },
+  { prefix: "/research", id: "research", title: "Research", icon: FlaskConical },
+  { prefix: "/browser", id: "browser", title: "Research Browser", icon: Compass },
+  { prefix: "/inbox", id: "inbox", title: "Mail", icon: Inbox },
+  { prefix: "/contacts", id: "contacts", title: "Contacts", icon: Users },
+  { prefix: "/odoo", id: "odoo", title: "Odoo", icon: Boxes },
+  { prefix: "/budgets", id: "budgets", title: "Budgets", icon: Wallet },
+  { prefix: "/regulatory", id: "regulatory", title: "Regulatory", icon: ShieldCheck },
+  { prefix: "/audit", id: "audit", title: "Audit trail", icon: ScrollText },
+  { prefix: "/users", id: "users", title: "Users", icon: Users },
+  { prefix: "/settings", id: "settings", title: "Settings", icon: Settings },
+];
+
+/** The feature-guide entry for a router pathname, or null for an unknown route. */
 export function resolveGuide(pathname: string): ResolvedGuide | null {
-  // Pages the workbench added that the old map never had.
-  if (pathname === "/waiting" || pathname.startsWith("/waiting?")) {
-    return { id: "waiting", title: "Waiting for you", icon: Bell, ...FEATURE_GUIDE.waiting };
+  const path = pathname.split("?")[0];
+  let best: (typeof ROUTE_GUIDES)[number] | undefined;
+  for (const r of ROUTE_GUIDES) {
+    const hit = path === r.prefix || path.startsWith(r.prefix + "/");
+    if (hit && (!best || r.prefix.length > best.prefix.length)) best = r;
   }
-  // The workbench's home has no moon; it is the dashboard under a plainer name.
-  const loc = locateRoute(pathname === "/today" ? "/dashboard" : pathname);
-
-  let id: string | undefined;
-  let title: string | undefined;
-  let icon: LucideIcon | undefined;
-
-  if (loc.moon) {
-    id = loc.moon.id;
-    title = loc.moon.label;
-    icon = loc.moon.icon;
-  } else if (loc.satellite) {
-    id = loc.satellite.id;
-    title = loc.satellite.label;
-    icon = loc.satellite.icon;
-  } else if (loc.isSun) {
-    id = SUN.id;
-    title = SUN.label;
-    icon = SUN.icon;
-  } else if (loc.planet) {
-    id = loc.planet.id;
-    title = loc.planet.label;
-    icon = loc.planet.icon;
-  }
-
-  if (!id) return null;
-  const entry = FEATURE_GUIDE[id];
+  if (!best) return null;
+  const entry = FEATURE_GUIDE[best.id];
   if (!entry) return null;
-
-  return {
-    id,
-    title: title ?? "Little Gerry",
-    icon: icon ?? HelpCircle,
-    ...entry,
-  };
+  return { id: best.id, title: best.title, icon: best.icon, ...entry };
 }
-
-/** All satellite ids, exported so callers can reason about non-planet sections. */
-export const SATELLITE_IDS = SATELLITES.map((s) => s.id);

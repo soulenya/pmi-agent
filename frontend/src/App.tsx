@@ -5,15 +5,12 @@ import { Suspense, lazy, useState, type ReactNode } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { LoginPage } from "@/pages/LoginPage";
-import { SolarSystemPage } from "@/pages/SolarSystemPage";
+import { DashboardPage } from "@/pages/DashboardPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
 
-// Login and the solar system are the first two screens anyone sees, so they
-// stay in the entry chunk. Everything else is fetched when its route is first
-// opened — without this the canvas and timeline would land in the same 1.8 MB
-// bundle as the login form.
-const DashboardPage = lazy(() => import("@/pages/DashboardPage").then(m => ({ default: m.DashboardPage })));
+// Login and Today are the first two screens anyone sees, so they stay in the
+// entry chunk. Everything else is fetched when its route is first opened.
 const ChatPage = lazy(() => import("@/pages/ChatPage").then(m => ({ default: m.ChatPage })));
 const WaitingPage = lazy(() => import("@/pages/WaitingPage").then(m => ({ default: m.WaitingPage })));
 const AssistantPage = lazy(() => import("@/pages/AssistantPage").then(m => ({ default: m.AssistantPage })));
@@ -88,10 +85,11 @@ function ThemedApp() {
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
-            <Route index element={<Page><SolarSystemPage /></Page>} />
-            <Route path="gerry" element={<Page><SolarSystemPage /></Page>} />
-            <Route path="planet/:planetId" element={<Page><SolarSystemPage /></Page>} />
-            <Route path="dashboard" element={<Page><DashboardPage /></Page>} />
+            {/* The shell redirects /, /gerry and /planet/:id (the retired solar system). */}
+            <Route index element={<Page><DashboardPage /></Page>} />
+            <Route path="gerry" element={<Navigate to="/chat" replace />} />
+            <Route path="planet/:planetId" element={<Page><DashboardPage /></Page>} />
+            <Route path="dashboard" element={<Navigate to="/today" replace />} />
             <Route path="today" element={<Page><DashboardPage /></Page>} />
             <Route path="agents" element={<Navigate to="/settings?tab=ai" replace />} />
             <Route path="chat" element={<Page><ChatPage /></Page>} />
