@@ -6036,6 +6036,26 @@ async def execute_extract_document(ctx: ToolContext, args: dict[str, Any]) -> st
             "or attachment_name."
         )
 
+    # These exact bytes may already have been transcribed (a stopped turn, an
+    # earlier question about the same file). Reading vision again costs minutes
+    # and money for the same text.
+    from services.document_extraction import find_stored_transcription
+
+    stored = None
+    try:
+        stored = await find_stored_transcription(ctx.db, raw, ctx.user_id)
+    except Exception:  # noqa: BLE001 — reuse is an optimisation, never a blocker
+        logger.exception("extract_document: stored-transcription lookup failed")
+    if stored is not None and schema is None and instruction is None:
+        head = [
+            f"Extraction complete — {stored.file_name} ({stored.pages or 1} page(s), "
+            f"model {stored.model}; transcription stored "
+            f"{stored.created_at.strftime('%Y-%m-%d %H:%M UTC')}, reused — no new read)."
+        ]
+        if stored.error:
+            head.append(f"Note: {stored.error}")
+        return _extraction_page(stored.raw_text, offset, stored.id, head)
+
     result = await run_extraction(
         ctx.db,
         raw=raw,
@@ -6046,13 +6066,15 @@ async def execute_extract_document(ctx: ToolContext, args: dict[str, Any]) -> st
         user_id=ctx.user_id,
         source_kind=source_kind,
         source_ref=source_ref,
+        reuse_text=stored.raw_text if stored is not None else None,
     )
     if result.status == "error":
         return f"Extraction failed: {result.error}"
 
     parts = [
         f"Extraction complete — {result.file_name}"
-        f" ({result.pages or 1} page(s), model {result.model})."
+        f" ({result.pages or 1} page(s), model {result.model}"
+        + ("; transcription reused from an earlier read)." if stored is not None else ").")
     ]
     if result.structured is not None:
         parts.append("STRUCTURED DATA:\n" + json.dumps(result.structured, indent=2)[:20_000])

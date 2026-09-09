@@ -238,13 +238,17 @@ export function ConversationPane({
       messages.length > 0 &&
       messages[messages.length - 1].role === "user" &&
       streamingContent === null;
-    if (!waiting) {
+    // A tool still running on a live socket (a long vision read, a Drive scan)
+    // is not a lost turn; offering Resend there starts the same work twice.
+    const working =
+      wsReadyConvId === conversationId && toolActivities.some((a) => a.status === "running");
+    if (!waiting || working) {
       setTurnStuck(false);
       return;
     }
     const t = window.setTimeout(() => setTurnStuck(true), 45_000);
     return () => window.clearTimeout(t);
-  }, [messages, streamingContent, toolActivities]);
+  }, [messages, streamingContent, toolActivities, wsReadyConvId, conversationId]);
 
   const sidebarHeight = useChatInputSizeStore((s) => s.sidebarHeight);
   const setSidebarHeight = useChatInputSizeStore((s) => s.setSidebarHeight);
@@ -378,6 +382,7 @@ export function ConversationPane({
     ws.onclose = () => {
       setIsConnecting(false);
       setWsReadyConvId(null);
+      setToolActivities([]);
     };
 
     ws.onmessage = (ev) => {

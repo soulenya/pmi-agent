@@ -25,6 +25,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       "An overdue task reminds you once, then not again until you have read it and a week has passed — not a fresh 'Overdue' row every day.",
       "Accept, Already done and Dismiss now tell you what happened ('Filed \"Invoice.pdf\" to \"Invoices\"; logged 1,250.00 to \"CLIN 001\"', 'Marked already done'), and say so plainly when the server refused. Before, File & log could fail silently.",
       "Notifications no longer echo every suggestion. Those live in the Suggestions tab; the bell counts approvals, suggestions and other unread notifications once each.",
+      "Reading a long PDF with vision is faster and never done twice. Pages are read in parallel, and a file Gerry has already transcribed is answered from the stored text in a second — the 24-page Hatch quote was read from scratch three times because a stopped turn threw the result away.",
+      "While a tool is still working on a live connection, the chat no longer offers 'No reply? Resend' — that button was starting the same long read again.",
     ],
   },
   {

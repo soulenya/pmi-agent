@@ -44,6 +44,18 @@ Assistant page bloat, and the silent File & log.
 - One-time cleanup on this install: 15 pending `gmail_invoice` rows for
   signature images (image.png, image001/002.png, ~WRD2920.jpg) were dismissed
   via the bulk endpoint; 3 real PDFs remain pending.
+- Vision reads (`services/document_extraction.py`): migration 043 adds
+  `document_extractions.content_sha256`; `find_stored_transcription()` returns
+  the latest ok row for identical bytes and `extract_document(reuse_text=)`
+  skips the vision pass, running only the schema/instruction stage. Parts are
+  transcribed concurrently (`MAX_CONCURRENT_PARTS = 4`, halves too). Observed:
+  the 24-page Hatch EVT quote (163k in / 67k out tokens) took 10+ min
+  sequentially; the user stopped, re-asked twice, and each re-ask restarted from
+  zero. `execute_extract_document` now says "transcription reused" when it did.
+  Executor label warns a long PDF takes minutes.
+- `ConversationPane.tsx`: "No reply? Resend" is suppressed while a tool is
+  `running` on an open socket (it appeared 45 s into any long tool and started
+  the work again); tool activities are cleared on socket close.
 
 ### v5.0.1 — 2026-09-09
 **Section tabs you can see**
