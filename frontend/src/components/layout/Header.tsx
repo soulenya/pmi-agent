@@ -29,7 +29,7 @@ function VoiceLauncher() {
   });
   const voiceEnabled = appSettings?.google_key_set ?? false;
   const active = useVoiceAssistantStore((s) => s.active);
-  const starting = useVoiceAssistantStore((s) => s.starting);
+  const starting = false;
   const requestToggle = useVoiceAssistantStore((s) => s.requestToggle);
 
   if (!voiceEnabled) return null;

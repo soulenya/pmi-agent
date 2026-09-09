@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
-import { ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Users, X, RefreshCw, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarDays, CheckSquare, Users, X, RefreshCw, AlertCircle, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimezone } from "@/contexts/AppContext";
 import { listMeetings } from "@/api/meetings";
@@ -10,6 +10,7 @@ import type { MeetingNote } from "@/types/meetings";
 import type { GoogleCalendarEvent } from "@/api/google";
 import { AskGerryButton } from "@/components/AskGerryButton";
 import { HubBadge } from "@/components/HubBadge";
+import { TaskCreateForm } from "@/components/tasks/TaskCreateForm";
 import { useAllTasks, type SourcedTask as Task } from "@/hooks/useAllWork";
 import { peekTask } from "@/stores/peekStore";
 
@@ -57,18 +58,37 @@ function DayPanel({
   onClose: () => void;
 }) {
   const timezone = useTimezone();
+  const [adding, setAdding] = useState(false);
+  const dayIso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   return (
     <div className="w-72 shrink-0 rounded-xl border bg-card flex flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <h3 className="font-semibold text-sm">
           {date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: timezone })}
         </h3>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setAdding((v) => !v)}
+            title="New task due this day"
+            className={cn("rounded p-1 hover:bg-accent", adding ? "text-primary" : "text-muted-foreground hover:text-foreground")}
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {tasks.length === 0 && meetings.length === 0 && gcalEvents.length === 0 && (
+        {adding && (
+          <TaskCreateForm
+            defaults={{ due_date: dayIso }}
+            onCreated={() => setAdding(false)}
+            onCancel={() => setAdding(false)}
+            className="rounded-lg border bg-muted/30 p-2.5"
+          />
+        )}
+        {!adding && tasks.length === 0 && meetings.length === 0 && gcalEvents.length === 0 && (
           <p className="text-xs text-muted-foreground py-4 text-center">Nothing scheduled.</p>
         )}
         {tasks.length > 0 && (

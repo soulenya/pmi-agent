@@ -32,6 +32,12 @@ import {
   getSttCredentialsStatus,
 } from "@/api/meetings";
 import { createTask } from "@/api/tasks";
+import {
+  TaskPlacementFields,
+  fromDayInput,
+  useProjectSource,
+  type TaskPlacement,
+} from "@/components/tasks/TaskCreateForm";
 import type { MeetingNote, ExtractedAction } from "@/types/meetings";
 import { SttCredentialsModal } from "@/components/meetings/SttCredentialsModal";
 
@@ -54,6 +60,8 @@ function ActionExtractModal({
   const [selected, setSelected] = useState<Set<number>>(new Set(actions.map((a) => a.index)));
   const [creating, setCreating] = useState(false);
   const [done, setDone] = useState(false);
+  const [place, setPlace] = useState<TaskPlacement>({ projectId: "", due: "", priority: "medium" });
+  const source = useProjectSource(place.projectId);
 
   function toggle(index: number) {
     setSelected((prev) => {
@@ -70,11 +78,16 @@ function ActionExtractModal({
     try {
       await Promise.all(
         toCreate.map((a) =>
-          createTask({
-            title: a.title.slice(0, 255),
-            description: `Action item from meeting: ${meetingTitle}`,
-            priority: "medium",
-          })
+          createTask(
+            {
+              title: a.title.slice(0, 255),
+              description: `Action item from meeting: ${meetingTitle}`,
+              priority: place.priority,
+              project_id: place.projectId || undefined,
+              due_date: fromDayInput(place.due),
+            },
+            source,
+          )
         )
       );
       qc.invalidateQueries({ queryKey: ["tasks"] });
@@ -126,6 +139,9 @@ function ActionExtractModal({
                 </li>
               ))}
             </ul>
+            <div className="flex flex-wrap items-center gap-2 border-t px-5 py-3">
+              <TaskPlacementFields value={place} onChange={setPlace} />
+            </div>
             <div className="flex items-center justify-between px-5 py-3 border-t bg-muted/30">
               <span className="text-xs text-muted-foreground">{selected.size} selected</span>
               <button

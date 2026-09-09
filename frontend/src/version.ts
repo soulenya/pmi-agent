@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 252;
+export const BUILD_NUMBER = 253;
 export const BUILD_DATE = "2026-09-08";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 253,
+    date: "2026-09-08",
+    title: "One task form, one voice",
+    changes: [
+      "Every place you make a task uses the same form: title, project, due, priority and assignee on the face; description, start and end dates, tags and milestone behind More. Tasks, a project's Tasks tab, Meetings > Extract Actions and the Calendar day panel all share it. Pick a project and the task lands where that project lives, on this computer or on the hub.",
+      "The Calendar day panel has a plus: a new task due that day.",
+      "Voice is a mode of any conversation. The microphone button next to Send in the Gerry panel, or Talk with Little Gerry, turns the conversation you are in into a spoken one and back. It uses the same history; there is no separate voice session any more.",
+      "Material is now Room. The project tab says what it is: the project's goal, what is pinned for Gerry, and its journal. Workrooms are Rooms everywhere in the app.",
+    ],
+  },
   {
     build: 252,
     date: "2026-09-08",

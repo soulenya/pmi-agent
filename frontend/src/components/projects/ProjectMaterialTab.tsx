@@ -213,13 +213,17 @@ export function ProjectMaterialTab({
   if (isLoading) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading the project's material…
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading the project's room…
       </p>
     );
   }
 
   return (
     <div className="space-y-5">
+      <p className="text-xs text-muted-foreground">
+        This is the project's room: its goal, what is pinned for Gerry to have to hand, and a running
+        journal. Everything here is in the project's conversation too.
+      </p>
       {error && (
         <div className="flex items-start justify-between gap-3 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
           <span>{error}</span>
@@ -277,7 +281,7 @@ export function ProjectMaterialTab({
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Pinned material ({room?.items.length ?? 0})
+            Pinned ({room?.items.length ?? 0})
           </h3>
           {canEdit && (
             <div className="flex items-center gap-2">

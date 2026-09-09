@@ -42,7 +42,7 @@ const TABS = [
   { id: "timeline", label: "Timeline", icon: CalendarRange },
   { id: "tasks", label: "Tasks", icon: FolderOpen },
   { id: "budget", label: "Budget", icon: Wallet },
-  { id: "material", label: "Material", icon: Paperclip },
+  { id: "material", label: "Room", icon: Paperclip },
   { id: "chat", label: "Chat", icon: MessageSquare },
 ] as const;
 
@@ -236,7 +236,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
                   <dd className="text-lg font-semibold">{counts.tasks_total}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">Pinned material</dt>
+                  <dt className="text-muted-foreground">Pinned in the room</dt>
                   <dd className="text-lg font-semibold">{counts.items}</dd>
                 </div>
                 <div>
@@ -398,7 +398,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
                   source={source}
                   contextPrefix={`[Context: I am inside the project "${project.name}", on its chat tab]`}
                   compact={false}
-                  emptyHint={`Ask about ${project.name}: its tasks, its material, what is late, what to do next.`}
+                  emptyHint={`Ask about ${project.name}: its tasks, its room, what is late, what to do next.`}
                 />
               </>
             ) : (
