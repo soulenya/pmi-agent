@@ -63,7 +63,7 @@ const KIND_OPTIONS = Object.entries(ITEM_KIND_LABELS) as [WorkroomItemKind, stri
 
 const GUIDE_SEEN_KEY = "workrooms-guide-seen";
 
-export function WorkroomsPage() {
+export function WorkroomsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -149,13 +149,14 @@ export function WorkroomsPage() {
       <aside className="flex w-72 flex-col gap-2 border-r pr-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <h1 className="text-lg font-semibold">Workrooms</h1>
+            {!embedded && <h1 className="text-lg font-semibold">Rooms</h1>}
             <button
               onClick={() => setShowGuide(true)}
-              className="text-muted-foreground hover:text-foreground"
-              title="How Workrooms work"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              title="How Rooms work"
             >
               <HelpCircle className="h-4 w-4" />
+              {embedded && "How rooms work"}
             </button>
           </div>
           <button
@@ -209,7 +210,7 @@ export function WorkroomsPage() {
             className="flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
           >
             <PlusCircle className="h-4 w-4" />
-            New workroom
+            New room
           </button>
         )}
 
@@ -219,7 +220,7 @@ export function WorkroomsPage() {
           )}
           {!isLoading && rooms.length === 0 && (
             <div className="py-6 text-center text-sm text-muted-foreground">
-              No workrooms yet. Create one to give Gerry a standing goal and
+              No rooms yet. Create one to give Gerry a standing goal and
               shared artifacts.
             </div>
           )}
@@ -251,9 +252,9 @@ export function WorkroomsPage() {
         {!room ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted-foreground">
             <Pin className="h-8 w-8 opacity-50" />
-            <p className="text-lg font-medium">Select a workroom</p>
+            <p className="text-lg font-medium">Select a room</p>
             <p className="max-w-md text-sm">
-              A workroom keeps a goal, pinned documents, and progress notes in
+              A room keeps a goal, pinned documents, and progress notes in
               one place — Gerry carries that context into every conversation in
               the room.
             </p>
@@ -270,7 +271,7 @@ export function WorkroomsPage() {
               })
             }
             onDelete={() => {
-              if (window.confirm(`Delete workroom "${room.title}"? Pinned items and journal are removed; the conversation is kept.`)) {
+              if (window.confirm(`Delete room "${room.title}"? Pinned items and journal are removed; the conversation is kept.`)) {
                 deleteMutation.mutate(room.id);
               }
             }}
@@ -297,7 +298,7 @@ function WorkroomsGuideDialog({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-4">
-          <h2 className="text-lg font-semibold">How Workrooms work</h2>
+          <h2 className="text-lg font-semibold">How Rooms work</h2>
           <button
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground"
@@ -309,9 +310,10 @@ function WorkroomsGuideDialog({ onClose }: { onClose: () => void }) {
 
         <div className="space-y-4 text-sm">
           <p>
-            A <strong>Workroom</strong> is a persistent co-work space you share
+            A <strong>Room</strong> is a persistent co-work space you share
             with Gerry — built for work that spans days or weeks, like a
-            regulatory submission, an audit prep, or a fundraise.
+            regulatory submission, an audit prep, or a fundraise. Every project
+            has one built in; these are the rooms that are not a project.
           </p>
 
           <div className="space-y-1">
@@ -549,7 +551,7 @@ function RoomDetail({
   const shareMutation = useMutation({
     mutationFn: () => shareWorkroom(room.id),
     onSuccess: () => {
-      push("success", "Room definition shared to Drive — teammates can join it from their Workrooms page.");
+      push("success", "Room definition shared to Drive — teammates can join it from Projects > Rooms.");
       onChanged();
     },
     onError: (e) => {

@@ -1,31 +1,32 @@
 /**
- * Bridges the header "Talk with Little Gerry" button and the VoiceAssistant
- * session manager (mounted separately in AppShell).
+ * Bridges the "Talk with Little Gerry" buttons and the conversation that hosts
+ * voice mode (the Gerry panel). Voice is a mode of a conversation, not a
+ * session of its own: a request opens the panel and flips its pane to voice.
  */
 import { create } from "zustand";
 
+import { useChatSidebarStore } from "@/stores/chatSidebarStore";
+
 interface VoiceAssistantState {
-  /** True while a voice session is running (panel visible). */
+  /** True while some conversation is in voice mode. */
   active: boolean;
-  /** True while a session is being created. */
-  starting: boolean;
   /** True while Gerry's reply audio is playing. */
   speaking: boolean;
-  /** Incremented by the header button; VoiceAssistant toggles the session. */
+  /** Incremented by launcher buttons; the hosting pane toggles voice mode. */
   toggleRequests: number;
   requestToggle: () => void;
   setActive: (active: boolean) => void;
-  setStarting: (starting: boolean) => void;
   setSpeaking: (speaking: boolean) => void;
 }
 
 export const useVoiceAssistantStore = create<VoiceAssistantState>()((set) => ({
   active: false,
-  starting: false,
   speaking: false,
   toggleRequests: 0,
-  requestToggle: () => set((s) => ({ toggleRequests: s.toggleRequests + 1 })),
+  requestToggle: () => {
+    useChatSidebarStore.getState().setOpen(true);
+    set((s) => ({ toggleRequests: s.toggleRequests + 1 }));
+  },
   setActive: (active) => set({ active }),
-  setStarting: (starting) => set({ starting }),
   setSpeaking: (speaking) => set({ speaking }),
 }));

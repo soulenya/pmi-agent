@@ -1,9 +1,8 @@
 ﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, Mic, AudioLines, Volume2, RotateCcw, Square } from "lucide-react";
+import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, AudioLines, RotateCcw, Square } from "lucide-react";
 import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
-import { SentenceSpeaker } from "@/lib/sentenceSpeaker";
 import {
   ApprovalCard,
   usePendingApprovals,
@@ -30,8 +29,8 @@ import type { Source } from "@/api/tasks";
 import { getSettings } from "@/api/settings";
 import { deleteDocument } from "@/api/documents";
 import { grantDriveEdit } from "@/api/google";
-import { speakText } from "@/api/voice";
-import { useVoiceConversation } from "@/hooks/useVoiceConversation";
+import { useVoiceMode } from "@/hooks/useVoiceMode";
+import { VoiceBanner } from "@/components/chat/VoiceBanner";
 import { useHubConnected } from "@/hooks/useAllWork";
 import { useAuthStore } from "@/stores/authStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
@@ -256,122 +255,13 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
     staleTime: 60_000,
   });
   const voiceEnabled = appSettings?.google_key_set ?? false;
-  // Refs so the WebSocket handler always sees current values
-  const speakRepliesRef = useRef(false);
-  useEffect(() => {
-    speakRepliesRef.current = (appSettings?.voice_speak_replies ?? false) && voiceEnabled;
-  }, [appSettings, voiceEnabled]);
   const streamBufferRef = useRef("");
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  // Sentence-streamed reply playback (voice mode / speak-replies).
-  const speakerRef = useRef<SentenceSpeaker | null>(null);
-
-  // ── Voice Conversation mode (hands-free talk → reply aloud → listen again) ───
-  const [voiceMode, setVoiceMode] = useState(false);
-  const voiceModeRef = useRef(false);
-  useEffect(() => {
-    voiceModeRef.current = voiceMode;
-  }, [voiceMode]);
-  const [voiceSpeaking, setVoiceSpeaking] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
   const handleSendRef = useRef<(content: string) => void>(() => {});
-
-  const { status: voiceStatus, start: voiceStart, stop: voiceStop } = useVoiceConversation({
-    onTranscript: (text) => {
-      setVoiceError(null);
-      handleSendRef.current(text);
-    },
-    onError: (message) => {
-      setVoiceError(message);
-      if (message.startsWith("Microphone")) setVoiceMode(false); // can't listen — exit mode
-    },
+  const voice = useVoiceMode({
+    onTranscript: (text) => handleSendRef.current(text),
+    speakReplies: (appSettings?.voice_speak_replies ?? false) && voiceEnabled,
   });
-
-  const playReply = useCallback(async (text: string, voiceLoop = false) => {
-    if (!text.trim()) return;
-    try {
-      const blob = await speakText(text);
-      audioRef.current?.pause();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      if (voiceLoop) setVoiceSpeaking(true);
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        if (voiceLoop) {
-          setVoiceSpeaking(false);
-          if (voiceModeRef.current) void voiceStart(); // loop: listen for the user's next turn
-        }
-      };
-      await audio.play();
-    } catch {
-      // TTS failure should never disrupt the chat
-      if (voiceLoop) {
-        setVoiceSpeaking(false);
-        if (voiceModeRef.current) void voiceStart();
-      }
-    }
-  }, [voiceStart]);
-
-  const exitVoiceMode = useCallback(() => {
-    setVoiceMode(false);
-    setVoiceSpeaking(false);
-    setVoiceError(null);
-    voiceStop();
-    speakerRef.current?.cancel();
-    speakerRef.current = null;
-    audioRef.current?.pause();
-  }, [voiceStop]);
-
-  const toggleVoiceMode = useCallback(() => {
-    if (voiceModeRef.current) {
-      exitVoiceMode();
-    } else {
-      setVoiceError(null);
-      setVoiceMode(true);
-      void voiceStart();
-    }
-  }, [exitVoiceMode, voiceStart]);
-
-  // Esc exits voice mode
-  useEffect(() => {
-    if (!voiceMode) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") exitVoiceMode();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [voiceMode, exitVoiceMode]);
-
-  // Release the mic when leaving the page
-  useEffect(() => () => voiceStop(), [voiceStop]);
-
-  // Interrupt Gerry mid-sentence: stop playback and listen right away
-  const interruptSpeech = useCallback(() => {
-    speakerRef.current?.cancel();
-    speakerRef.current = null;
-    audioRef.current?.pause();
-    setVoiceSpeaking(false);
-    if (voiceModeRef.current) void voiceStart();
-  }, [voiceStart]);
-
-  const voicePhase = !voiceMode
-    ? null
-    : voiceStatus === "listening"
-      ? "listening"
-      : voiceStatus === "transcribing"
-        ? "transcribing"
-        : voiceSpeaking
-          ? "speaking"
-          : "thinking";
-
-  // Stop playback when leaving the page
-  useEffect(() => {
-    return () => {
-      speakerRef.current?.cancel();
-      audioRef.current?.pause();
-    };
-  }, []);
+  const { voiceMode, voiceModeRef, toggle: toggleVoiceMode, exit: exitVoiceMode, interrupt: interruptSpeech } = voice;
 
   // â”€â”€ Conversation list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: conversations = [] } = useQuery({
@@ -561,25 +451,7 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
           streamBufferRef.current += msg.content;
           // Clear tool activity once the LLM starts responding
           setToolActivities([]);
-          // Sentence-streamed speech — speak the first sentence while the rest
-          // of the reply is still generating.
-          if (voiceModeRef.current || speakRepliesRef.current) {
-            if (!speakerRef.current) {
-              speakerRef.current = new SentenceSpeaker({
-                onStart: () => {
-                  if (voiceModeRef.current) setVoiceSpeaking(true);
-                },
-                onAllDone: () => {
-                  speakerRef.current = null;
-                  if (voiceModeRef.current) {
-                    setVoiceSpeaking(false);
-                    void voiceStart(); // loop: listen for the user's next turn
-                  }
-                },
-              });
-            }
-            speakerRef.current.feed(msg.content);
-          }
+          voice.onToken(msg.content);
         } else if (msg.type === "tool_status") {
           const frame = msg as unknown as WSToolStatusFrame;
           setToolActivities((prev) => {
@@ -638,19 +510,9 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
           setToolActivities([]);
           setTurnArtifacts([]); // the persisted message carries the chips now
           setBusySince(null);
-          // Speak the reply aloud — sentence-streamed playback normally started
-          // during the token stream; these are fallbacks for empty streams.
           const finalText = streamBufferRef.current;
           streamBufferRef.current = "";
-          if (speakerRef.current) {
-            speakerRef.current.finish();
-          } else if (voiceModeRef.current && finalText) {
-            void playReply(finalText, true);
-          } else if (speakRepliesRef.current && finalText) {
-            void playReply(finalText);
-          } else if (voiceModeRef.current) {
-            void voiceStart(); // empty reply — don't strand the voice loop
-          }
+          voice.onDone(finalText);
         } else if (msg.type === "error") {
           const detail = (msg as unknown as { detail?: string }).detail ?? "An error occurred.";
           setStreamingContent(null);
@@ -658,10 +520,7 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
           setTurnArtifacts([]);
           setBusySince(null);
           streamBufferRef.current = "";
-          speakerRef.current?.cancel();
-          speakerRef.current = null;
-          // In voice mode, resume listening so the conversation isn't stranded
-          if (voiceModeRef.current) void voiceStart();
+          voice.onError();
           // Inject a synthetic error message into the message list so it's visible in the chat bubble
           appendMessage({
             id: crypto.randomUUID(),
@@ -844,10 +703,10 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
           <div className="space-y-1">
             <div className="flex items-center justify-between px-1 pt-1">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Workrooms
+                Rooms
               </span>
               <button
-                onClick={() => navigate("/workrooms")}
+                onClick={() => navigate("/projects?view=rooms")}
                 className="text-[11px] text-muted-foreground hover:text-foreground"
               >
                 Manage
@@ -1129,47 +988,8 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
 
         {/* Voice conversation banner */}
         {voiceMode && (
-          <div className="mb-2 flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
-            {voicePhase === "listening" && (
-              <>
-                <Mic className="h-4 w-4 shrink-0 animate-pulse text-red-500" />
-                <span className="flex-1">Listening — just talk; pause and I'll answer.</span>
-              </>
-            )}
-            {voicePhase === "transcribing" && (
-              <>
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
-                <span className="flex-1">Got it…</span>
-              </>
-            )}
-            {voicePhase === "thinking" && (
-              <>
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
-                <span className="flex-1">Thinking…</span>
-              </>
-            )}
-            {voicePhase === "speaking" && (
-              <>
-                <Volume2 className="h-4 w-4 shrink-0 text-primary" />
-                <span className="flex-1">Speaking…</span>
-                <button
-                  onClick={interruptSpeech}
-                  className="rounded-md border px-2 py-1 text-xs hover:bg-accent"
-                >
-                  Interrupt
-                </button>
-              </>
-            )}
-            {voiceError && (
-              <span className="text-xs text-destructive">{voiceError}</span>
-            )}
-            <button
-              onClick={exitVoiceMode}
-              className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-              title="Exit voice conversation (Esc)"
-            >
-              <X className="h-4 w-4" />
-            </button>
+          <div className="mb-2">
+            <VoiceBanner phase={voice.phase} error={voice.error} onInterrupt={interruptSpeech} onExit={exitVoiceMode} />
           </div>
         )}
 

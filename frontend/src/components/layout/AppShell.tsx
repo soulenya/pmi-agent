@@ -10,7 +10,6 @@ import { FeatureGuideModal } from "./FeatureGuideModal";
 import { useNotificationWS } from "@/hooks/useNotificationWS";
 import { CommandPalette } from "@/components/CommandPalette";
 import { PeekHost } from "@/components/PeekHost";
-import { VoiceAssistant } from "@/components/VoiceAssistant";
 import { LiveMeetingAssist } from "@/components/meetings/LiveMeetingAssist";
 import { SystemNoticesBanner } from "@/components/SystemNotices";
 import { Toaster } from "@/components/Toaster";
@@ -153,7 +152,6 @@ export function AppShell() {
           <StatusBar />
         </div>
         <PeekHost />
-        <VoiceAssistant />
         <LiveMeetingAssist />
         <SystemNoticesBanner />
         <WhatsNewModal />

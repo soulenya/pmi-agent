@@ -443,7 +443,7 @@ const SOURCE_LABEL: Record<string, string> = {
   google_drive: "From Drive",
   google_docs: "From Drive",
   drive_doc: "From Drive",
-  workroom: "From a workroom",
+  workroom: "From a room",
 };
 
 function DocumentRow({

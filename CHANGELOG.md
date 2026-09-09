@@ -4,6 +4,46 @@
 
 ## Changelog
 
+### v5.1.0 — 2026-09-08 (unreleased; ships with 5.0.0)
+**One task form, one voice**
+
+Phase 6 of the UI simplification.
+
+- **`components/tasks/TaskCreateForm.tsx`** — `TaskCreateForm({projectId,
+  lockProject, source, defaults, stay, submitLabel, onCreated, onCancel,
+  autoFocus})`: title + `TaskPlacementFields` (project / due / priority) +
+  assignee (members from `getProjectSpace` of the chosen project) + More
+  (description, start, end, tags, milestone). The chosen project decides the
+  `source`; `useProjectSource(projectId)` exposes the same rule. Exports
+  `TaskPlacementFields`, `TaskPlacement`, `fromDayInput`, `PRIORITY_OPTIONS`.
+  Used by `TasksPage` (replaces `NewTaskForm`), `ProjectTasksTab` (replaces
+  the inline form; `lockProject stay`), `MeetingsPage` extract modal
+  (`TaskPlacementFields` once for the batch; tasks now honour project / due /
+  priority and the project's source), and a new **+** on the Calendar day
+  panel (form with the day as due). `TaskDrawer` sub-tasks and the Assistant
+  accept path (backend-created) are unchanged.
+- **`hooks/useVoiceMode.ts`** — `useVoiceMode({onTranscript, speakReplies})`
+  → `{voiceMode, voiceModeRef, phase, error, toggle, exit, interrupt,
+  onToken, onDone, onError}`: mic via `useVoiceConversation`, replies via
+  `SentenceSpeaker` with a whole-reply fallback, Esc exits, cleanup on
+  unmount. **`components/chat/VoiceBanner.tsx`** is the listening / thinking /
+  speaking strip. `ConversationPane` gained a mic button beside Send (when the
+  Google key is set), the banner, `voice: <bool>` on every human frame and a
+  `voiceHost` prop; `ChatPage` was refactored onto the same hook (~110 lines
+  removed). `stores/voiceAssistantStore.ts` keeps `active`, `speaking`,
+  `toggleRequests`, `requestToggle()` (now also opens the Gerry panel),
+  `setActive`, `setSpeaking`; `starting` and `setStarting` are gone.
+  `ChatSidebar` passes `voiceHost`, so Talk with Little Gerry (orbit header,
+  HAL eye) flips the bound conversation into voice mode instead of minting a
+  "Voice session" conversation. **`components/VoiceAssistant.tsx` deleted.**
+- **Room**: project tab label Material → Room (id `material` unchanged so
+  `/space/material` still resolves); `ProjectMaterialTab` intro line and
+  "Pinned"; `WorkroomsPage` copy Workrooms → Rooms, gains `embedded` (no h1,
+  "How rooms work" link) for `ProjectsPage ?view=rooms`; ChatPage rail
+  section "Rooms" → `/projects?view=rooms`; MessageBubble "Pin to Room";
+  Documents badge "From a room"; Routines form "Room (optional)"; Research
+  Browser "No rooms yet"; TaskSourceActions "Open room".
+
 ### v5.0.2 — 2026-09-08 (unreleased; ships with 5.0.0)
 **One place for what is waiting**
 

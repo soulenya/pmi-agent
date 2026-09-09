@@ -166,7 +166,7 @@ export function ScheduledTasksPage() {
           </div>
           {workrooms.length > 0 && (
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Workroom (optional)</label>
+              <label className="text-sm font-medium">Room (optional)</label>
               <select
                 value={form.workroom_id ?? ""}
                 onChange={(e) =>

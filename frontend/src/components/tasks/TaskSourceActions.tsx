@@ -25,7 +25,7 @@ const KIND_VERB: Record<TaskSourceKind, string> = {
   drive_doc: "Open in Drive",
   regulatory_doc: "Open document",
   meeting: "Open meeting",
-  workroom: "Open workroom",
+  workroom: "Open room",
   conversation: "Open chat",
   google_task: "Open in Google Tasks",
   url: "Open link",

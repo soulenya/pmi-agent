@@ -26,6 +26,7 @@ import {
 
 import { createTask, deleteTask, listTasks, updateTask, type Source } from "@/api/tasks";
 import { DRAG_MIME, type RailItem } from "@/components/projects/canvas/board";
+import { TaskCreateForm } from "@/components/tasks/TaskCreateForm";
 import { useProjectInvalidate } from "@/hooks/useProjectInvalidate";
 import { STATUS_EDGE, TASK_STATUSES } from "@/lib/taskStatus";
 import { cn } from "@/lib/utils";
@@ -424,25 +425,6 @@ export function ProjectTasksTab({
   members: ProjectMember[];
 }) {
   const invalidate = useProjectInvalidate(projectId, source);
-  const [title, setTitle] = useState("");
-  const [more, setMore] = useState(false);
-  const [draft, setDraft] = useState<{
-    status: TaskStatus;
-    priority: TaskPriority;
-    assignee_id: string;
-    due: string;
-    start: string;
-    end: string;
-    milestone: boolean;
-  }>({
-    status: "todo",
-    priority: "medium",
-    assignee_id: "",
-    due: "",
-    start: "",
-    end: "",
-    milestone: false,
-  });
   const [sortBy, setSortBy] = useState<SortBy>("order");
   const [collapsed, setCollapsed] = useState<Set<TaskStatus>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -523,23 +505,6 @@ export function ProjectTasksTab({
     })).filter((g) => g.nodes.length > 0);
   }, [tasks, sortBy]);
 
-  function submit() {
-    const trimmed = title.trim();
-    if (!trimmed) return;
-    create.mutate({
-      title: trimmed,
-      project_id: projectId,
-      status: draft.status,
-      priority: draft.priority,
-      assignee_id: draft.assignee_id || undefined,
-      due_date: fromDayInput(draft.due) ?? undefined,
-      start_date: fromDayInput(draft.start) ?? undefined,
-      end_date: fromDayInput(draft.end) ?? undefined,
-      is_milestone: draft.milestone,
-    });
-    setTitle("");
-  }
-
   const open = tasks.filter((t) => t.status !== "done" && t.status !== "cancelled").length;
 
   return (
@@ -565,122 +530,19 @@ export function ProjectTasksTab({
       </div>
 
       {canEdit && (
-        <div className="rounded-xl border bg-card p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              value={title}
-              placeholder="What needs doing?"
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submit();
-              }}
-              className="min-w-0 flex-1 rounded-md border bg-background px-2.5 py-1.5 text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => setMore((v) => !v)}
-              className="rounded-md border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent"
-            >
-              {more ? "Less" : "Details"}
-            </button>
-            <button
-              type="button"
-              disabled={!title.trim() || busy}
-              onClick={submit}
-              className="inline-flex items-center gap-1.5 rounded-md border bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90 disabled:opacity-50"
-            >
-              <Plus className="h-4 w-4" /> Add
-            </button>
-          </div>
-
-          {more && (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="text-xs text-muted-foreground">
-                Status
-                <select
-                  value={draft.status}
-                  onChange={(e) =>
-                    setDraft({ ...draft, status: e.target.value as TaskStatus })
-                  }
-                  className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
-                >
-                  {STATUSES.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Priority
-                <select
-                  value={draft.priority}
-                  onChange={(e) =>
-                    setDraft({ ...draft, priority: e.target.value as TaskPriority })
-                  }
-                  className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
-                >
-                  {PRIORITIES.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Assignee
-                <select
-                  value={draft.assignee_id}
-                  onChange={(e) => setDraft({ ...draft, assignee_id: e.target.value })}
-                  className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
-                >
-                  <option value="">Nobody yet</option>
-                  {members.map((m) => (
-                    <option key={m.user_id} value={m.user_id}>
-                      {m.display_name || m.email || m.user_id}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Due
-                <input
-                  type="date"
-                  value={draft.due}
-                  onChange={(e) => setDraft({ ...draft, due: e.target.value })}
-                  className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
-                />
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Starts
-                <input
-                  type="date"
-                  value={draft.start}
-                  onChange={(e) => setDraft({ ...draft, start: e.target.value })}
-                  className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
-                />
-              </label>
-              <label className="text-xs text-muted-foreground">
-                Ends
-                <input
-                  type="date"
-                  value={draft.end}
-                  onChange={(e) => setDraft({ ...draft, end: e.target.value })}
-                  className="mt-0.5 w-full rounded border bg-background px-2 py-1 text-sm text-foreground"
-                />
-              </label>
-              <label className="flex items-end gap-2 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={draft.milestone}
-                  onChange={(e) => setDraft({ ...draft, milestone: e.target.checked })}
-                  className="mb-1.5"
-                />
-                <span className="mb-1">Milestone</span>
-              </label>
-            </div>
-          )}
-        </div>
+        <TaskCreateForm
+          projectId={projectId}
+          lockProject
+          source={source}
+          stay
+          autoFocus={false}
+          submitLabel="Add"
+          onCreated={() => {
+            setError(null);
+            invalidate();
+          }}
+          className="rounded-xl border bg-card p-3"
+        />
       )}
 
       {error && (

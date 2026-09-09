@@ -472,9 +472,10 @@ export function ChatSidebar() {
           onSeedSent={onSeedSent}
           onConnectingChange={setIsConnecting}
           compact
+          voiceHost
           emptyHint={
             bound
-              ? `Ask about ${here.name ?? "this project"}: its tasks, its material, what is late, what to do next.`
+              ? `Ask about ${here.name ?? "this project"}: its tasks, its room, what is late, what to do next.`
               : "Ask me anything about your work, documents, or tasks."
           }
         />

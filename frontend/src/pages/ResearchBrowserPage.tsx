@@ -437,7 +437,7 @@ export function ResearchBrowserPage() {
             {pinOpen && (
               <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-lg">
                 {workrooms.length === 0 ? (
-                  <p className="px-2 py-1.5 text-xs text-muted-foreground">No workrooms yet.</p>
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground">No rooms yet.</p>
                 ) : (
                   workrooms.map((room) => (
                     <button

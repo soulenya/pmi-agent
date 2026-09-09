@@ -4,11 +4,12 @@ import { useSearchParams } from "react-router-dom";
 import { Plus, Check, Circle, Clock, AlertCircle, Tag, ChevronRight, FolderOpen, LayoutList, Columns2, ListChecks, Trash2, MoveRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatWhen } from "@/lib/formatWhen";
-import { createTask, updateTask, deleteTask, type Source } from "@/api/tasks";
+import { updateTask, deleteTask } from "@/api/tasks";
 import { getGoogleStatus, listGoogleTasks, importGoogleTasks } from "@/api/google";
-import type { TaskStatus, TaskPriority, TaskCreate } from "@/types/tasks";
+import type { TaskStatus, TaskPriority } from "@/types/tasks";
 import type { GoogleTask } from "@/api/google";
 import { TaskDrawer } from "@/components/tasks/TaskDrawer";
+import { TaskCreateForm } from "@/components/tasks/TaskCreateForm";
 import { TaskSourceActions, sourceSummary } from "@/components/tasks/TaskSourceActions";
 import { AskGerryButton } from "@/components/AskGerryButton";
 import { HubBadge } from "@/components/HubBadge";
@@ -45,90 +46,6 @@ const PRIORITY_COLORS: Record<TaskPriority, string> = {
   high: "text-orange-400",
   critical: "text-red-500 font-semibold",
 };
-
-function NewTaskForm({
-  onClose,
-  projectId,
-  source,
-}: {
-  onClose: () => void;
-  /** Set when the list is filtered to one project: the task is made there. */
-  projectId?: string;
-  source: Source;
-}) {
-  const invalidate = useInvalidateTasks();
-  const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState<TaskPriority>("medium");
-  const [dueDate, setDueDate] = useState("");
-
-  const mutation = useMutation({
-    mutationFn: (body: TaskCreate) => createTask(body, source),
-    onSuccess: () => {
-      invalidate();
-      onClose();
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-    mutation.mutate({
-      title: title.trim(),
-      priority,
-      due_date: dueDate || undefined,
-      project_id: projectId || undefined,
-    });
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-lg border bg-card p-4 space-y-3 shadow-sm"
-    >
-      <input
-        autoFocus
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Task title…"
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-      />
-      <div className="flex gap-3">
-        <select
-          value={priority}
-          onChange={(e) => setPriority(e.target.value as TaskPriority)}
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
-        >
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-          <option value="critical">Critical</option>
-        </select>
-        <input
-          type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
-        />
-      </div>
-      <div className="flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={mutation.isPending || !title.trim()}
-          className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
-        >
-          {mutation.isPending ? "Creating…" : "Create"}
-        </button>
-      </div>
-    </form>
-  );
-}
 
 function TaskRow({
   task,
@@ -850,10 +767,11 @@ export function TasksPage() {
 
       {/* New task form */}
       {showNewTask && (
-        <NewTaskForm
-          onClose={() => setShowNewTask(false)}
-          projectId={activeProject?.id}
-          source={activeProject?.source ?? "local"}
+        <TaskCreateForm
+          projectId={activeProject?.id ?? null}
+          onCreated={() => setShowNewTask(false)}
+          onCancel={() => setShowNewTask(false)}
+          className="rounded-lg border bg-card p-4 shadow-sm"
         />
       )}
 

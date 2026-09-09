@@ -27,7 +27,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Knows PMI's people, products and regulatory picture — and who you are",
       "Drafts email, creates tasks, researches topics and writes documents",
       "Anything that reaches the outside world waits for your approval",
-      "Talk hands-free, or click \"Ask Gerry\" on any item to chat about it",
+      "Click the microphone beside Send to talk out loud in the same conversation; click \"Ask Gerry\" on any item to chat about it",
     ],
   },
   dashboard: {
@@ -50,7 +50,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   workrooms: {
     tagline: "Persistent co-work spaces with Gerry.",
     capabilities: [
-      "Create a room around a goal and work in it for days or weeks",
+      "Every project has a room built in; make one here for work that is not a project",
       "Pin documents, files, notes, email threads, tasks and records to the room",
       "Every message carries the goal, the pins and recent progress — no re-explaining",
       "Gerry works between sessions: scheduled jobs, a morning digest, suggested next steps",
@@ -62,7 +62,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     capabilities: [
       "A real browser inside the app — tabs, bookmarks and logins that survive a restart",
       "Turn on \"Browse with Gerry\" and the page you are reading joins the chat",
-      "Save a page straight into the knowledge base, or pin it to a workroom",
+      "Save a page straight into the knowledge base, or pin it to a room",
       "A floating bar keeps those buttons on every page you visit",
       "Gerry never browses on her own — you drive",
     ],
@@ -80,7 +80,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   projects: {
     tagline: "Organise work into projects.",
     capabilities: [
-      "Each project has an overview, timeline, canvas, tasks, budget, material and chat",
+      "Each project has an overview, timeline, canvas, tasks, budget, room and chat",
       "Plan on the timeline: drag to reschedule, link tasks, mark milestones, spot what is late",
       "Think on the canvas: sticky notes, shapes, pen and images, plus live cards for real tasks, documents and budgets",
       "Zoom out on the canvas and it folds a layer at a time \u2014 notes first, then sub-tasks into their parent \u2014 with a count you can click to open",
@@ -106,9 +106,9 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     tagline: "Track your to-dos on a board.",
     capabilities: [
       "Drag-and-drop kanban board with priorities, assignees and due dates",
+      "One form everywhere: title, project, due, priority, assignee — More for description, dates, tags and milestone. The project decides whether it lives here or on the hub",
       "Create, assign and update tasks just by asking Gerry in chat or by voice",
       "Turn emails, meeting action items or assistant suggestions into tasks automatically",
-      "Due tasks appear in your daily briefing and home-screen panel",
     ],
   },
   "scheduled-tasks": {
@@ -124,6 +124,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     capabilities: [
       "View your Google Calendar and upcoming events without leaving the app",
       "Ask about your day, have Gerry find open times or prep you for meetings",
+      "Click a day and press + to make a task due that day",
       "Gerry can create events for you — each one goes through your approval first",
       "Today's schedule shows on the home-screen briefing panel",
     ],

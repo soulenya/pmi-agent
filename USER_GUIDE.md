@@ -31,7 +31,7 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 6. [Talking to Little Gerry](#talking-to-little-gerry)
 7. [Ask Gerry About Anything](#ask-gerry-about-anything)
 8. [Daily Assistant](#daily-assistant)
-9. [Workrooms](#workrooms)
+9. [Rooms](#rooms)
 10. [Knowledge Base](#knowledge-base)
 11. [Semantic Search](#semantic-search)
 12. [Research](#research)
@@ -188,7 +188,7 @@ Your profile is **yours alone**. It is stored against your account, never shared
 | **Ask Gerry** | One-click "Ask Gerry about this" button on any task, email, file, contact, or event — opens a chat already primed with that item |
 | **Dashboard** | Daily briefing, open tasks, pending approvals, today's meetings |
 | **Daily Assistant** | A once-a-day scan of your Gmail and Google Tasks that suggests follow-ups and to-dos for you to review |
-| **Workrooms** | Persistent co-work spaces — a goal, pinned documents and a progress journal that Gerry carries into every message of the room's chat. Goal and title edits are logged with their previous wording, and Gerry warns before touching a file that belongs to another room |
+| **Rooms** | Persistent co-work spaces — a goal, pinned documents and a progress journal that Gerry carries into every message of the room's chat. Every project has one built in. Goal and title edits are logged with their previous wording, and Gerry warns before touching a file that belongs to another room |
 | **Knowledge Base** | Upload and manage your company documents; Little Gerry can read a whole document in full when you ask her to summarize or analyze it |
 | **Search** | Natural language search across all uploaded documents |
 | **Research** | AI-powered web research with cited reports |
@@ -234,6 +234,10 @@ Navigate to **AI Assistant** in the sidebar.
 - Hover over a conversation in the left panel to rename or archive it
 - The left panel is grouped: **Projects & rooms**, **Conversations**, then **Asked about something**, **Voice sessions** and **Routines** folded up with a count. Conversations kept on the hub for shared projects sit under **On the hub**
 - Click **+** to start a new conversation
+
+### Talking out loud
+
+Voice is a mode of whichever conversation you are in, not a separate session. Click the **microphone** next to Send (in the Gerry panel, the project Chat tab or the full chat page), or **Talk with Little Gerry** where it appears, and the conversation turns spoken: a strip above the input shows **Listening**, **Got it**, **Thinking** or **Speaking**. Just talk; pause and she answers aloud, sentence by sentence, then listens again. **Interrupt** cuts her off; **Esc** or the microphone button ends voice mode. Everything said is in the same history as what you typed. Voice needs the Google speech key from Settings › AI › Voice.
 
 ### What Little Gerry can do automatically
 
@@ -299,7 +303,7 @@ The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Go
 
 - A **briefing panel** is docked on the right side of the home screen (next to the solar system). At a glance it shows **today's schedule**, **unread email**, **tasks due**, **pending approvals**, **suggestions**, and an **Odoo snapshot** (bank balances) — each section links straight to the right page. Collapse or reopen it with the panel button; Little Gerry remembers your choice.
 - Open **Daily Assistant** itself from its satellite next to the sun (or the briefing panel header). The badge shows the number of pending suggestions.
-- **Suggestions are grouped by what they're about** rather than listed one under another. Each workroom gets a box (*Henry Jackson Foundation · 6*), and email follow-ups group under the person you're waiting on. Every box carries a count and a one-line description; click it to open the suggestions inside.
+- **Suggestions are grouped by what they're about** rather than listed one under another. Each room gets a box (*Henry Jackson Foundation · 6*), and email follow-ups group under the person you're waiting on. Every box carries a count and a one-line description; click it to open the suggestions inside.
 - **Dismiss all** on a box clears that whole group in one click.
 - **The boxes are ordered by what you actually use.** Little Gerry keeps score of how often you keep versus dismiss each type of suggestion. The kinds you accept sit at the top and open automatically; the kinds you always bin sink to the bottom and arrive closed, saying so. Groups of two or fewer always stay open. Opening or closing a box yourself overrides this until you reload.
 - Each suggestion is something to **review** — the assistant never acts on its own. You decide what to do with it.
@@ -310,11 +314,11 @@ The **Daily Assistant** runs a quiet, once-a-day scan of your **Gmail** and **Go
 
 ---
 
-## Workrooms
+## Rooms
 
-A **Workroom** is a persistent co-work space you share with Little Gerry — built for work that spans days or weeks, like a regulatory submission, an audit prep, or a fundraise.
+A **Room** is a persistent co-work space you share with Little Gerry — built for work that spans days or weeks, like a regulatory submission, an audit prep, or a fundraise. Every project has one built in (the **Room** tab in the project space); the Rooms view under Projects is for the ones that are not a project.
 
-- **Create a room** from **Projects › Rooms** (or the Workrooms section in the chat sidebar). Give it a title and a **goal** — what you're working toward. Every project has a room built in; the Rooms view is for the ones that are not a project.
+- **Create a room** from **Projects › Rooms** (or the Rooms section in the chat sidebar). Give it a title and a **goal** — what you're working toward.
 - **Change the goal whenever the work turns.** Edit the Goal box and click **Save goal**; the change is written into the room's journal with the previous wording, the new wording and your name, so it travels into the room chat. Gerry always works from the goal as it stands now, knows you edit it yourself without telling her, and will read the current wording back to you rather than insisting it's still the original. Renaming a room is recorded the same way.
 - **Pin artifacts** to the room: Drive docs, Knowledge Base documents, generated files, notes, **websites**, email threads, tasks, Odoo records, regulatory documents, and budgets. Pick the category, click **Browse …** and a picker opens listing everything of that kind — search it, click the item, and it's pinned with the right label and reference filled in for you (Drive opens the full Drive browser, so you can pin several files at once; **Note** just asks for the text). If you already know a raw ID, **Or pin by reference** still lets you type it in by hand. When a budget is pinned, Gerry's budget writes are journaled in the room automatically.
   - **Websites** keep a source where you can find it again — paste the address (`iqt.org/mission` is enough, no need to type `https://`) and optionally say what it is. Pinned websites are clickable in the room and open in your browser, and Gerry sees the address every turn, so she can re-read the page instead of searching for it again.
@@ -446,7 +450,7 @@ Things you can do with the page you're on:
 | **Ask Gerry about this page** | Reads the page as you see it and opens a new conversation with the text attached. Good for "summarise this", "what's the catch here?", "how does this compare to what we do?" |
 | **Browse with Gerry** | A toggle. While it's on, whatever page you're on goes along with every message you send, and updates as you move around. Ask "what do you make of this?" without capturing anything. Turn it off when you're done. |
 | **Add to Knowledge Base** | Files the page away permanently, with a link back to where it came from. The usual dialog asks for a title, a category (*Web Research* if you leave it) and whether it is regulated. It turns up in search and Gerry can cite it, even if the site later changes or disappears. |
-| **Pin to workroom** | Adds the page to a workroom's pinned items, so it's part of that room's context from then on. |
+| **Pin to room** | Adds the page to a room's pinned items, so it's part of that room's context from then on. |
 | **Send to canvas** | Drops the page onto a project's canvas as a card. Pick the project and the card lands on the board with the page's title, ready to be moved and linked. |
 | **Fit to window** | Sizes the browser to the page area, clear of the left rail and the chat panel. |
 
@@ -472,11 +476,15 @@ Navigate to **Tasks** for the Kanban board.
 - Drag cards between columns: **To Do → In Progress → In Review → Done**
 - Click a task card to view details, set due dates, assign priority, and add attachments
 
+### One task form
+
+Every place you make a task uses the same form: **title**, **project**, **due**, **priority** and (inside a project) **assignee** on the face; **More** opens description, start and end dates, tags and the milestone flag. It appears on the Tasks page, in a project's Tasks tab (locked to that project), in **Meetings › Extract Actions** (project, due and priority apply to the whole batch) and behind the **+** on the Calendar day panel (due already set to that day). Pick a project and the task is made where that project lives — on this computer or on the hub — without you choosing.
+
 ### Every task leads back to what it's about
 
 Tasks Gerry creates for you remember where they came from, so you never hit a dead end wondering "which document?" or "which email?".
 
-- **Open …** jumps straight to the thing the task is about — the email thread in your Inbox, the document in the Knowledge Base, the regulatory file, the meeting, the workroom, or the chat where it came up.
+- **Open …** jumps straight to the thing the task is about — the email thread in your Inbox, the document in the Knowledge Base, the regulatory file, the meeting, the room, or the chat where it came up.
 - **Ask Gerry** opens a conversation about that specific task, with the context already loaded.
 - **Gerry draft** appears on email follow-ups. One click and Gerry writes the reply for that thread; it lands in **Approvals** for you to read and send — nothing goes out on its own.
 
@@ -495,7 +503,7 @@ Every project card has a **layers** button that opens the project's own space. T
 - **Timeline** — the project's schedule as a Gantt chart.
 - **Tasks** — the project's tasks, made and edited in place. See below.
 - **Budget** — the money on this project. See below.
-- **Material** — everything pinned to the project, its journal and its goal. See below.
+- **Room** — the project's room: its goal, everything pinned for Gerry to have to hand, and its journal. See below.
 - **Chat** — the project's conversation with Gerry, shared by everyone on the project. Every new project is given one the moment it is created, so this tab is ready straight away. Older projects made before this got a **Start one** button instead. A shared project on the hub opens its conversation in the app just the same; attachments and the conversation list on the left are for this computer's chats, so they are not shown there.
 
 #### The Budget tab
@@ -604,7 +612,7 @@ A link that would make two tasks wait on each other is refused rather than saved
 
 The **Tasks** tab is where a project's work is made and kept. It works the same way whether the project lives on this computer or on the hub.
 
-Type a title and press Enter, or open **Details** first to set the status, priority, assignee, due date, start and end dates and whether it is a milestone. Click any row to open it: everything you set on the way in can be changed, plus a description and a progress figure, and there is an **Add a sub-task** box and a **Delete**. Adding a sub-task folds the parent back up so you can see what you just made.
+Type a title and press Enter, or open **More** first to set the due date, priority, assignee, description, start and end dates, tags and whether it is a milestone — the same form as everywhere else, locked to this project. Click any row to open it: everything you set on the way in can be changed, plus a progress figure, and there is an **Add a sub-task** box and a **Delete**. Adding a sub-task folds the parent back up so you can see what you just made.
 
 A field can be emptied as well as filled — clear a due date or set the assignee back to *Nobody yet* and it sticks.
 
@@ -618,9 +626,9 @@ Tasks group under the status of their top-level row, each heading carrying a cou
 
 Whoever can edit the project can add and change tasks. A viewer sees the list and nothing else. Work made in a shared project is held there: it can only be changed from that project, and only its owner can release it.
 
-#### Material
+#### Room
 
-Everything the project has been given to work with, in one tab. Like the Tasks tab, it works the same on a local project and on a hub project.
+The project's room: its goal, everything it has been given to work with, and its journal, in one tab. Like the Tasks tab, it works the same on a local project and on a hub project.
 
 **What this project is for** sits at the top. Click the line and write; it is the same goal Gerry reads back to you in the project's conversation.
 
@@ -634,7 +642,7 @@ Pins are grouped by kind with a count on each group. The ones that have somewher
 
 **One thing files cannot do.** A document's contents are encrypted with a key held on the computer that added it. On a project shared with other people, everyone sees the pin and its name, but only that computer can open the file. Pins that work this way say so on the item, rather than letting you find out by clicking. **Drive files and saved pages open for everyone** — a Drive file opens for anyone the file itself is shared with, which is Google's business and not the project's. An email thread is the exception among links: it opens in the mailbox it came from and nowhere else.
 
-A viewer sees the material and cannot change it.
+A viewer sees the room and cannot change it.
 
 #### The Canvas
 
@@ -1081,7 +1089,7 @@ Navigate to **Finance › Budgets**. A personal financial-management aid — **n
 - **Filter and isolate**: tap the category chips above the ledger to filter it (multi-select, live subtotal), or check specific entries and "Isolate selected" to view just those rows for a reference.
 - **Let Gerry help**: a per-budget toggle grants Gerry permission to add and edit entries when you ask in chat ("log $89.99 for the torque wrench against Lab Tools"). She files a line under the right status, so "set aside $5,000 for the enclosure tooling" is recorded as **Allocated**, not spent, and "we invoiced them $12,000 last week" as **Expected**. Edits and deletions also require your explicit confirmation in chat. Reading is always allowed, and you can revoke the grant anytime.
 - **Create from chat** too: ask Gerry to set up a budget with an allotment and categories — her write permission still starts OFF until you enable it.
-- **The budget watches itself**: crossing 80% or 100% of an allotment raises a notification (once per crossing), categories warn when they hit their caps, and the first scan of each month delivers a rollup of last month's spending. Budgets at 80%+ also appear in the home-screen briefing panel, and workroom digests report pinned budgets whose totals changed since yesterday. All read-only — nudges never touch your sheet.
+- **The budget watches itself**: crossing 80% or 100% of an allotment raises a notification (once per crossing), categories warn when they hit their caps, and the first scan of each month delivers a rollup of last month's spending. Budgets at 80%+ also appear in the home-screen briefing panel, and room digests report pinned budgets whose totals changed since yesterday. All read-only — nudges never touch your sheet.
 - **Invoices connect**: ask Gerry to file an invoice from an email ("file the invoice from OVYL's email") — it lands in the company's invoice folder on Drive for the invoice sheet's daily pipeline. If the amount is readable and a budget matches, Gerry suggests the ledger entry on the Assistant page — accept or dismiss, never silent.
 - **Linked folders**: link invoice or receipts folders from Drive to any budget. Gerry scans them read-only — reads each PDF/image/CSV (OCR when needed), extracts vendor, date, and amount, picks a category, and totals what she found. Every document becomes a suggestion you review inside the budget (accept, dismiss, or accept all). Your files are never modified or moved.
 - **Per-budget automation**: turn on daily folder scans and daily Gmail invoice checks per budget. Accepting a Gmail find files the attachment into your linked invoice folder and logs the entry — nothing ever happens without your accept.

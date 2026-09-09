@@ -8,23 +8,27 @@
  * account live, so it is pulled before the first turn and pushed after each.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { RotateCcw, Send, Square, Wrench } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AudioLines, RotateCcw, Send, Square, Wrench } from "lucide-react";
 
 import { listMessages, stopTurn } from "@/api/chat";
 import { grantDriveEdit } from "@/api/google";
 import { syncHubConversation } from "@/api/hub";
+import { getSettings } from "@/api/settings";
 import type { Source } from "@/api/tasks";
 import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
+import { VoiceBanner } from "@/components/chat/VoiceBanner";
 import ConfirmDriveEditModal, { type DriveEditRequest } from "@/components/ConfirmDriveEditModal";
 import { ModelSwitcher } from "@/components/ModelSwitcher";
 import { useResizableTextarea } from "@/hooks/useResizableTextarea";
+import { useVoiceMode } from "@/hooks/useVoiceMode";
 import { modLabel } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useCanvasSinkStore, type TextDropKind } from "@/stores/canvasSinkStore";
 import { useChatInputSizeStore } from "@/stores/chatInputSizeStore";
 import { useToastStore } from "@/stores/toastStore";
+import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
 
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
@@ -139,6 +143,8 @@ export interface ConversationPaneProps {
   placeholder?: string;
   emptyHint?: string;
   className?: string;
+  /** The pane the "Talk with Little Gerry" buttons flip into voice mode. */
+  voiceHost?: boolean;
 }
 
 export function ConversationPane({
@@ -152,6 +158,7 @@ export function ConversationPane({
   placeholder = "Message Little Gerry… (Enter to send)",
   emptyHint = "Ask me anything about your work, documents, or tasks.",
   className,
+  voiceHost = false,
 }: ConversationPaneProps) {
   const token = useAuthStore((s) => s.accessToken);
   const qc = useQueryClient();
@@ -176,6 +183,35 @@ export function ConversationPane({
 
   const wsRef = useRef<WebSocket | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const streamBufferRef = useRef("");
+
+  // ── Voice ────────────────────────────────────────────────────────────────────────────
+  const { data: appSettings } = useQuery({ queryKey: ["settings"], queryFn: getSettings, staleTime: 60_000 });
+  const voiceEnabled = appSettings?.google_key_set ?? false;
+  const sendRef = useRef<(text: string) => void>(() => {});
+  const voice = useVoiceMode({
+    onTranscript: (text) => sendRef.current(text),
+    speakReplies: (appSettings?.voice_speak_replies ?? false) && voiceEnabled,
+  });
+  const setVoiceActive = useVoiceAssistantStore((s) => s.setActive);
+  const setVoiceSpeaking = useVoiceAssistantStore((s) => s.setSpeaking);
+  const toggleRequests = useVoiceAssistantStore((s) => s.toggleRequests);
+  const seenToggle = useRef(toggleRequests);
+  useEffect(() => {
+    if (!voiceHost) return;
+    setVoiceActive(voice.voiceMode);
+    setVoiceSpeaking(voice.phase === "speaking");
+  }, [voiceHost, voice.voiceMode, voice.phase, setVoiceActive, setVoiceSpeaking]);
+  useEffect(() => {
+    if (!voiceHost || toggleRequests === seenToggle.current) return;
+    seenToggle.current = toggleRequests;
+    if (voiceEnabled && conversationId) voice.toggle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toggleRequests, voiceHost]);
+  useEffect(() => {
+    if (voice.voiceMode) voice.exit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId]);
 
   useEffect(() => {
     onConnectingChange?.(isConnecting);
@@ -349,6 +385,8 @@ export function ConversationPane({
         const frame = JSON.parse(ev.data);
         if (frame.type === "token" && frame.content) {
           setStreamingContent((prev) => (prev ?? "") + frame.content);
+          streamBufferRef.current += frame.content;
+          voice.onToken(frame.content);
           setToolActivities([]);
           return;
         }
@@ -396,10 +434,15 @@ export function ConversationPane({
           setStreamingContent(null);
           setToolActivities([]);
           setTurnArtifacts([]);
+          const finalText = streamBufferRef.current;
+          streamBufferRef.current = "";
+          voice.onDone(finalText);
           return;
         }
         if (frame.type === "error") {
           const detail = frame.detail ?? "An error occurred.";
+          streamBufferRef.current = "";
+          voice.onError();
           setMessages((prev) => [
             ...prev,
             {
@@ -428,6 +471,8 @@ export function ConversationPane({
       ws.close();
       wsRef.current = null;
     };
+    // The voice callbacks are stable; listing them would reopen the socket for nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, synced, token, onHub, qc, loadMessages]);
 
   const send = useCallback(
@@ -449,11 +494,19 @@ export function ConversationPane({
           created_at: new Date().toISOString(),
         },
       ]);
-      ws.send(JSON.stringify({ type: "human", content: text }));
+      ws.send(JSON.stringify({ type: "human", content: text, voice: voice.voiceModeRef.current }));
       return true;
     },
-    [conversationId],
+    [conversationId, voice.voiceModeRef],
   );
+
+  // What the microphone heard goes the same way as what was typed.
+  useEffect(() => {
+    sendRef.current = (text) => {
+      const full = contextPrefix ? `${contextPrefix}\n\n${text}` : text;
+      send(full, text);
+    };
+  }, [send, contextPrefix]);
 
   // A seed is self-contained, so it goes without the page prefix.
   useEffect(() => {
@@ -554,6 +607,17 @@ export function ConversationPane({
       </div>
 
       <div className="border-t p-2" onContextMenu={openMenu}>
+        {voice.voiceMode && (
+          <div className="mb-2">
+            <VoiceBanner
+              phase={voice.phase}
+              error={voice.error}
+              onInterrupt={voice.interrupt}
+              onExit={voice.exit}
+              compact={compact}
+            />
+          </div>
+        )}
         <div className="relative flex items-end gap-1.5 rounded-lg border bg-muted/30 px-2.5 py-1.5">
           <div
             onPointerDown={startResize}
@@ -571,6 +635,20 @@ export function ConversationPane({
             disabled={!conversationId}
             className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
+          {voiceEnabled && (
+            <button
+              onClick={voice.toggle}
+              disabled={!conversationId}
+              title={voice.voiceMode ? "End voice conversation (Esc)" : "Talk with Little Gerry"}
+              aria-label={voice.voiceMode ? "End voice conversation" : "Talk with Little Gerry"}
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors disabled:opacity-40",
+                voice.voiceMode ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+            >
+              <AudioLines className="h-3.5 w-3.5" />
+            </button>
+          )}
           <button
             onClick={sendTyped}
             disabled={!inputText.trim() || !conversationId}

@@ -715,7 +715,7 @@ export function ProjectsPage() {
           </div>
           {viewTabs}
         </div>
-        <WorkroomsPage />
+        <WorkroomsPage embedded />
       </div>
     );
   }

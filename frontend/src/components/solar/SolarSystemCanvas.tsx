@@ -170,7 +170,7 @@ function SunBody({ onClick }: { onClick: () => void }) {
 function SunView() {
   const navigate = useNavigate();
   const active = useVoiceAssistantStore((s) => s.active);
-  const starting = useVoiceAssistantStore((s) => s.starting);
+  const starting = false;
   const speaking = useVoiceAssistantStore((s) => s.speaking);
   const requestToggle = useVoiceAssistantStore((s) => s.requestToggle);
 

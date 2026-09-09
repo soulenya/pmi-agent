@@ -96,7 +96,7 @@ export function FileActionCard({
       qc.invalidateQueries({ queryKey: ["workroom", roomId] });
       push("success", `Pinned to "${roomTitle}"`);
     } catch {
-      push("error", "Couldn't pin to the workroom.");
+      push("error", "Couldn't pin to the room.");
     } finally {
       setBusy("");
     }
@@ -106,7 +106,7 @@ export function FileActionCard({
     if (currentRoom) {
       void pinToRoom(currentRoom.id, currentRoom.title);
     } else if (rooms.length === 0) {
-      push("info", "No workrooms yet — create one from the Workrooms page.");
+      push("info", "No rooms yet — create one under Projects > Rooms.");
     } else {
       setShowRoomPicker((v) => !v);
     }
@@ -215,7 +215,7 @@ export function FileActionCard({
           ) : (
             <Pin className="h-3 w-3" />
           )}
-          {pinDone ? "Pinned" : currentRoom ? "Pin to Room" : "Pin to Workroom"}
+          {pinDone ? "Pinned" : "Pin to Room"}
         </button>
       </div>
       {showRoomPicker && !pinDone && (
