@@ -135,11 +135,20 @@ async def file_invoice_from_email(
         attachments = await _run(lambda: gs.gmail_get_attachments(message_id))
     except Exception as exc:  # noqa: BLE001
         raise InvoiceError(f"Couldn't fetch the email's attachments: {exc}") from exc
-    usable = [a for a in attachments if _is_invoice_file(a)]
+    # An inline image is a signature logo or a pasted picture, never an invoice.
+    # Filing one puts junk in front of the 9 am OCR pipeline.
+    real = [a for a in attachments if not a.get("inline")]
+    usable = [a for a in real if _is_invoice_file(a)]
     if not usable:
+        others = ", ".join(a["filename"] for a in real)
         raise InvoiceError(
-            "That email has no PDF/image/CSV attachments — nothing the invoice "
-            "pipeline can ingest."
+            "That email has no PDF/image/CSV attachment the invoice pipeline can ingest."
+            + (
+                f" It does carry: {others}. A Word or other document cannot be filed to the "
+                "invoice folder (the pipeline OCRs PDFs and images); read it with "
+                "read_gmail_attachment to get the figures, or ask the sender for a PDF."
+                if others else ""
+            )
         )
     if attachment_filename.strip():
         want = attachment_filename.strip().lower()

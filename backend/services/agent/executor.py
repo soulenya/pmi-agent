@@ -154,6 +154,7 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "fetch_page": "Fetching page…",
     "search_gmail": "Searching Gmail…",
     "read_gmail_message": "Reading email…",
+    "read_gmail_attachment": "Reading the email attachment…",
     "list_gmail_drafts": "Checking Gmail drafts…",
     "read_gmail_draft": "Reading the Gmail draft…",
     "compile_company_timeline": "Researching company history…",

@@ -171,6 +171,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "All of Gmail's folders, with search, sorting, tags and auto-refresh",
       "Read full threads with images and attachments, legible in dark mode",
       "Open Office attachments in Google Docs, or add any of them to the knowledge base",
+      "Ask Gerry about an email's attachments — she lists what is attached and reads inside Word, PDF, text, CSV and scanned files",
       "Send your own mail, or have Gerry draft replies for your approval — several at once if you like",
     ],
   },

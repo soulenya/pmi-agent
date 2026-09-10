@@ -4,6 +4,34 @@
 
 ## Changelog
 
+### v5.1.1 · build 258 — 2026-09-10
+**Gerry reads email attachments**
+
+Field report: asked for the totals in three invoices attached to an email,
+Gerry said only `image001.png` was attached (twice), and `file_invoice_from_email`
+filed that 780-byte signature logo into the "Nelson Mullins Invoices" Drive
+folder. Raw MIME check: the three `.docx` invoices were there all along.
+
+Three causes, three fixes:
+- `read_gmail_message` never listed attachments — `gmail_get_message` now
+  returns `attachments` (metadata via `_list_attachments`, incl. `inline`) and
+  the tool prints `ATTACHMENTS (n)` with name/type/size, inline images apart.
+- No tool read attachment CONTENTS (`extract_document` has no Gmail source and
+  is vision-only). New `read_gmail_attachment(message_id, attachment_name,
+  offset)` in `services/agent/tools.py`: downloads via `gmail_get_attachments`,
+  refuses inline images, `chat_attachments.resolve_mime_type` +
+  `extract_text_smart` (docx/pdf/txt/md/csv; images and scanned PDFs → vision
+  → Drive OCR), paged at `_EXTRACT_PAGE_CHARS`. Registered in TOOL_DEFINITIONS,
+  TOOL_EXECUTORS, `_PRIMARY_ARG`, executor label, v2 `_TOOL_DOCS`, and the
+  executive_assistant + house_manager whitelists.
+- `invoice_service.file_invoice_from_email` skips `inline` attachments and,
+  when nothing ingestible remains, names what IS attached and points to
+  `read_gmail_attachment` (the Apps Script pipeline OCRs PDFs/images only, so
+  `.docx` stays unfiled by design).
+- Verified read-only against the real message with the installed token: 3
+  attachments listed; `General Corporate` docx read, "TOTAL FOR THIS INVOICE
+  $7,962.50" present; filing refused with the new message. No filing performed.
+
 ### v5.1.0 · build 257 — 2026-09-10
 **Team chat**
 

@@ -117,6 +117,7 @@ _TOOLS = [
     "read_gmail_draft",
     "compile_company_timeline",
     "read_gmail_message",
+    "read_gmail_attachment",
     "search_drive",
     "list_drive_folder",
     "list_shared_drives",
