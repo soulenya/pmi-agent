@@ -13,6 +13,8 @@ export interface Person {
   id: string;
   email: string;
   display_name: string;
+  /** The hub's own id for the signed-in person differs from the desktop's; this says which row is you. */
+  is_me?: boolean;
 }
 
 export interface TeamChannel {
@@ -98,6 +100,10 @@ export async function updateChannel(
 
 export async function markChannelRead(id: string): Promise<void> {
   await apiClient.post(`${T}/channels/${id}/read`);
+}
+
+export async function leaveChannel(id: string): Promise<void> {
+  await apiClient.post(`${T}/channels/${id}/leave`);
 }
 
 export async function listMessages(

@@ -23,6 +23,7 @@ import {
 import {
   createGroup,
   ensureProjectChannel,
+  leaveChannel,
   listChannels,
   listPeople,
   openDirectMessage,
@@ -35,7 +36,6 @@ import { apiErrorText } from "@/components/waiting/WaitingForYou";
 import { useAllProjects, useHubConnected } from "@/hooks/useAllWork";
 import { formatAgo } from "@/lib/formatWhen";
 import { cn } from "@/lib/utils";
-import { useAuthStore } from "@/stores/authStore";
 import { useRecentPlace } from "@/stores/recentPlacesStore";
 import { useToastStore } from "@/stores/toastStore";
 
@@ -52,7 +52,6 @@ export function TeamPage() {
   const selectedId = params.get("channel");
   const qc = useQueryClient();
   const toast = useToastStore((s) => s.push);
-  const me = useAuthStore((s) => s.user);
   const [filter, setFilter] = useState("");
   const [creating, setCreating] = useState<"group" | "dm" | null>(null);
   const [managing, setManaging] = useState(false);
@@ -249,7 +248,6 @@ export function TeamPage() {
             {managing && selected.kind === "group" && (
               <ManageGroup
                 channel={selected}
-                meId={me?.id ?? ""}
                 onDone={() => setManaging(false)}
                 onLeft={() => select(null)}
               />
@@ -266,7 +264,6 @@ export function TeamPage() {
       {creating && (
         <NewChannelDialog
           kind={creating}
-          meId={me?.id ?? ""}
           onClose={() => setCreating(null)}
           onCreated={(ch) => {
             setCreating(null);
@@ -339,7 +336,7 @@ function PeoplePicker({
   const [q, setQ] = useState("");
   const people = useQuery({ queryKey: ["team", "people"], queryFn: listPeople, staleTime: 60_000 });
   const rows = (people.data ?? []).filter(
-    (p) => !exclude.has(p.id) && (p.display_name.toLowerCase().includes(q.toLowerCase()) || p.email.toLowerCase().includes(q.toLowerCase())),
+    (p) => !p.is_me && !exclude.has(p.id) && (p.display_name.toLowerCase().includes(q.toLowerCase()) || p.email.toLowerCase().includes(q.toLowerCase())),
   );
   return (
     <div>
@@ -376,12 +373,10 @@ function PeoplePicker({
 
 function NewChannelDialog({
   kind,
-  meId,
   onClose,
   onCreated,
 }: {
   kind: "group" | "dm";
-  meId: string;
   onClose: () => void;
   onCreated: (ch: TeamChannel) => void;
 }) {
@@ -418,7 +413,7 @@ function NewChannelDialog({
           />
         )}
         <PeoplePicker
-          exclude={new Set([meId])}
+          exclude={new Set()}
           selected={picked}
           single={kind === "dm"}
           onToggle={(p) =>
@@ -450,12 +445,10 @@ function NewChannelDialog({
 
 function ManageGroup({
   channel,
-  meId,
   onDone,
   onLeft,
 }: {
   channel: TeamChannel;
-  meId: string;
   onDone: () => void;
   onLeft: () => void;
 }) {
@@ -473,6 +466,14 @@ function ManageGroup({
       setPicked(new Set());
     },
     onError: (e) => toast("error", apiErrorText(e, "The group could not be changed.")),
+  });
+  const leave = useMutation({
+    mutationFn: () => leaveChannel(channel.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["team", "channels"] });
+      onLeft();
+    },
+    onError: (e) => toast("error", apiErrorText(e, "You could not leave the group.")),
   });
 
   return (
@@ -503,12 +504,11 @@ function ManageGroup({
         </button>
         <button
           type="button"
+          disabled={leave.isPending}
           onClick={() => {
-            if (window.confirm("Leave this group? You will stop seeing its messages.")) {
-              update.mutate({ remove_member_ids: [meId] }, { onSuccess: onLeft });
-            }
+            if (window.confirm("Leave this group? You will stop seeing its messages.")) leave.mutate();
           }}
-          className="rounded-md border px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10"
+          className="rounded-md border px-2.5 py-1 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
         >
           Leave group
         </button>
@@ -520,7 +520,7 @@ function ManageGroup({
         {channel.members.map((m) => (
           <span key={m.id} className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-xs">
             {m.display_name}
-            {m.id !== meId && (
+            {!m.is_me && (
               <button
                 type="button"
                 title={`Remove ${m.display_name}`}
