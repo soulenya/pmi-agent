@@ -34,12 +34,16 @@ import {
 } from "@/api/assistant";
 import {
   clearExpiredApprovals,
+  listHubNotifications,
   listNotifications,
   listPendingApprovals,
+  markAllHubNotificationsRead,
   markAllNotificationsRead,
+  markHubNotificationRead,
   markNotificationRead,
 } from "@/api/chat";
 import { ApprovalCard, useResolveApproval } from "@/components/approvals/ApprovalCard";
+import { useHubConnected } from "@/hooks/useAllWork";
 import { formatAgo } from "@/lib/formatWhen";
 import { SUGGESTION_KIND_META, stripRoomPrefix } from "@/lib/suggestionKinds";
 import { cn } from "@/lib/utils";
@@ -61,6 +65,40 @@ export function apiErrorText(e: unknown, fallback: string): string {
   return typeof detail === "string" && detail ? detail : fallback;
 }
 
+/**
+ * Notifications from this computer and from the hub, newest first, without the
+ * suggestion echoes. The hub half is best-effort: not connected, or unreachable,
+ * means it is simply absent.
+ */
+function useAllNotifications() {
+  const hub = useHubConnected();
+  const local = useQuery({
+    queryKey: ["notifications"],
+    queryFn: listNotifications,
+    refetchInterval: 30_000,
+  });
+  const remote = useQuery({
+    queryKey: ["hub", "notifications"],
+    queryFn: listHubNotifications,
+    enabled: hub,
+    refetchInterval: 30_000,
+    retry: false,
+  });
+  const rows = useMemo(
+    () =>
+      [...(local.data ?? []), ...(remote.data ?? [])]
+        .filter((n) => !isSuggestionEcho(n))
+        .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    [local.data, remote.data],
+  );
+  return { rows, isLoading: local.isLoading };
+}
+
+async function markRead(n: Notification): Promise<void> {
+  if (n.source === "hub") await markHubNotificationRead(n.id);
+  else await markNotificationRead(n.id);
+}
+
 export type WaitingTab = "approvals" | "suggestions" | "notifications";
 
 export const WAITING_TABS: { id: WaitingTab; label: string }[] = [
@@ -80,17 +118,13 @@ export function useWaitingCounts() {
     queryFn: () => listPendingApprovals(),
     refetchInterval: 30_000,
   });
-  const { data: notifications = [] } = useQuery({
-    queryKey: ["notifications"],
-    queryFn: listNotifications,
-    refetchInterval: 30_000,
-  });
+  const { rows: notifications } = useAllNotifications();
   const { data: suggestions = 0 } = useQuery({
     queryKey: ["assistant", "suggestions", "count"],
     queryFn: getPendingSuggestionCount,
     refetchInterval: 30_000,
   });
-  const unread = notifications.filter((n) => !n.is_read && !isSuggestionEcho(n)).length;
+  const unread = notifications.filter((n) => !n.is_read).length;
   return {
     approvals: approvals.length,
     suggestions,
@@ -110,6 +144,7 @@ export function defaultWaitingTab(c: { approvals: number; suggestions: number; n
 /** Where a notification takes you when clicked. */
 export function notificationRoute(notif: Notification): string | null {
   if (notif.entity_type === "email_draft") return "/inbox?view=drafts";
+  if (notif.type === "chat_mention" && notif.entity_id) return `/team?channel=${notif.entity_id}`;
   switch (notif.type) {
     case "task_due":
     case "task_assigned":
@@ -134,6 +169,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   document_ingested: <FileText className="h-3.5 w-3.5 text-green-500" />,
   briefing_ready: <Info className="h-3.5 w-3.5 text-primary" />,
   feedback_submitted: <MessageSquare className="h-3.5 w-3.5 text-purple-500" />,
+  chat_mention: <MessageSquare className="h-3.5 w-3.5 text-primary" />,
 };
 
 // ── Notification row ─────────────────────────────────────────────────────────
@@ -147,7 +183,7 @@ function NotificationRow({
   notif: Notification;
   /** True while the linked approval is still undecided. */
   pendingApproval: boolean;
-  onMarkRead: (id: string) => void;
+  onMarkRead: (n: Notification) => void;
   onNavigate: (path: string) => void;
 }) {
   const resolve = useResolveApproval();
@@ -177,7 +213,7 @@ function NotificationRow({
       setOutcome(status === 409 || status === 404 ? "Already handled" : "Failed");
     } finally {
       setBusy(false);
-      if (!notif.is_read) onMarkRead(notif.id);
+      if (!notif.is_read) onMarkRead(notif);
     }
   }
 
@@ -188,7 +224,7 @@ function NotificationRow({
         notif.is_read ? "hover:bg-accent/30" : "cursor-pointer bg-accent/20 hover:bg-accent/40",
       )}
       onClick={() => {
-        if (!notif.is_read) onMarkRead(notif.id);
+        if (!notif.is_read) onMarkRead(notif);
         if (route) onNavigate(route);
       }}
     >
@@ -322,12 +358,7 @@ export function WaitingForYou({ tab, onTabChange, limit, onNavigate, className }
     queryFn: () => listPendingApprovals(),
     refetchInterval: 15_000,
   });
-  const { data: notifications = [], isLoading: notificationsLoading } = useQuery({
-    queryKey: ["notifications"],
-    queryFn: listNotifications,
-    refetchInterval: 30_000,
-    select: (rows) => rows.filter((n) => !isSuggestionEcho(n)),
-  });
+  const { rows: notifications, isLoading: notificationsLoading } = useAllNotifications();
   const { data: suggestions = [], isLoading: suggestionsLoading } = useQuery({
     queryKey: ["assistant", "suggestions", "pending"],
     queryFn: () => listSuggestions({ status: "pending" }),
@@ -344,13 +375,22 @@ export function WaitingForYou({ tab, onTabChange, limit, onNavigate, className }
   const unread = notifications.filter((n) => !n.is_read).length;
   const expired = approvals.filter((a) => a.expires_at && new Date(a.expires_at) < new Date()).length;
 
-  const markRead = useMutation({
-    mutationFn: (id: string) => markNotificationRead(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  const refreshNotifications = () => {
+    qc.invalidateQueries({ queryKey: ["notifications"] });
+    qc.invalidateQueries({ queryKey: ["hub", "notifications"] });
+  };
+  const markReadMutation = useMutation({
+    mutationFn: (n: Notification) => markRead(n),
+    onSuccess: refreshNotifications,
   });
   const markAll = useMutation({
-    mutationFn: markAllNotificationsRead,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+    mutationFn: async () => {
+      await markAllNotificationsRead();
+      if (notifications.some((n) => n.source === "hub" && !n.is_read)) {
+        await markAllHubNotificationsRead().catch(() => undefined);
+      }
+    },
+    onSuccess: refreshNotifications,
   });
   const clearExpired = useMutation({
     mutationFn: clearExpiredApprovals,
@@ -358,7 +398,7 @@ export function WaitingForYou({ tab, onTabChange, limit, onNavigate, className }
   });
   const bump = () => {
     qc.invalidateQueries({ queryKey: ["assistant"] });
-    qc.invalidateQueries({ queryKey: ["notifications"] });
+    refreshNotifications();
   };
   const toast = useToastStore((s) => s.push);
   const settled = (fallback: string) => (res: { message?: string | null }) => {
@@ -513,7 +553,7 @@ export function WaitingForYou({ tab, onTabChange, limit, onNavigate, className }
                 key={n.id}
                 notif={n}
                 pendingApproval={n.entity_type === "approval_intent" && !!n.entity_id && pendingIds.has(n.entity_id)}
-                onMarkRead={(id) => markRead.mutate(id)}
+                onMarkRead={(row) => markReadMutation.mutate(row)}
                 onNavigate={go}
               />
             ))}

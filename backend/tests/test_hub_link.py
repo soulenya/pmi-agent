@@ -37,6 +37,9 @@ async def _user(db: AsyncSession, email: str) -> User:
         "workrooms/1/items",
         "conversations/123",
         "budgets",
+        "team/channels",
+        "team/files/abc_report.pdf",
+        "notifications",
     ],
 )
 def test_shared_workspace_paths_are_allowed(path: str):
@@ -52,6 +55,8 @@ def test_shared_workspace_paths_are_allowed(path: str):
         "projectsecret",
         "../auth/iap",
         "backups",
+        "teams",
+        "notificationsx",
     ],
 )
 def test_everything_else_is_refused(path: str):

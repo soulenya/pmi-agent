@@ -21,6 +21,7 @@ import { logout as apiLogout } from "@/api/auth";
 import { BrowserDock } from "@/components/layout/BrowserDock";
 import { FeedbackModal } from "@/components/layout/FeedbackButton";
 import { useWaitingCounts } from "@/components/waiting/WaitingForYou";
+import { useTeamUnread } from "@/hooks/useTeamUnread";
 import { RAIL, railItemFor } from "@/lib/workbench";
 import { resolveGuide } from "@/lib/featureGuide";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,7 @@ export function Rail() {
   const navigate = useNavigate();
   const here = railItemFor(pathname);
   const counts = useWaitingCounts();
+  const teamUnread = useTeamUnread();
   const places = useRecentPlacesStore((s) => s.places);
   const forget = useRecentPlacesStore((s) => s.forget);
 
@@ -86,7 +88,10 @@ export function Rail() {
       {RAIL.map((item) => {
         const Icon = item.icon;
         // Suggestions are a stream, not a queue; their count lives on the tab, not the rail.
-        const count = item.pages.reduce((n, p) => n + (p.badge === "waiting" ? counts.total : 0), 0);
+        const count = item.pages.reduce(
+          (n, p) => n + (p.badge === "waiting" ? counts.total : p.badge === "team" ? teamUnread : 0),
+          0,
+        );
         return (
           <RailButton
             key={item.id}

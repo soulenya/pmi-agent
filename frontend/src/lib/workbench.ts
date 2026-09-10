@@ -10,6 +10,7 @@ import {
   FolderKanban,
   FolderOpen,
   Mail,
+  MessagesSquare,
   ShieldCheck,
   Sun,
   Wallet,
@@ -20,7 +21,7 @@ export interface RailPage {
   route: string;
   label: string;
   /** Show a count from the badge store. */
-  badge?: "waiting" | "assistant";
+  badge?: "waiting" | "assistant" | "team";
 }
 
 export interface RailItem {
@@ -62,6 +63,13 @@ export const RAIL: RailItem[] = [
     route: "/tasks",
     pages: [{ route: "/tasks", label: "Tasks" }],
     also: ["/scheduled-tasks"],
+  },
+  {
+    id: "team",
+    label: "Team",
+    icon: MessagesSquare,
+    route: "/team",
+    pages: [{ route: "/team", label: "Team", badge: "team" }],
   },
   {
     id: "mail",

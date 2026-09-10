@@ -17,6 +17,7 @@ import {
   FolderOpen,
   Handshake,
   Inbox,
+  MessagesSquare,
   Mic,
   Network,
   ScrollText,
@@ -225,6 +226,17 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
       "Accept a suggestion, mark it already done, or dismiss it without leaving the list — each confirms what it did, and nothing you dismiss comes back on its own",
     ],
   },
+  team: {
+    tagline: "Your team, in one place.",
+    capabilities: [
+      "Everyone — one channel for the whole company, on the hub, so every computer reads the same thread",
+      "A channel for each hub project, with everyone who has a role on it already inside; open it from the project's Team tab too",
+      "Named groups and direct messages; rename a group, add or remove people, leave when you are done",
+      "@mention someone and it lands under Waiting for you; unread counts on the rail and on each channel",
+      "Attach files up to 15 MB (kept on the hub), link a hub task, or add a link — they show as chips anyone can open",
+      "Markdown in messages; edit or delete your own — a deleted message says so rather than vanishing",
+    ],
+  },
   audit: {
     tagline: "A record you can prove.",
     capabilities: [
@@ -266,6 +278,7 @@ const ROUTE_GUIDES: { prefix: string; id: string; title: string; icon: LucideIco
   { prefix: "/hub/projects", id: "projects", title: "Projects", icon: FolderOpen },
   { prefix: "/workrooms", id: "workrooms", title: "Rooms", icon: Handshake },
   { prefix: "/tasks", id: "tasks", title: "Tasks", icon: FolderKanban },
+  { prefix: "/team", id: "team", title: "Team", icon: MessagesSquare },
   { prefix: "/calendar", id: "calendar", title: "Calendar", icon: CalendarDays },
   { prefix: "/meetings", id: "meetings", title: "Meetings", icon: Mic },
   { prefix: "/documents", id: "documents", title: "Knowledge Base", icon: FileText },

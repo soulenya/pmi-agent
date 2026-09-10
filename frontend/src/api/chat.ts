@@ -127,3 +127,18 @@ export async function markNotificationRead(id: string): Promise<void> {
 export async function markAllNotificationsRead(): Promise<void> {
   await apiClient.post("/notifications/read-all");
 }
+
+// The hub keeps its own notifications for things that only happen there (an
+// @mention in team chat). They are read through the proxy and merged in.
+export async function listHubNotifications(): Promise<Notification[]> {
+  const resp = await apiClient.get<Notification[]>("/hub/api/notifications");
+  return resp.data.map((n) => ({ ...n, source: "hub" as const }));
+}
+
+export async function markHubNotificationRead(id: string): Promise<void> {
+  await apiClient.post(`/hub/api/notifications/${id}/read`);
+}
+
+export async function markAllHubNotificationsRead(): Promise<void> {
+  await apiClient.post("/hub/api/notifications/read-all");
+}
