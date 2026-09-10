@@ -478,7 +478,7 @@ function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
   const { tasks } = useAllTasks();
 
-  const others = channel.members;
+  const others = channel.members.filter((p) => !p.is_me);
   const mentionChoices = others.filter((p) => p.display_name.toLowerCase().includes(filter.toLowerCase()));
   // Only tasks on the hub can be opened by whoever reads this; a local task is on one computer.
   const taskChoices = tasks

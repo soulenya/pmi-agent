@@ -65,6 +65,9 @@ class PersonOut(BaseModel):
     id: uuid.UUID
     email: str
     display_name: str
+    # The desktop's own user id is not the hub's; this is how the client knows
+    # which member is the person sitting at the keyboard.
+    is_me: bool = False
 
 
 class ChannelOut(BaseModel):
@@ -144,8 +147,13 @@ class UnreadOut(BaseModel):
 
 # ── access ────────────────────────────────────────────────────────────────
 
-def _person(u: User) -> PersonOut:
-    return PersonOut(id=u.id, email=u.email, display_name=u.display_name or u.email)
+def _person(u: User, me: User | None = None) -> PersonOut:
+    return PersonOut(
+        id=u.id,
+        email=u.email,
+        display_name=u.display_name or u.email,
+        is_me=me is not None and u.id == me.id,
+    )
 
 
 async def _people_by_id(db: AsyncSession, ids: set[uuid.UUID]) -> dict[uuid.UUID, User]:
@@ -226,13 +234,13 @@ async def _ensure_global(db: AsyncSession) -> TeamChannel:
     return ch
 
 
-async def _channel_people(db: AsyncSession, ch: TeamChannel) -> list[PersonOut]:
+async def _channel_people(db: AsyncSession, ch: TeamChannel, me: User | None = None) -> list[PersonOut]:
     """Who is in a channel. Global/project channels list everyone who can read."""
     if ch.kind == "global":
         rows = (
             await db.execute(select(User).where(User.is_active.is_(True)).order_by(User.display_name))
         ).scalars().all()
-        return [_person(u) for u in rows]
+        return [_person(u, me) for u in rows]
     if ch.kind == "project" and ch.project_id is not None:
         project = (
             await db.execute(select(Project).where(Project.id == ch.project_id))
@@ -245,7 +253,7 @@ async def _channel_people(db: AsyncSession, ch: TeamChannel) -> list[PersonOut]:
                     select(User).where(User.is_active.is_(True)).order_by(User.display_name)
                 )
             ).scalars().all()
-            return [_person(u) for u in rows]
+            return [_person(u, me) for u in rows]
         ids = set(
             (
                 await db.execute(
@@ -257,7 +265,7 @@ async def _channel_people(db: AsyncSession, ch: TeamChannel) -> list[PersonOut]:
             if legacy:
                 ids.add(legacy)
         people = await _people_by_id(db, ids)
-        return [_person(u) for u in sorted(people.values(), key=lambda u: u.display_name or "")]
+        return [_person(u, me) for u in sorted(people.values(), key=lambda u: u.display_name or "")]
     ids = set(
         (
             await db.execute(
@@ -266,7 +274,7 @@ async def _channel_people(db: AsyncSession, ch: TeamChannel) -> list[PersonOut]:
         ).scalars().all()
     )
     people = await _people_by_id(db, ids)
-    return [_person(u) for u in sorted(people.values(), key=lambda u: u.display_name or "")]
+    return [_person(u, me) for u in sorted(people.values(), key=lambda u: u.display_name or "")]
 
 
 def _display_name(ch: TeamChannel, people: list[PersonOut], me: User) -> str:
@@ -328,7 +336,7 @@ async def _last_messages(
 
 
 async def _channel_out(db: AsyncSession, ch: TeamChannel, me: User, unread: int, last: TeamMessage | None) -> ChannelOut:
-    people = await _channel_people(db, ch)
+    people = await _channel_people(db, ch, me)
     preview = None
     if last is not None:
         author = next((p.display_name for p in people if p.id == last.user_id), None)
@@ -383,7 +391,7 @@ def _to_out(m: TeamMessage, people: dict[uuid.UUID, User], me: User) -> MessageO
     return MessageOut(
         id=m.id,
         channel_id=m.channel_id,
-        author=_person(author) if author else None,
+        author=_person(author, me) if author else None,
         mine=m.user_id == me.id,
         content="" if m.deleted_at else (m.content or ""),
         attachments=[] if m.deleted_at else list(m.attachments or []),
@@ -405,7 +413,7 @@ async def list_people(
     rows = (
         await db.execute(select(User).where(User.is_active.is_(True)).order_by(User.display_name))
     ).scalars().all()
-    return [_person(u) for u in rows]
+    return [_person(u, me) for u in rows]
 
 
 # ── channels ──────────────────────────────────────────────────────────────
@@ -570,6 +578,36 @@ async def update_channel(
     return out
 
 
+@router.post("/channels/{channel_id}/leave", status_code=status.HTTP_204_NO_CONTENT)
+async def leave_channel(
+    channel_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    me: User = Depends(get_current_user),
+) -> None:
+    """Take yourself out of a group. Uses the hub's idea of who you are."""
+    ch = await _require_read(db, channel_id, me)
+    if ch.kind not in ("group", "dm"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "You cannot leave this channel; everyone on it is in it by right.")
+    row = (
+        await db.execute(
+            select(TeamChannelMember).where(
+                TeamChannelMember.channel_id == ch.id, TeamChannelMember.user_id == me.id
+            )
+        )
+    ).scalar_one_or_none()
+    if row is not None:
+        await db.delete(row)
+        await db.flush()
+    remaining = (
+        await db.execute(
+            select(func.count()).select_from(TeamChannelMember).where(TeamChannelMember.channel_id == ch.id)
+        )
+    ).scalar_one()
+    if not remaining:
+        ch.is_archived = True
+    await db.commit()
+
+
 @router.post("/channels/{channel_id}/read", status_code=status.HTTP_204_NO_CONTENT)
 async def mark_channel_read(
     channel_id: uuid.UUID,
@@ -634,7 +672,7 @@ async def post_message(
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Attachment {a.name!r} was not uploaded.")
         attachments.append(a.model_dump())
 
-    readers = {p.id for p in await _channel_people(db, ch)}
+    readers = {p.id for p in await _channel_people(db, ch, me)}
     mentions = [str(uid) for uid in dict.fromkeys(body.mention_ids) if uid in readers and uid != me.id]
 
     now = _now()
@@ -654,7 +692,7 @@ async def post_message(
     await db.flush()
 
     if mentions:
-        people = await _channel_people(db, ch)
+        people = await _channel_people(db, ch, me)
         where = _display_name(ch, people, me)
         repo = NotificationRepository(db)
         for uid in mentions:
