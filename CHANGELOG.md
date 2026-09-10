@@ -4,6 +4,51 @@
 
 ## Changelog
 
+### v5.1.0 · build 257 — 2026-09-10
+**Team chat**
+
+People talking to people, on the hub. Decisions from Morgan: Team rail item +
+Team tab on hub projects; no Gerry in channels (v1); DM = two-person group;
+markdown + edit/delete own, @mentions → Waiting for you, unread badges,
+attachments on the hub, task/link chips.
+
+- Migration 044: `team_channels` (kind global|project|group|dm, name,
+  project_id unique partial, created_by, is_archived), `team_channel_members`
+  (PK channel_id+user_id, `last_read_at` = read marker for every kind, member
+  list for group/dm), `team_messages` (content, attachments/refs/mentions
+  jsonb, edited_at, deleted_at). OWNER pmi_app.
+- `routers/team.py` (`/team`): `people`, `channels` (list with unread + last
+  message preview), `channels` POST (group | dm — one DM per pair, reused),
+  `channels/project/{id}` POST (ensure; needs a role), `channels/{id}` GET/PATCH
+  (group rename / add / remove; empty group archived), `channels/{id}/read`,
+  `channels/{id}/messages` GET (`after=` returns created/edited/deleted since,
+  `before=` pages history) / POST (mentions → `chat_mention` Notification on
+  the hub, entity_type `team_channel`), `messages/{id}` PATCH/DELETE (own only;
+  delete clears text + files, keeps the row), `channels/{id}/attachments` POST
+  (base64 JSON ≤ 15 MB → `<storage_root>/../team_attachments`), `files/{name}`
+  GET (only if a readable channel's message references it). Access: global =
+  anyone; project = `resolve_role` not None; group/dm = member row.
+- `NotificationType.CHAT_MENTION`. Hub proxy `_ALLOWED_PREFIXES` += `/team`,
+  `/notifications`; `test_hub_link` params updated.
+- Frontend: `api/team.ts`; `pages/TeamPage.tsx` (channel list: Everyone /
+  Projects with a Start… picker for hub projects without a channel / Groups /
+  People; new group + DM dialogs; group manage bar); `components/team/
+  TeamChannelView.tsx` (4 s poll with `after` cursor merging edits/deletes,
+  load-earlier, composer with @ picker, paperclip/drag/paste upload, hub-task
+  picker, link dialog; ArtifactChips reused for refs; native save bridge for
+  downloads); `components/team/ProjectTeamTab.tsx` (hub projects only).
+  Rail item "team" with badge from `hooks/useTeamUnread.ts` (15 s).
+  `WaitingForYou`: `useAllNotifications()` merges local + `/hub/api/
+  notifications` (tagged `source: "hub"`), reads routed by source, mark-all
+  hits both; `chat_mention` routes to `/team?channel=`.
+- Docs: USER_GUIDE §Team + TOC/table/rail copy; README feature row;
+  featureGuide `team` entry + `/team` route.
+- Verified: API smoke on 8001 with a throwaway second user (group, DM reuse,
+  attachment round-trip, mention notification, unread → read, poll-after picks
+  up an edit, non-author edit 403, removed member 403, delete clears file) —
+  rows and user deleted after; tsc + Vite build. Browser walk-through pending
+  the hub deploy (the desktop proxies every call there).
+
 ### v5.0.2 · build 256 — 2026-09-09
 **Waiting for you, without the repeats**
 

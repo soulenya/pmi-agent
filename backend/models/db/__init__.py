@@ -28,6 +28,7 @@ from models.db.research import ResearchReport, ResearchSource
 from models.db.scheduled_task import ScheduledTask
 from models.db.settings import ModelRoutingRule, SystemSetting, UserSetting
 from models.db.task import Project, Task, TaskComment, TaskDependency
+from models.db.team_chat import TeamChannel, TeamChannelMember, TeamMessage
 from models.db.user import User, UserSession
 from models.db.workroom import Workroom, WorkroomItem, WorkroomJournalEntry
 
@@ -54,6 +55,9 @@ __all__ = [
     "Task",
     "TaskComment",
     "TaskDependency",
+    "TeamChannel",
+    "TeamChannelMember",
+    "TeamMessage",
     "ProjectCanvas",
     "CanvasNode",
     "CanvasEdge",

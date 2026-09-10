@@ -35,6 +35,7 @@ import { ProjectBudgetTab } from "@/components/projects/ProjectBudgetTab";
 import { ProjectTasksTab } from "@/components/projects/ProjectTasksTab";
 import { ProjectMaterialTab } from "@/components/projects/ProjectMaterialTab";
 import { ProjectDangerPanel } from "@/components/projects/ProjectDangerPanel";
+import { ProjectTeamTab } from "@/components/team/ProjectTeamTab";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: Layers },
@@ -44,6 +45,8 @@ const TABS = [
   { id: "budget", label: "Budget", icon: Wallet },
   { id: "material", label: "Room", icon: Paperclip },
   { id: "chat", label: "Chat", icon: MessageSquare },
+  // People talking to people. Only a hub project has other people in it.
+  { id: "team", label: "Team", icon: Users },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -186,7 +189,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
         ) : null}
 
         <nav className="mt-4 flex flex-wrap gap-1">
-          {TABS.map(t => {
+          {TABS.filter(t => t.id !== "team" || onHub).map(t => {
             const Icon = t.icon;
             // A tab that holds something says so, so the space does not look
             // empty when it is not.
@@ -376,6 +379,8 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
         {active === "budget" && (
           <ProjectBudgetTab projectId={id!} canEdit={canEdit} source={source} />
         )}
+
+        {active === "team" && onHub && <ProjectTeamTab projectId={id!} />}
 
         {active === "chat" && (
           <div className="flex h-full min-h-[60vh] flex-col rounded-xl border bg-card">

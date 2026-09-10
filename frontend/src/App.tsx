@@ -13,6 +13,7 @@ import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
 // entry chunk. Everything else is fetched when its route is first opened.
 const ChatPage = lazy(() => import("@/pages/ChatPage").then(m => ({ default: m.ChatPage })));
 const WaitingPage = lazy(() => import("@/pages/WaitingPage").then(m => ({ default: m.WaitingPage })));
+const TeamPage = lazy(() => import("@/pages/TeamPage").then(m => ({ default: m.TeamPage })));
 const AssistantPage = lazy(() => import("@/pages/AssistantPage").then(m => ({ default: m.AssistantPage })));
 const DocumentsPage = lazy(() => import("@/pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
 const TasksPage = lazy(() => import("@/pages/TasksPage").then(m => ({ default: m.TasksPage })));
@@ -96,6 +97,7 @@ function ThemedApp() {
             <Route path="chat/:conversationId" element={<Page><ChatPage /></Page>} />
             <Route path="hub/chat/:conversationId" element={<Page><ChatPage source="hub" /></Page>} />
             <Route path="waiting" element={<Page><WaitingPage /></Page>} />
+            <Route path="team" element={<Page><TeamPage /></Page>} />
             <Route path="approvals" element={<Navigate to="/waiting?tab=approvals" replace />} />
             <Route path="assistant" element={<Page><AssistantPage /></Page>} />
             <Route path="documents" element={<Page><DocumentsPage /></Page>} />

@@ -38,19 +38,20 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 13. [Research Browser](#research-browser)
 14. [Tasks & Projects](#tasks--projects)
 15. [The Hub](#the-hub)
-16. [Calendar](#calendar)
-17. [Gmail (Inbox, Compose & Replies)](#gmail-inbox-compose--replies)
-18. [Email Drafts](#email-drafts)
-19. [Meeting Notes](#meeting-notes)
-20. [Regulatory Documents](#regulatory-documents)
-21. [Slide Decks](#slide-decks)
-22. [Google Workspace](#google-workspace)
-23. [Odoo ERP](#odoo-erp)
-24. [Manage Budgets](#manage-budgets)
-25. [Waiting for you](#waiting-for-you)
-26. [Settings](#settings)
-27. [Updating Little Gerry](#updating-little-gerry)
-28. [Tips & Example Prompts](#tips--example-prompts)
+16. [Team](#team)
+17. [Calendar](#calendar)
+18. [Gmail (Inbox, Compose & Replies)](#gmail-inbox-compose--replies)
+19. [Email Drafts](#email-drafts)
+20. [Meeting Notes](#meeting-notes)
+21. [Regulatory Documents](#regulatory-documents)
+22. [Slide Decks](#slide-decks)
+23. [Google Workspace](#google-workspace)
+24. [Odoo ERP](#odoo-erp)
+25. [Manage Budgets](#manage-budgets)
+26. [Waiting for you](#waiting-for-you)
+27. [Settings](#settings)
+28. [Updating Little Gerry](#updating-little-gerry)
+29. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -195,6 +196,7 @@ Your profile is **yours alone**. It is stored against your account, never shared
 | **Tasks** | Kanban board for action tracking |
 | **Projects** | Group tasks by project, with a Gantt timeline, an infinite canvas and milestone tracking |
 | **The hub** | Connect once and see the projects the firm shares, live from the shared server — nothing is copied onto your computer |
+| **Team** | Chat with the people you work with: one channel for everyone, one per hub project, named groups and direct messages — with @mentions, files and task links |
 | **Calendar** | Local events + Google Calendar side by side |
 | **Gmail** | Full inbox — browse standard folders (Inbox, Sent, Drafts, Starred, etc.), sort your mail, read, search, filter by tag, reply/reply-all/forward, mark read or unread, move to Trash, collapse read parts of a thread behind a Gerry summary, open attachments or add them to the Knowledge Base, and compose & send your own emails |
 | **Email Drafts** | Ask Little Gerry to draft an email, then approve it to send — or write your own from the Gmail composer. Lives under the **Drafts** view of Gmail |
@@ -208,7 +210,7 @@ Your profile is **yours alone**. It is stored against your account, never shared
 
 > **Finding your way around.** The app is a **workbench**: a narrow rail on the left, a search box at the top, the page in the middle, and Gerry on the right.
 >
-> - The **rail** has eight places, always in the same order: **Today**, **Projects**, **Tasks**, **Mail**, **Knowledge**, **Calendar**, **Compliance**, **Finance**. Hover for the name. A place that holds more than one page shows a thin row of tabs under the search box — Today has Today, Waiting for you and Suggestions; Mail has Inbox and Contacts; Knowledge has the Knowledge Base, Browser and Research; Calendar has Calendar and Meetings; Compliance has Regulatory and Audit trail; Finance has Budgets and Odoo. Below the eight, the **last five places you were** — a project, a conversation — appear as two-letter chips so what you were just doing is one click back. At the bottom, **You**: your settings, users, notifications, help, feedback, what's new and sign out.
+> - The **rail** has nine places, always in the same order: **Today**, **Projects**, **Tasks**, **Team**, **Mail**, **Knowledge**, **Calendar**, **Compliance**, **Finance**. Hover for the name. A place that holds more than one page shows a thin row of tabs under the search box — Today has Today, Waiting for you and Suggestions; Mail has Inbox and Contacts; Knowledge has the Knowledge Base, Browser and Research; Calendar has Calendar and Meetings; Compliance has Regulatory and Audit trail; Finance has Budgets and Odoo. Below the nine, the **last five places you were** — a project, a conversation — appear as two-letter chips so what you were just doing is one click back. At the bottom, **You**: your settings, users, notifications, help, feedback, what's new and sign out.
 > - The **search box** (Ctrl+K from anywhere) does three things. Type a *name* and it lists matching projects, tasks, documents, conversations and people — Enter jumps, and a task opens over the page you are on rather than taking you away. Type a *question* and Enter sends it to Gerry in the panel. Type **/** for commands: `/task`, `/project`, `/kb`, `/routine`, `/meeting`, `/settings`.
 > - **Home is Today**: what is due, what is overdue, what is waiting for you, the briefing, and your recent conversations.
 > - **Esc** closes whatever is open over the page.
@@ -841,6 +843,36 @@ Anything created inside a **shared** or **company** project is held by that proj
 - it can't be moved into another project or pulled out into your personal list.
 
 If you try, Little Gerry refuses and says which project is holding it. Releasing something is the project owner's decision, and the release is recorded. Private projects hold nothing — there is nobody to share custody with.
+
+---
+
+## Team
+
+**Team** on the rail is where people talk to people. It lives on the hub, so everyone's computer shows the same conversation; connect to the hub first (Settings → Hub) or the page will tell you to.
+
+Channels are listed on the left, the open thread on the right:
+
+| Channel | Who is in it | How it starts |
+|---------|--------------|---------------|
+| **Everyone** | Every signed-in hub user | Always there |
+| **Projects** | Everyone with a role on that hub project | Pick a project under *Projects › Start…*, or open the project's **Team** tab |
+| **Groups** | The people you name | **+ New**, give it a name, tick the people |
+| **People** | You and one other person | **+ Message**, pick someone. There is one thread per pair, however many times you open it |
+
+In a thread:
+
+- **Enter** sends, **Shift+Enter** makes a new line. Markdown works (bold, lists, code, links).
+- Type **@** and a name to mention someone; they get a row under **Waiting for you → Notifications** that opens the channel.
+- The **paperclip** attaches files (up to 15 MB each; drag onto the composer or paste an image also works). Files are kept on the hub and download from any computer.
+- The **list icon** links a hub task; the **link icon** adds a web address with a label. Both appear as chips the reader can click.
+- Hover your own message for **edit** and **delete**. A deleted message shows "Message deleted" rather than disappearing.
+- **Load earlier** at the top pulls older history in pages of fifty.
+
+A group's gear icon renames it, adds or removes people, or lets you leave. A group nobody is left in is archived.
+
+Unread counts show on the Team rail item and beside each channel; opening a channel marks it read. New messages appear within a few seconds — the hub is polled, not pushed.
+
+Gerry is not in these channels. Ask her in her own conversations; Team is for the humans.
 
 ---
 

@@ -34,7 +34,9 @@ router = APIRouter(prefix="/hub", tags=["hub"])
 # ``/conversations`` and ``/budgets`` are here because a shared project's
 # conversation and its budget live on the hub with the rest of it. Both routers
 # scope every read to the calling user or to project membership, so widening the
-# proxy does not widen what anyone can see.
+# proxy does not widen what anyone can see. ``/team`` is people talking to
+# people, which only makes sense on the shared copy; ``/notifications`` carries
+# the @mentions that conversation produces, scoped to the calling user.
 _ALLOWED_PREFIXES = (
     "/projects",
     "/tasks",
@@ -43,6 +45,8 @@ _ALLOWED_PREFIXES = (
     "/conversations",
     "/budgets",
     "/search/everything",
+    "/team",
+    "/notifications",
 )
 
 _SCOPES = ["openid", "email"]

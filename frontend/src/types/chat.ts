@@ -113,4 +113,6 @@ export interface Notification {
   is_read: boolean;
   read_at: string | null;
   created_at: string;
+  /** Set on rows that came from the hub (team-chat mentions); reads go back there. */
+  source?: "hub";
 }

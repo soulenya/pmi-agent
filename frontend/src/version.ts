@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 256;
-export const BUILD_DATE = "2026-09-09";
+export const BUILD_NUMBER = 257;
+export const BUILD_DATE = "2026-09-10";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,19 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 257,
+    date: "2026-09-10",
+    title: "Team chat",
+    changes: [
+      "A new Team place on the rail: chat with the people you work with. Everyone is one channel for the whole company; every hub project has its own channel with everyone on the project already in it (also a Team tab on the project); make named groups; message one person directly.",
+      "Messages take Markdown. Edit or delete your own — a deleted message says so instead of vanishing. Load earlier history fifty at a time.",
+      "Type @ to mention someone. They get a row under Waiting for you → Notifications that opens the channel.",
+      "Attach files up to 15 MB (drag, paste or the paperclip); they are kept on the hub and download on any computer. Link a hub task or add a web link — both show as chips the reader can open.",
+      "Unread counts on the Team rail item and beside each channel. New messages arrive within a few seconds.",
+      "Team lives on the hub. Not connected? The page says so and points to Settings. Gerry is not in these channels.",
+    ],
+  },
   {
     build: 256,
     date: "2026-09-09",
