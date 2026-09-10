@@ -1054,7 +1054,7 @@ Navigate to **Settings › Connections › Google Workspace**.
 
 | Service | What Little Gerry can do |
 |---------|--------------------------|
-| **Gmail** | Read, search, and tag emails; compose & send your own; reply/reply-all/forward; mark read or unread; move to Trash; summarise and collapse long threads; open attachments — see [Gmail](#gmail-inbox-compose--replies) |
+| **Gmail** | Read, search, and tag emails; compose & send your own; reply/reply-all/forward; mark read or unread; move to Trash; summarise and collapse long threads; open attachments — see [Gmail](#gmail-inbox-compose--replies). In chat, Gerry sees what is attached to an email and can read inside the attachments (Word, PDF, text, CSV, pictures and scans) — "get the totals from the three invoices on Geof's latest email" works. Signature logos are recognised for what they are |
 | **Google Drive** | Browse folders, read files, import to KB; edit a specific file in place once you allow it — see [Letting Gerry edit a Drive file](#letting-gerry-edit-a-drive-file) |
 | **Google Calendar** | Read events, show on Calendar page |
 | **Contacts** | Look up contact information |

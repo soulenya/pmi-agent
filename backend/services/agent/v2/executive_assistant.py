@@ -83,6 +83,7 @@ _TOOLS = [
     "read_gmail_draft",
     "compile_company_timeline",
     "read_gmail_message",
+    "read_gmail_attachment",
     "get_calendar_events",
     "list_meetings",
     "search_meetings",

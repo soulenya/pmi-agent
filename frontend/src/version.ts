@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 257;
+export const BUILD_NUMBER = 258;
 export const BUILD_DATE = "2026-09-10";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 258,
+    date: "2026-09-10",
+    title: "Gerry reads email attachments",
+    changes: [
+      "Reading an email now lists what is attached — name, type, size — with signature logos set apart. Before, Gerry saw the body and nothing else, and told you an email with three invoices had none.",
+      "New: Gerry can read inside an attachment — Word, PDF, text, CSV, and pictures or scans through vision — to pull out a total, a clause, a figure. Long files are read page by page.",
+      "Filing an invoice from an email ignores inline signature images (a logo was filed as an invoice), and when the only attachments are Word documents it says so and reads them instead of filing nothing.",
+    ],
+  },
   {
     build: 257,
     date: "2026-09-10",

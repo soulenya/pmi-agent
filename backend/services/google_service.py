@@ -322,13 +322,18 @@ def gmail_get_message(message_id: str) -> dict:
     svc = _build("gmail", "v1")
     m = svc.users().messages().get(userId="me", id=message_id, format="full").execute()
     headers = {h["name"]: h["value"] for h in m.get("payload", {}).get("headers", [])}
+    payload = m.get("payload", {})
     return {
         "id": message_id,
+        "thread_id": m.get("threadId", ""),
         "from": headers.get("From", ""),
         "to": headers.get("To", ""),
         "subject": headers.get("Subject", ""),
         "date": headers.get("Date", ""),
-        "body": _extract_body(m.get("payload", {})),
+        "body": _extract_body(payload),
+        # Metadata only (no bytes): what is attached, and which of those are
+        # merely inline signature images.
+        "attachments": _list_attachments(payload),
     }
 
 

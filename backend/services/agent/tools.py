@@ -584,8 +584,10 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "read_gmail_message",
             "description": (
-                "Read the full body of a Gmail message by its ID. "
-                "Only call after search_gmail has returned results and the user wants to read a specific email."
+                "Read the full body of a Gmail message by its ID, plus the list of files attached "
+                "to it (name, type, size). Inline signature images are listed separately and are "
+                "not documents. Only call after search_gmail has returned results. To read what is "
+                "INSIDE an attachment, call read_gmail_attachment."
             ),
             "parameters": {
                 "type": "object",
@@ -593,6 +595,37 @@ TOOL_DEFINITIONS: list[dict] = [
                     "message_id": {
                         "type": "string",
                         "description": "The Gmail message ID (from search_gmail results).",
+                    },
+                },
+                "required": ["message_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_gmail_attachment",
+            "description": (
+                "Read the CONTENTS of a file attached to a Gmail message: Word (.docx), PDF, text, "
+                "Markdown, CSV, and images/scanned PDFs (read with vision). Use this to pull figures, "
+                "totals or terms out of an emailed document — an invoice total, a contract clause. "
+                "Long files are paged: when the result says CONTINUES, call again with the given offset "
+                "before drawing conclusions. Omit attachment_name when the email has exactly one file."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message_id": {
+                        "type": "string",
+                        "description": "The Gmail message ID (from search_gmail or read_gmail_message).",
+                    },
+                    "attachment_name": {
+                        "type": "string",
+                        "description": "File name (or unique part of it) as listed by read_gmail_message.",
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Character offset to continue a long document from (default 0).",
                     },
                 },
                 "required": ["message_id"],
@@ -3471,11 +3504,107 @@ async def execute_read_gmail_message(ctx: ToolContext, args: dict[str, Any]) -> 
         )
     except Exception as exc:
         return f"Failed to read email: {exc}"
+    atts = msg.get("attachments") or []
+    files = [a for a in atts if not a.get("inline")]
+    inline = [a for a in atts if a.get("inline")]
+    att_lines: list[str] = []
+    if files:
+        att_lines.append(f"ATTACHMENTS ({len(files)}) — read one with read_gmail_attachment(message_id, attachment_name):")
+        for a in files:
+            size = a.get("size") or 0
+            att_lines.append(f"  - {a['filename']} ({a.get('mime_type') or 'unknown type'}, {size:,} bytes)")
+    if inline:
+        att_lines.append(
+            "Inline images (signature logos, pasted pictures — not documents): "
+            + ", ".join(a["filename"] for a in inline)
+        )
+    if not atts:
+        att_lines.append("ATTACHMENTS: none.")
     return (
         f"From: {msg['from']}\nTo: {msg['to']}\n"
-        f"Subject: {msg['subject']}\nDate: {msg['date']}\n\n"
-        f"{msg['body'][:6000]}"
+        f"Subject: {msg['subject']}\nDate: {msg['date']}\n"
+        f"Message ID: {message_id}\n"
+        + "\n".join(att_lines)
+        + f"\n\n{msg['body'][:6000]}"
     )
+
+
+async def execute_read_gmail_attachment(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Read the CONTENTS of one file attached to a Gmail message.
+
+    Word, PDF, text, Markdown and CSV are read directly; scanned PDFs and
+    images go through vision. Long documents are paged the same way as
+    extract_document (``offset``). Inline signature images are refused with
+    the list of real attachments, so a logo is never mistaken for an invoice.
+    """
+    from services import chat_attachments as ca
+    from services.google_service import gmail_get_attachments, get_credentials
+
+    if not get_credentials():
+        return _google_not_connected()
+    message_id = str(args.get("message_id", "")).strip()
+    want = str(args.get("attachment_name", "")).strip()
+    if not message_id:
+        return "Error: message_id is required (from search_gmail or read_gmail_message)."
+    try:
+        offset = max(0, int(args.get("offset") or 0))
+    except (TypeError, ValueError):
+        offset = 0
+    try:
+        atts = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: gmail_get_attachments(message_id)
+        )
+    except Exception as exc:  # noqa: BLE001 — surface honestly
+        return f"Could not fetch that email's attachments: {exc}"
+    files = [a for a in atts if not a.get("inline")]
+    if not files:
+        return "That email has no file attachments (only inline signature images, if any)."
+    if not want:
+        if len(files) == 1:
+            att = files[0]
+        else:
+            names = "; ".join(f"{a['filename']} ({a.get('size') or 0:,} bytes)" for a in files)
+            return f"That email has {len(files)} attachments — call again with attachment_name set to one of: {names}."
+    else:
+        low = want.lower()
+        picked = [a for a in files if a["filename"].lower() == low] or [
+            a for a in files if low in a["filename"].lower()
+        ]
+        if not picked:
+            names = ", ".join(a["filename"] for a in files)
+            return f'No attachment matches "{want}". Attached: {names}.'
+        att = picked[0]
+    raw = att.get("data") or b""
+    if not raw:
+        return f"{att['filename']} is empty."
+    if len(raw) > ca.MAX_ATTACHMENT_BYTES:
+        return f"{att['filename']} is {len(raw):,} bytes — over the 25 MB reading limit."
+    try:
+        mime = ca.resolve_mime_type(att["filename"], att.get("mime_type"))
+    except ca.UnsupportedAttachmentError as exc:
+        return f"Cannot read {att['filename']}: {exc}"
+    try:
+        text = await ca.extract_text_smart(ctx.db, raw, mime, att["filename"])
+    except Exception as exc:  # noqa: BLE001 — surface honestly
+        return f"Could not read {att['filename']}: {exc}"
+    text = (text or "").strip()
+    if not text:
+        return f"{att['filename']} yielded no readable text."
+    head = [
+        f"Attachment {att['filename']} ({mime}, {len(raw):,} bytes) from message {message_id}."
+    ]
+    total = len(text)
+    page = text[offset : offset + _EXTRACT_PAGE_CHARS]
+    end = offset + len(page)
+    if offset >= total:
+        return f"Offset {offset:,} is past the end of {att['filename']} ({total:,} characters). Fully read."
+    note = (
+        f"\n\n[PAGE ENDS at character {end:,} of {total:,} — CONTINUES. Call read_gmail_attachment "
+        f"again with the same message_id and attachment_name and offset={end}.]"
+        if end < total
+        else f"\n\n[END OF DOCUMENT — characters {offset:,}–{end:,} of {total:,}.]"
+    )
+    return "\n\n".join(head + [f"TEXT, characters {offset:,}–{end:,} of {total:,}:\n{page}{note}"])
 
 
 async def execute_list_gmail_drafts(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -6225,6 +6354,7 @@ TOOL_EXECUTORS = {
     # Google Workspace (read-only)
     "search_gmail": execute_search_gmail,
     "read_gmail_message": execute_read_gmail_message,
+    "read_gmail_attachment": execute_read_gmail_attachment,
     "list_gmail_drafts": execute_list_gmail_drafts,
     "read_gmail_draft": execute_read_gmail_draft,
     "compile_company_timeline": execute_compile_company_timeline,
@@ -6298,6 +6428,7 @@ _PRIMARY_ARG = {
     "add_contacts": "contacts",
     "fetch_page": "url",
     "read_gmail_message": "message_id",
+    "read_gmail_attachment": "message_id",
     "read_gmail_draft": "draft_id",
     "list_gmail_drafts": "max_results",
     "compile_company_timeline": "start_date",
