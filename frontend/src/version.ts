@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 258;
-export const BUILD_DATE = "2026-09-10";
+export const BUILD_NUMBER = 259;
+export const BUILD_DATE = "2026-09-11";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 259,
+    date: "2026-09-11",
+    title: "The briefing reads the right tasks",
+    changes: [
+      "Today's briefing no longer reports tasks from a project that moved to the hub as overdue. Moving a project leaves stale copies of its tasks on this computer; the briefing was reading those instead of the real ones you had already completed.",
+      "The briefing now includes the work on your hub projects, so what it calls overdue or in progress matches Tasks and Projects.",
+      "Refresh on the briefing card now writes a new briefing. It used to hand back the same cached one.",
+    ],
+  },
   {
     build: 258,
     date: "2026-09-10",

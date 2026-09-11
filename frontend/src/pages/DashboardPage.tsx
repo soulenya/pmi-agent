@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -149,9 +149,18 @@ export function DashboardPage() {
   const { data: conversations = [] } = useQuery({ queryKey: ["conversations"], queryFn: () => listConversations(), staleTime: 60_000 });
   const { data: meetings = [] } = useQuery({ queryKey: ["meetings"], queryFn: listMeetings, staleTime: 60_000 });
   const { projects } = useAllProjects();
-  const { data: briefing, isLoading: briefingLoading, refetch: refetchBriefing, isFetching } = useQuery({
+  const qc = useQueryClient();
+  const { data: briefing, isLoading: briefingLoading } = useQuery({
     queryKey: ["briefing", "today"], queryFn: () => getTodayBriefing(), staleTime: 5 * 60_000,
   });
+  // The server keeps one briefing per day; Refresh must ask it to write a new
+  // one, or the button hands back the same cached text.
+  const regenerate = useMutation({
+    mutationFn: () => getTodayBriefing(true),
+    onSuccess: (fresh) => qc.setQueryData(["briefing", "today"], fresh),
+  });
+  const refetchBriefing = () => regenerate.mutate();
+  const isFetching = regenerate.isPending;
   // ── Google Calendar (only queried when Google is connected) ──────────────
   const { data: googleStatus } = useQuery({
     queryKey: ["google-status"], queryFn: getGoogleStatus, staleTime: 5 * 60_000, retry: false,
