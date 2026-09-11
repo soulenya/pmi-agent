@@ -4,6 +4,26 @@
 
 ## Changelog
 
+### v5.1.2 · build 259 — 2026-09-11
+**The briefing reads the right tasks**
+
+Field report: Today's briefing listed "Deliver 6 Pump Heads to In-Q-Tel" and
+"Follow up with In-Q-Tel" as overdue after both were completed. DB: both are
+stale local rows (`in_progress` / `todo`) in the ARCHIVED local "In Q Tel"
+project — the copies left behind when the project moved to the hub. The hub
+rows are done.
+
+- `routers/briefings.py` `_build_briefing_blocks`: drops local tasks whose
+  project `is_archived`; adds `_hub_tasks()` (GET `/tasks` via
+  `services.hub.client.request`, best effort, skipped in hub_mode) wrapped as
+  `_HubTask` so the same blocks render. Verified read-only: the two tasks are
+  gone from DUE/OVERDUE; 32 hub tasks read, 3 in progress listed.
+- `DashboardPage` Refresh called `refetch()` → `GET /briefings/today` → the
+  same cached row for the day. Now a mutation calling `getTodayBriefing(true)`
+  (`?refresh=true`) and `setQueryData`.
+- Today's cached briefing (2026-09-11) is still the stale one until Refresh is
+  clicked on the updated app.
+
 ### v5.1.1 · build 258 — 2026-09-10
 **Gerry reads email attachments**
 

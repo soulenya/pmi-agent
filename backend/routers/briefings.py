@@ -49,10 +49,66 @@ Write the briefing as clean Markdown with:
 """
 
 
+class _HubTask:
+    """A task row read from the hub, shaped like the local ORM task for the blocks."""
+
+    __slots__ = ("title", "status", "priority", "due_date")
+
+    def __init__(self, row: dict) -> None:
+        self.title = str(row.get("title") or "")
+        self.status = str(row.get("status") or "")
+        self.priority = row.get("priority")
+        raw = row.get("due_date")
+        self.due_date = None
+        if raw:
+            try:
+                self.due_date = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            except ValueError:
+                self.due_date = None
+
+
+async def _hub_tasks(db: AsyncSession, user_id) -> list:
+    """Open tasks on hub projects. Best effort: an unreachable hub means none."""
+    from config import settings
+    from services.hub import client as hub
+
+    if settings.hub_mode:
+        return []
+    try:
+        resp = await hub.request(db, user_id, "GET", "/tasks")
+    except hub.HubError:
+        return []
+    except Exception as exc:  # noqa: BLE001 — the briefing must still render
+        logger.info("briefing: hub tasks unavailable (%s)", exc)
+        return []
+    if resp.status_code != 200:
+        return []
+    try:
+        rows = resp.json()
+    except ValueError:
+        return []
+    return [_HubTask(r) for r in rows if isinstance(r, dict)]
+
+
 async def _build_briefing_blocks(user_id, db: AsyncSession, today: date) -> tuple[list, list, list]:
-    """Return (due_tasks, in_progress_tasks, pending_approvals)."""
+    """Return (due_tasks, in_progress_tasks, pending_approvals).
+
+    Local tasks whose project was moved to the hub are left behind in an
+    archived project and never updated again; they are not the truth and are
+    skipped. The hub's own tasks are read alongside, so the briefing sees the
+    work where it actually lives.
+    """
+    from sqlalchemy import select
+
+    from models.db.task import Project
+
     task_repo = TaskRepository(db)
     all_tasks = await task_repo.list(user_id=user_id)
+    archived = set(
+        (await db.execute(select(Project.id).where(Project.is_archived.is_(True)))).scalars().all()
+    )
+    all_tasks = [t for t in all_tasks if not t.project_id or t.project_id not in archived]
+    all_tasks = all_tasks + await _hub_tasks(db, user_id)
 
     due_tasks = [
         t for t in all_tasks
