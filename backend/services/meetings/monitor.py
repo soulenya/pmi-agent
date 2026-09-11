@@ -335,10 +335,15 @@ class MeetingMonitor:
                 own_email = (user.email or "") if user else ""
                 break
             info = await precheck(self._get_db, own_email)
-            live.party = info["party"]
-            live.party_email = info["to_emails"]
-            live.cc_emails = info["cc_emails"]
-            live.recipients = info.get("recipients", [])
+            if live.recipients_manual:
+                # The person already said who the thank-you goes to; keep the
+                # calendar's CC list and vocabulary, not its To:.
+                live.cc_emails = info["cc_emails"]
+            else:
+                live.party = info["party"]
+                live.party_email = info["to_emails"]
+                live.cc_emails = info["cc_emails"]
+                live.recipients = info.get("recipients", [])
             live.nda_hint = info["nda_hint"]
             live.vocabulary = info.get("vocabulary", [])
         except Exception:  # noqa: BLE001

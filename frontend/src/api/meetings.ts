@@ -172,8 +172,8 @@ export async function getLiveDefaults(): Promise<LiveAssistOptions> {
   return resp.data;
 }
 
-export async function acceptLive(options: LiveAssistOptions): Promise<LiveState> {
-  const resp = await apiClient.post<LiveState>("/meetings/live/accept", options);
+export async function acceptLive(options: LiveAssistOptions, thankyouTo: string[] = []): Promise<LiveState> {
+  const resp = await apiClient.post<LiveState>("/meetings/live/accept", { ...options, thankyou_to: thankyouTo });
   return resp.data;
 }
 

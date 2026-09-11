@@ -41,6 +41,7 @@ _MAX_CONCURRENT_STT = 3       # chunks in flight at once
 _STT_DEADLINE_SECONDS = 25    # a hung chunk must not stall the ones behind it
 _ASSIST_WINDOW_CHARS = 2_400   # transcript tail given to the assist model
 _MAX_CARDS = 200
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 ASSIST_DEFAULTS_KEY = "meetings.assist_defaults"
 
@@ -98,6 +99,9 @@ class LiveMeetingSession:
         self.party_email: str = ""       # comma-joined external attendee emails (To:)
         self.cc_emails: str = ""         # comma-joined same-company attendees (CC:)
         self.recipients: list[dict] = []  # [{name, email}] external attendees, shown in consent UI
+        # True once the person typed the To: addresses themselves; the calendar
+        # precheck (which may finish later) must not overwrite them.
+        self.recipients_manual: bool = False
         self.vocabulary: list[str] = []  # trusted names/companies for STT hints + reconciliation
         self.nda_hint: str = ""
         self.segments: list[dict] = []       # {seq, at, text}
@@ -167,6 +171,21 @@ class LiveMeetingSession:
         )
         if self.options["answers"] not in ("off", "nda", "public"):
             self.options["answers"] = "off"
+        manual = [
+            e.strip().lower()
+            for e in (options.get("thankyou_to") or [])
+            if isinstance(e, str) and _EMAIL_RE.match(e.strip())
+        ]
+        if manual:
+            seen: list[str] = []
+            for e in manual:
+                if e not in seen:
+                    seen.append(e)
+            self.party_email = ", ".join(seen)
+            self.recipients = [{"name": "", "email": e} for e in seen]
+            self.recipients_manual = True
+            # Names come from the meeting notes, not from the calendar guess.
+            self.party = ""
         d = Path(settings.storage_root).expanduser().parent / "live_chunks" / uuid.uuid4().hex
         d.mkdir(parents=True, exist_ok=True)
         self.chunk_dir = d

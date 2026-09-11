@@ -286,6 +286,9 @@ class LiveAcceptIn(BaseModel):
     jargon: bool = False
     answers: str = Field("off", pattern="^(off|nda|public)$")
     thankyou: bool = False
+    # Addresses typed into the consent card when the calendar invite had no
+    # outside attendee (or to override what it had). Sets the draft's To:.
+    thankyou_to: list[str] = Field(default_factory=list, max_length=20)
 
 
 @router.get("/live/state")

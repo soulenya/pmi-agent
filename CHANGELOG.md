@@ -4,6 +4,26 @@
 
 ## Changelog
 
+### v5.1.3 · build 260 — 2026-09-11
+**Say who the thank-you goes to**
+
+Morgan: a Teams call with no outside attendee on the invite offered only "the
+draft will be created with an empty To:". Now the consent card takes addresses.
+
+- `LiveMeetingAssist.tsx` consent card: under the thank-you toggle, an email
+  input (Enter / comma / space / blur adds a chip; validated; lowercased;
+  de-duplicated). Chips replace the calendar's outside attendees as To:;
+  with none typed the calendar list is used as before. `acceptLive(options,
+  thankyouTo)` posts `thankyou_to`.
+- `routers/meetings.LiveAcceptIn.thankyou_to: list[str]` (max 20).
+  `LiveMeetingSession.accept()` validates with `_EMAIL_RE`, sets
+  `party_email` / `recipients`, clears `party` (names come from the notes),
+  sets `recipients_manual`. Addresses are NOT saved into the per-meeting
+  defaults. `monitor._run_precheck` (which can finish after accept) keeps the
+  calendar CC + vocabulary but no longer overwrites a manual To:.
+- Verified with a unit check of `accept()` (validation, de-dup, options
+  untouched, precheck guard flag). Not exercised on a live call.
+
 ### v5.1.2 · build 259 — 2026-09-11
 **The briefing reads the right tasks**
 
