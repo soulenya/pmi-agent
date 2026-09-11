@@ -36,36 +36,88 @@ def is_capture_supported() -> bool:
 
 
 class _DeviceStream:
-    """Records one soundcard device (mic or speaker-loopback) on its own thread."""
+    """Records one ROLE — the default speaker's loopback, or the default
+    microphone — on its own thread, and follows the default device.
 
-    def __init__(self, mic, max_frames: int, label: str) -> None:
-        self._mic = mic
+    A stream bound to one physical device goes silent the moment the person
+    switches from speakers to a headset mid-call (Windows moves the default;
+    the old device keeps "playing" nothing). So every couple of seconds the
+    thread asks which device is the default now and, if it changed, closes the
+    old recorder and opens the new one, appending to the same frame list. A
+    device error (unplugged headset) is handled the same way: log, wait,
+    reopen — never end the recording.
+    """
+
+    _RECHECK_SECONDS = 2.0
+    _RETRY_SECONDS = 1.0
+
+    def __init__(self, role: str, max_frames: int) -> None:
+        self._role = role                    # "loopback" | "mic"
+        self._label = role
         self._max_frames = max_frames
-        self._label = label
         self._frames: list[np.ndarray] = []
         self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._run, name=f"rec-{label}", daemon=True)
+        self._thread = threading.Thread(target=self._run, name=f"rec-{role}", daemon=True)
         self.error: str | None = None
+        self.device_name: str = ""
+        self.switches: int = 0
 
     def start(self) -> None:
         self._thread.start()
 
+    def _resolve(self):
+        """The soundcard device for this role as of right now."""
+        import soundcard as sc
+
+        if self._role == "loopback":
+            speaker = sc.default_speaker()
+            return sc.get_microphone(str(speaker.name), include_loopback=True), str(speaker.name)
+        mic = sc.default_microphone()
+        return mic, str(mic.name)
+
+    def _default_changed(self) -> bool:
+        try:
+            _, name = self._resolve()
+        except Exception:  # noqa: BLE001 — enumeration hiccup; keep the current stream
+            return False
+        return name != self.device_name
+
     def _run(self) -> None:
         captured = 0
-        try:
-            with self._mic.recorder(samplerate=SAMPLE_RATE, channels=_CHANNELS) as rec:
-                while not self._stop.is_set():
-                    data = rec.record(numframes=_BLOCK_FRAMES)
-                    if data.ndim > 1:           # (frames, channels) -> mono
-                        data = data[:, 0]
-                    self._frames.append(np.asarray(data, dtype=np.float32))
-                    captured += len(data)
-                    if captured >= self._max_frames:
-                        logger.warning("Recorder %s hit max length cap", self._label)
-                        break
-        except Exception as exc:                # noqa: BLE001 — device errors must not crash the app
-            self.error = str(exc)
-            logger.warning("Audio stream %s failed: %s", self._label, exc)
+        while not self._stop.is_set():
+            try:
+                device, name = self._resolve()
+            except Exception as exc:  # noqa: BLE001 — no device right now; try again shortly
+                self.error = str(exc)
+                logger.warning("No %s device available: %s", self._label, exc)
+                self._stop.wait(self._RETRY_SECONDS)
+                continue
+            if self.device_name and name != self.device_name:
+                self.switches += 1
+                logger.info("Recorder %s following default device: %s -> %s", self._label, self.device_name, name)
+            self.device_name = name
+            self.error = None
+            last_check = time.monotonic()
+            try:
+                with device.recorder(samplerate=SAMPLE_RATE, channels=_CHANNELS) as rec:
+                    while not self._stop.is_set():
+                        data = rec.record(numframes=_BLOCK_FRAMES)
+                        if data.ndim > 1:           # (frames, channels) -> mono
+                            data = data[:, 0]
+                        self._frames.append(np.asarray(data, dtype=np.float32))
+                        captured += len(data)
+                        if captured >= self._max_frames:
+                            logger.warning("Recorder %s hit max length cap", self._label)
+                            return
+                        now = time.monotonic()
+                        if now - last_check >= self._RECHECK_SECONDS:
+                            last_check = now
+                            if self._default_changed():
+                                break                 # reopen on the new default
+            except Exception as exc:                # noqa: BLE001 — device errors must not crash the app
+                self.error = str(exc)
+                logger.warning("Audio stream %s failed (%s); reopening", self._label, exc)
+                self._stop.wait(self._RETRY_SECONDS)
 
     def drain(self) -> np.ndarray:
         """Take everything captured so far WITHOUT stopping (live chunking).
@@ -123,32 +175,18 @@ class MeetingRecorder:
                 return False
 
             try:
-                import soundcard as sc
+                import soundcard  # noqa: F401 — the streams import it themselves; fail early if absent
             except Exception as exc:            # noqa: BLE001
                 logger.warning("soundcard unavailable: %s", exc)
                 return False
 
             max_frames = max(1, max_seconds) * SAMPLE_RATE
-            streams: list[_DeviceStream] = []
-
-            # Speaker loopback = everything you hear (the remote participants).
-            try:
-                speaker = sc.default_speaker()
-                loopback = sc.get_microphone(str(speaker.name), include_loopback=True)
-                streams.append(_DeviceStream(loopback, max_frames, "loopback"))
-            except Exception as exc:            # noqa: BLE001
-                logger.warning("No speaker loopback device: %s", exc)
-
-            # Default microphone = the local user's voice.
-            try:
-                mic = sc.default_microphone()
-                streams.append(_DeviceStream(mic, max_frames, "mic"))
-            except Exception as exc:            # noqa: BLE001
-                logger.warning("No microphone device: %s", exc)
-
-            if not streams:
-                return False
-
+            # Each stream follows its ROLE's default device from here on, so a
+            # missing device now is a warning, not a lost recording.
+            streams = [
+                _DeviceStream("loopback", max_frames),   # everything you hear (the remote participants)
+                _DeviceStream("mic", max_frames),        # the local user's voice
+            ]
             for stream in streams:
                 stream.start()
             self._streams = streams

@@ -4,6 +4,28 @@
 
 ## Changelog
 
+### v5.1.4 · build 261 — 2026-09-11
+**Recording follows your headset**
+
+Field report: switching output/input from speakers to a headset mid-meeting
+stopped the live transcript and the notes. Cause: `_DeviceStream` was bound to
+the physical device resolved at start (`sc.default_speaker()` loopback +
+`sc.default_microphone()`); when Windows moved the default, the old speaker's
+loopback captured silence and the old mic captured nothing — no error, just
+no audio. A device error (unplug) ended the thread for good.
+
+- `services/meetings/recorder.py` `_DeviceStream(role, max_frames)` now
+  follows a ROLE (`loopback` | `mic`): `_resolve()` re-reads the default device
+  every `_RECHECK_SECONDS` (2 s) while recording and, on a name change, closes
+  the recorder and reopens on the new device, appending to the same frame list
+  (`switches` counter, `device_name`). Any exception from the stream logs,
+  waits `_RETRY_SECONDS` (1 s) and reopens instead of dying. `start()` no
+  longer resolves devices up front — a device missing at start is retried.
+- Verified with a fake `soundcard` module: both streams switched Speakers →
+  Headset (1 switch each), a raised device error reopened the stream, audio
+  after the switch was present in the drained chunk, `stop()` returned a tail.
+  Not verified on a real device switch.
+
 ### v5.1.3 · build 260 — 2026-09-11
 **Say who the thank-you goes to**
 
