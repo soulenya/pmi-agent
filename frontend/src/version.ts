@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 260;
+export const BUILD_NUMBER = 261;
 export const BUILD_DATE = "2026-09-11";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 261,
+    date: "2026-09-11",
+    title: "Recording follows your headset",
+    changes: [
+      "Switching sound devices mid-call — speakers to a headset, or back — no longer stops the live transcript and the meeting note. Recording moves to the new default device within a couple of seconds and carries on as one recording. Unplugging a device pauses that side until one is available again instead of ending the capture.",
+    ],
+  },
   {
     build: 260,
     date: "2026-09-11",
