@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 // Idle polling just watches for a meeting to start; once one is live the
 // transcript is arriving every few seconds and 3 s of jitter is visible.
 const POLL_MS = 3_000;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const LIVE_POLL_MS = 1_000;
 
 function Toggle({
@@ -90,6 +91,9 @@ export function LiveMeetingAssist() {
     thankyou: false,
   });
   const [busy, setBusy] = useState(false);
+  // Thank-you To: addresses typed into the consent card.
+  const [addresses, setAddresses] = useState<string[]>([]);
+  const [addressDraft, setAddressDraft] = useState("");
   const [panelOpen, setPanelOpen] = useState(true);
   // Draggable panel position (top-left corner); null = default bottom-right.
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(() => {
@@ -224,10 +228,19 @@ export function LiveMeetingAssist() {
     const accept = async () => {
       setBusy(true);
       try {
-        await acceptLive(options);
+        // A half-typed address in the box counts too.
+        const pending = addressDraft.trim().toLowerCase();
+        const all = EMAIL_RE.test(pending) && !addresses.includes(pending) ? [...addresses, pending] : addresses;
+        await acceptLive(options, options.thankyou ? all : []);
       } finally {
         setBusy(false);
       }
+    };
+    const addAddress = () => {
+      const e = addressDraft.trim().toLowerCase();
+      if (!EMAIL_RE.test(e)) return;
+      if (!addresses.includes(e)) setAddresses((a) => [...a, e]);
+      setAddressDraft("");
     };
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-[2px]">
@@ -286,7 +299,29 @@ export function LiveMeetingAssist() {
             />
             {options.thankyou && (
               <div className="ml-8 mr-2 rounded-md border border-dashed bg-muted/40 px-2.5 py-1.5 text-xs">
-                {state.recipients && state.recipients.length > 0 ? (
+                {addresses.length > 0 ? (
+                  <>
+                    <p className="font-medium text-foreground">Will be addressed to:</p>
+                    <ul className="mt-1 flex flex-wrap gap-1">
+                      {addresses.map((e) => (
+                        <li key={e} className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px]">
+                          {e}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${e}`}
+                            onClick={() => setAddresses((a) => a.filter((x) => x !== e))}
+                            className="text-muted-foreground hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Colleagues on the invite are CC'd, never addressed.
+                    </p>
+                  </>
+                ) : state.recipients && state.recipients.length > 0 ? (
                   <>
                     <p className="font-medium text-foreground">
                       Will be addressed to (outside the company):
@@ -305,8 +340,41 @@ export function LiveMeetingAssist() {
                   </>
                 ) : (
                   <p className="text-muted-foreground">
-                    No outside attendees found on the calendar invite — the draft will
-                    be created with an empty To: for you to fill in.
+                    No outside attendees found on the calendar invite. Add who the thank-you
+                    should go to, or leave it and fill in To: on the draft later.
+                  </p>
+                )}
+                <div className="mt-1.5 flex items-center gap-1">
+                  <input
+                    type="email"
+                    value={addressDraft}
+                    onChange={(e) => setAddressDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === "," || e.key === " ") {
+                        e.preventDefault();
+                        addAddress();
+                      }
+                    }}
+                    onBlur={addAddress}
+                    placeholder={
+                      addresses.length || state.recipients?.length
+                        ? "Add another address"
+                        : "name@company.com"
+                    }
+                    className="h-7 flex-1 rounded-md border bg-background px-2 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={addAddress}
+                    disabled={!EMAIL_RE.test(addressDraft.trim())}
+                    className="h-7 rounded-md border px-2 text-[11px] hover:bg-accent disabled:opacity-50"
+                  >
+                    Add
+                  </button>
+                </div>
+                {addresses.length > 0 && state.recipients && state.recipients.length > 0 && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    These replace the calendar's outside attendees as To:.
                   </p>
                 )}
               </div>
