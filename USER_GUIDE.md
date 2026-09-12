@@ -659,6 +659,8 @@ An endless whiteboard for thinking a project through. Pick a tool from the bar i
 
 **Moving several at once.** Drag a box around what you want, or hold Shift and click each one, then drag any of them and the whole selection travels together and stays where you put it. A snap nudges the group as a whole, so it keeps its shape.
 
+**Selecting text inside a card.** A plain press-and-drag on a note, text box or shape moves it. Double-click the text first (or select the card and press Enter) and the card lets go: a drag then selects the characters, for copying or replacing. Escape, or clicking anywhere else, hands the card back.
+
 **Shapes hold text.** Double-click a shape and type inside it. A shape can be rounded, square, an ellipse, a diamond or an arrow, and you can turn one into another from the panel. To put a shape around something already on the board, select it and choose **draw a shape around** — from the panel or from the right-click menu.
 
 **An unfilled shape does not block what is under it.** Draw a box around a text box and the text box is still yours to click; grab the shape by its border. If you want a shape that does block — a solid block of colour — mark it **solid** in the panel.

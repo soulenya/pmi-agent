@@ -4,6 +4,26 @@
 
 ## Changelog
 
+### v5.1.5 · build 262 — 2026-09-11
+**Select text inside a card**
+
+Field report: double-click then drag inside a sticky or a shape on the canvas
+moved the card instead of selecting the text. Two causes in
+`canvas/AutoGrowText.tsx`: the textarea never carried React Flow's `nodrag`
+class, so d3-drag owned every press on it; and on entry it did `select()`, so
+a drag across the already-selected text started a native text drag
+(`dragstart` fired) rather than a new selection.
+
+- `AutoGrowText` now has two modes. At rest: `readOnly`, `tabIndex=-1`,
+  `select-none`, and a press belongs to the card. Double-click (or Enter /
+  `autoFocus` for shapes and frames) enters the text: `nodrag cursor-text
+  select-text`, focus, caret collapsed at the end. Blur / Escape commits and
+  returns to rest.
+- Verified live on a sticky and a shape: press-drag at rest moves the card;
+  after double-click a drag selects (`"4x w"`, then a second drag across the
+  selection re-selects `"x working\n2"`) and the card does not move; Escape
+  leaves; shape text entered via Enter selects `"beta "`.
+
 ### v5.1.4 · build 261 — 2026-09-11
 **Recording follows your headset**
 
