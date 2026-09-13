@@ -11,7 +11,8 @@
  * money apart from spent money is the whole point — a budget that adds them
  * together cannot tell you what is left to promise.
  */
-import { Loader2, Pencil, Trash2, X } from "lucide-react";
+import { CheckCircle2, Landmark, Loader2, Pencil, RefreshCw, Trash2, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -25,6 +26,7 @@ import {
   type BudgetSummary,
   type EntryStatus,
 } from "@/api/budgets";
+import { getOdooBankBalance, getOdooStatus } from "@/api/odoo";
 import type { Source } from "@/api/tasks";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/stores/toastStore";
@@ -53,6 +55,14 @@ export function entryStatus(e: BudgetEntry): EntryStatus {
   return e.status ?? "Spent";
 }
 
+/** Today as the sheet writes dates, in this computer's calendar. */
+function todayIso(): string {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 const STATUS_STYLES: Record<EntryStatus, string> = {
   Spent: "border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300",
   Allocated: "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
@@ -79,14 +89,87 @@ export function StatusPill({ status }: { status: EntryStatus }) {
 }
 
 /**
+ * What is actually in the bank, read live from Odoo.
+ *
+ * The budget says what is promised; this says what is there to pay it with,
+ * and the two side by side is the check people otherwise do in their head.
+ * It is the company's balance, not the budget's share of it, and it is the
+ * same on every budget. Absent when Odoo is not connected on this computer.
+ */
+function BankBalanceCard() {
+  const bank = useQuery({
+    queryKey: ["odoo-bank-balance"],
+    queryFn: getOdooBankBalance,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const detail = (bank.error as { response?: { data?: { detail?: string } } } | null)?.response
+    ?.data?.detail;
+  const asOf = bank.dataUpdatedAt
+    ? new Date(bank.dataUpdatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : null;
+
+  return (
+    <div className="rounded-xl border border-emerald-300/60 bg-emerald-500/5 p-4 dark:border-emerald-800/60">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Landmark className="h-3 w-3" /> In the bank
+        </p>
+        <button
+          onClick={() => void bank.refetch()}
+          disabled={bank.isFetching}
+          className="text-muted-foreground hover:text-foreground disabled:opacity-50"
+          title="Read the balance from Odoo again"
+        >
+          <RefreshCw className={cn("h-3 w-3", bank.isFetching && "animate-spin")} />
+        </button>
+      </div>
+      {bank.isLoading ? (
+        <p className="mt-1 text-sm text-muted-foreground">Reading Odoo…</p>
+      ) : bank.isError ? (
+        <p className="mt-1 text-xs text-red-600" title={detail}>
+          Odoo did not answer.
+        </p>
+      ) : bank.data ? (
+        <>
+          <p className="text-xl font-semibold text-emerald-700 dark:text-emerald-400">
+            {money(bank.data.total, bank.data.currency || "USD")}
+          </p>
+          <p
+            className="mt-0.5 truncate text-[11px] text-muted-foreground"
+            title={bank.data.accounts
+              .map((a) => `${a.journal}: ${money(a.balance, bank.data!.currency || "USD")}`)
+              .join("\n")}
+          >
+            {bank.data.accounts.length === 0
+              ? "No bank or cash accounts in Odoo"
+              : `${bank.data.accounts.length} account${bank.data.accounts.length === 1 ? "" : "s"} · Odoo${asOf ? ` at ${asOf}` : ""}`}
+          </p>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * The figures.
  *
  * Spent and Allocated both come off the allotment, so Remaining is what is
  * still free to promise rather than merely what has not yet been paid. The
  * incoming pair only appears once there is something to show, so a plain
- * spending budget stays a plain spending budget.
+ * spending budget stays a plain spending budget. `bank` adds the company's
+ * live Odoo balance alongside, where Odoo is connected.
  */
-export function BudgetSummaryCards({ budget }: { budget: LedgerBudget }) {
+export function BudgetSummaryCards({ budget, bank = false }: { budget: LedgerBudget; bank?: boolean }) {
+  const odoo = useQuery({
+    queryKey: ["odoo-status"],
+    queryFn: getOdooStatus,
+    enabled: bank,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const showBank = bank && odoo.data?.connected === true;
   const s = budget.cached_summary || {};
   const cur = budget.currency;
   const spent = s.total_spent ?? 0;
@@ -99,7 +182,7 @@ export function BudgetSummaryCards({ budget }: { budget: LedgerBudget }) {
 
   return (
     <section className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <div className={cn("grid grid-cols-1 gap-3", showBank ? "sm:grid-cols-2 lg:grid-cols-5" : "sm:grid-cols-4")}>
         <div className="rounded-xl border bg-card p-4">
           <p className="text-xs text-muted-foreground">Spent</p>
           <p className="text-xl font-semibold">{money(spent, cur)}</p>
@@ -137,6 +220,7 @@ export function BudgetSummaryCards({ budget }: { budget: LedgerBudget }) {
             </div>
           )}
         </div>
+        {showBank && <BankBalanceCard />}
       </div>
 
       {(collected > 0 || expected > 0) && (
@@ -335,6 +419,70 @@ export function BudgetLedgerTable({
     }
   };
 
+  const [settling, setSettling] = useState(false);
+  const selectedAllocated = useMemo(
+    () =>
+      budget.cached_ledger.filter(
+        (e) => selectedRows.has(e.row) && entryStatus(e) === "Allocated",
+      ),
+    [budget.cached_ledger, selectedRows],
+  );
+
+  /**
+   * An allocated line has been paid: it becomes Spent, dated today. Money
+   * that was reserved is now gone, so Allocated falls and Spent rises by the
+   * same amount and Remaining does not move.
+   */
+  const markSpent = async (entries: BudgetEntry[]) => {
+    if (entries.length === 0) return;
+    if (
+      entries.length > 1 &&
+      !window.confirm(
+        `Mark ${entries.length} allocated lines as spent, dated today? The Google Sheet is updated too.`,
+      )
+    ) {
+      return;
+    }
+    setSettling(true);
+    const today = todayIso();
+    let done = 0;
+    try {
+      for (const e of entries) {
+        setBusyRow(e.row);
+        // Sequential on purpose: each write re-reads the sheet first.
+        // eslint-disable-next-line no-await-in-loop
+        await updateBudgetEntry(
+          budget.id,
+          e.row,
+          {
+            expected: { description: e.description, amount: e.amount },
+            status: "Spent",
+            date: today,
+          },
+          source,
+        );
+        done += 1;
+      }
+      push(
+        "success",
+        done === 1
+          ? `"${entries[0].description}" marked as spent.`
+          : `${done} lines marked as spent.`,
+      );
+      setSelectedRows((prev) => {
+        const next = new Set(prev);
+        for (const e of entries) next.delete(e.row);
+        return next;
+      });
+      onChanged();
+    } catch (e) {
+      err(e, done > 0 ? `Marked ${done} as spent, then a write failed.` : "Couldn't mark it as spent.");
+    } finally {
+      setBusyRow(null);
+      setSettling(false);
+    }
+  };
+
   const statusCounts = useMemo(() => {
     const counts = new Map<EntryStatus, number>();
     for (const e of budget.cached_ledger) {
@@ -429,6 +577,21 @@ export function BudgetLedgerTable({
         <h3 className="text-sm font-semibold">Ledger</h3>
         {selectedRows.size > 0 && (
           <>
+            {canEdit && selectedAllocated.length > 0 && (
+              <button
+                onClick={() => void markSpent(selectedAllocated)}
+                disabled={settling}
+                className="flex items-center gap-1 rounded-md border border-amber-400 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-60 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60"
+                title="These allocated lines have been paid: make them Spent, dated today"
+              >
+                {settling ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-3 w-3" />
+                )}
+                Mark {selectedAllocated.length} as spent
+              </button>
+            )}
             <button
               onClick={() => setIsolate((v) => !v)}
               className={cn(
@@ -462,7 +625,7 @@ export function BudgetLedgerTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-              <th className="w-8 px-3 py-2" title="Check entries to isolate them" />
+              <th className="w-8 px-3 py-2" title="Check entries to isolate them, or to mark allocated ones as spent" />
               <th className="px-3 py-2">Date</th>
               <th className="px-3 py-2">Description</th>
               <th className="px-3 py-2">Category</th>
@@ -496,7 +659,7 @@ export function BudgetLedgerTable({
                     checked={selectedRows.has(e.row)}
                     onChange={() => setSelectedRows((prev) => toggleIn(prev, e.row))}
                     className="h-3.5 w-3.5 accent-primary"
-                    title="Select for isolation"
+                    title={canEdit && entryStatus(e) === "Allocated" ? "Select — to isolate, or to mark as spent" : "Select for isolation"}
                   />
                 </td>
                 {editingRow === e.row ? (
@@ -601,6 +764,20 @@ export function BudgetLedgerTable({
                     <td className="whitespace-nowrap px-3 py-2 text-right">
                       {canEdit && (
                         <>
+                          {entryStatus(e) === "Allocated" && (
+                            <button
+                              onClick={() => void markSpent([e])}
+                              disabled={busyRow === e.row || settling}
+                              className="mr-1 text-amber-600 hover:text-emerald-600 dark:text-amber-400 dark:hover:text-emerald-400"
+                              title="Paid — mark as spent, dated today"
+                            >
+                              {busyRow === e.row ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setEditingRow(e.row);

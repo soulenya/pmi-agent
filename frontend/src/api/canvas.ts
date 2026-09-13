@@ -147,6 +147,7 @@ export async function uploadCanvasImage(
   const resp = await apiClient.post<CanvasNode>(
     at(source, `/projects/${projectId}/canvas/${canvasId}/images`),
     form,
+    { headers: { "Content-Type": "multipart/form-data" } },
   );
   return resp.data;
 }

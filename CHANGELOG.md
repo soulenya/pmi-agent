@@ -4,6 +4,47 @@
 
 ## Changelog
 
+### v5.2.0 · build 263 — 2026-09-12
+**Bank balance, invoices by hand, and paying off allocations**
+
+Three requests on the budget sheets, and a bug found while verifying them.
+
+- **Bank balance card.** `BudgetSummaryCards` takes `bank`; when Odoo is
+  connected (`GET /api/odoo/status`) a fifth card reads
+  `GET /api/odoo/bank-balance` (5-minute stale time, refresh button, per-
+  account split in the tooltip). Shown on the Budgets page and the project
+  Budget tab. It is the company's balance, the same on every budget.
+- **Invoices by hand.** New `POST /budgets/{id}/invoices/from-drive`
+  (`{ref, folder_row_id?}`) downloads one Drive file and runs the same
+  extraction as an upload (`budget_folder_service.intake_drive_file`, sharing
+  `_intake_document` with `intake_upload`). A file inside one of the budget's
+  linked folders (by `folder_row_id`, or by the file's Drive `parents`) is
+  keyed `folderdoc:<folder>:<file>` and written to that folder's
+  `scanned_files`, so the daily scan does not offer it twice; any other file is
+  `drivedoc:<file>`. New `GET /budgets/{id}/folders/{row}/files` lists a linked
+  folder with each file's registry status. `drive_get_metadata` now returns
+  `parents`. `InvoiceIntake`: the whole sources panel is a drop zone (files →
+  upload, sequentially; a `drive.google.com` URL in `text/uri-list`/`text/plain`
+  → from-drive), a Drive-link field, `multiple` on the file input, and a
+  chevron on each linked folder that lists its files with a per-file Read.
+- **Mark allocated as spent.** `BudgetLedgerTable`: a tick on each Allocated
+  row and a `Mark N as spent` button when checked rows include Allocated ones
+  (confirm when more than one). Each is `PATCH /entries/{row}` with
+  `status: Spent, date: today` (local calendar), sequential.
+- **Fix: FormData uploads sent as JSON.** The axios client's default
+  `Content-Type: application/json` makes axios 1.x serialise a `FormData` body
+  to JSON (`{"file":{}}`) → 422. `uploadBudgetInvoice` never worked;
+  `uploadCanvasImage` and the data-import calls in `api/dataTransfer.ts` had
+  the same fault. All four now send `multipart/form-data`.
+- Verified live on the CLIN 001 budget: bank card `$27,541.82 · 2 accounts`;
+  a test Allocated row added → tick → Spent dated 2026-09-12 (Spent +$1.23,
+  Allocated −$1.23) → deleted, sheet back to 13 rows; Drive link read
+  `$13.43 Google Voice Inc.` with category and link; re-paste and URL drop
+  → "already been read"; CSV drop and CSV via Choose a file → multipart,
+  `$7.75` read; linked-folder listing (20 files) → Read one → marked `read`,
+  folder `1 file(s) read · found $13.43`. Canvas image and data import not
+  re-tested (same one-line fix).
+
 ### v5.1.5 · build 262 — 2026-09-11
 **Select text inside a card**
 

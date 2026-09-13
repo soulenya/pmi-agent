@@ -199,8 +199,9 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     capabilities: [
       "A budget lives as a Google Sheet in the shared folder — edit it here or in Sheets",
       "Set an allotment and watch spending against it",
-      "Mark lines Spent, Allocated, Collected or Expected, so commitments count before they are paid",
-      "Collect invoices from watched Drive folders, from the inbox, or by handing one over — everything found waits for you to accept it",
+      "Mark lines Spent, Allocated, Collected or Expected, so commitments count before they are paid — and tick an allocated line as spent the day it is paid",
+      "See the company's live bank balance from Odoo beside every budget's figures",
+      "Collect invoices from watched Drive folders, from the inbox, by dropping files onto the panel, or by pasting a Drive link — everything found waits for you to accept it",
       "A category read off an invoice that the sheet does not have yet is added to it",
       "Gerry can add entries when you allow it, and warn you at 80% and 100%",
       "A personal financial-management aid — not the company's official books",

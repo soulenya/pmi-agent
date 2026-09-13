@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 262;
-export const BUILD_DATE = "2026-09-11";
+export const BUILD_NUMBER = 263;
+export const BUILD_DATE = "2026-09-12";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 263,
+    date: "2026-09-12",
+    title: "Bank balance, invoices by hand, and paying off allocations",
+    changes: [
+      "Every budget now shows what is in the bank: a fifth card with the company's live Odoo bank and cash balance beside Spent, Allocated, Allotment and Remaining. Hover for the per-account split.",
+      "Add an invoice yourself in more ways: drop PDF, image or CSV files onto the invoices panel, paste a Google Drive link, or open a linked Drive folder and read one file at a time. Each waits for your accept as before.",
+      "When an allocated line has been paid, tick it — or check several and 'Mark N as spent'. It becomes Spent, dated today.",
+      "Fixed 'Choose a file' on the invoices panel, which had never reached the server (every upload failed silently as 'could not be read'). Pasting an image onto the canvas and importing a data archive had the same fault and are fixed too.",
+    ],
+  },
   {
     build: 262,
     date: "2026-09-11",

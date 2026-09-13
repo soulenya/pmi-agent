@@ -88,6 +88,14 @@ class FolderUpdate(BaseModel):
     auto_scan: bool | None = None
 
 
+class DriveIntake(BaseModel):
+    """One Drive file to read: a pasted link or ID, or a pick from a linked
+    folder's listing (``folder_row_id`` says which)."""
+
+    ref: str = Field(..., min_length=10, max_length=1000)
+    folder_row_id: uuid.UUID | None = None
+
+
 class ReferenceCreate(BaseModel):
     ref_budget_id: uuid.UUID
     include_as_entry: bool = False
@@ -600,6 +608,50 @@ async def upload_invoice(
         raise HTTPException(400, str(exc))
     await db.commit()
     return result
+
+
+@router.post("/{budget_id}/invoices/from-drive", status_code=201)
+async def intake_from_drive(
+    budget_id: uuid.UUID,
+    body: DriveIntake,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Read one invoice picked off Drive and propose it for the ledger."""
+    budget = await _get_owned(db, budget_id, current_user.id)
+    folder = None
+    if body.folder_row_id is not None:
+        folder = next(
+            (f for f in await _budget_folders(db, budget.id) if f.id == body.folder_row_id), None
+        )
+        if folder is None:
+            raise HTTPException(404, "Folder not found")
+    try:
+        result = await budget_folder_service.intake_drive_file(
+            db, budget, ref=body.ref, folder=folder
+        )
+    except BudgetFolderError as exc:
+        raise HTTPException(400, str(exc))
+    await db.commit()
+    return result
+
+
+@router.get("/{budget_id}/folders/{folder_row_id}/files")
+async def list_folder_files(
+    budget_id: uuid.UUID,
+    folder_row_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict]:
+    """What is in a linked folder, and what the scans made of each file."""
+    budget = await _get_owned(db, budget_id, current_user.id)
+    folder = next((f for f in await _budget_folders(db, budget.id) if f.id == folder_row_id), None)
+    if folder is None:
+        raise HTTPException(404, "Folder not found")
+    try:
+        return await budget_folder_service.list_folder_files(folder)
+    except BudgetFolderError as exc:
+        raise HTTPException(400, str(exc))
 
 
 # ── Cross-budget references ─────────────────────────────────────
