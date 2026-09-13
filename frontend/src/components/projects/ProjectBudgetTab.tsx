@@ -59,12 +59,43 @@ function money(value: number | null | undefined, currency: string): string {
 }
 
 /**
+ * This computer's own copy of a shared budget's sheet, if it has one.
+ *
+ * The hub has no Google account, so anything that writes to the sheet runs
+ * against the local twin (matched by Drive file id) and the finished figures
+ * are sent up afterwards. Someone who joined a project they did not create has
+ * no twin, and gets `null`.
+ */
+function useLocalTwin(budget: ProjectBudget, source: Source, onSynced: () => void) {
+  const qc = useQueryClient();
+  const fileId = driveFileId(budget.drive_url);
+  const twin = useQuery({
+    queryKey: ["budget-twin", fileId],
+    queryFn: async () => {
+      const here = (await listBudgets("local")).find((b) => b.drive_file_id === fileId);
+      return here ? await getBudget(here.id, "local") : null;
+    },
+    enabled: Boolean(fileId) && budget.is_mine,
+  });
+
+  const settle = async () => {
+    if (!twin.data) return;
+    const fresh = await refreshBudget(twin.data.id, "local");
+    if (source === "hub") await mirrorBudget(fresh, "hub");
+    qc.invalidateQueries({ queryKey: ["budget-twin", fileId] });
+    onSynced();
+  };
+
+  return { fileId, twin: twin.data ?? null, loading: twin.isLoading, settle };
+}
+
+/**
  * The expanded ledger for one attached budget.
  *
  * Read through the project's own route, so a colleague who has never seen the
- * Google Sheet still gets every row. It serves the cached copy: pulling fresh
- * from Drive needs the owner's credentials, and they can do that from the
- * Budgets page.
+ * Google Sheet still gets every row. On a shared project the owner edits the
+ * rows through the local twin of the sheet, and the copy on the hub is updated
+ * after each write.
  */
 function BudgetLedgerPanel({
   budget,
@@ -85,6 +116,8 @@ function BudgetLedgerPanel({
     qc.invalidateQueries({ queryKey: ["project-budget", source, projectId, budget.id] });
     qc.invalidateQueries({ queryKey: ["project-budgets", source, projectId] });
   };
+
+  const local = useLocalTwin(budget, source, onChanged);
 
   // A shared budget's sheet is read through this computer's Google account and
   // the figures are sent up, because the hub has no Google account of its own.
@@ -108,9 +141,11 @@ function BudgetLedgerPanel({
 
   // Writes go to Drive under the owner's Google account, so only they can make
   // them. A linked external sheet is read-only to everyone, its owner included.
-  // On a shared project nobody edits here: the sheet is reachable only from the
-  // computer that owns it, so the rows are edited on the Budgets page.
-  const canEditLedger = data.is_mine && !data.external_readonly && source !== "hub";
+  // On a shared project the write runs against this computer's twin of the
+  // sheet; without a twin (the sheet was made elsewhere) the rows are read-only.
+  const viaTwin = source === "hub" && local.twin !== null && !local.twin.external_readonly;
+  const canEditLedger =
+    data.is_mine && !data.external_readonly && (source !== "hub" || viaTwin);
 
   return (
     <div className="space-y-4 border-t border-slate-200 p-4 dark:border-slate-700">
@@ -158,14 +193,14 @@ function BudgetLedgerPanel({
         </section>
       )}
 
-      {!canEditLedger && (
+      {!canEditLedger && !(data.is_mine && source === "hub" && local.loading) && (
         <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
           <p>
             {!data.is_mine
               ? "You can see every figure here. Only the person who linked the sheet can change it."
               : data.external_readonly
                 ? "This is a linked external sheet — Little Gerry can only read it. Edit it in Google Sheets."
-                : "These are the figures as last sent up. The sheet lives on your Google account, so edit it on the Budgets page or in Google Sheets, then update this copy."}
+                : "These are the figures as last sent up. The sheet was added from another computer, so edit it there or in Google Sheets, then update this copy."}
           </p>
           {data.is_mine && source === "hub" && (
             <>
@@ -189,59 +224,44 @@ function BudgetLedgerPanel({
         </div>
       )}
 
+      {viaTwin && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <p>
+            Changes here go to the sheet on Drive through this computer's Google account, and
+            the copy everyone on the project sees is updated after each one.
+          </p>
+          <button
+            type="button"
+            onClick={() => sync.mutate()}
+            disabled={sync.isPending}
+            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+            title="Pick up edits made straight in Google Sheets"
+          >
+            {sync.isPending ? "Updating…" : "Update from Drive"}
+          </button>
+        </div>
+      )}
+
       <BudgetLedgerTable
-        budget={data}
+        budget={viaTwin && local.twin ? local.twin : data}
         canEdit={canEditLedger}
-        source={source}
-        onChanged={onChanged}
+        source={viaTwin ? "local" : source}
+        onChanged={viaTwin ? () => void local.settle() : onChanged}
       />
 
       {data.is_mine && (
-        <ProjectInvoiceIntake budget={budget} source={source} onSynced={onChanged} />
+        <ProjectInvoiceIntake local={local} />
       )}
     </div>
   );
 }
 
 /**
- * Getting invoices onto a project budget.
- *
- * Reading Drive and the inbox needs the Google account on this computer, and
- * the hub has none, so the work happens against the local twin of the shared
- * sheet and the finished figures are sent up afterwards. Someone who joined a
- * project they did not create has no twin, which is why this can be absent.
+ * Getting invoices onto a project budget, through the local twin.
  */
-function ProjectInvoiceIntake({
-  budget,
-  source,
-  onSynced,
-}: {
-  budget: ProjectBudget;
-  source: Source;
-  onSynced: () => void;
-}) {
-  const qc = useQueryClient();
-  const fileId = driveFileId(budget.drive_url);
-
-  const { data: twin, isLoading } = useQuery({
-    queryKey: ["budget-twin", fileId],
-    queryFn: async () => {
-      const here = (await listBudgets("local")).find((b) => b.drive_file_id === fileId);
-      return here ? await getBudget(here.id, "local") : null;
-    },
-    enabled: Boolean(fileId),
-  });
-
-  const settle = async () => {
-    if (!twin) return;
-    const fresh = await refreshBudget(twin.id, "local");
-    if (source === "hub") await mirrorBudget(fresh, "hub");
-    qc.invalidateQueries({ queryKey: ["budget-twin", fileId] });
-    onSynced();
-  };
-
-  if (isLoading || !fileId) return null;
-  if (!twin) {
+function ProjectInvoiceIntake({ local }: { local: ReturnType<typeof useLocalTwin> }) {
+  if (local.loading || !local.fileId) return null;
+  if (!local.twin) {
     return (
       <p className="text-xs text-slate-500 dark:text-slate-400">
         This budget's sheet was added from another computer, so invoices have to be
@@ -249,7 +269,7 @@ function ProjectInvoiceIntake({
       </p>
     );
   }
-  if (twin.external_readonly) {
+  if (local.twin.external_readonly) {
     return (
       <p className="text-xs text-slate-500 dark:text-slate-400">
         This is a linked external sheet — Little Gerry can read it but not write to it,
@@ -259,7 +279,7 @@ function ProjectInvoiceIntake({
   }
   return (
     <div className="space-y-4">
-      <InvoiceIntake budget={twin} onChanged={() => void settle()} />
+      <InvoiceIntake budget={local.twin} onChanged={() => void local.settle()} />
     </div>
   );
 }

@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 263;
-export const BUILD_DATE = "2026-09-12";
+export const BUILD_NUMBER = 264;
+export const BUILD_DATE = "2026-09-13";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 264,
+    date: "2026-09-13",
+    title: "Edit a shared project's budget from its own tab",
+    changes: [
+      "On a shared project's Budget tab, the owner of the sheet can now add, edit and delete lines and tick an allocated line as spent, right there — the change goes to the sheet on Drive and the copy everyone on the project sees is updated. Until now the tab was read-only and you had to use the Budgets page.",
+    ],
+  },
   {
     build: 263,
     date: "2026-09-12",

@@ -542,7 +542,7 @@ You must be able to edit the project to put anything on it.
 
 Taking a budget off a project, or deleting the project, never touches the budget or the sheet. The sheet exists whether or not a project claims it.
 
-A shared project on the hub has a Budget tab of its own, and budgets created there are held on the hub beside the project, so everyone on the project sees the same figures. A budget you keep on this computer stays on this computer.
+A shared project on the hub has a Budget tab of its own, and budgets created there are held on the hub beside the project, so everyone on the project sees the same figures. The sheet still lives on the owner's Google account, so on the computer that made it the owner gets the full ledger controls — add, edit, delete, tick an allocated line as spent, collect invoices — and each change goes to the sheet on Drive and then to the hub copy everyone reads. **Update from Drive** picks up edits made straight in Google Sheets. On another computer, or for anyone else on the project, the tab is a view.
 
 **How a budget on a shared project works.** The Google Sheet is always made on your own computer, under your own Google account, because the hub has no Google account of its own and never will. What travels to the hub is the finished budget — its name, its allotment and every line of its ledger — for everyone on the project to read. The rows are edited on the **Budgets** page or in Google Sheets, and **Update from Drive** on the project's Budget tab sends the new figures up. Only the person who created the budget can do that; from anyone else's computer the sheet cannot be read at all.
 

@@ -4,6 +4,28 @@
 
 ## Changelog
 
+### v5.2.1 · build 264 — 2026-09-13
+**Edit a shared project's budget from its own tab**
+
+Field report: "how do I update a budget item in the project as spent? I don't
+see an option." `ProjectBudgetTab` set `canEditLedger = ... && source !==
+"hub"`, so on a hub project even the sheet's owner got a read-only ledger and
+had to go to the Budgets page. The invoices panel on the same tab already used
+the local twin of the sheet; the ledger now does the same.
+
+- `useLocalTwin(budget, source, onSynced)` (the twin query + `settle` =
+  `refreshBudget(local)` → `mirrorBudget(hub)` → invalidate) hoisted out of
+  `ProjectInvoiceIntake` and shared with `BudgetLedgerPanel`. When `source ===
+  "hub"` and a writable twin exists, `BudgetLedgerTable` is rendered with the
+  twin's ledger, `canEdit`, `source="local"`, `onChanged=settle`; the note
+  explains the path and keeps **Update from Drive** for Sheets-side edits. No
+  twin (sheet made elsewhere) or an external sheet: read-only as before.
+- Verified on the live hub project SO/LIC CLIN 001: 8 Paid ticks + 13 edit
+  buttons + add-entry row appeared; added an Allocated $2.34 test row (hub copy
+  13 → 14 rows), ticked it (hub copy: Spent $199.40, Allocated back to
+  $387,892.43, date 2026-09-13), deleted it (sheet, local and hub all back to
+  13 rows / $197.06).
+
 ### v5.2.0 · build 263 — 2026-09-12
 **Bank balance, invoices by hand, and paying off allocations**
 
