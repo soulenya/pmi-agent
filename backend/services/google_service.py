@@ -2116,7 +2116,7 @@ def drive_get_metadata(file_id: str) -> dict | None:
         meta = svc.files().get(
             fileId=file_id,
             fields=(
-                "id,name,mimeType,modifiedTime,trashed,webViewLink,"
+                "id,name,mimeType,modifiedTime,trashed,webViewLink,parents,"
                 "lastModifyingUser(displayName)"
             ),
             supportsAllDrives=True,
@@ -2133,6 +2133,7 @@ def drive_get_metadata(file_id: str) -> dict | None:
         "modified_by": (meta.get("lastModifyingUser") or {}).get("displayName", ""),
         "trashed": bool(meta.get("trashed", False)),
         "url": meta.get("webViewLink", ""),
+        "parents": list(meta.get("parents") or []),
     }
 
 

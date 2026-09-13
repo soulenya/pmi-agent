@@ -368,7 +368,7 @@ function BudgetDetailView({
       </div>
 
       {/* Summary */}
-      <BudgetSummaryCards budget={budget} />
+      <BudgetSummaryCards budget={budget} bank />
 
       {/* Gerry permission */}
       {!readonly && (

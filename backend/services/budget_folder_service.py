@@ -411,6 +411,154 @@ async def intake_upload(
     the same extraction and the same accept-or-dismiss review, so a document
     someone was handed on paper ends up in the ledger the same way.
     """
+    name = (filename or "invoice").strip()[:300]
+    return await _intake_document(
+        db,
+        budget,
+        name=name,
+        data=data,
+        mime=mime,
+        # The bytes identify the document, so the same invoice uploaded twice
+        # is recognised rather than counted twice.
+        source_id=f"upload:{hashlib.sha256(data).hexdigest()[:40]}",
+        summary=f'From "{name}", uploaded by hand.',
+        note=f"Uploaded by hand: {name}",
+        source_url=None,
+    )
+
+
+async def intake_drive_file(
+    db: AsyncSession, budget: Budget, *, ref: str, folder: BudgetFolder | None = None
+) -> dict:
+    """Read one invoice picked off Drive — by pasted link, or from a linked
+    folder's listing — and propose it.
+
+    When the file sits in one of the budget's linked folders it is keyed the
+    way the folder scan keys it and recorded in that folder's registry, so
+    the daily pass does not offer the same invoice a second time.
+    """
+    from services import google_service as gs
+    from services.live_document import extract_drive_file_id
+
+    if not gs.get_credentials():
+        raise BudgetFolderError("Google Workspace is not connected — connect it in Settings first.")
+    file_id = extract_drive_file_id(ref)
+    if not file_id:
+        raise BudgetFolderError("Paste the Drive file's link (or its ID).")
+    try:
+        meta = await _run(lambda: gs.drive_get_metadata(file_id))
+    except Exception as exc:  # noqa: BLE001
+        raise BudgetFolderError(f"Couldn't read that file: {str(exc)[:200]}") from exc
+    if meta is None or meta.get("trashed"):
+        raise BudgetFolderError(
+            "Google couldn't find that file. Check the link, and make sure it's "
+            "shared with the connected Google account."
+        )
+    mime = (meta.get("mimeType") or "").split(";")[0].strip().lower()
+    if mime == "application/vnd.google-apps.folder":
+        raise BudgetFolderError(
+            "That's a folder. Link it as an invoice folder instead, then read it."
+        )
+    if mime not in _SCANNABLE_MIMES:
+        raise BudgetFolderError("That file can't be read. Use a PDF, an image, or a CSV.")
+
+    if folder is None:
+        parents = set(meta.get("parents") or [])
+        if parents:
+            folder = (
+                await db.execute(
+                    select(BudgetFolder).where(
+                        BudgetFolder.budget_id == budget.id,
+                        BudgetFolder.folder_id.in_(parents),
+                    )
+                )
+            ).scalars().first()
+
+    try:
+        blob = await _run(lambda: gs.drive_download_bytes(file_id))
+    except Exception as exc:  # noqa: BLE001
+        raise BudgetFolderError(f"Couldn't download that file: {str(exc)[:200]}") from exc
+    name = (meta.get("name") or blob.get("name") or "invoice").strip()[:300]
+    url = meta.get("url") or blob.get("url") or ""
+    where = f'the linked {folder.kind} folder "{folder.folder_name}"' if folder else "Drive"
+
+    result = await _intake_document(
+        db,
+        budget,
+        name=name,
+        data=blob["content"],
+        mime=mime,
+        source_id=(
+            f"folderdoc:{folder.folder_id}:{file_id}" if folder else f"drivedoc:{file_id}"
+        ),
+        summary=f'From "{name}" in {where}, picked by hand.',
+        note=f"Read from Drive: {url}",
+        source_url=url or None,
+    )
+    if folder is not None:
+        registry = dict(folder.scanned_files or {})
+        registry[file_id] = {
+            "name": name,
+            "scanned_at": datetime.now(timezone.utc).isoformat(),
+            "vendor": result.get("vendor"),
+            "date": result.get("date"),
+            "amount": result.get("amount"),
+            "category": result.get("category"),
+            "status": "suggested" if result.get("suggested") else "already_suggested",
+            **({"suggestion_id": result["suggestion_id"]} if result.get("suggestion_id") else {}),
+        }
+        folder.scanned_files = registry
+        await db.flush()
+    result.update(name=name, url=url, in_folder=folder.folder_name if folder else None)
+    return result
+
+
+async def list_folder_files(folder: BudgetFolder) -> list[dict]:
+    """The files in a linked folder, each with what the scans made of it."""
+    from services import google_service as gs
+
+    if not gs.get_credentials():
+        raise BudgetFolderError("Google Workspace is not connected — connect it in Settings first.")
+    try:
+        children = await _run(lambda: gs.drive_list_folder(folder.folder_id, max_results=200))
+    except Exception as exc:  # noqa: BLE001
+        raise BudgetFolderError(f"Couldn't list the folder: {str(exc)[:200]}") from exc
+    registry = folder.scanned_files or {}
+    out = []
+    for c in children:
+        if c.get("type") == "folder":
+            continue
+        mime = (c.get("type") or "").split(";")[0].strip().lower()
+        rec = registry.get(c["id"]) if isinstance(registry.get(c["id"]), dict) else None
+        out.append(
+            {
+                "id": c["id"],
+                "name": c.get("name", ""),
+                "mime": mime,
+                "url": c.get("url", ""),
+                "modified": c.get("modified", ""),
+                "supported": mime in _SCANNABLE_MIMES,
+                "status": (rec or {}).get("status"),
+                "amount": (rec or {}).get("amount"),
+                "vendor": (rec or {}).get("vendor"),
+            }
+        )
+    return out
+
+
+async def _intake_document(
+    db: AsyncSession,
+    budget: Budget,
+    *,
+    name: str,
+    data: bytes,
+    mime: str,
+    source_id: str,
+    summary: str,
+    note: str,
+    source_url: str | None,
+) -> dict:
+    """Extract one document's figures and propose them, whatever brought it."""
     mime = (mime or "").split(";")[0].strip().lower()
     if mime not in _SCANNABLE_MIMES:
         raise BudgetFolderError(
@@ -419,7 +567,6 @@ async def intake_upload(
     if not data:
         raise BudgetFolderError("That file is empty.")
 
-    name = (filename or "invoice").strip()[:300]
     text = await _get_text_smart(db, data, name, mime)
     if not text.strip():
         raise BudgetFolderError(
@@ -441,24 +588,23 @@ async def intake_upload(
     s = await _suggest_entry(
         db,
         budget,
-        # The bytes identify the document, so the same invoice uploaded twice
-        # is recognised rather than counted twice.
-        source_id=f"upload:{hashlib.sha256(data).hexdigest()[:40]}",
+        source_id=source_id,
         title=f'Log {_fmt(amount, cur)} to budget "{budget.title}"?',
-        summary=f'From "{name}", uploaded by hand.',
+        summary=summary,
         entry={
             "date": str(extracted.get("date") or "")
             or datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "description": (f"{vendor} — {name}" if vendor else name)[:300],
             "amount": amount,
             "category": str(extracted.get("category") or "").strip(),
-            "note": f"Uploaded by hand: {name}",
+            "note": note,
         },
-        source_url=None,
+        source_url=source_url,
     )
     return {
         "suggested": s is not None,
         "duplicate": s is None,
+        "suggestion_id": str(s.id) if s is not None else None,
         "vendor": vendor,
         "amount": amount,
         "date": extracted.get("date"),

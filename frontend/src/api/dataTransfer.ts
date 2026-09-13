@@ -77,6 +77,7 @@ export async function inspectDataImport(file: File): Promise<ArchiveManifest> {
   form.append("file", file);
   const { data } = await apiClient.post<ArchiveManifest>("/api/data/import/inspect", form, {
     timeout: 10 * 60_000,
+    headers: { "Content-Type": "multipart/form-data" },
   });
   return data;
 }
@@ -86,6 +87,7 @@ export async function runDataImport(file: File): Promise<RestoreResult> {
   form.append("file", file);
   const { data } = await apiClient.post<RestoreResult>("/api/data/import", form, {
     timeout: 60 * 60_000,
+    headers: { "Content-Type": "multipart/form-data" },
   });
   return data;
 }

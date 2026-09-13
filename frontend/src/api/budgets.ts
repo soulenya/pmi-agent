@@ -397,9 +397,58 @@ export async function uploadBudgetInvoice(
 ): Promise<InvoiceUploadResult> {
   const form = new FormData();
   form.append("file", file);
+  // The client's default Content-Type is JSON; left in place, axios turns a
+  // FormData into `{"file":{}}` and the server answers 422.
   const { data } = await apiClient.post<InvoiceUploadResult>(
     `/budgets/${id}/invoices/upload`,
     form,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return data;
+}
+
+export interface DriveIntakeResult extends InvoiceUploadResult {
+  name: string;
+  url: string;
+  /** The linked folder the file turned out to be in, if any. */
+  in_folder: string | null;
+}
+
+/**
+ * Read one invoice picked off Drive: a pasted link, or a file chosen from a
+ * linked folder's listing (then `folderRowId` says which folder).
+ */
+export async function intakeDriveInvoice(
+  id: string,
+  ref: string,
+  folderRowId?: string,
+): Promise<DriveIntakeResult> {
+  const { data } = await apiClient.post<DriveIntakeResult>(
+    `/budgets/${id}/invoices/from-drive`,
+    { ref, folder_row_id: folderRowId ?? null },
+  );
+  return data;
+}
+
+export interface FolderFile {
+  id: string;
+  name: string;
+  mime: string;
+  url: string;
+  modified: string;
+  supported: boolean;
+  /** What the scans made of it; null when it has not been read yet. */
+  status: "suggested" | "already_suggested" | "no_amount" | "error" | null;
+  amount: number | null;
+  vendor: string | null;
+}
+
+export async function listBudgetFolderFiles(
+  id: string,
+  folderRowId: string,
+): Promise<FolderFile[]> {
+  const { data } = await apiClient.get<FolderFile[]>(
+    `/budgets/${id}/folders/${folderRowId}/files`,
   );
   return data;
 }

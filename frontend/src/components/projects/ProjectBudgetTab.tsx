@@ -114,7 +114,7 @@ function BudgetLedgerPanel({
 
   return (
     <div className="space-y-4 border-t border-slate-200 p-4 dark:border-slate-700">
-      <BudgetSummaryCards budget={data} />
+      <BudgetSummaryCards budget={data} bank />
 
       {data.references.length > 0 && (
         <section className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
