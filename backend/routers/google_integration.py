@@ -3,6 +3,7 @@ Google Workspace integration router.
 """
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -17,6 +18,8 @@ from models.db.user import User
 from services import email_contacts as ec
 from services import google_service as gs
 from services.embeddings.service import EmbeddingService, get_embedding_service_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/google", tags=["google"])
 
@@ -511,6 +514,43 @@ class GmailDraftSelectedRequest(BaseModel):
     thread_ids: list[str] = []
 
 
+async def _calendar_block(days_ahead: int = 14) -> str:
+    """The next two weeks of the user's calendar, for a one-shot drafter that
+    has no tools. Empty when Google is not connected or the read fails: the
+    draft then says nothing about availability rather than something wrong."""
+    import asyncio
+    from datetime import datetime
+
+    if not gs.get_credentials():
+        return ""
+    try:
+        events = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: gs.calendar_events(0, days_ahead)
+        )
+    except Exception as exc:  # noqa: BLE001 - availability is a nicety, not the draft
+        logger.info("Calendar read for email draft failed: %s", exc)
+        return ""
+    today = datetime.now().astimezone()
+    lines = [
+        f"\n\nTHE USER'S CALENDAR, today ({today.strftime('%A %Y-%m-%d')}) through the next "
+        f"{days_ahead} days (times as stored, with their UTC offsets):"
+    ]
+    if not events:
+        lines.append("  (nothing booked)")
+    for e in events[:80]:
+        if "T" in e["start"]:
+            lines.append(f"  - {e['start']} to {e['end']}: {e['title']}")
+        else:
+            lines.append(f"  - {e['start']} (all day, does not block meetings): {e['title']}")
+    lines.append(
+        "If the reply proposes, confirms or declines a meeting time, use this: offer "
+        "only days and times with nothing booked, and name them specifically. Never say "
+        "you cannot see the calendar, and never leave a placeholder time or a note "
+        "asking the user to check availability."
+    )
+    return "\n".join(lines)
+
+
 async def _llm_draft_reply(
     *, thread: dict, instruction: str | None, db: AsyncSession, signature: str = "",
     voice: str = "",
@@ -538,10 +578,12 @@ async def _llm_draft_reply(
         "You are an executive assistant at Precisian Medical Instruments (PMI), a "
         "medical device startup. Draft a reply to the most recent message in the "
         "email thread below. Write a professional, concise reply."
-        f"{await get_company_context_for_prompt(db)}\n\n"
+        f"{await get_company_context_for_prompt(db)}"
+        f"{await _calendar_block()}\n\n"
         f"EMAIL THREAD (oldest to newest):\n{transcript}{guidance}{voice}\n\n"
         f"Write ONLY the reply body (salutation through closing). Do not include a "
-        f"Subject line. {closing}"
+        f"Subject line, and do not add notes, assumptions or questions for the user "
+        f"after the closing. {closing}"
     )
     try:
         client = await get_llm_client(db, task="emails")
@@ -588,7 +630,8 @@ async def _llm_draft_compose(
     prompt = (
         "You are an executive assistant at Precisian Medical Instruments (PMI), a "
         f"medical device startup. Write a new {tone} email."
-        f"{await get_company_context_for_prompt(db)}\n\n"
+        f"{await get_company_context_for_prompt(db)}"
+        f"{await _calendar_block()}\n\n"
         f"Recipient: {recipient}\nWhat the email needs to say: {instruction}{kp}{voice}\n\n"
         f"{subj_line}\n"
         'Return ONLY a JSON object: {"subject": "...", "body": "..."} where "body" '

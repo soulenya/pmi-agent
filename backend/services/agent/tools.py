@@ -277,6 +277,9 @@ TOOL_DEFINITIONS: list[dict] = [
                 "state is taken immediately, so later Drive edits never alter the attachment. "
                 "Native Google Docs/Sheets/Slides are exported to .docx/.xlsx/.pptx; everything "
                 "else (PDF, Word, images) is attached byte-for-byte. "
+                "SCHEDULING: if the email proposes, confirms or declines a meeting time, call "
+                "get_calendar_events for the relevant days FIRST and offer only free slots — never "
+                "a placeholder time with a note that you could not check the calendar. "
                 "Only use request_approval(intent_type='send_email') instead when the user explicitly "
                 "asks you to SEND an email right now."
             ),
@@ -1432,9 +1435,14 @@ TOOL_DEFINITIONS: list[dict] = [
         "function": {
             "name": "get_calendar_events",
             "description": (
-                "ONLY call this when the user explicitly asks to check their calendar, "
-                "see upcoming meetings, or asks what is scheduled. "
-                "Do NOT call proactively or for general greetings."
+                "Read the user's Google Calendar for a date range. Call this whenever "
+                "availability matters: the user asks what is scheduled, or an email or "
+                "message you are drafting proposes, confirms or declines a meeting time, "
+                "or asks whether they are free. Check it BEFORE suggesting any day or time "
+                "in a draft, and propose only slots with nothing booked. You DO have "
+                "calendar access through this tool — never tell the user you cannot see "
+                "their calendar; if the tool reports Google is disconnected, say that. "
+                "Do not call it for greetings or unrelated questions."
             ),
             "parameters": {
                 "type": "object",
