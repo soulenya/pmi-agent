@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 264;
-export const BUILD_DATE = "2026-09-13";
+export const BUILD_NUMBER = 265;
+export const BUILD_DATE = "2026-09-14";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 265,
+    date: "2026-09-14",
+    title: "Email drafts check the calendar",
+    changes: [
+      "When a reply or a new email proposes, confirms or declines a meeting time, Gerry now reads the next two weeks of your calendar first and offers specific free slots. Until now she wrote a placeholder time and a note saying she could not see your calendar — she could, but the calendar tool was told to stay quiet unless you asked about your schedule. Applies to 'Let Gerry draft' in the inbox, new emails, the Email Drafts page and drafts written in chat.",
+    ],
+  },
   {
     build: 264,
     date: "2026-09-13",

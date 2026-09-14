@@ -916,7 +916,7 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 
 - **Reply** or **Reply all** (Reply all pre-fills the other recipients as Cc) directly from a thread. Your own addresses are never included — including any **send-as alias** on your account, so mail sent to an alias doesn't Cc you back into your own reply.
 - **Forward** sends the newest message in the thread on to someone else. Add a note of your own at the top; the original is quoted underneath and its **attachments are carried across** (untick the box if you'd rather send just the text).
-- You can also ask Little Gerry to draft a reply — the draft appears **right in the thread** for you to approve, edit, or reject before anything is sent.
+- You can also ask Little Gerry to draft a reply — the draft appears **right in the thread** for you to approve, edit, or reject before anything is sent. If the reply is about setting up a meeting, she reads the next two weeks of your calendar first and proposes specific free times; the same goes for new emails and drafts written in chat.
 
 ### Other actions
 

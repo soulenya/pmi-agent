@@ -4,6 +4,32 @@
 
 ## Changelog
 
+### v5.2.2 · build 265 — 2026-09-14
+**Email drafts check the calendar**
+
+Field report: a drafted reply ended "I don't have access to a live calendar
+feed for Morgan Keane in this session … Thursday afternoon as a placeholder".
+Two causes. In chat, `get_calendar_events`' description said "ONLY call this
+when the user explicitly asks to check their calendar … Do NOT call
+proactively", so the model obeyed and then reported no access. The one-shot
+drafters (`_llm_draft_reply` / `_llm_draft_compose` in
+`routers/google_integration.py`, `_llm_draft_email` in `routers/emails.py`)
+have no tools at all and nothing about the calendar in their prompt.
+
+- `get_calendar_events` description (tools.py + v2 `_TOOL_DOCS`): call
+  whenever availability matters, BEFORE proposing a time in a draft, offer
+  only free slots, never claim no calendar access. `create_email_draft`
+  description gains a SCHEDULING paragraph saying the same.
+- New `_calendar_block(days_ahead=14)` in google_integration.py: the next two
+  weeks of `gs.calendar_events` as one prompt block (all-day events marked
+  "does not block meetings"), empty when Google is disconnected or the read
+  fails. Appended to all three one-shot prompts. The reply prompt also forbids
+  notes/assumptions after the closing.
+- Verified with the real LLM against the real calendar: a "30 minutes toward
+  the end of this week" request drafted "Thursday, September 17 at 2:00 PM ET
+  or Friday, September 18 at 1:00 PM ET", avoiding the booked Exec Meeting
+  (Thu 12–13) and Miller <> Keane (Fri 10–11); no access disclaimer.
+
 ### v5.2.1 · build 264 — 2026-09-13
 **Edit a shared project's budget from its own tab**
 
