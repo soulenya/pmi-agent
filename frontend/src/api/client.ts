@@ -9,11 +9,36 @@ export const apiClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// ── Request interceptor: attach access token ─────────────────────────────────
+// ── Where we are ───────────────────────────────────────────────────────────────────
+// Shared work is addressed as /hub/api/<path>, which on a desktop is a proxy
+// to the hub. When this app IS the hub there is no proxy: the same rows are
+// served at <path>. Remembered across reloads so the first requests of a
+// session are already right.
+const ON_HUB_KEY = "lg.onHub";
+let onHub = typeof localStorage !== "undefined" && localStorage.getItem(ON_HUB_KEY) === "1";
+
+export function setOnHub(value: boolean): void {
+  onHub = value;
+  try {
+    if (value) localStorage.setItem(ON_HUB_KEY, "1");
+    else localStorage.removeItem(ON_HUB_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+export function isOnHub(): boolean {
+  return onHub;
+}
+
+// ── Request interceptor: attach access token ─────────────────────────────────────
 apiClient.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  if (onHub && config.url && /^\/hub\/api(\/|$)/.test(config.url)) {
+    config.url = config.url.slice("/hub/api".length) || "/";
   }
   return config;
 });

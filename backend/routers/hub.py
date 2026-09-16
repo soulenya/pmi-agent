@@ -66,6 +66,9 @@ class HubStatus(BaseModel):
     hub_url: str
     email: str | None = None
     last_error: str | None = None
+    # True when this app IS the hub: the browser is already on it, so shared
+    # work is served from here and nothing is proxied.
+    here: bool = False
 
 
 def _hub_url(requested: str | None = None) -> str:
@@ -93,10 +96,20 @@ def _guard_desktop() -> None:
 
 @router.get("/status", response_model=HubStatus)
 async def hub_status(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> HubStatus:
-    _guard_desktop()
+    if settings.hub_mode:
+        # A browser on the hub used to be told 404 here, which the app read as
+        # "not connected" and switched off everything shared.
+        return HubStatus(
+            available=True,
+            connected=True,
+            hub_url=(settings.hub_url or str(request.base_url)).rstrip("/"),
+            email=current_user.email,
+            here=True,
+        )
     await hub.ensure_client_file()
     configured = hub.configured()
     link = await hub.get_link(db, current_user.id)
@@ -242,7 +255,11 @@ async def hub_proxy(
     current_user: User = Depends(get_current_user),
 ) -> Response:
     """Pass a shared-workspace call through to the hub and hand back its answer."""
-    _guard_desktop()
+    if settings.hub_mode:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This is the hub: call the path directly, without /hub/api.",
+        )
     target = _check_path(path)
 
     body: object | None = None
@@ -294,8 +311,20 @@ async def sync_conversation(
     put Gerry in the one place with no knowledge base, no Drive token and no
     Gmail; she works here instead, on this copy, and the hub is reconciled
     around each turn. Call it before opening the conversation.
+
+    On the hub itself there is nothing to copy: the conversation is already
+    here, so this just confirms it can be read.
     """
-    _guard_desktop()
+    if settings.hub_mode:
+        from routers.conversations import conversation_for
+
+        conv = await conversation_for(db, conversation_id, current_user.id)
+        if conv is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="That conversation is not yours to read.",
+            )
+        return {"id": str(conv.id), "title": conv.title}
     from services.hub import conv_sync
 
     conv = await conv_sync.sync(db, current_user.id, conversation_id)

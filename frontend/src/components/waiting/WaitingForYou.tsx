@@ -43,7 +43,7 @@ import {
   markNotificationRead,
 } from "@/api/chat";
 import { ApprovalCard, useResolveApproval } from "@/components/approvals/ApprovalCard";
-import { useHubConnected } from "@/hooks/useAllWork";
+import { useHubRemote } from "@/hooks/useAllWork";
 import { formatAgo } from "@/lib/formatWhen";
 import { SUGGESTION_KIND_META, stripRoomPrefix } from "@/lib/suggestionKinds";
 import { cn } from "@/lib/utils";
@@ -71,7 +71,7 @@ export function apiErrorText(e: unknown, fallback: string): string {
  * means it is simply absent.
  */
 function useAllNotifications() {
-  const hub = useHubConnected();
+  const hub = useHubRemote();
   const local = useQuery({
     queryKey: ["notifications"],
     queryFn: listNotifications,

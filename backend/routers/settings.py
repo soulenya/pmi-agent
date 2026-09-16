@@ -591,6 +591,23 @@ async def system_notices(
 
     notices: list[dict] = []
 
+    # 0. Where you are. On the hub the shared work is all here, and the personal
+    #    half of the app is on the person's own computer - say so once, or the
+    #    missing budgets and knowledge base read as breakage.
+    if app_settings.hub_mode:
+        notices.append({
+            "id": "on_hub",
+            "severity": "info",
+            "title": "You're on the hub",
+            "message": (
+                "Shared projects, their tasks, budgets and chats, and Team are all here. "
+                "Your personal budgets, knowledge base, chat history and Odoo connection "
+                "live on your own computer, so they are not shown here. Connect your "
+                "Google account under Settings to use Drive, Gmail and Calendar from here."
+            ),
+            "route": "/settings?tab=connections",
+        })
+
     # 1. Google Workspace connectivity
     try:
         from services.google_service import get_credentials

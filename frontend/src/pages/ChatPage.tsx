@@ -31,7 +31,7 @@ import { deleteDocument } from "@/api/documents";
 import { grantDriveEdit } from "@/api/google";
 import { useVoiceMode } from "@/hooks/useVoiceMode";
 import { VoiceBanner } from "@/components/chat/VoiceBanner";
-import { useHubConnected } from "@/hooks/useAllWork";
+import { useHubRemote } from "@/hooks/useAllWork";
 import { useAuthStore } from "@/stores/authStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
 import { cn } from "@/lib/utils";
@@ -271,7 +271,8 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
 
   // Shared projects keep their chat on the hub; list those too, so a hub
   // conversation is not a dead end you can only leave through the project.
-  const hubConnected = useHubConnected();
+  // On the hub itself they are already in the list above.
+  const hubConnected = useHubRemote();
   const { data: hubConversations = [] } = useQuery({
     queryKey: ["hub", "conversations"],
     queryFn: () => listConversations("hub"),

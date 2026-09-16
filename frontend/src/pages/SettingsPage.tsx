@@ -2532,8 +2532,21 @@ function HubSection() {
     }
   };
 
-  // On the hub itself the endpoint is absent, and there is nothing to connect to.
+  // A desktop without a hub address has nothing to connect to.
   if (!isLoading && !status) return null;
+
+  if (status?.here) {
+    return (
+      <Section id="hub" icon={Wifi} title="The hub" description={`You are on the hub as ${status.email}`} revision="1">
+        <p className="text-sm text-muted-foreground">
+          This is the hub. Shared projects, their tasks, budgets and chats, and Team are
+          all here. Your personal budgets, knowledge base, chat history and Odoo
+          connection live on your own computer and are not shown here. To use Drive,
+          Gmail and Calendar from the hub, connect your Google account above.
+        </p>
+      </Section>
+    );
+  }
 
   return (
     <Section

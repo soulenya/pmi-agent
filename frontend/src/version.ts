@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 265;
-export const BUILD_DATE = "2026-09-14";
+export const BUILD_NUMBER = 266;
+export const BUILD_DATE = "2026-09-16";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 266,
+    date: "2026-09-16",
+    title: "The hub works from a browser",
+    changes: [
+      "Open the hub's address while travelling and the app now knows it is on the hub. Team chat, hub notifications, the Projects page, Tasks, Calendar, Today and search all work there; until now the app decided it was 'not connected to the hub' and switched all of that off, with errors on most pages.",
+      "A notice on the hub says what is and is not there: shared projects, their budgets and chats and Team are on the hub; your personal budgets, knowledge base, chat history and Odoo connection stay on your own computer. Settings → The hub reads 'You are on the hub'.",
+      "New projects made on the hub go on the hub, with no 'where should this live' question.",
+    ],
+  },
   {
     build: 265,
     date: "2026-09-14",

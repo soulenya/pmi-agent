@@ -837,6 +837,12 @@ If a project you expected isn't listed, either it hasn't been shared with you or
 
 Shared work is read from the hub every time it's drawn on screen. There is no local copy to fall out of date, and **Disconnect** leaves nothing from the hub on your computer.
 
+### Using the hub from a browser
+
+Away from your own computer, open the hub's address in any browser and sign in with your work Google account. You get the shared half of Little Gerry: every project on the hub with its tasks, timeline, canvas, budget and chat, **Team** for talking to colleagues, and the Waiting-for-you list of hub notifications. The Projects page lists hub projects only, and a new project made there goes on the hub.
+
+What is *not* there is anything kept on your own computer: your personal budgets, the knowledge base, your chat history with Gerry, Odoo, meeting capture. A notice at the top says so on your first visit, and **Settings → The hub** reads *You are on the hub*. To use Drive, Gmail and Calendar from the hub, connect your Google account under **Settings → Google Workspace** — that grant is yours alone and separate from the one on your PC.
+
 ### Work made in a shared project stays there
 
 Anything created inside a **shared** or **company** project is held by that project from the moment it exists. While it is held:
