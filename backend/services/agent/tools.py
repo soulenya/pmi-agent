@@ -3410,6 +3410,15 @@ async def execute_fetch_page(ctx: ToolContext, args: dict[str, Any]) -> str:
 # ── Google Workspace tool executors ───────────────────────────────────────────
 
 def _google_not_connected() -> str:
+    from config import settings as _settings
+
+    if _settings.hub_mode:
+        # Grants on the hub are per person; the one on their PC does not carry over.
+        return (
+            "Your Google account is not connected on the hub (the grant on your own "
+            "computer does not apply here). Ask the user to connect it via Settings → "
+            "Google Workspace on the hub."
+        )
     return (
         "Google account is not connected. "
         "Ask the user to connect Google via Settings → Google Integration."

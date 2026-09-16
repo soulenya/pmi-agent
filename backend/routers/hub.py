@@ -299,6 +299,55 @@ async def hub_proxy(
     )
 
 
+@router.post("/budgets/push")
+async def push_budgets(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Send every budget this person owns up to the hub, so all of them are
+    there when they open the hub from a browser away from this computer.
+
+    Only the row and its cached figures travel; the sheet stays on Drive and is
+    read there under whichever Google grant is doing the reading. Repeating
+    this updates the copies rather than duplicating them.
+    """
+    _guard_desktop()
+    from sqlalchemy import select
+
+    from models.db.budget import Budget
+
+    rows = (
+        await db.execute(select(Budget).where(Budget.user_id == current_user.id))
+    ).scalars().all()
+    pushed = 0
+    failed: list[str] = []
+    for b in rows:
+        body = {
+            "title": b.title,
+            "drive_file_id": b.drive_file_id,
+            "drive_url": b.drive_url or "",
+            "allotment": float(b.allotment) if b.allotment is not None else None,
+            "currency": b.currency,
+            "external_readonly": b.external_readonly,
+            "cached_ledger": b.cached_ledger or [],
+            "cached_categories": b.cached_categories or [],
+            "cached_summary": b.cached_summary or {},
+        }
+        try:
+            resp = await hub.request(db, current_user.id, "POST", "/budgets/mirror", json_body=body)
+        except hub.HubNotConnected as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        except hub.HubError as exc:
+            failed.append(f"{b.title}: {exc}")
+            continue
+        if resp.status_code < 300:
+            pushed += 1
+        else:
+            failed.append(f"{b.title}: hub answered {resp.status_code}")
+    await db.commit()
+    return {"pushed": pushed, "failed": failed}
+
+
 @router.post("/conversations/{conversation_id}/sync")
 async def sync_conversation(
     conversation_id: _uuid.UUID,

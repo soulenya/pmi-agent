@@ -600,10 +600,10 @@ async def system_notices(
             "severity": "info",
             "title": "You're on the hub",
             "message": (
-                "Shared projects, their tasks, budgets and chats, and Team are all here. "
-                "Your personal budgets, knowledge base, chat history and Odoo connection "
-                "live on your own computer, so they are not shown here. Connect your "
-                "Google account under Settings to use Drive, Gmail and Calendar from here."
+                "Shared projects, their tasks, budgets and chats, Team, and Gerry are all here. "
+                "The knowledge base on your own computer, your chat history there and Odoo "
+                "are not. Connect your Google account under Settings to use Drive, Gmail and "
+                "Calendar from here."
             ),
             "route": "/settings?tab=connections",
         })
@@ -616,12 +616,19 @@ async def system_notices(
             notices.append({
                 "id": "google_disconnected",
                 "severity": "warning",
-                "title": "Google Workspace is not connected",
+                "title": (
+                    "Your Google account is not connected on the hub"
+                    if app_settings.hub_mode
+                    else "Google Workspace is not connected"
+                ),
                 "message": (
-                    "Email, calendar, Drive, budgets and document sync are offline "
+                    "Gmail, Calendar, Drive and budgets on the hub use a grant of your own; "
+                    "the one on your computer does not carry over. Connect it here once."
+                    if app_settings.hub_mode
+                    else "Email, calendar, Drive, budgets and document sync are offline "
                     "until Google is reconnected."
                 ),
-                "route": "/settings",
+                "route": "/settings?tab=connections" if app_settings.hub_mode else "/settings",
             })
     except Exception:
         pass

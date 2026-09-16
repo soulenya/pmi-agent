@@ -783,6 +783,16 @@ def create_app() -> FastAPI:
             await websocket.accept()
             logger.info("WebSocket connected: user=%s conversation=%s", user.id, conversation_id)
 
+            if settings.hub_mode:
+                # HTTP requests get this from get_current_user; a socket does
+                # not go through that dependency. Without it every Google call
+                # in the turn resolves to nobody's grant and Gerry reports
+                # "Google isn't connected" to a person who connected it.
+                from services import google_user_creds
+
+                google_user_creds.bind_user(user.id)
+                await google_user_creds.load_into_cache(db, user.id)
+
             # Verify conversation belongs to user
             import uuid as uuid_mod
             try:

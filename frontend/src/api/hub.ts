@@ -41,6 +41,16 @@ export async function disconnectHub(): Promise<void> {
 }
 
 /**
+ * Send every budget this person owns up to the hub, so all of them are there
+ * when the hub is opened from a browser away from this computer. The rows and
+ * cached figures travel; the sheets stay on Drive.
+ */
+export async function pushBudgetsToHub(): Promise<{ pushed: number; failed: string[] }> {
+  const resp = await apiClient.post<{ pushed: number; failed: string[] }>("/hub/budgets/push");
+  return resp.data;
+}
+
+/**
  * Take a local copy of a shared project's chat and bring it up to date.
  *
  * Gerry answers from this machine, where the knowledge base and the Google

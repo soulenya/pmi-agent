@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 266;
+export const BUILD_NUMBER = 267;
 export const BUILD_DATE = "2026-09-16";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 267,
+    date: "2026-09-16",
+    title: "Gerry works on the hub (travel mode, phase 2)",
+    changes: [
+      "Chat with Gerry from a browser on the hub and she uses your own Google account there for Gmail, Drive and Calendar. She could already answer on the hub, but every Google call was made as nobody, so she told you Google was not connected when it was.",
+      "Every budget you own is copied to the hub — when you open the Budgets page or change a budget here, and from Settings → The hub → Send my budgets to the hub — so they are all there when you travel, not only the ones attached to a project.",
+      "On the hub, a missing Google grant is explained as what it is: the grant on your computer does not carry over; connect once on the hub.",
+    ],
+  },
   {
     build: 266,
     date: "2026-09-16",

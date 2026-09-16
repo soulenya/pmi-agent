@@ -55,7 +55,7 @@ import {
 } from "@/api/writingVoice";
 import { listExtractionSchemas, saveExtractionSchemas } from "@/api/extractions";
 import { listDriveEditGrants, revokeDriveEdit } from "@/api/google";
-import { connectHub, disconnectHub, getHubStatus } from "@/api/hub";
+import { connectHub, disconnectHub, getHubStatus, pushBudgetsToHub } from "@/api/hub";
 import { AgentsPage } from "@/pages/AgentsPage";
 import { BackupsPage } from "@/pages/BackupsPage";
 import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
@@ -2501,6 +2501,22 @@ function HubSection() {
     qc.invalidateQueries({ queryKey: ["hub"] });
   };
 
+  const pushBudgets = async () => {
+    setBusy(true);
+    try {
+      const r = await pushBudgetsToHub();
+      setMessage(
+        r.failed.length
+          ? `${r.pushed} budget(s) sent to the hub; ${r.failed.length} could not be: ${r.failed.join("; ")}`
+          : `${r.pushed} budget(s) sent to the hub. They are there when you open the hub from a browser.`,
+      );
+    } catch (err) {
+      setMessage(apiErrorMessage(err, "The budgets could not be sent to the hub."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const connect = async () => {
     setBusy(true);
     setMessage("A browser window has opened. Sign in there with your work account.");
@@ -2512,6 +2528,7 @@ function HubSection() {
           : (result.message ?? "Sign-in failed."),
       );
       refresh();
+      if (result.status === "success") void pushBudgetsToHub().catch(() => undefined);
     } catch (err) {
       setMessage(apiErrorMessage(err, "The hub sign-in could not be started."));
     } finally {
@@ -2539,10 +2556,10 @@ function HubSection() {
     return (
       <Section id="hub" icon={Wifi} title="The hub" description={`You are on the hub as ${status.email}`} revision="1">
         <p className="text-sm text-muted-foreground">
-          This is the hub. Shared projects, their tasks, budgets and chats, and Team are
-          all here. Your personal budgets, knowledge base, chat history and Odoo
-          connection live on your own computer and are not shown here. To use Drive,
-          Gmail and Calendar from the hub, connect your Google account above.
+          This is the hub. Shared projects, their tasks, budgets and chats, Team and Gerry
+          are all here. The knowledge base on your own computer, your chat history there
+          and Odoo are not. To use Drive, Gmail and Calendar from the hub, connect your
+          Google account above.
         </p>
       </Section>
     );
@@ -2584,15 +2601,26 @@ function HubSection() {
 
       <div className="flex items-center gap-2">
         {status?.connected ? (
-          <button
-            type="button"
-            onClick={disconnect}
-            disabled={busy}
-            className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-            Disconnect
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={disconnect}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+              Disconnect
+            </button>
+            <button
+              type="button"
+              onClick={pushBudgets}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+              title="Copy every budget you own to the hub, so they are there when you open the hub from a browser"
+            >
+              Send my budgets to the hub
+            </button>
+          </>
         ) : (
           <button
             type="button"
