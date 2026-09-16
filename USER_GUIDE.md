@@ -841,7 +841,11 @@ Shared work is read from the hub every time it's drawn on screen. There is no lo
 
 Away from your own computer, open the hub's address in any browser and sign in with your work Google account. You get the shared half of Little Gerry: every project on the hub with its tasks, timeline, canvas, budget and chat, **Team** for talking to colleagues, and the Waiting-for-you list of hub notifications. The Projects page lists hub projects only, and a new project made there goes on the hub.
 
-What is *not* there is anything kept on your own computer: your personal budgets, the knowledge base, your chat history with Gerry, Odoo, meeting capture. A notice at the top says so on your first visit, and **Settings → The hub** reads *You are on the hub*. To use Drive, Gmail and Calendar from the hub, connect your Google account under **Settings → Google Workspace** — that grant is yours alone and separate from the one on your PC.
+What is *not* there is anything kept on your own computer: your personal budgets that have not been sent up, the knowledge base on your PC, your chat history with Gerry, Odoo, meeting capture. A notice at the top says so on your first visit, and **Settings → The hub** reads *You are on the hub*. To use Drive, Gmail and Calendar from the hub, connect your Google account under **Settings → Google Workspace** — that grant is yours alone and separate from the one on your PC.
+
+**Gerry on the hub.** Chat works there too, with your own Google grant for Gmail, Drive and Calendar, the hub's projects and its knowledge base. She has no access to what is on your PC.
+
+**Your budgets on the hub.** Every budget you own is copied to the hub whenever you open the Budgets page or change a budget on your PC, and from **Settings → The hub → Send my budgets to the hub**. On the hub they read and write the same Google Sheets under your hub grant.
 
 ### Work made in a shared project stays there
 

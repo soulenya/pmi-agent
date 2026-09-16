@@ -8,7 +8,7 @@
  * gated by the per-budget permission toggle. Not an official budget center.
  */
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
@@ -41,6 +41,8 @@ import {
   money,
 } from "@/components/budgets/BudgetLedger";
 import { InvoiceIntake } from "@/components/budgets/InvoiceIntake";
+import { pushBudgetsToHub } from "@/api/hub";
+import { useHubRemote } from "@/hooks/useAllWork";
 import { useToastStore } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +62,18 @@ export function BudgetsPage() {
     queryFn: () => listBudgets(),
   });
 
+  // The hub holds a copy of every budget so they are there when you open the
+  // hub from a browser while travelling. Sent when this page loads and after
+  // each change here; quietly, because it is housekeeping, not a result.
+  const hubRemote = useHubRemote();
+  const pushToHub = useCallback(() => {
+    if (!hubRemote) return;
+    void pushBudgetsToHub().catch(() => undefined);
+  }, [hubRemote]);
+  useEffect(() => {
+    pushToHub();
+  }, [pushToHub]);
+
   const { data: budget } = useQuery({
     queryKey: ["budget", selectedId],
     queryFn: () => getBudget(selectedId!),
@@ -72,6 +86,7 @@ export function BudgetsPage() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["budgets"] });
     if (selectedId) qc.invalidateQueries({ queryKey: ["budget", selectedId] });
+    pushToHub();
   };
 
   const createMutation = useMutation({

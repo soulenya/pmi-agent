@@ -4,6 +4,32 @@
 
 ## Changelog
 
+### v5.4.0 · build 267 — 2026-09-16
+**Gerry works on the hub (travel mode, phase 2)**
+
+Audit of the real hub first: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` and
+`GOOGLE_WEB_CLIENT_JSON` are set; 3 users, 1 Google grant (Morgan's), 338 KB
+documents (332 `google_drive`), 6 projects, 1 mirrored budget, 0 Odoo rows.
+A live chat turn over the websocket through IAP as Morgan answered fine —
+Gerry already runs on the hub — but said "Google isn't connected here" while
+`GET /api/google/status` on the hub said connected.
+
+- **Cause:** `ws_chat` authenticates the socket itself and never called
+  `google_user_creds.bind_user()` / `load_into_cache()`, which only
+  `get_current_user` (HTTP) does. Every Google call in a chat turn on the hub
+  resolved to nobody's grant. Fixed in `main.py ws_chat` under `hub_mode`.
+- `_google_not_connected()` (tools) and the `google_disconnected` notice say,
+  on the hub, that the grant on your computer does not carry over and route
+  to the hub's Connections tab.
+- New desktop endpoint `POST /hub/budgets/push`: every owned `Budget` row →
+  hub `/budgets/mirror` (idempotent on user + drive_file_id). Called quietly
+  from the Budgets page on load and after each change when the hub is remote,
+  after a successful hub connect, and from Settings → The hub → *Send my
+  budgets to the hub*. Verified against the real hub: pushed 1, hub lists
+  CLIN 001 $197.06.
+- Plan: `HUB-AS-RECORD-PLAN.md` (gitignored). Phases 3 (identity, bulk move,
+  per-user Odoo) and 4 (PWA) not started. No offline mode, by decision.
+
 ### v5.3.0 · build 266 — 2026-09-16
 **The hub works from a browser (travel mode, phase 1)**
 
