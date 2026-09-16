@@ -33,7 +33,7 @@ import { getPortfolio } from "@/api/projectLinks";
 import type { Source } from "@/api/tasks";
 import type { PortfolioEdge, PortfolioNode, ProjectLinkKind } from "@/types/tasks";
 import { HubBadge } from "@/components/HubBadge";
-import { projectSpacePath, useHubConnected } from "@/hooks/useAllWork";
+import { projectSpacePath, useHubConnected, useHubHere } from "@/hooks/useAllWork";
 import { cn } from "@/lib/utils";
 
 const COL_WIDTH = 300;
@@ -151,33 +151,36 @@ function columns(projects: PortfolioNode[], links: PortfolioEdge[]): Map<string,
 function PortfolioGraph() {
   const navigate = useNavigate();
   const hubConnected = useHubConnected();
+  const here = useHubHere();
   const local = useQuery({
     queryKey: ["portfolio", "local"],
     queryFn: () => getPortfolio(),
+    enabled: !here,
   });
   // Your real projects live on the hub; a graph that only asked this computer
-  // could not show them at all.
+  // could not show them at all. On the hub itself they are the only half.
   const hub = useQuery({
     queryKey: ["portfolio", "hub"],
     queryFn: () => getPortfolio("hub"),
     enabled: hubConnected,
     retry: false,
   });
-  const isLoading = local.isLoading || (hubConnected && hub.isLoading);
-  const isError = local.isError;
+  const isLoading = (!here && local.isLoading) || (hubConnected && hub.isLoading);
+  const isError = here ? hub.isError : local.isError;
 
   const data = useMemo(() => {
-    if (!local.data) return undefined;
+    const base = here ? hub.data : local.data;
+    if (!base) return undefined;
     const projects = [
-      ...local.data.projects.map(p => ({ ...p, source: "local" as Source })),
+      ...(here ? [] : local.data?.projects ?? []).map(p => ({ ...p, source: "local" as Source })),
       ...(hub.data?.projects ?? []).map(p => ({ ...p, source: "hub" as Source })),
     ];
     const links = [
-      ...local.data.links.map(l => ({ ...l, id: `local:${l.id}` })),
+      ...(here ? [] : local.data?.links ?? []).map(l => ({ ...l, id: `local:${l.id}` })),
       ...(hub.data?.links ?? []).map(l => ({ ...l, id: `hub:${l.id}` })),
     ];
     return { projects, links };
-  }, [local.data, hub.data]);
+  }, [local.data, hub.data, here]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<ProjectNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);

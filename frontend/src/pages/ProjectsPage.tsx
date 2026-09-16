@@ -252,17 +252,20 @@ function EditProjectModal({
 function NewProjectForm({
   onClose,
   hubConnected,
+  hubHere = false,
 }: {
   onClose: () => void;
   hubConnected: boolean;
+  /** The browser is on the hub, so there is only one place a project can go. */
+  hubHere?: boolean;
 }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#1e6db5");
   const [targetDate, setTargetDate] = useState("");
-  const [destination, setDestination] = useState<Source>("local");
-  const [visibility, setVisibility] = useState<ProjectVisibility>("private");
+  const [destination, setDestination] = useState<Source>(hubHere ? "hub" : "local");
+  const [visibility, setVisibility] = useState<ProjectVisibility>(hubHere ? "shared" : "private");
 
   const mutation = useMutation({
     mutationFn: (body: ProjectCreate) => createProject(body, destination),
@@ -338,7 +341,7 @@ function NewProjectForm({
       </div>
 
       {/* Where it lives. Only worth asking when there is more than one answer. */}
-      {hubConnected && (
+      {hubConnected && !hubHere && (
         <div className="space-y-1.5">
           <label className="text-xs text-muted-foreground font-medium">
             Where should this live?
@@ -625,19 +628,6 @@ export function ProjectsPage() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editingHubProject, setEditingHubProject] = useState<Project | null>(null);
 
-  const { data: projects = [], isLoading: projectsLoading } = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => listProjects(false),
-  });
-
-  const { data: allTasks = [] } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: () => listTasks(),
-    staleTime: 30_000,
-  });
-
-  // The hub holds the work the firm shares. It is read over the wire every
-  // time, never copied down, so what is shown here is what the hub says now.
   const { data: hubStatus } = useQuery({
     queryKey: ["hub", "status"],
     queryFn: getHubStatus,
@@ -645,6 +635,21 @@ export function ProjectsPage() {
     retry: false,
   });
   const hubConnected = hubStatus?.connected === true;
+  // On the hub the "local" list is the hub's own database: show it once, as hub work.
+  const hubHere = hubStatus?.here === true;
+
+  const { data: projects = [], isLoading: projectsLoading } = useQuery({
+    queryKey: ["projects"],
+    queryFn: () => listProjects(false),
+    enabled: !hubHere,
+  });
+
+  const { data: allTasks = [] } = useQuery({
+    queryKey: ["tasks"],
+    queryFn: () => listTasks(),
+    staleTime: 30_000,
+    enabled: !hubHere,
+  });
 
   const { data: hubProjects = [], isLoading: hubLoading } = useQuery({
     queryKey: ["hub", "projects"],
@@ -760,11 +765,15 @@ export function ProjectsPage() {
 
       {/* Form */}
       {showForm && (
-        <NewProjectForm onClose={() => setShowForm(false)} hubConnected={hubConnected} />
+        <NewProjectForm
+          onClose={() => setShowForm(false)}
+          hubConnected={hubConnected}
+          hubHere={hubHere}
+        />
       )}
 
       {/* Stats */}
-      {!projectsLoading && projects.length > 0 && (
+      {!hubHere && !projectsLoading && projects.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground">Total Projects</p>
@@ -786,7 +795,7 @@ export function ProjectsPage() {
       )}
 
       {/* Project grid */}
-      {projectsLoading ? (
+      {hubHere ? null : projectsLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
           Loading projects…
         </div>
@@ -813,13 +822,16 @@ export function ProjectsPage() {
 
       {/* What the firm shares, live from the hub */}
       {hubConnected && (
-        <div className="space-y-4 border-t pt-6">
+        <div className={cn("space-y-4", !hubHere && "border-t pt-6")}>
           <div className="flex items-baseline justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Shared on the hub</h2>
+              <h2 className="text-lg font-semibold">
+                {hubHere ? "Projects on the hub" : "Shared on the hub"}
+              </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Signed in as {hubStatus?.email}. This work lives on the hub, not on
-                this computer.
+                {hubHere
+                  ? `Signed in as ${hubStatus?.email}. Projects kept on your own computer are not shown here.`
+                  : `Signed in as ${hubStatus?.email}. This work lives on the hub, not on this computer.`}
               </p>
             </div>
           </div>

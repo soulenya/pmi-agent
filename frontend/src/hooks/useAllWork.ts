@@ -16,21 +16,44 @@ import type { Project, Task } from "@/types/tasks";
 export type SourcedTask = Task & { source: Source };
 export type SourcedProject = Project & { source: Source };
 
-export function useHubConnected(): boolean {
-  const { data } = useQuery({
+export function useHubStatus() {
+  return useQuery({
     queryKey: ["hub", "status"],
     queryFn: getHubStatus,
     staleTime: 60_000,
     retry: false,
   });
+}
+
+/** Shared work can be reached: from a desktop that has signed in, or on the hub itself. */
+export function useHubConnected(): boolean {
+  const { data } = useHubStatus();
   return data?.connected === true;
+}
+
+/**
+ * This browser is on the hub. The "local" and "hub" halves of a merged list
+ * are then the same database, so one of them has to stay quiet.
+ */
+export function useHubHere(): boolean {
+  const { data } = useHubStatus();
+  return data?.here === true;
+}
+
+/** The hub is somewhere else and reachable: worth asking as a second source. */
+export function useHubRemote(): boolean {
+  const { data } = useHubStatus();
+  return data?.connected === true && data?.here !== true;
 }
 
 export function useAllTasks() {
   const hubConnected = useHubConnected();
+  const here = useHubHere();
+  // On the hub every row is a hub row; asking twice would list each one twice.
   const local = useQuery({
     queryKey: ["tasks"],
     queryFn: () => listTasks(),
+    enabled: !here,
   });
   const hub = useQuery({
     queryKey: ["hub", "tasks"],
@@ -45,27 +68,35 @@ export function useAllTasks() {
     queryKey: ["projects", "all"],
     queryFn: () => listProjects(true),
     staleTime: 60_000,
+    enabled: !here,
   });
   const tasks = useMemo<SourcedTask[]>(() => {
     const archived = new Set(
       (localProjects.data ?? []).filter((p) => p.is_archived).map((p) => p.id),
     );
     return [
-      ...(local.data ?? [])
+      ...(here ? [] : local.data ?? [])
         .filter((t) => !t.project_id || !archived.has(t.project_id))
         .map((t) => ({ ...t, source: "local" as Source })),
       ...(hub.data ?? []).map((t) => ({ ...t, source: "hub" as Source })),
     ];
-  }, [local.data, hub.data, localProjects.data]);
-  return { tasks, isLoading: local.isLoading, hubConnected, hubLoading: hub.isLoading };
+  }, [local.data, hub.data, localProjects.data, here]);
+  return {
+    tasks,
+    isLoading: here ? hub.isLoading : local.isLoading,
+    hubConnected,
+    hubLoading: hub.isLoading,
+  };
 }
 
 export function useAllProjects(includeArchived = false) {
   const hubConnected = useHubConnected();
+  const here = useHubHere();
   const local = useQuery({
     queryKey: includeArchived ? ["projects", "all"] : ["projects"],
     queryFn: () => listProjects(includeArchived),
     staleTime: 60_000,
+    enabled: !here,
   });
   const hub = useQuery({
     queryKey: includeArchived ? ["hub", "projects", "all"] : ["hub", "projects"],
@@ -76,12 +107,12 @@ export function useAllProjects(includeArchived = false) {
   });
   const projects = useMemo<SourcedProject[]>(
     () => [
-      ...(local.data ?? []).map((p) => ({ ...p, source: "local" as Source })),
+      ...(here ? [] : local.data ?? []).map((p) => ({ ...p, source: "local" as Source })),
       ...(hub.data ?? []).map((p) => ({ ...p, source: "hub" as Source })),
     ],
-    [local.data, hub.data],
+    [local.data, hub.data, here],
   );
-  return { projects, isLoading: local.isLoading, hubConnected };
+  return { projects, isLoading: here ? hub.isLoading : local.isLoading, hubConnected };
 }
 
 /** Refresh every task list, on this computer and on the hub. */

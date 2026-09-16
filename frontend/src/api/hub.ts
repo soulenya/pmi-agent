@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { apiClient, setOnHub } from "./client";
 
 /** What the desktop knows about its link to the hub. */
 export interface HubStatus {
@@ -8,10 +8,13 @@ export interface HubStatus {
   hub_url: string;
   email: string | null;
   last_error: string | null;
+  /** This app IS the hub: shared work is served from here, nothing is proxied. */
+  here?: boolean;
 }
 
 export async function getHubStatus(): Promise<HubStatus> {
   const resp = await apiClient.get<HubStatus>("/hub/status");
+  setOnHub(resp.data.here === true);
   return resp.data;
 }
 

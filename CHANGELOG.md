@@ -4,6 +4,46 @@
 
 ## Changelog
 
+### v5.3.0 · build 266 — 2026-09-16
+**The hub works from a browser (travel mode, phase 1)**
+
+Field report: signed in to the hub from the road and got "very limited
+capability" — no Team chat, errors everywhere, and the app said it was not
+connected to the hub. Cause: the React app is written as the desktop talking
+to a remote hub. Served BY the hub, `GET /hub/status` answered 404 ("This is
+the hub"), which every page read as *not connected*, and all shared paths
+went through the desktop-only `/hub/api` proxy, which does not exist there.
+
+- `routers/hub.py`: on the hub `/hub/status` returns `connected: true,
+  here: true, email`; `/hub/conversations/{id}/sync` is a no-op that confirms
+  the conversation is readable; the proxy's 404 says to call the path
+  directly.
+- `api/client.ts`: `setOnHub()`/`isOnHub()` (remembered in localStorage
+  `lg.onHub`); the request interceptor strips `/hub/api` from any URL when on
+  the hub, so every existing `at("hub", path)` helper works unchanged.
+  `getHubStatus` sets the flag from `here`.
+- `hooks/useAllWork.ts`: `useHubStatus`, `useHubHere`, `useHubRemote`
+  (connected and not here). `useAllTasks`/`useAllProjects` skip the local
+  half on the hub (same database; rows would appear twice, tagged both ways)
+  and report hub rows only, tagged `hub` so project routes are
+  `/hub/projects/:id/space` with the Team tab. Same in `PortfolioPage`,
+  `ProjectsPage` (single "Projects on the hub" list; `NewProjectForm` gets
+  `hubHere` and defaults to hub/shared with no destination picker),
+  `Omnibar` (hub search only), `WaitingForYou` and `ChatPage` (remote hub
+  half only when the hub is elsewhere).
+- `routers/settings.py` notices: `on_hub` info notice. `SettingsPage`
+  `HubSection`: "You are on the hub as …" with no connect/disconnect.
+- Verified: in-process with `settings.hub_mode=True` (status/proxy/sync/
+  notices); in the browser with `/hub/status` mocked to `here: true` against
+  the desktop backend — Team page loaded channels at `/team/...` with zero
+  `/hub/api` calls, Projects showed one list linking to
+  `/hub/projects/…/space`, project space showed the Team tab, Settings
+  showed the on-hub section; with the mock removed the desktop path was
+  unchanged (proxy calls, flag cleared). Not yet exercised on the real hub
+  behind IAP.
+- Not in this phase: Gerry answering on the hub, and personal data (budgets,
+  KB, chat history) following you. See the plan discussed on 2026-09-16.
+
 ### v5.2.2 · build 265 — 2026-09-14
 **Email drafts check the calendar**
 

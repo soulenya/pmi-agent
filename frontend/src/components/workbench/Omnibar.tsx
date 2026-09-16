@@ -22,7 +22,7 @@ import {
 import { apiClient } from "@/api/client";
 import type { Source } from "@/api/tasks";
 import { HubBadge } from "@/components/HubBadge";
-import { useHubConnected } from "@/hooks/useAllWork";
+import { useHubConnected, useHubHere } from "@/hooks/useAllWork";
 import { RAIL } from "@/lib/workbench";
 import { modLabel } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -110,6 +110,7 @@ async function fetchEverything(q: string, source: Source): Promise<Hit[]> {
 export function Omnibar() {
   const navigate = useNavigate();
   const hubConnected = useHubConnected();
+  const here = useHubHere();
   const inputRef = useRef<HTMLInputElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState("");
@@ -154,7 +155,9 @@ export function Omnibar() {
   const local = useQuery({
     queryKey: ["everything", "local", debounced],
     queryFn: () => fetchEverything(debounced, "local"),
-    enabled: searchable,
+    // On the hub the two searches would read the same rows; keep the hub one
+    // so a hit opens at its hub address.
+    enabled: searchable && !here,
     staleTime: 15_000,
   });
   const hub = useQuery({
