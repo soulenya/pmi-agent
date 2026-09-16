@@ -6,10 +6,12 @@ Binds to 127.0.0.1 only. CORS restricted to Tauri + localhost origins.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 import logging.handlers
 import os
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -636,8 +638,23 @@ async def _hub_client_fetch_once() -> None:
         logger.exception("Hub sign-in client startup fetch error")
 
 
+class _ContextExecutor(ThreadPoolExecutor):
+    """The default executor, carrying the caller's contextvars into the thread.
+
+    `loop.run_in_executor(None, fn)` drops the context; `asyncio.to_thread` does
+    not, but the Google calls throughout the app use the former. On the hub the
+    current user's Google grant lives in a ContextVar, so without this every
+    Drive/Gmail/Calendar call made from a thread ran as nobody.
+    """
+
+    def submit(self, fn, /, *args, **kwargs):
+        ctx = contextvars.copy_context()
+        return super().submit(ctx.run, fn, *args, **kwargs)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    asyncio.get_running_loop().set_default_executor(_ContextExecutor())
     # Verify DB connectivity at startup — retry for up to 30 s so the backend
     # survives a slow Docker/PostgreSQL start after a restart or update.
     for _attempt in range(10):

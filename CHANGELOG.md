@@ -18,6 +18,15 @@ Gerry already runs on the hub — but said "Google isn't connected here" while
   `google_user_creds.bind_user()` / `load_into_cache()`, which only
   `get_current_user` (HTTP) does. Every Google call in a chat turn on the hub
   resolved to nobody's grant. Fixed in `main.py ws_chat` under `hub_mode`.
+- **Second cause, found on the redeploy:** the grant lives in a ContextVar,
+  and `loop.run_in_executor(None, fn)` — which every Google call in tools and
+  budget_service uses — does not carry contextvars into the thread, so
+  `_build()` in the thread still saw nobody (`Calendar fetch failed: Google
+  account not connected`). `main.py` now installs `_ContextExecutor` (a
+  `ThreadPoolExecutor` whose `submit` wraps `fn` in `copy_context().run`) as
+  the loop's default executor at startup. One place; every executor hop in the
+  app now inherits the request's user. Verified on the real hub: a chat turn
+  asking for the calendar returned 10 events.
 - `_google_not_connected()` (tools) and the `google_disconnected` notice say,
   on the hub, that the grant on your computer does not carry over and route
   to the hub's Connections tab.
