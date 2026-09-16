@@ -69,6 +69,26 @@ class HubStatus(BaseModel):
     # True when this app IS the hub: the browser is already on it, so shared
     # work is served from here and nothing is proxied.
     here: bool = False
+    # Who this person is on the hub. Differs from the desktop's own user id.
+    hub_user_id: str | None = None
+
+
+async def _remember_hub_user(db: AsyncSession, link) -> None:
+    """Fill in the hub's id for this person if the link predates the column."""
+    if link is None or link.hub_user_id is not None:
+        return
+    try:
+        resp = await hub.request(db, link.user_id, "GET", "/settings/me")
+    except hub.HubError:
+        return
+    if resp.status_code != 200:
+        return
+    raw = (resp.json() or {}).get("id")
+    try:
+        link.hub_user_id = _uuid.UUID(str(raw))
+    except (ValueError, TypeError):
+        return
+    await db.flush()
 
 
 def _hub_url(requested: str | None = None) -> str:
@@ -113,12 +133,16 @@ async def hub_status(
     await hub.ensure_client_file()
     configured = hub.configured()
     link = await hub.get_link(db, current_user.id)
+    if link is not None:
+        await _remember_hub_user(db, link)
+        await db.commit()
     return HubStatus(
         available=configured,
         connected=link is not None,
         hub_url=(link.hub_url if link else (settings.hub_url or "")),
         email=link.email if link else None,
         last_error=link.last_error if link else None,
+        hub_user_id=str(link.hub_user_id) if link and link.hub_user_id else None,
     )
 
 
@@ -217,6 +241,8 @@ async def connect_poll(
         data["refresh_token"],
     )
     await db.commit()
+    await _remember_hub_user(db, await hub.get_link(db, current_user.id))
+    await db.commit()
     return {"status": "success", "email": data["email"]}
 
 
@@ -297,6 +323,177 @@ async def hub_proxy(
         status_code=resp.status_code,
         media_type=resp.headers.get("content-type"),
     )
+
+
+# ── Moving a person's own work to the hub ────────────────────────────────
+
+MY_TASKS_PROJECT = "My tasks"
+
+
+class MoveAllPreview(BaseModel):
+    projects: list[dict]
+    orphan_tasks: int
+    orphan_open: int
+
+
+class MoveAllResult(BaseModel):
+    moved: list[dict]
+    tasks_moved: int
+    failed: list[str]
+
+
+class MoveAllRequest(BaseModel):
+    """Everything by default; a subset when `project_ids` is given."""
+
+    project_ids: list[_uuid.UUID] | None = None
+    include_orphans: bool = True
+
+
+async def _movable_projects(db: AsyncSession, user_id: _uuid.UUID) -> list:
+    from sqlalchemy import select
+
+    from models.db.task import Project
+    from services.projects.access import resolve_role
+
+    rows = (
+        await db.execute(
+            select(Project)
+            .where(Project.is_archived.is_(False))
+            .order_by(Project.created_at.asc())
+        )
+    ).scalars().all()
+    # Only what this person owns: a project someone else made here is theirs to move.
+    out = []
+    for p in rows:
+        if await resolve_role(db, p, user_id) == "owner":
+            out.append(p)
+    return out
+
+
+async def _orphan_tasks(db: AsyncSession, user_id: _uuid.UUID) -> list:
+    from sqlalchemy import or_, select
+
+    from models.db.task import Task
+
+    return list(
+        (
+            await db.execute(
+                select(Task).where(
+                    Task.project_id.is_(None),
+                    or_(Task.created_by == user_id, Task.assignee_id == user_id),
+                )
+            )
+        ).scalars().all()
+    )
+
+
+@router.get("/move-all/preview", response_model=MoveAllPreview)
+async def move_all_preview(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MoveAllPreview:
+    """What "move everything to the hub" would take with it."""
+    _guard_desktop()
+    from sqlalchemy import func, select
+
+    from models.db.task import Task
+
+    projects = await _movable_projects(db, current_user.id)
+    counts = dict(
+        (
+            await db.execute(
+                select(Task.project_id, func.count(Task.id))
+                .where(Task.project_id.in_([p.id for p in projects] or [_uuid.uuid4()]))
+                .group_by(Task.project_id)
+            )
+        ).all()
+    )
+    orphans = await _orphan_tasks(db, current_user.id)
+    open_states = {"todo", "in_progress", "blocked", "review"}
+    return MoveAllPreview(
+        projects=[
+            {"id": str(p.id), "name": p.name, "visibility": p.visibility, "tasks": counts.get(p.id, 0)}
+            for p in projects
+        ],
+        orphan_tasks=len(orphans),
+        orphan_open=sum(
+            1 for t in orphans if str(getattr(t.status, "value", t.status)) in open_states
+        ),
+    )
+
+
+@router.post("/move-all", response_model=MoveAllResult)
+async def move_all(
+    body: MoveAllRequest | None = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MoveAllResult:
+    """Send every project this person owns, and their tasks with no project,
+    to the hub — the same move as a project's own "Move to hub", for all of
+    them at once.
+
+    Tasks with no project travel inside a private hub project called
+    "My tasks", because a task on the hub has to belong to something. Each
+    local copy is archived once the hub has confirmed it, never before.
+    """
+    _guard_desktop()
+    from datetime import datetime, timezone
+
+    from models.db.task import Project
+    from services.projects import transfer
+    from services.projects.workroom import ensure_workroom
+
+    projects = await _movable_projects(db, current_user.id)
+    body = body or MoveAllRequest()
+    if body.project_ids is not None:
+        wanted = set(body.project_ids)
+        projects = [p for p in projects if p.id in wanted]
+    orphans = await _orphan_tasks(db, current_user.id) if body.include_orphans else []
+
+    if orphans:
+        holder = Project(
+            id=_uuid.uuid4(),
+            name=MY_TASKS_PROJECT,
+            description="Tasks that were not part of any project.",
+            visibility="private",
+            owner_id=current_user.id,
+            created_by=current_user.id,
+        )
+        db.add(holder)
+        await db.flush()
+        for t in orphans:
+            t.project_id = holder.id
+        await db.flush()
+        await ensure_workroom(db, holder, current_user.id)
+        projects.append(holder)
+
+    moved: list[dict] = []
+    failed: list[str] = []
+    tasks_moved = 0
+    for p in projects:
+        bundle = await transfer.build(db, p, visibility=p.visibility)
+        try:
+            resp = await hub.request(
+                db, current_user.id, "POST", "/projects/import",
+                json_body=bundle.model_dump(mode="json"),
+            )
+        except hub.HubNotConnected as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        except hub.HubError as exc:
+            failed.append(f"{p.name}: {exc}")
+            continue
+        if resp.status_code >= 400:
+            failed.append(f"{p.name}: the hub would not take it ({resp.status_code})")
+            continue
+        result = resp.json()
+        p.is_archived = True
+        p.archived_at = datetime.now(timezone.utc)
+        tasks_moved += int(result.get("tasks") or 0)
+        moved.append({"name": p.name, "hub_project_id": result.get("project_id"), "tasks": result.get("tasks", 0)})
+        await db.commit()
+        logger.info("Moved project %s to hub as %s", p.id, result.get("project_id"))
+
+    return MoveAllResult(moved=moved, tasks_moved=tasks_moved, failed=failed)
 
 
 @router.post("/budgets/push")

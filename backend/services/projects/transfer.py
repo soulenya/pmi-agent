@@ -177,7 +177,9 @@ async def build(
         goal=project.goal or "",
         status=project.status,
         color=project.color,
-        visibility="company" if visibility == "company" else "shared",
+        # Private stays private: a person's own project moved to the hub is
+        # still theirs alone there.
+        visibility=visibility if visibility in ("private", "company") else "shared",
         start_date=project.start_date,
         target_date=project.target_date,
         tasks=task_bundles,
