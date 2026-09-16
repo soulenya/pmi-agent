@@ -785,6 +785,7 @@ async def complete_onboarding(
 _CLIENT_STATE_KEYS = {
     "whatsNew.lastSeenBuild",
     "featureGuide.seenBuilds",
+    "hub.movePrompt",
 }
 _CLIENT_STATE_PREFIX = "client."
 

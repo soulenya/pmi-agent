@@ -4,6 +4,39 @@
 
 ## Changelog
 
+### v5.5.0 · build 268 — 2026-09-16
+**Move your work to the hub (travel mode, phase 3a)**
+
+Sizing first (Morgan's desktop): 3 active local projects (all private, 0
+tasks), 11 archived, **80 tasks with no project** (79 done, 1 open), 3 rooms
+and 3 conversations on the active projects, 0 budgets pointing at them.
+
+- Migration **045** `hub_links.hub_user_id`; filled on connect and lazily by
+  `GET /hub/status` from the hub's `/settings/me` (`_remember_hub_user`).
+  Morgan: desktop `667407f8…` ↔ hub `61ebafe1…`. Exposed as
+  `HubStatus.hub_user_id`.
+- `ProjectBundle.visibility` accepts `private`; `transfer.build` passes the
+  project's own visibility instead of forcing shared. Hub redeployed before any
+  move so it accepts private bundles.
+- `GET /hub/move-all/preview` (owned active projects with task counts, orphan
+  task count/open) and `POST /hub/move-all` (`{project_ids?, include_orphans}`):
+  orphan tasks are first gathered into a new private local project
+  `My tasks` (with its room), then every project goes through the existing
+  `transfer.build` → hub `/projects/import`, and the local copy is archived
+  only after the hub confirms. Verified on the real hub with a throwaway
+  project: private stayed private, parent/child task link intact, local
+  archived; hub copy deleted afterwards.
+- Frontend: `components/hub/MoveToHubPrompt.tsx` mounted in AppShell, opens
+  after What's New (`bootPopupStore` phase done) when the hub is remote and
+  there is something to move; state in client-state key `hub.movePrompt`
+  (`dismissed_build` = ask again next build, `never`, `done`). Settings → The
+  hub → *Move my work to the hub…* opens it via `moveToHubStore`. New-project
+  form defaults the destination to the hub when connected; the hub choice no
+  longer forces visibility to shared.
+- NOT verified in a browser this release: the browser tool stopped responding
+  (CDP connect timeout). tsc + Vite build pass; the popup will be seen on the
+  next install.
+
 ### v5.4.0 · build 267 — 2026-09-16
 **Gerry works on the hub (travel mode, phase 2)**
 

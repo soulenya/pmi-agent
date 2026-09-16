@@ -34,6 +34,9 @@ class HubLink(Base):
     hub_url: Mapped[str] = mapped_column(String(500), nullable=False)
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     refresh_token_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    # The same person has a different user id on the hub. Filled on connect,
+    # or on the next status check for links made before this column existed.
+    hub_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

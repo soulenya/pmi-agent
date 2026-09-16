@@ -88,7 +88,7 @@ class ProjectBundle(BaseModel):
     goal: str = ""
     status: str = "active"
     color: str | None = None
-    visibility: Literal["shared", "company"] = "shared"
+    visibility: Literal["private", "shared", "company"] = "shared"
     start_date: datetime | None = None
     target_date: datetime | None = None
     tasks: list[TaskBundle] = Field(default_factory=list)

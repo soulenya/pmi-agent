@@ -50,6 +50,36 @@ export async function pushBudgetsToHub(): Promise<{ pushed: number; failed: stri
   return resp.data;
 }
 
+export interface MoveAllPreview {
+  projects: { id: string; name: string; visibility: string; tasks: number }[];
+  orphan_tasks: number;
+  orphan_open: number;
+}
+
+export interface MoveAllResult {
+  moved: { name: string; hub_project_id: string | null; tasks: number }[];
+  tasks_moved: number;
+  failed: string[];
+}
+
+/** What "move everything to the hub" would take. */
+export async function previewMoveAll(): Promise<MoveAllPreview> {
+  const resp = await apiClient.get<MoveAllPreview>("/hub/move-all/preview");
+  return resp.data;
+}
+
+/**
+ * Move every project you own here, and your tasks that have no project, to
+ * the hub. Tasks without a project arrive inside a private "My tasks" project.
+ * Local copies are archived after the hub confirms each one.
+ */
+export async function moveAllToHub(): Promise<MoveAllResult> {
+  const resp = await apiClient.post<MoveAllResult>("/hub/move-all", undefined, {
+    timeout: 10 * 60_000,
+  });
+  return resp.data;
+}
+
 /**
  * Take a local copy of a shared project's chat and bring it up to date.
  *

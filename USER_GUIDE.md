@@ -824,6 +824,12 @@ You sign in as yourself, not as the app. Everything you look at and everything y
 
 Open **Projects**. Below your own projects, a **Shared on the hub** area lists the projects the firm has shared with you, with the account you're signed in as. Open one and you get the same project space as a local project — overview, canvas, timeline, tasks, budget, material and chat — marked **On the hub**.
 
+### Moving your work to the hub
+
+The hub is where your work is meant to live now, so it is there from any browser when you travel. After an update, if you are connected to the hub and still have projects or tasks on this computer, Little Gerry offers to move them — listing exactly what would go. **Move everything to the hub** sends each project through the same path as a project's own *Move to hub*; tasks that belong to no project arrive inside a private project called **My tasks**. Private projects stay private on the hub. The copies on this computer are archived once the hub has them, never deleted. **Not now** asks again after the next update; **Don't ask again** stops asking. The same offer is under **Settings → The hub → Move my work to the hub…**.
+
+Chat history, the knowledge base and meeting notes stay on this computer. New projects go on the hub by default while you are connected to it.
+
 **Shared work shows up everywhere your own work does.** The Tasks board, the Calendar, the Dashboard's agenda and overdue list, and the Portfolio graph all list hub tasks and hub projects alongside the ones on this computer, each marked with a small **hub** pill. Change a hub task's status from the board, open it in the task drawer, drag it across the kanban — the change goes to the hub. A task can only be moved into a project that lives where it does: local into local, hub into hub. With a project filter set on the Tasks page, **New Task** creates the task in that project, wherever it lives.
 
 The tabs all work there. Two things differ:

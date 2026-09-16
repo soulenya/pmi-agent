@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 267;
+export const BUILD_NUMBER = 268;
 export const BUILD_DATE = "2026-09-16";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 268,
+    date: "2026-09-16",
+    title: "Move your work to the hub",
+    changes: [
+      "After this update, if you are connected to the hub and still have projects or tasks on this computer, Little Gerry offers to move them all to the hub in one go — with the exact list of what would move. Private projects stay private on the hub; tasks with no project arrive in a private project called 'My tasks'. The copies here are archived, not deleted. 'Not now' asks again after the next update; 'Don't ask again' does not. Also under Settings → The hub.",
+      "New projects go on the hub by default when you are connected to it; 'On this computer only' is still a choice.",
+      "The desktop now records who you are on the hub, so work moved between the two is filed under the same person.",
+    ],
+  },
   {
     build: 267,
     date: "2026-09-16",

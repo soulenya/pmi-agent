@@ -56,6 +56,7 @@ import {
 import { listExtractionSchemas, saveExtractionSchemas } from "@/api/extractions";
 import { listDriveEditGrants, revokeDriveEdit } from "@/api/google";
 import { connectHub, disconnectHub, getHubStatus, pushBudgetsToHub } from "@/api/hub";
+import { useMoveToHubStore } from "@/stores/moveToHubStore";
 import { AgentsPage } from "@/pages/AgentsPage";
 import { BackupsPage } from "@/pages/BackupsPage";
 import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
@@ -2488,6 +2489,7 @@ function UpdateSection() {
 
 function HubSection() {
   const qc = useQueryClient();
+  const requestMoveToHub = useMoveToHubStore((s) => s.request);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -2619,6 +2621,15 @@ function HubSection() {
               title="Copy every budget you own to the hub, so they are there when you open the hub from a browser"
             >
               Send my budgets to the hub
+            </button>
+            <button
+              type="button"
+              onClick={() => requestMoveToHub()}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+              title="Move the projects and tasks still on this computer to the hub"
+            >
+              Move my work to the hub…
             </button>
           </>
         ) : (

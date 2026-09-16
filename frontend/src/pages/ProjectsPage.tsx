@@ -264,7 +264,9 @@ function NewProjectForm({
   const [description, setDescription] = useState("");
   const [color, setColor] = useState("#1e6db5");
   const [targetDate, setTargetDate] = useState("");
-  const [destination, setDestination] = useState<Source>(hubHere ? "hub" : "local");
+  // The hub is where work lives now; this computer is the fallback when there
+  // is no hub to reach.
+  const [destination, setDestination] = useState<Source>(hubHere || hubConnected ? "hub" : "local");
   const [visibility, setVisibility] = useState<ProjectVisibility>(hubHere ? "shared" : "private");
 
   const mutation = useMutation({
@@ -349,29 +351,7 @@ function NewProjectForm({
           <div className="grid gap-2 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => setDestination("local")}
-              className={cn(
-                "rounded-md border p-3 text-left text-sm",
-                destination === "local"
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "hover:bg-accent",
-              )}
-            >
-              <span className="flex items-center gap-2 font-medium">
-                <Laptop className="h-4 w-4" />
-                On this computer
-              </span>
-              <span className="mt-1 block text-xs text-muted-foreground">
-                Yours alone. Nobody else can reach it.
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDestination("hub");
-                // A hub project nobody can see is not worth putting there.
-                if (visibility === "private") setVisibility("shared");
-              }}
+              onClick={() => setDestination("hub")}
               className={cn(
                 "rounded-md border p-3 text-left text-sm",
                 destination === "hub"
@@ -384,7 +364,25 @@ function NewProjectForm({
                 On the hub
               </span>
               <span className="mt-1 block text-xs text-muted-foreground">
-                Others at the firm can be brought in.
+                Reachable from any browser; private unless you add people.
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDestination("local")}
+              className={cn(
+                "rounded-md border p-3 text-left text-sm",
+                destination === "local"
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "hover:bg-accent",
+              )}
+            >
+              <span className="flex items-center gap-2 font-medium">
+                <Laptop className="h-4 w-4" />
+                On this computer only
+              </span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Not there when you travel.
               </span>
             </button>
           </div>
