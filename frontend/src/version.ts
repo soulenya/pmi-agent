@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 271;
+export const BUILD_NUMBER = 272;
 export const BUILD_DATE = "2026-09-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 272,
+    date: "2026-09-17",
+    title: "Gerry on a phone",
+    changes: [
+      "On a phone, Gerry answers the way a phone wants: the answer first, short, one line per item, never a table. She offers to go deeper when there is more.",
+      "The Gerry tab opens on a big microphone — Talk to Gerry — with two shortcuts: Dictate a task and Dictate an email. Tap one, say it, and Gerry creates the task or drafts the email and confirms in a sentence. Inside a conversation the mic is a Talk button.",
+      "Talking to Gerry works from an iPhone now. Safari records in a format the old path could not read; both ends handle it.",
+    ],
+  },
   {
     build: 271,
     date: "2026-09-17",

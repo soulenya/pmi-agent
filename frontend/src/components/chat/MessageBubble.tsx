@@ -355,7 +355,7 @@ export function MessageBubble({ message, compact = false }: Props) {
       {/* Bubble */}
       <div
         className={cn(
-          "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+          "max-w-[92%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed md:max-w-[75%]",
           compact && "px-3 py-1.5 text-xs max-w-[90%]",
           isUser
             ? "rounded-tr-sm bg-primary text-primary-foreground"
@@ -363,7 +363,7 @@ export function MessageBubble({ message, compact = false }: Props) {
         )}
       >
         {isAssistant ? (
-          <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:mb-1 prose-headings:mt-2 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+          <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:mb-1 prose-headings:mt-2 prose-pre:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeHighlight]}

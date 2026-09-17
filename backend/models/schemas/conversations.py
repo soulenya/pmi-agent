@@ -154,6 +154,9 @@ class WSIncoming(BaseModel):
     # True when the user is speaking (voice session / voice chat mode) — the
     # agent keeps replies short and conversational for text-to-speech.
     voice: bool = False
+    # True when the client is a phone-sized screen — short, scannable replies,
+    # no tables. Voice wins when both are set.
+    phone: bool = False
 
 
 class WSToken(BaseModel):

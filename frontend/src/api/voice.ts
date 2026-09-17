@@ -17,7 +17,9 @@ export async function listVoices(): Promise<VoiceInfo[]> {
 /** Transcribe a recorded audio clip to text. */
 export async function transcribeAudio(blob: Blob): Promise<string> {
   const form = new FormData();
-  form.append("file", blob, "recording.webm");
+  // The blob's own type travels as the part's Content-Type; the server keys on it.
+  const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
+  form.append("file", blob, `recording.${ext}`);
   const r = await apiClient.post<{ text: string }>(`${BASE}/transcribe`, form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
