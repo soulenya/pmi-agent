@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, AudioLines, RotateCcw, Square } from "lucide-react";
+import { PlusCircle, Loader2, Pencil, Archive, Check, X, Wrench, AudioLines, RotateCcw, Square, Mic, ListTodo, Mail } from "lucide-react";
 import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubble";
 import {
   ApprovalCard,
@@ -190,12 +190,23 @@ function ConversationGroup({
   );
 }
 
+// A phone starter: what is prepended to the first thing the user dictates.
+const STARTER_KEY = "lg.gerry.starter";
+const STARTER_PREFIX: Record<string, string | null> = {
+  talk: null,
+  task: "I am dictating a task. Create it with create_task (title from what I say; due date and priority if I mention them), then confirm in one short sentence:",
+  email: "I am dictating an email. Draft it with create_email_draft (work out recipient and subject from what I say; ask if the recipient is unclear), then confirm in one short sentence:",
+};
+
 export function ChatPage({ source = "local" }: { source?: Source } = {}) {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const onHub = source === "hub";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const phone = useIsPhone();
+  // A starter chosen on the phone's landing view. Survives the navigation into
+  // the new conversation, then shapes the first thing the user says.
+  const starterPrefixRef = useRef<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -271,10 +282,42 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
   const streamBufferRef = useRef("");
   const handleSendRef = useRef<(content: string) => void>(() => {});
   const voice = useVoiceMode({
-    onTranscript: (text) => handleSendRef.current(text),
+    onTranscript: (text) => {
+      const prefix = starterPrefixRef.current;
+      starterPrefixRef.current = null;
+      handleSendRef.current(prefix ? `${prefix}\n\n${text}` : text);
+    },
     speakReplies: (appSettings?.voice_speak_replies ?? false) && voiceEnabled,
   });
   const { voiceMode, voiceModeRef, toggle: toggleVoiceMode, exit: exitVoiceMode, interrupt: interruptSpeech } = voice;
+
+  // Phone starters: pick one on the landing view, land in a fresh conversation
+  // already listening. The choice rides in sessionStorage across the navigation.
+  const startWithVoice = useCallback(
+    (kind: "talk" | "task" | "email") => {
+      try {
+        sessionStorage.setItem(STARTER_KEY, kind);
+      } catch {
+        /* ignore */
+      }
+      createConvMutation.mutate();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useEffect(() => {
+    if (!phone || !conversationId || !wsConnected) return;
+    let kind: string | null = null;
+    try {
+      kind = sessionStorage.getItem(STARTER_KEY);
+      if (kind) sessionStorage.removeItem(STARTER_KEY);
+    } catch {
+      return;
+    }
+    if (!kind) return;
+    starterPrefixRef.current = STARTER_PREFIX[kind] ?? null;
+    if (voiceEnabled && !voiceModeRef.current) toggleVoiceMode();
+  }, [phone, conversationId, wsConnected, voiceEnabled, toggleVoiceMode, voiceModeRef]);
 
   // â”€â”€ Conversation list â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: conversations = [] } = useQuery({
@@ -590,7 +633,7 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return;
     const msg = pendingMessage;
     setPendingMessage(null);
-    wsRef.current.send(JSON.stringify({ type: 'human', content: msg }));
+    wsRef.current.send(JSON.stringify({ type: 'human', content: msg, voice: voiceModeRef.current, phone }));
     appendMessage({
       id: crypto.randomUUID(),
       conversation_id: conversationId,
@@ -629,7 +672,7 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
       }
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(
-          JSON.stringify({ type: "human", content, voice: voiceModeRef.current }),
+          JSON.stringify({ type: "human", content, voice: voiceModeRef.current, phone }),
         );
         setBusySince(Date.now());
 
@@ -649,7 +692,7 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
         appendMessage(optimistic);
       }
     },
-    [conversationId, createConvMutation, appendMessage],
+    [conversationId, createConvMutation, appendMessage, phone],
   );
   handleSendRef.current = handleSend;
 
@@ -710,6 +753,38 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
           phone ? (conversationId ? "hidden" : "flex w-full") : "flex w-56 border-r pr-4",
         )}
       >
+        {phone && voiceEnabled && (
+          <div className="flex flex-col items-center gap-3 rounded-2xl border bg-card px-4 py-5 text-center">
+            <button
+              type="button"
+              onClick={() => startWithVoice("talk")}
+              disabled={createConvMutation.isPending}
+              aria-label="Talk to Gerry"
+              className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 disabled:opacity-60"
+            >
+              {createConvMutation.isPending ? <Loader2 className="h-8 w-8 animate-spin" /> : <Mic className="h-9 w-9" />}
+            </button>
+            <p className="text-sm font-medium">Talk to Gerry</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => startWithVoice("task")}
+                disabled={createConvMutation.isPending}
+                className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs active:bg-accent disabled:opacity-60"
+              >
+                <ListTodo className="h-3.5 w-3.5" /> Dictate a task
+              </button>
+              <button
+                type="button"
+                onClick={() => startWithVoice("email")}
+                disabled={createConvMutation.isPending}
+                className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs active:bg-accent disabled:opacity-60"
+              >
+                <Mail className="h-3.5 w-3.5" /> Dictate an email
+              </button>
+            </div>
+          </div>
+        )}
         <button
           onClick={() => createConvMutation.mutate()}
           disabled={createConvMutation.isPending}
@@ -823,15 +898,16 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
               <button
                 onClick={toggleVoiceMode}
                 className={cn(
-                  "ml-auto flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors",
+                  "ml-auto flex items-center gap-1.5 rounded-md border transition-colors",
+                  phone ? "px-3 py-1.5 text-sm" : "px-2.5 py-1 text-xs",
                   voiceMode
                     ? "border-primary bg-primary/10 text-primary"
                     : "hover:bg-accent",
                 )}
                 title={voiceMode ? "Exit voice conversation (Esc)" : "Start a hands-free voice conversation"}
               >
-                <AudioLines className="h-3.5 w-3.5" />
-                {voiceMode ? "End voice chat" : "Voice chat"}
+                {phone ? <Mic className="h-4 w-4" /> : <AudioLines className="h-3.5 w-3.5" />}
+                {voiceMode ? (phone ? "Stop" : "End voice chat") : (phone ? "Talk" : "Voice chat")}
               </button>
             )}
           </div>

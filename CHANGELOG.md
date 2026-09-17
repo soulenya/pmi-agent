@@ -4,6 +4,40 @@
 
 ## Changelog
 
+### v5.9.0 · build 272 — 2026-09-17
+**Gerry on a phone (travel mode, phase 4 part 3 — Phase 4 complete)**
+
+- **Phone mode for replies.** `WSIncoming.phone` (frontend sends it when
+  `useIsPhone()`), threaded through `spawn_agent_run` → `AgentExecutor._run/
+  _build_history` and `LangGraphSupervisor.run`. `PHONE_MODE_NOTE`
+  (`guardrails.py`) is appended to the system prompt: answer first, short,
+  one-line bullets, **never a markdown table**, round numbers, offer to go
+  deeper. `VOICE_MODE_NOTE` wins when both flags are set. Verified in-process:
+  `{}` → neither, `{phone}` → PHONE, `{voice, phone}` → VOICE.
+- **Mic front and centre.** On the phone's Gerry tab (no conversation open) a
+  card with a large mic button — *Talk to Gerry* — and two starters, *Dictate
+  a task* and *Dictate an email*. Each creates a conversation, lands in it
+  already listening (voice mode), and prepends an instruction to the first
+  thing you say (`STARTER_PREFIX`: create it with `create_task` / draft it
+  with `create_email_draft`, confirm in one sentence). Carried across the
+  navigation in `sessionStorage` (`lg.gerry.starter`). Inside a thread the
+  voice toggle is a *Talk* / *Stop* mic button on phones. Shown only when a
+  Google key is set (`settings.google_key_set`), as voice always was.
+- **iPhone recording fixed before anyone hit it.** `useVoiceConversation`
+  hard-coded `MediaRecorder(..., {mimeType: "audio/webm"})`, which Safari does
+  not support (it records AAC in MP4) — `recordingMime()` now picks the first
+  supported of webm/opus, webm, ogg/opus, mp4, and `transcribeAudio` names the
+  file by the blob's type. Server side, `google_speech.transcribe` routes any
+  container v1 cannot decode to the new `gcs_stt.transcribe_short` — STT v2
+  synchronous `recognize` with `autoDecodingConfig` on the inline clip (no GCS
+  upload) — when v2 credentials are available (bundled SA key download URL, or
+  ADC on GCE). Not verified with a real iPhone clip.
+- `MessageBubble`: assistant bubbles use 92% of the width on phones (75% on
+  desktop); any markdown table that does slip through scrolls horizontally
+  inside the bubble instead of overflowing the page.
+- Verified: tsc, Vite build, backend import, the prompt-flag probe. Not
+  verified on a device: the mic on a phone browser, the STT v2 path on the hub.
+
 ### v5.8.0 · build 271 — 2026-09-17
 **Notifications on your phone (travel mode, phase 4 part 2)**
 

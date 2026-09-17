@@ -20,6 +20,7 @@ NOT work for v2 batchRecognize or GCS. Configure via environment / .env:
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -249,6 +250,46 @@ def _parse_transcript(response: dict, gcs_uri: str) -> str:
             if text:
                 pieces.append(text)
     return " ".join(pieces).strip()
+
+
+async def transcribe_short(audio: bytes, mime_type: str | None = None) -> str:
+    """Synchronous v2 ``recognize`` on an inline clip (≤ 60 s, ≤ 10 MB).
+
+    v2 decodes the container itself, so this takes what v1 cannot — notably
+    the AAC-in-MP4 that iPhone Safari's MediaRecorder produces. No GCS upload.
+    """
+    if not is_configured():
+        raise SttNotConfiguredError("Google STT v2 isn't configured.")
+    location = settings.gcp_stt_location or "us"
+    language = settings.gcp_stt_language or "en-US"
+    await asyncio.to_thread(_ensure_key_downloaded)
+    creds, project_id, quota_project = await asyncio.to_thread(_load_credentials)
+    if not project_id:
+        raise SttError("Couldn't determine the GCP project for transcription.")
+    token = await asyncio.to_thread(_refresh_token, creds)
+    headers = {"Authorization": f"Bearer {token}"}
+    if quota_project:
+        headers["x-goog-user-project"] = quota_project
+    url = f"{_speech_endpoint(location)}/v2/projects/{project_id}/locations/{location}/recognizers/_:recognize"
+    body = {
+        "config": {
+            "autoDecodingConfig": {},
+            "model": "latest_short",
+            "languageCodes": [language],
+            "features": {"enableAutomaticPunctuation": True},
+        },
+        "content": base64.b64encode(audio).decode(),
+    }
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(url, headers=headers, json=body)
+    if resp.status_code != 200:
+        raise SttError(f"recognize failed — HTTP {resp.status_code}: {resp.text[:300]}")
+    pieces = [
+        r["alternatives"][0].get("transcript", "").strip()
+        for r in resp.json().get("results", [])
+        if r.get("alternatives")
+    ]
+    return " ".join(p for p in pieces if p).strip()
 
 
 async def transcribe_long(

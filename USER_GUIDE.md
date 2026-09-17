@@ -864,6 +864,8 @@ Open the hub's address in the phone's browser and sign in with your work Google 
 - **Five tabs along the bottom** — **Today**, **Waiting**, **Team**, **Tasks**, **Gerry** — and **More** for the rest (Projects, Mail, Knowledge, Calendar, Compliance, Finance, Settings, Sign out). Waiting carries the same count as the desktop bell, amber when a decision is pending; Team carries your unread count.
 - **One column.** Where the desktop shows two panes side by side, the phone shows the list first and opens the item full-screen with a way back: Gerry's conversations, Team channels, the Inbox, Budgets. Inside a project or a conversation the header has a Back chevron.
 - **Ask Gerry** from a task or project opens the conversation itself; there is no side panel on a phone.
+- **Gerry answers for a phone:** the answer first, short, one line per item, never a table, with an offer to go deeper when there is more.
+- **Talk to her.** The Gerry tab opens on a large microphone. Tap it and speak; or tap **Dictate a task** / **Dictate an email**, say what you want, and Gerry creates the task or drafts the email and confirms in a sentence. Inside a conversation the mic is the **Talk** button. Voice needs the Google key set under Settings → AI → Voice, and the browser will ask for the microphone once.
 - The Tasks page is always the list (the board is a desktop view); the Knowledge Base picks its category from a menu; controls that only appear on hover on a computer are always shown.
 
 **Add it to your home screen.** A one-time card shows how: on iPhone, **Share → Add to Home Screen**; on Android, the browser menu's **Install app** or **Add to Home screen**. It then opens full-screen with its own icon. On iPhone this is also what lets notifications reach you.

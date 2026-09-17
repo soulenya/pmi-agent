@@ -127,6 +127,13 @@ async def transcribe(
     into phonetic lookalikes at the source.
     """
     base_mime = mime_type.split(";")[0].strip().lower()
+    if base_mime not in _ENCODINGS:
+        # iPhone Safari records AAC in MP4, which v1 cannot decode; v2 sniffs
+        # the container itself. Fall through to the v1 default if v2 is not set up.
+        from services.voice import gcs_stt
+
+        if gcs_stt.is_configured():
+            return await gcs_stt.transcribe_short(audio, base_mime)
     encoding, sample_rate = _ENCODINGS.get(base_mime, ("WEBM_OPUS", 48000))
 
     config: dict[str, object] = {

@@ -150,3 +150,17 @@ read aloud by text-to-speech.
   like" — the user must always know more information is available on request.
 - Still use tools normally and follow every honesty rule above.
 """
+
+# Appended when the user is on a phone: a narrow screen, read with a thumb,
+# usually between other things. Short and scannable, never a wide table.
+PHONE_MODE_NOTE = """\
+
+PHONE MODE: The user is reading on a phone screen about 360px wide.
+- Lead with the answer in one or two sentences; keep the whole reply short.
+- Prefer a short bullet list (one line each) to prose when listing things.
+- NEVER use markdown tables — they do not fit. Use one bullet per row, with
+  the key fields on that line (e.g. "- Title — due Sep 20 · high").
+- No long quotations or code blocks. Round numbers. Keep headings to none or one.
+- If there is more detail than fits, end with a one-line offer to go deeper.
+- Still use tools normally and follow every honesty rule above.
+"""

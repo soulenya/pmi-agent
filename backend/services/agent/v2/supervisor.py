@@ -262,7 +262,7 @@ class LangGraphSupervisor:
 
     # ── Main streaming entrypoint ─────────────────────────────────────────────
 
-    async def run(self, user_text: str, voice: bool = False) -> AsyncGenerator[str, None]:
+    async def run(self, user_text: str, voice: bool = False, phone: bool = False) -> AsyncGenerator[str, None]:
         """
         Async generator that yields JSON-encoded frame strings,
         matching the v1 executor._run() interface for the WebSocket.
@@ -354,6 +354,9 @@ class LangGraphSupervisor:
         if voice:
             from services.agent.guardrails import VOICE_MODE_NOTE
             attach_ctx += VOICE_MODE_NOTE
+        elif phone:
+            from services.agent.guardrails import PHONE_MODE_NOTE
+            attach_ctx += PHONE_MODE_NOTE
 
         # Stream
         full_response_parts: list[str] = []

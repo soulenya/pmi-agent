@@ -879,6 +879,7 @@ def create_app() -> FastAPI:
                         frame_queue,
                         _use_lg,
                         voice=incoming.voice,
+                        phone=incoming.phone,
                     )
                     while True:
                         frame = await frame_queue.get()

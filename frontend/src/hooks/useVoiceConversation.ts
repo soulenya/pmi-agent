@@ -22,6 +22,15 @@ const SILENCE_MS = 1500; // pause length that ends an utterance
 const MAX_SEGMENT_MS = 55_000; // Google STT sync limit is 60 s of audio
 const SPEECH_RMS = 0.02; // volume threshold counting as speech
 
+/** The first container this browser can record. Safari has no webm; it gives mp4. */
+function recordingMime(): string | undefined {
+  if (typeof MediaRecorder === "undefined") return undefined;
+  for (const m of ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"]) {
+    if (MediaRecorder.isTypeSupported(m)) return m;
+  }
+  return undefined;
+}
+
 export function useVoiceConversation({ onTranscript, onError }: Options) {
   const [status, setStatus] = useState<VoiceListenStatus>("idle");
 
@@ -79,7 +88,8 @@ export function useVoiceConversation({ onTranscript, onError }: Options) {
     ctx.createMediaStreamSource(stream).connect(analyser);
     const samples = new Float32Array(analyser.fftSize);
 
-    const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+    const mime = recordingMime();
+    const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
     const chunks: Blob[] = [];
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data);
@@ -97,7 +107,7 @@ export function useVoiceConversation({ onTranscript, onError }: Options) {
         void start(); // silent segment rollover — keep listening
         return;
       }
-      const blob = new Blob(chunks, { type: "audio/webm" });
+      const blob = new Blob(chunks, { type: recorder.mimeType || mime || "audio/webm" });
       if (blob.size === 0) {
         void start();
         return;
