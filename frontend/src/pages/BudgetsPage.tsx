@@ -41,6 +41,7 @@ import {
   BudgetSummaryCards,
   money,
 } from "@/components/budgets/BudgetLedger";
+import { BudgetEstimate } from "@/components/budgets/BudgetEstimate";
 import { InvoiceIntake } from "@/components/budgets/InvoiceIntake";
 import { pushBudgetsToHub } from "@/api/hub";
 import { useHubRemote } from "@/hooks/useAllWork";
@@ -435,6 +436,9 @@ function BudgetDetailView({
       {/* Cross-budget references + Odoo cross-check */}
       <ReferencesSection budget={budget} onChanged={onChanged} />
       <OdooCompareSection budget={budget} />
+
+      {/* The plan before the money — a contract or R&D cost estimate */}
+      <BudgetEstimate budget={budget} canEdit={!readonly} onChanged={onChanged} />
 
       {/* Categories, ledger and the add-entry row */}
       <BudgetLedgerTable budget={budget} canEdit={!readonly} onChanged={onChanged} />

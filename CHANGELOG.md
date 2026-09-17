@@ -4,6 +4,54 @@
 
 ## Changelog
 
+### v5.10.0 · build 273 — 2026-09-17
+**Budget estimates — the cost plan before the money**
+
+- **A budget can now hold an estimate**: the anticipated cost of a government
+  contract or a future R&D effort, built before there is any ledger to keep.
+  It lives on a new **Estimate** tab of the budget's Google Sheet (`Phase |
+  Kind | Description | Qty | Unit cost | Amount | Note`), so it is edited here
+  or in Sheets and mirrored to the hub like the ledger. Budgets made before
+  today get the tab and its Settings rows on first use
+  (`budget_estimate_service.ensure_tab`, the `_ensure_status_header` pattern).
+  New budgets are created with it (`sheets_create_budget_spreadsheet`).
+- **Two ways to total it**, chosen per budget on the Settings tab (`Estimate
+  Mode`): **Simple** is the sum of the lines; **Cost build-up** prices them
+  like a proposal — labor → Fringe % (on labor) → Overhead % (on labor +
+  fringe) → other direct costs → G&A % (on all of it) → Fee % (on the
+  cost). Rates sit on Settings rows `Fringe %`, `Overhead %`, `G&A %`,
+  `Fee %`; a rate typed as 30, 30% or 0.30 all mean thirty percent.
+  Optional **phase** per line (Base, Option 1, Year 2, CLIN…) with per-phase
+  loaded totals. Qty × Unit cost gives Amount when both are filled; a typed
+  Amount stands otherwise. `summarize()` is pure and covered by
+  `tests/test_budget_estimate.py` (35 pass with `test_budget_status.py`).
+- **Commit estimate** — the award. Every priced line becomes an **Allocated**
+  ledger row (`source=estimate`, note carries `estimate-commit:<date>`), the
+  pools become one Allocated row each in Cost build-up mode, and by default
+  the allotment is set to the estimate total. The estimate stays as the
+  baseline; committing twice needs `force`.
+- **Backend**: migration **047** adds `budgets.cached_estimate` JSONB; totals
+  ride under `cached_summary["estimate"]`, read on every `refresh_budget`.
+  Endpoints `POST/PATCH/POST-delete /budgets/{id}/estimate/lines[/{row}]`,
+  `PATCH /budgets/{id}/estimate/rates`, `POST /budgets/{id}/estimate/commit`.
+  `BudgetMirror`, `/hub/budgets/push`, `BudgetDetailOut` and
+  `ProjectBudgetDetailOut` carry `cached_estimate`. New google_service
+  helpers `sheets_add_tab`, `sheets_append_rows`.
+- **Frontend**: `components/budgets/BudgetEstimate.tsx` — collapsible
+  section above the ledger on the Budgets page and a project's Budget tab
+  (owner/twin edits, everyone reads): mode switch, rate editor, lines grouped
+  by phase with subtotals, cost build-up footer, add/edit/delete, Commit with
+  two-step confirmation. `api/budgets.ts` gains `EstimateLine`,
+  `EstimateSummary`, `EstimateKind`, `EstimateMode` and the calls.
+- **Gerry**: `read_budget_estimate`, `add_estimate_line`,
+  `update_estimate_line`, `remove_estimate_line`, `set_estimate_rates`,
+  `commit_budget_estimate`. Reads always; writes behind the existing per-
+  budget *Let Gerry manage entries* toggle; update/remove/commit need
+  `confirm=true`. `read_budget` mentions the estimate total when there is
+  one. Registered in TOOL_DEFINITIONS / TOOL_EXECUTORS / _PRIMARY_ARG /
+  executor labels / lc_tools docs and the EA, House, IR and Operations
+  whitelists.
+
 ### v5.9.0 · build 272 — 2026-09-17
 **Gerry on a phone (travel mode, phase 4 part 3 — Phase 4 complete)**
 

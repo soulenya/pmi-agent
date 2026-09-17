@@ -529,6 +529,7 @@ async def push_budgets(
             "cached_ledger": b.cached_ledger or [],
             "cached_categories": b.cached_categories or [],
             "cached_summary": b.cached_summary or {},
+            "cached_estimate": b.cached_estimate or [],
         }
         try:
             resp = await hub.request(db, current_user.id, "POST", "/budgets/mirror", json_body=body)

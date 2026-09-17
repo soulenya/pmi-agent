@@ -187,6 +187,7 @@ class ProjectBudgetOut(BaseModel):
 class ProjectBudgetDetailOut(ProjectBudgetOut):
     cached_ledger: list = []
     cached_categories: list = []
+    cached_estimate: list = []
     references: list[dict] = []
 
 
@@ -267,6 +268,7 @@ async def read_project_budget(
         external_readonly=b.external_readonly,
         cached_ledger=b.cached_ledger or [],
         cached_categories=b.cached_categories or [],
+        cached_estimate=b.cached_estimate or [],
         references=refs,
     )
 

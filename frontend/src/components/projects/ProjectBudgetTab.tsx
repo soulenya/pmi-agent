@@ -32,6 +32,7 @@ import {
 } from "@/api/budgets";
 import type { Source } from "@/api/tasks";
 import { BudgetLedgerTable, BudgetSummaryCards } from "@/components/budgets/BudgetLedger";
+import { BudgetEstimate } from "@/components/budgets/BudgetEstimate";
 import { InvoiceIntake } from "@/components/budgets/InvoiceIntake";
 
 /** Pulls the file id out of a pasted Drive link, or accepts a bare id. */
@@ -241,6 +242,13 @@ function BudgetLedgerPanel({
           </button>
         </div>
       )}
+
+      <BudgetEstimate
+        budget={viaTwin && local.twin ? local.twin : data}
+        canEdit={canEditLedger}
+        source={viaTwin ? "local" : source}
+        onChanged={viaTwin ? () => void local.settle() : onChanged}
+      />
 
       <BudgetLedgerTable
         budget={viaTwin && local.twin ? local.twin : data}

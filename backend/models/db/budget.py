@@ -45,6 +45,9 @@ class Budget(Base):
     cached_ledger: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     cached_categories: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     cached_summary: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    # Lines of the sheet's Estimate tab (the plan, kept apart from the ledger).
+    # Its totals sit under cached_summary["estimate"].
+    cached_estimate: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     drive_modified_at: Mapped[str | None] = mapped_column(String(64), nullable=True)
     cached_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
