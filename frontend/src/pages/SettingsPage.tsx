@@ -61,6 +61,8 @@ import { AgentsPage } from "@/pages/AgentsPage";
 import { BackupsPage } from "@/pages/BackupsPage";
 import GoogleIntegrationPage from "@/pages/GoogleIntegrationPage";
 import { ServiceControls } from "@/components/ServiceMenu";
+import { PushToggle } from "@/components/PushToggle";
+import { useHubHere } from "@/hooks/useAllWork";
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
@@ -2487,6 +2489,17 @@ function UpdateSection() {
 
 // ── Hub connection ────────────────────────────────────────────────────────────
 
+/** Web push. Only a browser on the hub can hold a subscription. */
+function PushSection() {
+  const here = useHubHere();
+  if (!here) return null;
+  return (
+    <Section id="push" icon={Bell} title="Notifications on this device" description="Mentions, approvals, due tasks and suggestions, pushed to this browser or phone" revision="1">
+      <PushToggle compact />
+    </Section>
+  );
+}
+
 function HubSection() {
   const qc = useQueryClient();
   const requestMoveToHub = useMoveToHubStore((s) => s.request);
@@ -2851,6 +2864,7 @@ export function SettingsPage() {
               </Embedded>
               <DriveEditPermissionsSection />
               <HubSection />
+              <PushSection />
             </>
           )}
 

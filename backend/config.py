@@ -70,6 +70,11 @@ class Settings(BaseSettings):
     # desktop keeps using its own installed-app client.
     google_web_client_json: str = ""
     google_web_client_file: str = ""
+    # Web Push (phones on the hub). VAPID key pair, base64url raw keys as
+    # `py_vapid` writes them. Blank turns push off; subscriptions are refused.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:morganjkeane@precisianmedical.com"
 
     # ── Reaching the hub from a desktop install ──────────────────────────────
     # Where the shared project spaces live. Blank turns the feature off.

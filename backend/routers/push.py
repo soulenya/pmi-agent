@@ -1,13 +1,16 @@
-"""Push notification API — the iOS app registers its APNs device token here.
+"""Push notification API.
 
-Exposes:
+Web Push (phones and browsers on the hub, VAPID):
+  GET    /push/vapid-public-key  — the key a browser subscribes with; 404 when push is off
+  POST   /push/subscribe         — record this browser's PushSubscription
+  DELETE /push/subscribe         — forget it (endpoint in the query string)
+  GET    /push/subscriptions     — the caller's browsers
+  POST   /push/test              — push a test message to the caller's browsers
+
+APNs device tokens (an iOS app that was never built; kept for the table):
   POST   /push/register   — register (or refresh) this device's APNs token
   DELETE /push/register   — unregister this device (e.g. on logout)
   GET    /push/devices    — list the current user's registered devices
-
-The token itself is unique across the table, so a device that re-registers on
-each launch simply updates its existing row (and re-homes to the current user
-if the phone was handed to a different account).
 """
 
 from __future__ import annotations
@@ -16,21 +19,102 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
 from database import get_db
 from dependencies import get_current_user
 from models.db.device_token import DeviceToken
 from models.db.user import User
+from services.push import web as push
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/push", tags=["push"])
 
 _VALID_PLATFORMS = {"ios"}
+
+
+# ── Web Push ────────────────────────────────────────────────────────────────────
+
+class WebPushKeys(BaseModel):
+    p256dh: str = Field(..., min_length=1, max_length=200)
+    auth: str = Field(..., min_length=1, max_length=100)
+
+
+class WebPushSubscribeRequest(BaseModel):
+    endpoint: str = Field(..., min_length=10, max_length=2000)
+    keys: WebPushKeys
+
+
+class WebPushSubscriptionOut(BaseModel):
+    id: uuid.UUID
+    endpoint: str
+    user_agent: str | None
+    created_at: datetime
+    last_used_at: datetime | None
+    model_config = {"from_attributes": True}
+
+
+@router.get("/vapid-public-key")
+async def vapid_public_key(_user: User = Depends(get_current_user)) -> dict:
+    if not push.configured():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Push is not set up on this server.")
+    return {"key": settings.vapid_public_key}
+
+
+@router.post("/subscribe", response_model=WebPushSubscriptionOut)
+async def web_push_subscribe(
+    body: WebPushSubscribeRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> WebPushSubscriptionOut:
+    if not push.configured():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Push is not set up on this server.")
+    if not body.endpoint.startswith("https://"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A push endpoint must be https.")
+    row = await push.subscribe(
+        db, user.id, body.endpoint, body.keys.p256dh, body.keys.auth, request.headers.get("user-agent")
+    )
+    await db.commit()
+    await db.refresh(row)
+    return WebPushSubscriptionOut.model_validate(row)
+
+
+@router.delete("/subscribe", status_code=status.HTTP_204_NO_CONTENT)
+async def web_push_unsubscribe(
+    endpoint: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    await push.unsubscribe(db, user.id, endpoint)
+    await db.commit()
+
+
+@router.get("/subscriptions", response_model=list[WebPushSubscriptionOut])
+async def web_push_subscriptions(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[WebPushSubscriptionOut]:
+    return [WebPushSubscriptionOut.model_validate(r) for r in await push.list_for_user(db, user.id)]
+
+
+@router.post("/test")
+async def web_push_test(user: User = Depends(get_current_user)) -> dict:
+    """Push a test message to every browser this person has subscribed."""
+    if not push.configured():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Push is not set up on this server.")
+    delivered = await push.send_to_user(
+        user.id, "Little Gerry", "Notifications reach this device.", "/waiting?tab=notifications", tag="test"
+    )
+    return {"delivered": delivered}
+
+
+# ── APNs device tokens ────────────────────────────────────────────────────────────────
 
 
 class RegisterDeviceRequest(BaseModel):

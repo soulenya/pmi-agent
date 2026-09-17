@@ -393,6 +393,18 @@ class NotificationRepository:
         self.db.add(notif)
         await self.db.flush()
         await self.db.refresh(notif)
+        # The same event reaches the person's phone, if one is subscribed.
+        # Off this transaction, and a failed push never fails the notification.
+        from services.push import web as push
+
+        kind = str(getattr(type, "value", type))
+        push.schedule(
+            user_id,
+            title,
+            message,
+            push.route_for(kind, entity_type, entity_id),
+            tag=f"{kind}:{entity_id}" if entity_id else None,
+        )
         return notif
 
     async def list_for_user(

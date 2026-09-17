@@ -4,6 +4,48 @@
 
 ## Changelog
 
+### v5.8.0 · build 271 — 2026-09-17
+**Notifications on your phone (travel mode, phase 4 part 2)**
+
+Web Push from the hub. No app, no APNs/FCM: the browser's push service,
+VAPID-signed, to whatever the person subscribed — phone, tablet or laptop.
+
+- Migration **046** `push_subscriptions` (user_id, endpoint UNIQUE, p256dh,
+  auth, user_agent, created_at, last_used_at; owner pmi_app). Model
+  `models/db/push_subscription.py`.
+- `services/push/web.py` (the old `services/push/` package is an APNs stub
+  with no callers; my first `services/push.py` was shadowed by it — moved
+  inside): `configured()` (both VAPID keys set), `subscribe`/`unsubscribe`/
+  `list_for_user`, `send_to_user` (pywebpush per subscription in threads,
+  TTL 24 h; 404/410 deletes the row, 2xx stamps `last_used_at`),
+  `schedule()` fire-and-forget, `route_for()` mirroring the frontend's
+  `notificationRoute`. **One choke point:** `NotificationRepository.create`
+  calls `push.schedule` after flush, so every bell event — Team mentions,
+  approvals, task due/assigned, suggestions, briefing, document ingested,
+  research — reaches subscribed devices with no per-caller change. Off this
+  transaction; a failed push never fails the notification.
+- `routers/push.py` gains `GET /push/vapid-public-key` (404 when off),
+  `POST/DELETE /push/subscribe`, `GET /push/subscriptions`, `POST /push/test`.
+  Config: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. Dependency
+  `pywebpush>=2.0.0` (uv.lock updated: pywebpush 2.5.0, py-vapid 1.9.4,
+  http-ece 1.2.1).
+- Frontend: `public/sw.js` (push + notificationclick only; **no caching** —
+  the app stays online-only), `api/push.ts`, `hooks/usePush.ts` (states
+  unsupported / needs_home_screen / server_off / denied / off / on / busy;
+  registers `/sw.js`, subscribes with the server key, posts the
+  subscription), `components/PushToggle.tsx` (switch + reason + *Send a
+  test*). Mounted in Settings → Connections (*Notifications on this device*,
+  hub only) and in the phone's More sheet. `AppShell` re-registers the
+  worker on every load on the hub.
+- Verified in-process against the local DB with a faked `pywebpush.webpush`:
+  one `create` → two deliveries, mention routed to `/team?channel=…`, the
+  410 endpoint deleted, the live one stamped. Not yet verified on a real
+  phone; hub keys are generated on the VM at deploy time (private key never
+  leaves it).
+- Limits, stated in the guide: iPhone needs the site on the home screen
+  (iOS 16.4+) and shows no action buttons; a browser that blocked
+  notifications has to be unblocked in its own site settings.
+
 ### v5.7.0 · build 270 — 2026-09-17
 **The hub on a phone (travel mode, phase 4 part 1)**
 

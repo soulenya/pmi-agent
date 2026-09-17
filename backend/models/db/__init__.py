@@ -23,6 +23,7 @@ from models.db.odoo import OdooConnection
 from models.db.project_custody import ProjectItemCustody
 from models.db.project_link import ProjectLink
 from models.db.project_member import ProjectMember
+from models.db.push_subscription import PushSubscription
 from models.db.regulatory import CAPA, RegulatoryDocument, RegulatoryNode, RiskItem
 from models.db.research import ResearchReport, ResearchSource
 from models.db.scheduled_task import ScheduledTask
@@ -52,6 +53,7 @@ __all__ = [
     "ProjectItemCustody",
     "ProjectLink",
     "ProjectMember",
+    "PushSubscription",
     "Task",
     "TaskComment",
     "TaskDependency",
