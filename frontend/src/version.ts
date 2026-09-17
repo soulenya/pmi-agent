@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 269;
+export const BUILD_NUMBER = 270;
 export const BUILD_DATE = "2026-09-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 270,
+    date: "2026-09-17",
+    title: "The hub on your phone",
+    changes: [
+      "Open the hub's address on a phone and you get a layout made for it: five tabs along the bottom — Today, Waiting, Team, Tasks, Gerry — and More for everything else, with the same counts the desktop bell shows. One column, big targets, nothing that only appears on hover. Tablets and computers keep the layout they have.",
+      "Gerry, Team, Inbox and Budgets show a list first and open the item full-screen with a way back, instead of two panes squeezed side by side. Ask Gerry from a task or project opens the conversation itself.",
+      "Add it to your home screen and it opens full-screen with its own icon; a one-time card shows the steps (on iPhone: Share, then Add to Home Screen). On iPhone that is also what lets notifications reach you later.",
+      "On phones the Tasks page is always the list (the five-column board stays on the desktop), the Knowledge Base picks its category from a menu, and the Settings tabs scroll. Fields no longer make iPhone Safari zoom in when tapped.",
+      "The app is called Little Gerry in the browser tab now, not PMI Agent.",
+    ],
+  },
   {
     build: 269,
     date: "2026-09-17",

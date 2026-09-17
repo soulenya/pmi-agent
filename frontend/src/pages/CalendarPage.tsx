@@ -288,9 +288,9 @@ export function CalendarPage() {
     : [];
 
   return (
-    <div className="flex flex-col gap-6 max-w-6xl mx-auto">
+    <div className="flex flex-col gap-4 md:gap-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CalendarDays className="h-6 w-6 text-primary" />
@@ -298,7 +298,7 @@ export function CalendarPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">Task due dates and meeting schedule</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={prevMonth}
             className="rounded-md border p-1.5 hover:bg-accent transition-colors"

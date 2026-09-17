@@ -2790,7 +2790,7 @@ export function SettingsPage() {
         )}
       </div>
 
-      <div className="flex gap-1 rounded-lg border bg-muted p-1 self-start">
+      <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border bg-muted p-1 self-start">
         {TABS.map((t) => {
           const Icon = t.icon;
           return (
@@ -2798,7 +2798,7 @@ export function SettingsPage() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 tab === t.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >

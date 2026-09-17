@@ -87,6 +87,28 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ── Touch ─────────────────────────────────────────────────────────────────
+   On a finger there is no hover, so anything that only appears on hover
+   (row actions, rename/archive on a conversation, the forget-a-place cross)
+   is unreachable. Show it. Applies to tablets as much as phones. */
+@media (pointer: coarse) {
+  .group:not(:hover) .group-hover\:opacity-100,
+  .group\/place:not(:hover) .group-hover\/place\:flex {
+    opacity: 1;
+  }
+  .group\/place .group-hover\/place\:flex.hidden {
+    display: flex;
+  }
+}
+/* iPhone Safari zooms the page when a field under 16px takes focus. */
+@media (pointer: coarse) and (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
 /* ── Canvas ────────────────────────────────────────────────────────────────
    Deliberately not gated on prefers-reduced-motion: Windows reports that
    whenever "Animation effects" is off, which is the default on plenty of

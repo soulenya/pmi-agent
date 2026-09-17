@@ -151,7 +151,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b px-6 py-4">
+      <header className="border-b px-3 py-3 md:px-6 md:py-4">
         <NavLink
           to="/projects"
           className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
@@ -188,7 +188,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
           <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{project.goal}</p>
         ) : null}
 
-        <nav className="mt-4 flex flex-wrap gap-1">
+        <nav className="-mx-3 mt-4 flex gap-1 overflow-x-auto px-3 md:mx-0 md:flex-wrap md:px-0">
           {TABS.filter(t => t.id !== "team" || onHub).map(t => {
             const Icon = t.icon;
             // A tab that holds something says so, so the space does not look
@@ -205,7 +205,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
                 type="button"
                 onClick={() => navigate(`${base}/space/${t.id}`)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm",
                   active === t.id
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -224,7 +224,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
         </nav>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-3 md:p-6">
         {active === "overview" && (
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border bg-card p-5">

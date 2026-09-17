@@ -857,6 +857,19 @@ What is *not* there is anything kept on your own computer: the knowledge base on
 
 **Odoo on the hub.** The Odoo connection is per person on the hub as well: open the hub's **Odoo** page and paste your own API key (the same one you use on your PC; the key stored on your PC does not travel). Once connected, the bank balance shows on budgets on the hub and Gerry there can read Odoo for you.
 
+### On a phone
+
+Open the hub's address in the phone's browser and sign in with your work Google account — the same sign-in as on a computer; there is no app to install. Below about 770 px wide the app switches to a layout made for a phone:
+
+- **Five tabs along the bottom** — **Today**, **Waiting**, **Team**, **Tasks**, **Gerry** — and **More** for the rest (Projects, Mail, Knowledge, Calendar, Compliance, Finance, Settings, Sign out). Waiting carries the same count as the desktop bell, amber when a decision is pending; Team carries your unread count.
+- **One column.** Where the desktop shows two panes side by side, the phone shows the list first and opens the item full-screen with a way back: Gerry's conversations, Team channels, the Inbox, Budgets. Inside a project or a conversation the header has a Back chevron.
+- **Ask Gerry** from a task or project opens the conversation itself; there is no side panel on a phone.
+- The Tasks page is always the list (the board is a desktop view); the Knowledge Base picks its category from a menu; controls that only appear on hover on a computer are always shown.
+
+**Add it to your home screen.** A one-time card shows how: on iPhone, **Share → Add to Home Screen**; on Android, the browser menu's **Install app** or **Add to Home screen**. It then opens full-screen with its own icon. On iPhone this is also the only way notifications will be able to reach you once web push ships.
+
+Tablets, iPad and Android alike, get the desktop layout.
+
 **Gerry on the hub.** Chat works there too, with your own Google grant for Gmail, Drive and Calendar, the hub's projects and its knowledge base. She has no access to what is on your PC.
 
 **Your budgets on the hub.** Every budget you own is copied to the hub whenever you open the Budgets page or change a budget on your PC, and from **Settings → The hub → Send my budgets to the hub**. On the hub they read and write the same Google Sheets under your hub grant.

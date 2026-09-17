@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
+  ChevronLeft,
   ExternalLink,
   Link2,
   Loader2,
@@ -43,10 +44,12 @@ import {
 import { InvoiceIntake } from "@/components/budgets/InvoiceIntake";
 import { pushBudgetsToHub } from "@/api/hub";
 import { useHubRemote } from "@/hooks/useAllWork";
+import { useIsPhone } from "@/hooks/useViewport";
 import { useToastStore } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 
 export function BudgetsPage() {
+  const phone = useIsPhone();
   const qc = useQueryClient();
   const push = useToastStore((s) => s.push);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -128,8 +131,8 @@ export function BudgetsPage() {
 
   return (
     <div className="flex h-full gap-4">
-      {/* ── Budget list ──────────────────────────────────────────────── */}
-      <aside className="flex w-72 flex-col gap-2 border-r pr-4">
+      {/* ── Budget list. On a phone it is the page until a budget is opened. ── */}
+      <aside className={cn("flex-col gap-2", phone ? (selectedId ? "hidden" : "flex w-full") : "flex w-72 border-r pr-4")}>
         <h1 className="flex items-center gap-2 text-lg font-semibold">
           <Wallet className="h-5 w-5" />
           Manage Budgets
@@ -284,8 +287,17 @@ export function BudgetsPage() {
         </p>
       </aside>
 
-      {/* ── Budget detail ─────────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col overflow-y-auto">
+      {/* ── Budget detail ── */}
+      <div className={cn("flex-1 flex-col overflow-y-auto", phone && !selectedId ? "hidden" : "flex")}>
+        {phone && selectedId && (
+          <button
+            type="button"
+            onClick={() => setSelectedId(null)}
+            className="mb-2 flex items-center gap-1 self-start rounded-md py-1 pr-2 text-xs text-muted-foreground active:bg-accent"
+          >
+            <ChevronLeft className="h-4 w-4" /> All budgets
+          </button>
+        )}
         {!budget ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted-foreground">
             <Wallet className="h-8 w-8 opacity-50" />

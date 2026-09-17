@@ -32,7 +32,9 @@ import { grantDriveEdit } from "@/api/google";
 import { useVoiceMode } from "@/hooks/useVoiceMode";
 import { VoiceBanner } from "@/components/chat/VoiceBanner";
 import { useHubRemote } from "@/hooks/useAllWork";
+import { useIsPhone } from "@/hooks/useViewport";
 import { useAuthStore } from "@/stores/authStore";
+import { useChatSidebarStore } from "@/stores/chatSidebarStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
 import { cn } from "@/lib/utils";
 
@@ -193,6 +195,7 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
   const onHub = source === "hub";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const phone = useIsPhone();
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -210,6 +213,16 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
   const [turnArtifacts, setTurnArtifacts] = useState<ArtifactLink[]>([]);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  // On a phone there is no side panel, so a question handed to it (Ask Gerry,
+  // the omnibar) is answered here instead.
+  const panelPending = useChatSidebarStore((s) => s.pendingMessage);
+  const panelActive = useChatSidebarStore((s) => s.activeConversationId);
+  const setPanelPending = useChatSidebarStore((s) => s.setPendingMessage);
+  useEffect(() => {
+    if (!phone || !panelPending || !conversationId || panelActive !== conversationId) return;
+    setPendingMessage(panelPending);
+    setPanelPending(null);
+  }, [phone, panelPending, panelActive, conversationId, setPanelPending]);
   const [pendingDelete, setPendingDelete] = useState<{ document_id: string; title: string } | null>(null);
   const [deletingDoc, setDeletingDoc] = useState(false);
   const [pendingDriveEdit, setPendingDriveEdit] = useState<DriveEditRequest | null>(null);
@@ -689,8 +702,14 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
     <div className="flex h-full gap-4">
       {/* â”€â”€ Conversation sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {/* The rail lists this machine's conversations and, below them, the ones
-          kept on the hub for shared projects. */}
-      <aside className="flex w-56 flex-col gap-2 border-r pr-4">
+          kept on the hub for shared projects. On a phone it is the whole page
+          until a conversation is opened, then the thread takes over. */}
+      <aside
+        className={cn(
+          "flex-col gap-2",
+          phone ? (conversationId ? "hidden" : "flex w-full") : "flex w-56 border-r pr-4",
+        )}
+      >
         <button
           onClick={() => createConvMutation.mutate()}
           disabled={createConvMutation.isPending}
@@ -785,7 +804,10 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
       </aside>
 
       {/* â”€â”€ Message thread â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      <div className="relative flex flex-1 flex-col overflow-hidden" {...dropProps}>
+      <div
+        className={cn("relative flex-1 flex-col overflow-hidden", phone && !conversationId ? "hidden" : "flex")}
+        {...dropProps}
+      >
         <DropOverlay show={isDragOver} label="Drop files to attach to this conversation" />
         {/* Status badge */}
         {conversationId && (

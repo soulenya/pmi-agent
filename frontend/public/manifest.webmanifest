@@ -1,0 +1,16 @@
+{
+  "name": "Little Gerry",
+  "short_name": "Gerry",
+  "description": "Precisian Medical Instruments' assistant: your projects, tasks, Team and Gerry, on the hub.",
+  "start_url": "/today",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

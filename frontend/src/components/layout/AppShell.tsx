@@ -14,7 +14,9 @@ import { SystemNoticesBanner } from "@/components/SystemNotices";
 import { Toaster } from "@/components/Toaster";
 import { Rail } from "@/components/workbench/Rail";
 import { WorkbenchHeader } from "@/components/workbench/WorkbenchHeader";
+import { MobileShell } from "@/components/mobile/MobileShell";
 import { AppContextProvider } from "@/contexts/AppContext";
+import { useIsPhone } from "@/hooks/useViewport";
 import { usePeekStore } from "@/stores/peekStore";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import { PLANET_TO_RAIL } from "@/lib/workbench";
@@ -36,6 +38,7 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const voiceActive = useVoiceAssistantStore((s) => s.active);
+  const phone = useIsPhone();
 
   // Persist the current location so navigation survives an app restart.
   useEffect(() => {
@@ -99,6 +102,27 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, [voiceActive, navigate]);
 
+  // Everything drawn over the page, whichever shell is underneath it.
+  const overlays = (
+    <>
+      <PeekHost />
+      <SystemNoticesBanner />
+      <WhatsNewModal />
+      <FeatureGuideModal />
+      <MoveToHubPrompt />
+      <Toaster />
+    </>
+  );
+
+  if (phone) {
+    return (
+      <AppContextProvider>
+        <MobileShell />
+        {overlays}
+      </AppContextProvider>
+    );
+  }
+
   return (
     <AppContextProvider>
       <div className="flex h-screen overflow-hidden bg-background">
@@ -115,13 +139,8 @@ export function AppShell() {
           </div>
           <StatusBar />
         </div>
-        <PeekHost />
         <LiveMeetingAssist />
-        <SystemNoticesBanner />
-        <WhatsNewModal />
-        <FeatureGuideModal />
-        <MoveToHubPrompt />
-        <Toaster />
+        {overlays}
       </div>
     </AppContextProvider>
   );
