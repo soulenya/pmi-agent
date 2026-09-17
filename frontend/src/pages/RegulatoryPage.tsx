@@ -27,6 +27,7 @@ import {
   type RegTemplateInfo, type RegGenerateResult,
 } from "@/api/regulatoryTemplates";
 import { createTask } from "@/api/tasks";
+import { useDefaultSource } from "@/hooks/useAllWork";
 import type { TaskPriority } from "@/types/tasks";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
@@ -634,26 +635,31 @@ function GenerateDocModal({ parentId, folderName, onClose }: {
   // Step 4 — review task + preview
   const [taskCreated, setTaskCreated] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const taskSource = useDefaultSource();
   const taskMut = useMutation({
     mutationFn: () => {
       if (!result) throw new Error("No generated document.");
       const rt = result.review_task;
-      return createTask({
-        title: rt.title,
-        description: rt.description,
-        priority: rt.priority as TaskPriority,
-        due_date: rt.due_date,
-        tags: rt.tags,
-        source_ref: {
-          kind: "regulatory_doc",
-          id: result.node.id,
-          label: result.node.name,
+      return createTask(
+        {
+          title: rt.title,
+          description: rt.description,
+          priority: rt.priority as TaskPriority,
+          due_date: rt.due_date,
+          tags: rt.tags,
+          source_ref: {
+            kind: "regulatory_doc",
+            id: result.node.id,
+            label: result.node.name,
+          },
         },
-      });
+        taskSource,
+      );
     },
     onSuccess: () => {
       setTaskCreated(true);
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["hub", "tasks"] });
     },
   });
 

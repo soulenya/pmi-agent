@@ -4,6 +4,48 @@
 
 ## Changelog
 
+### v5.6.0 · build 269 — 2026-09-17
+**The desktop is a client of the hub (travel mode, phase 3b)**
+
+Morgan's real move (v5.5.0 prompt, 2026-09-17) landed: hub `My tasks`
+(private) 81 tasks — 79 done, 2 open; `Henry Jackson Foundation` (private,
+0 tasks); local copies archived; 0 project-less local tasks left.
+
+- **Odoo per user on the hub needed no schema work**: `odoo_connections` has had
+  `user_id` + `uq_odoo_connection_user` since migration 012 and every query
+  already scopes by the current user. The plan doc was wrong. Each person
+  pastes their own API key on the hub's Odoo page; the `on_hub` notice and
+  Settings → The hub now say so instead of "Odoo is not here".
+- **New tasks default to the hub.** `useDefaultSource()` (`hooks/useAllWork.ts`)
+  is `hub` when this computer is signed in to the hub; `useProjectSource` and
+  `TaskCreateForm` fall back to it for project-less tasks (was hard-coded
+  `local`, so every quick-add re-created the orphan pile the move had just
+  cleared). Meeting action items and the regulatory review task follow.
+- **Gerry's task tools read and write the hub from the desktop.**
+  `execute_get_tasks` with no project now appends "Tasks on the hub" (from hub
+  `GET /tasks`, filtered the same way, ids printed) and excludes local rows
+  in archived projects — the 81 stale copies left by the move would otherwise
+  have been read back as current. `execute_create_task` with no project makes
+  the task on the hub when linked (`_hub_is_record`); `_create_task_on_hub`
+  accepts `project=None` and finds/creates a parent among the person's hub
+  tasks. `execute_update_task` falls back to hub `GET/PATCH/DELETE /tasks/{id}`
+  when the id is not local. Verified against the real hub: list (24 open),
+  create → done → delete round trip.
+- **"Offline, read-only" state.** `stores/hubReachStore.ts`; the API client
+  marks `/hub/api/*` requests (`_hub`) and flips the store on a proxy 502/504,
+  back on any hub answer. `components/hub/HubOfflineBar.tsx` under the
+  service bar: "The hub can't be reached" + the proxy's reason + what that
+  means; *Try again* refetches every `["hub"]` query; hub task/project queries
+  refetch every 30 s while offline. The hub chip goes red with "signed in, but
+  the hub is not answering". Tasks and Projects pages say the hub did not
+  answer instead of showing a shorter list as if it were complete.
+- **Projects page, hub first.** When linked, the hub list is the main list
+  ("On the hub", stats from hub projects/tasks); anything still local is a
+  second section "Still on this computer" pointing at *Move my work to the
+  hub*. Unlinked installs unchanged.
+- Not done (deliberately): budgets stay desktop-authored and mirrored up
+  (`POST /hub/budgets/push`); chat history is not pushed.
+
 ### v5.5.0 · build 268 — 2026-09-16
 **Move your work to the hub (travel mode, phase 3a)**
 

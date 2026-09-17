@@ -822,13 +822,19 @@ You sign in as yourself, not as the app. Everything you look at and everything y
 
 ### Seeing shared work
 
-Open **Projects**. Below your own projects, a **Shared on the hub** area lists the projects the firm has shared with you, with the account you're signed in as. Open one and you get the same project space as a local project — overview, canvas, timeline, tasks, budget, material and chat — marked **On the hub**.
+Open **Projects**. Once this computer is signed in to the hub, the list headed **On the hub** comes first — your projects and the ones the firm has shared with you, with the totals above it and the account you're signed in as. Anything still kept only on this computer is listed below under **Still on this computer**, with a pointer to *Move my work to the hub*. Open a hub project and you get the same project space as a local one — overview, canvas, timeline, tasks, budget, material and chat — marked **On the hub**.
 
 ### Moving your work to the hub
 
 The hub is where your work is meant to live now, so it is there from any browser when you travel. After an update, if you are connected to the hub and still have projects or tasks on this computer, Little Gerry offers to move them — listing exactly what would go. **Move everything to the hub** sends each project through the same path as a project's own *Move to hub*; tasks that belong to no project arrive inside a private project called **My tasks**. Private projects stay private on the hub. The copies on this computer are archived once the hub has them, never deleted. **Not now** asks again after the next update; **Don't ask again** stops asking. The same offer is under **Settings → The hub → Move my work to the hub…**.
 
-Chat history, the knowledge base and meeting notes stay on this computer. New projects go on the hub by default while you are connected to it.
+Chat history, the knowledge base and meeting notes stay on this computer. New projects go on the hub by default while you are connected to it, and so does **a new task with no project** — from the Tasks page, from a meeting's action items, and when Gerry makes one. Pick a project and the task goes wherever that project lives.
+
+**Gerry reads the hub from this computer.** Ask her what your tasks are and she lists the ones on this computer and the ones on the hub, each hub row with its id; she can mark them done, change them or delete them by that id. The archived copies the move left behind are not read back.
+
+### When the hub can't be reached
+
+Little Gerry never keeps a copy of hub work on this computer, so when the hub does not answer there is nothing to fall back on — and the app says so rather than show a shorter list. An amber bar under the service chips reads **The hub can't be reached**, gives the reason the app got back (no route, sign-in expired, and so on) and what it means: your projects, tasks, budgets and Team are missing from the lists and cannot be changed until the hub answers. Work kept only on this computer is still there. The app asks again every 30 seconds; **Try again** asks now. The **hub** chip in the service bar turns red with *signed in, but the hub is not answering*, and the Tasks and Projects pages say the hub did not answer instead of "no tasks".
 
 **Shared work shows up everywhere your own work does.** The Tasks board, the Calendar, the Dashboard's agenda and overdue list, and the Portfolio graph all list hub tasks and hub projects alongside the ones on this computer, each marked with a small **hub** pill. Change a hub task's status from the board, open it in the task drawer, drag it across the kanban — the change goes to the hub. A task can only be moved into a project that lives where it does: local into local, hub into hub. With a project filter set on the Tasks page, **New Task** creates the task in that project, wherever it lives.
 
@@ -847,7 +853,9 @@ Shared work is read from the hub every time it's drawn on screen. There is no lo
 
 Away from your own computer, open the hub's address in any browser and sign in with your work Google account. You get the shared half of Little Gerry: every project on the hub with its tasks, timeline, canvas, budget and chat, **Team** for talking to colleagues, and the Waiting-for-you list of hub notifications. The Projects page lists hub projects only, and a new project made there goes on the hub.
 
-What is *not* there is anything kept on your own computer: your personal budgets that have not been sent up, the knowledge base on your PC, your chat history with Gerry, Odoo, meeting capture. A notice at the top says so on your first visit, and **Settings → The hub** reads *You are on the hub*. To use Drive, Gmail and Calendar from the hub, connect your Google account under **Settings → Google Workspace** — that grant is yours alone and separate from the one on your PC.
+What is *not* there is anything kept on your own computer: the knowledge base on your PC, your chat history with Gerry, meeting capture, and any budget that has not been sent up. A notice at the top says so on your first visit, and **Settings → The hub** reads *You are on the hub*. To use Drive, Gmail and Calendar from the hub, connect your Google account under **Settings → Google Workspace** — that grant is yours alone and separate from the one on your PC.
+
+**Odoo on the hub.** The Odoo connection is per person on the hub as well: open the hub's **Odoo** page and paste your own API key (the same one you use on your PC; the key stored on your PC does not travel). Once connected, the bank balance shows on budgets on the hub and Gerry there can read Odoo for you.
 
 **Gerry on the hub.** Chat works there too, with your own Google grant for Gmail, Drive and Calendar, the hub's projects and its knowledge base. She has no access to what is on your PC.
 

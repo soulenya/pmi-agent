@@ -91,6 +91,7 @@ function ActionExtractModal({
         )
       );
       qc.invalidateQueries({ queryKey: ["tasks"] });
+      qc.invalidateQueries({ queryKey: ["hub", "tasks"] });
       setDone(true);
       setTimeout(onClose, 1000);
     } finally {

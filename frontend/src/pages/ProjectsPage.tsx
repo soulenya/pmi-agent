@@ -649,7 +649,7 @@ export function ProjectsPage() {
     enabled: !hubHere,
   });
 
-  const { data: hubProjects = [], isLoading: hubLoading } = useQuery({
+  const { data: hubProjects = [], isLoading: hubLoading, isError: hubError } = useQuery({
     queryKey: ["hub", "projects"],
     queryFn: () => listProjects(false, "hub"),
     enabled: hubConnected,
@@ -669,6 +669,14 @@ export function ProjectsPage() {
     allTasks.filter((t) => t.project_id === projectId);
 
   const unassigned = allTasks.filter((t) => !t.project_id);
+
+  // Once signed in, the hub is where this person's work is kept; whatever is
+  // still on this computer is the exception and is listed second.
+  const hubFirst = hubConnected;
+  const statProjects = hubFirst ? hubProjects : projects;
+  const statTasks = hubFirst ? hubTasks : allTasks;
+  const statUnassigned = hubFirst ? hubTasks.filter((t) => !t.project_id) : unassigned;
+  const statsReady = hubFirst ? !hubLoading && !hubError : !projectsLoading;
 
   const viewTabs = (
     <div className="flex gap-1 rounded-lg border bg-muted p-1">
@@ -771,65 +779,39 @@ export function ProjectsPage() {
       )}
 
       {/* Stats */}
-      {!hubHere && !projectsLoading && projects.length > 0 && (
+      {statsReady && statProjects.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground">Total Projects</p>
-            <p className="text-2xl font-bold mt-1">{projects.length}</p>
+            <p className="text-2xl font-bold mt-1">{statProjects.length}</p>
           </div>
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground">Open Tasks</p>
             <p className="text-2xl font-bold mt-1">
-              {allTasks.filter((t) => !STATUS_DONE.includes(t.status)).length}
+              {statTasks.filter((t) => !STATUS_DONE.includes(t.status)).length}
             </p>
           </div>
           <div className="rounded-lg border bg-card p-4">
             <p className="text-xs text-muted-foreground">Unassigned Tasks</p>
-            <p className={cn("text-2xl font-bold mt-1", unassigned.length > 0 && "text-amber-500")}>
-              {unassigned.length}
+            <p className={cn("text-2xl font-bold mt-1", statUnassigned.length > 0 && "text-amber-500")}>
+              {statUnassigned.length}
             </p>
           </div>
         </div>
       )}
 
-      {/* Project grid */}
-      {hubHere ? null : projectsLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
-          Loading projects…
-        </div>
-      ) : projects.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground gap-3">
-          <FolderOpen className="h-10 w-10 opacity-30" />
-          <p className="text-sm">No projects yet.</p>
-          <p className="text-xs">
-            Click <span className="font-medium">New Project</span> to get started.
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p) => (
-            <ProjectCard
-              key={p.id}
-              project={p}
-              tasks={tasksByProject(p.id)}
-              onEdit={() => setEditingProject(p)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* What the firm shares, live from the hub */}
+      {/* Your work, live from the hub */}
       {hubConnected && (
-        <div className={cn("space-y-4", !hubHere && "border-t pt-6")}>
+        <div className="space-y-4">
           <div className="flex items-baseline justify-between">
             <div>
               <h2 className="text-lg font-semibold">
-                {hubHere ? "Projects on the hub" : "Shared on the hub"}
+                {hubHere ? "Projects on the hub" : "On the hub"}
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {hubHere
                   ? `Signed in as ${hubStatus?.email}. Projects kept on your own computer are not shown here.`
-                  : `Signed in as ${hubStatus?.email}. This work lives on the hub, not on this computer.`}
+                  : `Signed in as ${hubStatus?.email}. Your projects live on the hub, not on this computer.`}
               </p>
             </div>
           </div>
@@ -837,9 +819,18 @@ export function ProjectsPage() {
             <div className="py-8 text-center text-sm text-muted-foreground">
               Asking the hub…
             </div>
+          ) : hubError ? (
+            <div className="rounded-lg border border-dashed border-amber-400/60 py-8 text-center text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">The hub can't be reached.</p>
+              <p className="mt-1 text-xs">Your projects are there and will appear when it answers.</p>
+            </div>
           ) : hubProjects.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              Nothing on the hub is shared with you yet.
+            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground gap-3">
+              <FolderOpen className="h-10 w-10 opacity-30" />
+              <p className="text-sm">No projects on the hub yet.</p>
+              <p className="text-xs">
+                Click <span className="font-medium">New Project</span> to get started.
+              </p>
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -854,6 +845,44 @@ export function ProjectsPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Project grid on this computer */}
+      {hubHere ? null : projectsLoading ? (
+        <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+          Loading projects…
+        </div>
+      ) : projects.length === 0 ? (
+        hubFirst ? null : (
+          <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground gap-3">
+            <FolderOpen className="h-10 w-10 opacity-30" />
+            <p className="text-sm">No projects yet.</p>
+            <p className="text-xs">
+              Click <span className="font-medium">New Project</span> to get started.
+            </p>
+          </div>
+        )
+      ) : (
+        <div className={cn("space-y-4", hubFirst && "border-t pt-6")}>
+          {hubFirst && (
+            <div>
+              <h2 className="text-lg font-semibold">Still on this computer</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Only visible here. Settings → The hub → <span className="font-medium">Move my work to the hub</span> takes them along.
+              </p>
+            </div>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((p) => (
+              <ProjectCard
+                key={p.id}
+                project={p}
+                tasks={tasksByProject(p.id)}
+                onEdit={() => setEditingProject(p)}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -11,6 +11,7 @@ import { useCallback, useMemo } from "react";
 
 import { getHubStatus } from "@/api/hub";
 import { listProjects, listTasks, type Source } from "@/api/tasks";
+import { useHubReachStore } from "@/stores/hubReachStore";
 import type { Project, Task } from "@/types/tasks";
 
 export type SourcedTask = Task & { source: Source };
@@ -46,9 +47,33 @@ export function useHubRemote(): boolean {
   return data?.connected === true && data?.here !== true;
 }
 
+/**
+ * Where new work goes when nothing else decides. The hub is the record once
+ * this computer is signed in to it; only an install with no hub link keeps
+ * writing to its own tables.
+ */
+export function useDefaultSource(): Source {
+  return useHubConnected() ? "hub" : "local";
+}
+
+/**
+ * The hub is linked but did not answer. Lists are then missing everything
+ * that lives there and nothing there can be changed, and the page has to say
+ * so rather than show a shorter list as if it were the whole truth.
+ */
+export function useHubOffline(): boolean {
+  const remote = useHubRemote();
+  const offline = useHubReachStore((s) => s.offline);
+  return remote && offline;
+}
+
+// While the hub is down, ask again on a timer so the page recovers by itself.
+const RETRY_MS = 30_000;
+
 export function useAllTasks() {
   const hubConnected = useHubConnected();
   const here = useHubHere();
+  const offline = useHubOffline();
   // On the hub every row is a hub row; asking twice would list each one twice.
   const local = useQuery({
     queryKey: ["tasks"],
@@ -61,6 +86,7 @@ export function useAllTasks() {
     enabled: hubConnected,
     staleTime: 30_000,
     retry: false,
+    refetchInterval: offline ? RETRY_MS : false,
   });
   // Moving a project to the hub archives the copy here but leaves its tasks
   // in place, so without this every moved task would be listed twice.
@@ -86,12 +112,15 @@ export function useAllTasks() {
     isLoading: here ? hub.isLoading : local.isLoading,
     hubConnected,
     hubLoading: hub.isLoading,
+    /** The hub was asked and did not answer; `tasks` is missing what lives there. */
+    hubError: hubConnected && hub.isError,
   };
 }
 
 export function useAllProjects(includeArchived = false) {
   const hubConnected = useHubConnected();
   const here = useHubHere();
+  const offline = useHubOffline();
   const local = useQuery({
     queryKey: includeArchived ? ["projects", "all"] : ["projects"],
     queryFn: () => listProjects(includeArchived),
@@ -104,6 +133,7 @@ export function useAllProjects(includeArchived = false) {
     enabled: hubConnected,
     staleTime: 30_000,
     retry: false,
+    refetchInterval: offline ? RETRY_MS : false,
   });
   const projects = useMemo<SourcedProject[]>(
     () => [
@@ -112,7 +142,12 @@ export function useAllProjects(includeArchived = false) {
     ],
     [local.data, hub.data, here],
   );
-  return { projects, isLoading: here ? hub.isLoading : local.isLoading, hubConnected };
+  return {
+    projects,
+    isLoading: here ? hub.isLoading : local.isLoading,
+    hubConnected,
+    hubError: hubConnected && hub.isError,
+  };
 }
 
 /** Refresh every task list, on this computer and on the hub. */

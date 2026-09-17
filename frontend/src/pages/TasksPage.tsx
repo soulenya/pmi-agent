@@ -502,7 +502,7 @@ export function TasksPage() {
     searchParams.get("project_id") ?? ""
   );
 
-  const { tasks, isLoading } = useAllTasks();
+  const { tasks, isLoading, hubError } = useAllTasks();
   const { projects } = useAllProjects();
 
   const { data: googleStatus } = useQuery({
@@ -786,7 +786,12 @@ export function TasksPage() {
         />
       ) : topLevel.length === 0 ? (
         <div className="rounded-lg border border-dashed py-16 text-center text-muted-foreground">
-          {filterStatus === "active" ? (
+          {hubError ? (
+            <>
+              <p className="font-medium text-foreground">The hub can't be reached.</p>
+              <p className="text-sm mt-1">Your tasks are there and will appear when it answers.</p>
+            </>
+          ) : filterStatus === "active" ? (
             <>
               <p className="font-medium">No active tasks</p>
               <p className="text-sm mt-1">Create one or ask the AI Assistant to create tasks for you.</p>

@@ -10,7 +10,7 @@ import { ChevronDown, ChevronRight, Loader2, Plus } from "lucide-react";
 
 import { createTask, getProjectSpace, type Source } from "@/api/tasks";
 import { HubBadge } from "@/components/HubBadge";
-import { useAllProjects, useInvalidateTasks } from "@/hooks/useAllWork";
+import { useAllProjects, useDefaultSource, useInvalidateTasks } from "@/hooks/useAllWork";
 import { cn } from "@/lib/utils";
 import type { Task, TaskCreate, TaskPriority } from "@/types/tasks";
 
@@ -34,10 +34,15 @@ export interface TaskPlacement {
   priority: TaskPriority;
 }
 
-/** The project decides where a task lives; the caller never picks a source. */
+/**
+ * The project decides where a task lives; the caller never picks a source.
+ * With no project, the task goes where this person's own work is kept: the
+ * hub once this computer is signed in to it, otherwise here.
+ */
 export function useProjectSource(projectId: string): Source {
   const { projects } = useAllProjects();
-  return projects.find((p) => p.id === projectId)?.source ?? "local";
+  const fallback = useDefaultSource();
+  return projects.find((p) => p.id === projectId)?.source ?? fallback;
 }
 
 /** Project, due and priority: what every task needs to be placed. */
@@ -124,6 +129,7 @@ export function TaskCreateForm({
 }: TaskCreateFormProps) {
   const invalidate = useInvalidateTasks();
   const { projects } = useAllProjects();
+  const defaultSource = useDefaultSource();
 
   const [title, setTitle] = useState(defaults?.title ?? "");
   const [place, setPlace] = useState<TaskPlacement>({
@@ -146,7 +152,7 @@ export function TaskCreateForm({
   }, [initialProjectId]);
 
   const project = useMemo(() => projects.find((p) => p.id === projectId), [projects, projectId]);
-  const source: Source = lockProject ? lockedSource : project?.source ?? "local";
+  const source: Source = lockProject ? lockedSource : project?.source ?? defaultSource;
 
   // Members only exist inside a project; unassigned tasks have nobody to pick.
   const { data: space } = useQuery({

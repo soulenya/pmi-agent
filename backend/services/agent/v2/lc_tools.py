@@ -17,7 +17,9 @@ _TOOL_DOCS = {
     "create_task": (
         "Create a new task in the PMI task tracker (Kanban board). Auto-approved. "
         "Pass \"project\" (name or id) to file it under a project, shared ones on "
-        "the hub included; call list_projects first if you only have a name. "
+        "the hub included; call list_projects first if you only have a name. With "
+        "no project the task is kept on the hub when this computer is signed in to "
+        "it, otherwise here. "
         "Pass \"parent\" (title or id of an existing task) to make this a sub-task "
         "of it; call get_tasks first and copy the title exactly, since a near-miss "
         "creates a second parent instead of nesting under the real one."
@@ -35,7 +37,8 @@ _TOOL_DOCS = {
         "List tasks from the PMI task tracker. JSON: {\"project\": str optional, "
         "\"status\": ..., \"priority\": ...}. With \"project\" it returns EVERY task in "
         "that project, sub-tasks indented under their parents, shared hub projects "
-        "included — this is how you see inside a project. Without it, the user's own."
+        "included — this is how you see inside a project. Without it, the user's own, "
+        "on this computer and on the hub; hub rows carry an id usable with update_task."
     ),
     "get_regulatory_status": "Get the current regulatory filing status and compliance overview for the VACTOR program.",
     "search_web": "Search the public web (DuckDuckGo) for research, news, or regulatory guidance.",
@@ -111,7 +114,7 @@ _TOOL_DOCS = {
         '"new_name": str (for rename), "confirm": bool (required true for delete, only after the user explicitly confirms)}.'
     ),
     "update_task": (
-        'Edit, complete, or delete a task on the task board. JSON fields: {"task_id": str (UUID), "title": str (optional), '
+        'Edit, complete, or delete a task on the task board, here or on the hub (the id from get_tasks decides). JSON fields: {"task_id": str (UUID), "title": str (optional), '
         '"description": str (optional), "status": "backlog"|"todo"|"in_progress"|"done"|"cancelled" (optional), '
         '"priority": "low"|"medium"|"high"|"critical" (optional), "action": "delete" (optional, destructive), '
         '"confirm": bool (required true for delete, only after the user explicitly confirms)}.'

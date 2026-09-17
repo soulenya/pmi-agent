@@ -1,5 +1,6 @@
 import axios from "axios";
 import { useAuthStore } from "@/stores/authStore";
+import { useHubReachStore } from "@/stores/hubReachStore";
 import { useToastStore } from "@/stores/toastStore";
 
 export const apiClient = axios.create({
@@ -37,11 +38,23 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  if (onHub && config.url && /^\/hub\/api(\/|$)/.test(config.url)) {
-    config.url = config.url.slice("/hub/api".length) || "/";
+  if (config.url && /^\/hub\/api(\/|$)/.test(config.url)) {
+    if (onHub) {
+      config.url = config.url.slice("/hub/api".length) || "/";
+    } else {
+      // Proxied to the hub: its answer (or silence) tells us whether the hub is up.
+      (config as HubBound)._hub = true;
+    }
   }
   return config;
 });
+
+type HubBound = { _hub?: boolean };
+
+/** True when the proxy says the hub itself did not answer (502/504), not that it refused. */
+function hubUnreachable(error: { response?: { status?: number } }): boolean {
+  return error.response?.status === 502 || error.response?.status === 504;
+}
 
 // ── Response interceptor: handle 401 by refreshing or clearing session ────────
 let isRefreshing = false;
@@ -57,9 +70,22 @@ function onRefreshed(token: string) {
 }
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if ((response.config as HubBound)._hub) useHubReachStore.getState().markOnline();
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
+
+    if ((originalRequest as HubBound | undefined)?._hub) {
+      if (hubUnreachable(error)) {
+        const detail = error.response?.data?.detail;
+        useHubReachStore.getState().markOffline(typeof detail === "string" ? detail : null);
+      } else if (error.response) {
+        // The hub answered, even if with a refusal: it is reachable.
+        useHubReachStore.getState().markOnline();
+      }
+    }
 
     // A 409 is the server refusing on a rule the person can act on — most often
     // work held by a shared project. Say so, or it reads as a dead button.

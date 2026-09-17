@@ -158,6 +158,8 @@ TOOL_DEFINITIONS: list[dict] = [
                 "Pass 'project' to file the task under a project. If the user named a "
                 "project and you do not know its id, call list_projects first — a "
                 "shared project exists only on the hub and will otherwise look missing. "
+                "With no project, the task is kept on the hub when this computer is "
+                "signed in to it, otherwise here. "
                 "Pass 'parent' to make this a sub-task of another task. Creating "
                 "several sub-tasks at once is a job for create_tasks instead."
             ),
@@ -460,9 +462,12 @@ TOOL_DEFINITIONS: list[dict] = [
             "name": "get_tasks",
             "description": (
                 "Query the PMI task tracker. Without 'project' it lists the current "
-                "user's own tasks. With 'project' it lists EVERY task in that project, "
-                "whoever owns it, sub-tasks indented under their parents — including "
-                "shared projects that live on the hub. Use this to see inside a project."
+                "user's own tasks, both on this computer and on the hub (where work "
+                "is kept once the computer is signed in to it). With 'project' it "
+                "lists EVERY task in that project, whoever owns it, sub-tasks indented "
+                "under their parents — including shared projects that live on the hub. "
+                "Use this to see inside a project. Hub rows carry an id usable with "
+                "update_task."
             ),
             "parameters": {
                 "type": "object",
@@ -2660,6 +2665,13 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
                     ctx, shared, title, description, priority, due_date, wanted_parent
                 )
             return problem
+    elif await _hub_is_record(ctx):
+        # No project named. Once this computer is signed in to the hub that is
+        # where the person's own work is kept; a row made here would only be
+        # seen here.
+        return await _create_task_on_hub(
+            ctx, None, title, description, priority, due_date, wanted_parent
+        )
 
     parent_task: Task | None = None
     if wanted_parent:
@@ -2752,22 +2764,32 @@ async def execute_create_task(ctx: ToolContext, args: dict[str, Any]) -> str:
     )
 
 
+async def _hub_is_record(ctx: ToolContext) -> bool:
+    """True on a desktop that is signed in to the hub. Never true on the hub itself."""
+    from config import settings as _settings
+    from services.hub import client as hub
+
+    if _settings.hub_mode or not hub.configured():
+        return False
+    return await hub.get_link(ctx.db, ctx.user_id) is not None
+
+
 async def _create_task_on_hub(
     ctx: ToolContext,
-    project: dict[str, Any],
+    project: dict[str, Any] | None,
     title: str,
     description: str | None,
     priority: str,
     due_date: datetime | None,
     wanted_parent: str = "",
 ) -> str:
-    """Make the task in the shared project, where the rest of it lives."""
+    """Make the task on the hub: in the shared project, or as the person's own."""
+    project_id = str(project.get("id")) if project is not None else None
     parent_id: str | None = None
     parent_title = ""
     if wanted_parent:
-        payload, problem = await _project_tools._hub_get(
-            ctx.db, ctx.user_id, f"/tasks?project_id={project.get('id')}"
-        )
+        path = f"/tasks?project_id={project_id}" if project_id else "/tasks"
+        payload, problem = await _project_tools._hub_get(ctx.db, ctx.user_id, path)
         if payload is None:
             return problem
         rows = payload if isinstance(payload, list) else payload.get("items") or []
@@ -2776,25 +2798,28 @@ async def _create_task_on_hub(
         )
         if choices:
             listed = ", ".join(f'"{c.get("title")}"' for c in choices[:5])
+            where = f' in "{project.get("name")}"' if project is not None else ""
             return (
-                f'Error: more than one task in "{project.get("name")}" is called '
+                f'Error: more than one task{where} is called '
                 f'"{wanted_parent}": {listed}. Ask which one this belongs under, '
                 "then use that task's exact title or its id. Nothing was created."
             )
         if found is None:
             made = await _hub_post_task(
-                ctx, {"title": wanted_parent[:500], "project_id": str(project.get("id"))}
+                ctx, {"title": wanted_parent[:500], "project_id": project_id}
             )
             if isinstance(made, str):
                 return made
             found = made
         parent_id = str(found.get("id"))
         parent_title = str(found.get("title"))
+        if project_id is None and found.get("project_id"):
+            project_id = str(found["project_id"])
 
     body = {
         "title": title,
         "description": description,
-        "project_id": str(project.get("id")),
+        "project_id": project_id,
         "parent_task_id": parent_id,
         "priority": priority,
         "due_date": due_date.isoformat() if due_date else None,
@@ -2804,8 +2829,11 @@ async def _create_task_on_hub(
         return created
     due_str = f", due {due_date.date()}" if due_date else ""
     under = f' under "{parent_title}"' if parent_id else ""
+    where = (
+        f'in the shared project "{project.get("name")}"' if project is not None else "on the hub"
+    )
     return (
-        f'Task created in the shared project "{project.get("name")}"{under}: "{title}" '
+        f'Task created {where}{under}: "{title}" '
         f"[priority={priority}{due_str}, id={created.get('id')}]"
     )
 
@@ -3215,13 +3243,14 @@ async def execute_get_pending_approvals(ctx: ToolContext, _args: dict[str, Any])
 
 async def execute_get_tasks(ctx: ToolContext, args: dict[str, Any]) -> str:
     from sqlalchemy import select
-    from models.db.task import Task
+    from models.db.task import Project, Task
     from models.db.enums import TaskStatus
 
     status_filter = str(args.get("status", "all"))
     priority_filter = str(args.get("priority", "any"))
     wanted_project = str(args.get("project") or "").strip()
 
+    hub_section = ""
     if wanted_project:
         project, shared, problem = await _project_tools.resolve_project_anywhere(
             ctx.db, ctx.user_id, wanted_project, "viewer"
@@ -3233,9 +3262,14 @@ async def execute_get_tasks(ctx: ToolContext, args: dict[str, Any]) -> str:
         # Everyone on a project sees all of its tasks, not only their own.
         stmt = select(Task).where(Task.project_id == project.id)
     else:
+        # Work moved to the hub lives there now. The copy left here sits in an
+        # archived project and must not be read back as if it were current.
+        archived = select(Project.id).where(Project.is_archived == True)  # noqa: E712
         stmt = select(Task).where(
-            (Task.created_by == ctx.user_id) | (Task.assignee_id == ctx.user_id)
+            (Task.created_by == ctx.user_id) | (Task.assignee_id == ctx.user_id),
+            (Task.project_id.is_(None)) | (Task.project_id.not_in(archived)),
         )
+        hub_section = await _hub_my_tasks(ctx, status_filter, priority_filter)
     if status_filter != "all":
         stmt = stmt.where(Task.status == status_filter)
     if priority_filter != "any":
@@ -3248,6 +3282,8 @@ async def execute_get_tasks(ctx: ToolContext, args: dict[str, Any]) -> str:
     if not tasks:
         if wanted_project:
             return f'"{project.name}" has no tasks matching that filter.'
+        if hub_section:
+            return hub_section
         return "No tasks found matching that filter."
 
     now = datetime.now(timezone.utc)
@@ -3279,7 +3315,70 @@ async def execute_get_tasks(ctx: ToolContext, args: dict[str, Any]) -> str:
         # A sub-task whose parent is in this list is printed under it instead.
         if task.parent_task_id is None or task.parent_task_id not in known:
             lines.extend(render(task, 0))
+    if hub_section:
+        lines.append("")
+        lines.append(hub_section)
     return "\n".join(lines)
+
+
+def _hub_rows_filtered(
+    payload: Any, status_filter: str, priority_filter: str
+) -> list[dict[str, Any]]:
+    rows = [t for t in (payload or []) if isinstance(t, dict)]
+    if status_filter != "all":
+        rows = [t for t in rows if t.get("status") == status_filter]
+    if priority_filter != "any":
+        rows = [t for t in rows if t.get("priority") == priority_filter]
+    return rows
+
+
+def _render_hub_rows(rows: list[dict[str, Any]], heading: str) -> str:
+    under: dict[str | None, list[dict[str, Any]]] = {}
+    for t in rows:
+        under.setdefault(t.get("parent_task_id"), []).append(t)
+    known = {str(t.get("id")) for t in rows}
+
+    def render(task: dict[str, Any], depth: int) -> list[str]:
+        due = task.get("due_date")
+        due_str = f", due {str(due)[:10]}" if due else ""
+        stone = " [milestone]" if task.get("is_milestone") else ""
+        out = [
+            f"{'  ' * depth}- [{str(task.get('status', '')).upper()}]"
+            f"[{task.get('priority')}] {task.get('title')}{due_str}{stone} "
+            f"(id={task.get('id')})"
+        ]
+        for child in under.get(str(task.get("id")), []):
+            out.extend(render(child, depth + 1))
+        return out
+
+    lines = [heading]
+    for task in rows:
+        parent = task.get("parent_task_id")
+        if parent is None or str(parent) not in known:
+            lines.extend(render(task, 0))
+    return "\n".join(lines)
+
+
+async def _hub_my_tasks(ctx: ToolContext, status_filter: str, priority_filter: str) -> str:
+    """This person's tasks on the hub, or "" when there is no hub to ask.
+
+    Since work can be moved to the hub, a desktop asked "what are my tasks"
+    has to look there too, or it answers from what was left behind.
+    """
+    from config import settings as _settings
+    from services.hub import client as hub
+
+    if _settings.hub_mode or not hub.configured():
+        return ""
+    if await hub.get_link(ctx.db, ctx.user_id) is None:
+        return ""
+    payload, problem = await _project_tools._hub_get(ctx.db, ctx.user_id, "/tasks")
+    if payload is None:
+        return f"On the hub: {problem} Tasks kept there could not be listed."
+    rows = _hub_rows_filtered(payload, status_filter, priority_filter)
+    if not rows:
+        return "On the hub: no tasks matching that filter."
+    return _render_hub_rows(rows, f"Tasks on the hub ({len(rows)} found):")
 
 
 async def _hub_project_tasks(
@@ -3292,37 +3391,10 @@ async def _hub_project_tasks(
     )
     if payload is None:
         return problem
-    rows = [t for t in payload if isinstance(t, dict)]
-    if status_filter != "all":
-        rows = [t for t in rows if t.get("status") == status_filter]
-    if priority_filter != "any":
-        rows = [t for t in rows if t.get("priority") == priority_filter]
+    rows = _hub_rows_filtered(payload, status_filter, priority_filter)
     if not rows:
         return f'The shared project "{name}" has no tasks matching that filter.'
-
-    under: dict[str | None, list[dict[str, Any]]] = {}
-    for t in rows:
-        under.setdefault(t.get("parent_task_id"), []).append(t)
-    known = {str(t.get("id")) for t in rows}
-
-    def render(task: dict[str, Any], depth: int) -> list[str]:
-        due = task.get("due_date")
-        due_str = f", due {str(due)[:10]}" if due else ""
-        stone = " [milestone]" if task.get("is_milestone") else ""
-        out = [
-            f"{'  ' * depth}- [{str(task.get('status', '')).upper()}]"
-            f"[{task.get('priority')}] {task.get('title')}{due_str}{stone}"
-        ]
-        for child in under.get(str(task.get("id")), []):
-            out.extend(render(child, depth + 1))
-        return out
-
-    lines = [f'Tasks in the shared project "{name}" ({len(rows)} found):']
-    for task in rows:
-        parent = task.get("parent_task_id")
-        if parent is None or str(parent) not in known:
-            lines.extend(render(task, 0))
-    return "\n".join(lines)
+    return _render_hub_rows(rows, f'Tasks in the shared project "{name}" ({len(rows)} found):')
 
 
 async def execute_get_regulatory_status(ctx: ToolContext, _args: dict[str, Any]) -> str:
