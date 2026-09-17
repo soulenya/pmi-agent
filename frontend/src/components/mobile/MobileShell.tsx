@@ -25,6 +25,7 @@ import {
 
 import { logout as apiLogout } from "@/api/auth";
 import { HubOfflineBar } from "@/components/hub/HubOfflineBar";
+import { PushToggle } from "@/components/PushToggle";
 import { useWaitingCounts } from "@/components/waiting/WaitingForYou";
 import { useHubStatus } from "@/hooks/useAllWork";
 import { useTeamUnread } from "@/hooks/useTeamUnread";
@@ -275,6 +276,10 @@ function MoreSheet({ onClose }: { onClose: () => void }) {
               {item.label}
             </button>
           ))}
+        </div>
+        <div className="mx-3 my-1 h-px bg-border" />
+        <div className="px-3 py-2">
+          <PushToggle compact />
         </div>
         <div className="mx-3 my-1 h-px bg-border" />
         <div className="px-3">

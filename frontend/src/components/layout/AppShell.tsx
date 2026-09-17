@@ -17,6 +17,8 @@ import { WorkbenchHeader } from "@/components/workbench/WorkbenchHeader";
 import { MobileShell } from "@/components/mobile/MobileShell";
 import { AppContextProvider } from "@/contexts/AppContext";
 import { useIsPhone } from "@/hooks/useViewport";
+import { useHubHere } from "@/hooks/useAllWork";
+import { ensurePushWorker } from "@/hooks/usePush";
 import { usePeekStore } from "@/stores/peekStore";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import { PLANET_TO_RAIL } from "@/lib/workbench";
@@ -39,6 +41,13 @@ export function AppShell() {
   const navigate = useNavigate();
   const voiceActive = useVoiceAssistantStore((s) => s.active);
   const phone = useIsPhone();
+  const here = useHubHere();
+
+  // A browser on the hub keeps its push worker registered so a subscription
+  // made earlier still delivers after the browser has evicted the worker.
+  useEffect(() => {
+    if (here) void ensurePushWorker();
+  }, [here]);
 
   // Persist the current location so navigation survives an app restart.
   useEffect(() => {

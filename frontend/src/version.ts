@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 270;
+export const BUILD_NUMBER = 271;
 export const BUILD_DATE = "2026-09-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 271,
+    date: "2026-09-17",
+    title: "Notifications on your phone",
+    changes: [
+      "On the hub, turn on Notifications on this device — in More on a phone, or Settings → Connections — and the things that ring the desktop bell reach that device even with the page closed: Team mentions, approvals waiting, tasks due, Gerry's suggestions. Tap one and it opens the right place. Send a test to check it lands.",
+      "Works in Chrome, Edge and Firefox on Android and on laptops. On iPhone, add Little Gerry to your home screen first and open it from there; Safari only allows notifications for sites installed that way.",
+      "Each device is its own subscription; turning it off on one leaves the others alone. A device that stops answering is dropped automatically.",
+    ],
+  },
   {
     build: 270,
     date: "2026-09-17",

@@ -866,7 +866,9 @@ Open the hub's address in the phone's browser and sign in with your work Google 
 - **Ask Gerry** from a task or project opens the conversation itself; there is no side panel on a phone.
 - The Tasks page is always the list (the board is a desktop view); the Knowledge Base picks its category from a menu; controls that only appear on hover on a computer are always shown.
 
-**Add it to your home screen.** A one-time card shows how: on iPhone, **Share → Add to Home Screen**; on Android, the browser menu's **Install app** or **Add to Home screen**. It then opens full-screen with its own icon. On iPhone this is also the only way notifications will be able to reach you once web push ships.
+**Add it to your home screen.** A one-time card shows how: on iPhone, **Share → Add to Home Screen**; on Android, the browser menu's **Install app** or **Add to Home screen**. It then opens full-screen with its own icon. On iPhone this is also what lets notifications reach you.
+
+**Notifications on this device.** In **More** on a phone, or **Settings → Connections → Notifications on this device** in any browser on the hub, turn the switch on and allow notifications when the browser asks. From then on the things that ring the desktop bell — Team mentions, approvals waiting for you, tasks falling due, Gerry's suggestions — arrive on that device even when the page is closed; tapping one opens the right place. **Send a test** checks it lands. Each device is its own subscription: turning it off on one leaves the others alone, and a device that stops answering is dropped by itself. Works in Chrome, Edge and Firefox on Android and on laptops; on iPhone only once Little Gerry is on the home screen and opened from there (iOS 16.4 or later), and without action buttons. If the switch says the browser has blocked notifications, allow them in the browser's site settings for the hub and come back.
 
 Tablets, iPad and Android alike, get the desktop layout.
 
