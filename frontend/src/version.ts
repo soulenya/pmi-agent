@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 272;
+export const BUILD_NUMBER = 273;
 export const BUILD_DATE = "2026-09-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 273,
+    date: "2026-09-17",
+    title: "Budget estimates",
+    changes: [
+      "Every budget now has an Estimate: the anticipated cost of a government contract, a proposal or a future R&D effort, planned before there is any money to track. It is its own tab in the budget's Google Sheet, kept apart from the ledger, and edits in either place stay in step.",
+      "Lines have an optional phase (Base, Option 1, Year 2, CLIN…), a kind (Labor, Materials, Travel, Subcontract, Other) and either hours × rate or a flat amount. Total it Simple, or as a Cost build-up: labor, fringe, overhead, other direct costs, G&A, fee — rates set per budget.",
+      "When the contract is awarded, Commit estimate writes every line to the ledger as Allocated and can set the allotment to the total. The estimate stays as the baseline.",
+      "Ask Gerry: 'add 200 hours of mechanical engineering at $95 to the Phase 2 estimate', 'what does the SBIR estimate come to?', 'commit the estimate'. Same permission toggle as the ledger.",
+    ],
+  },
   {
     build: 272,
     date: "2026-09-17",

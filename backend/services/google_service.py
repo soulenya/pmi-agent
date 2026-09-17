@@ -2262,6 +2262,7 @@ def sheets_create_budget_spreadsheet(
         "properties": {"title": f"{title} — Little Gerry Budget"},
         "sheets": [
             {"properties": {"title": "Ledger", "gridProperties": {"frozenRowCount": 1}}},
+            {"properties": {"title": "Estimate", "gridProperties": {"frozenRowCount": 1}}},
             {"properties": {"title": "Categories", "gridProperties": {"frozenRowCount": 1}}},
             {"properties": {"title": "Settings"}},
         ],
@@ -2276,7 +2277,18 @@ def sheets_create_budget_spreadsheet(
     values_payload = [
         {"range": "Ledger!A1:G1",
          "values": [["Date", "Description", "Category", "Amount", "Source", "Note", "Status"]]},
+        {"range": "Estimate!A1:G1",
+         "values": [["Phase", "Kind", "Description", "Qty", "Unit cost", "Amount", "Note"]]},
         {"range": "Categories!A1:B1", "values": [["Category", "Cap"]]},
+        # Rows 12–16: how the Estimate tab is totalled. Simple = sum of lines;
+        # Cost build-up applies the four rates the way a proposal is priced.
+        {"range": "Settings!A12:B16", "values": [
+            ["Estimate Mode", "Simple"],
+            ["Fringe %", ""],
+            ["Overhead %", ""],
+            ["G&A %", ""],
+            ["Fee %", ""],
+        ]},
         {"range": "Settings!A1:B10", "values": [
             ["Title", title],
             ["Allotment", allotment if allotment is not None else ""],
@@ -2332,6 +2344,32 @@ def sheets_append_row(spreadsheet_id: str, range_: str, values: list) -> None:
         valueInputOption="USER_ENTERED",
         insertDataOption="INSERT_ROWS",
         body={"values": [values]},
+    ).execute()
+
+
+def sheets_append_rows(spreadsheet_id: str, range_: str, rows: list[list]) -> None:
+    """Append several rows at once to a table range."""
+    if not rows:
+        return
+    svc = _build("sheets", "v4")
+    svc.spreadsheets().values().append(
+        spreadsheetId=spreadsheet_id,
+        range=range_,
+        valueInputOption="USER_ENTERED",
+        insertDataOption="INSERT_ROWS",
+        body={"values": rows},
+    ).execute()
+
+
+def sheets_add_tab(spreadsheet_id: str, title: str, frozen_rows: int = 0) -> None:
+    """Add an empty tab to a spreadsheet Little Gerry created."""
+    svc = _build("sheets", "v4")
+    props: dict = {"title": title}
+    if frozen_rows:
+        props["gridProperties"] = {"frozenRowCount": frozen_rows}
+    svc.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={"requests": [{"addSheet": {"properties": props}}]},
     ).execute()
 
 

@@ -48,6 +48,53 @@ export interface BudgetCategory {
   cap: number | null;
 }
 
+// ── Estimate — the plan before the money (its own tab, apart from the ledger) ──
+
+export type EstimateKind = "Labor" | "Materials" | "Travel" | "Subcontract" | "Other";
+export const ESTIMATE_KINDS: EstimateKind[] = ["Labor", "Materials", "Travel", "Subcontract", "Other"];
+
+export type EstimateMode = "Simple" | "Cost build-up";
+
+export interface EstimateLine {
+  row: number;
+  phase: string;
+  kind: EstimateKind;
+  description: string;
+  /** Hours or units; with unit_cost it gives amount. */
+  qty: number | null;
+  unit_cost: number | null;
+  amount: number | null;
+  note: string;
+}
+
+/**
+ * How the estimate totals. In Simple mode everything but `total`, `direct`,
+ * `labor` and `odc` is zero. In Cost build-up:
+ *   fringe = labor × fringe%; overhead = (labor + fringe) × overhead%;
+ *   ga = (labor + fringe + overhead + odc) × ga%; cost = that + ga;
+ *   fee = cost × fee%; total = cost + fee.
+ */
+export interface EstimateSummary {
+  mode: EstimateMode;
+  fringe_pct: number;
+  overhead_pct: number;
+  ga_pct: number;
+  fee_pct: number;
+  labor: number;
+  /** Other direct costs: everything that is not Labor. */
+  odc: number;
+  direct: number;
+  fringe: number;
+  overhead: number;
+  ga: number;
+  cost: number;
+  fee: number;
+  total: number;
+  by_kind: Record<string, number>;
+  by_phase: Record<string, number>;
+  line_count: number;
+}
+
 export interface BudgetSummary {
   /** Money actually gone. */
   total_spent?: number;
@@ -65,6 +112,8 @@ export interface BudgetSummary {
   by_category?: Record<string, number>;
   by_status?: Partial<Record<EntryStatus, number>>;
   entry_count?: number;
+  /** Totals of the Estimate tab; absent until the sheet has been read with one. */
+  estimate?: EstimateSummary;
 }
 
 export interface BudgetFolder {
@@ -158,6 +207,7 @@ export interface ProjectBudget {
 export interface ProjectBudgetDetail extends ProjectBudget {
   cached_ledger: BudgetEntry[];
   cached_categories: BudgetCategory[];
+  cached_estimate?: EstimateLine[];
   references: BudgetReference[];
 }
 
@@ -191,6 +241,7 @@ export async function getProjectBudget(
 export interface BudgetDetail extends Budget {
   cached_ledger: BudgetEntry[];
   cached_categories: BudgetCategory[];
+  cached_estimate?: EstimateLine[];
   folders: BudgetFolder[];
   references: BudgetReference[];
 }
@@ -332,6 +383,94 @@ export async function deleteBudgetEntry(
   const { data } = await apiClient.post<BudgetDetail>(
     at(source, `/budgets/${id}/entries/${row}/delete`),
     { expected },
+  );
+  return data;
+}
+
+// ── Estimate lines and rates (owner only; writes go to the sheet) ─────────
+
+export interface EstimateLineInput {
+  phase?: string;
+  kind?: EstimateKind;
+  description: string;
+  qty?: number | null;
+  unit_cost?: number | null;
+  amount?: number | null;
+  note?: string;
+}
+
+export async function addEstimateLine(
+  id: string,
+  line: EstimateLineInput,
+  source: Source = "local",
+): Promise<BudgetDetail> {
+  const { data } = await apiClient.post<BudgetDetail>(
+    at(source, `/budgets/${id}/estimate/lines`),
+    line,
+  );
+  return data;
+}
+
+export async function updateEstimateLine(
+  id: string,
+  row: number,
+  body: { expected: { description?: string } } & Partial<EstimateLineInput>,
+  source: Source = "local",
+): Promise<BudgetDetail> {
+  const { data } = await apiClient.patch<BudgetDetail>(
+    at(source, `/budgets/${id}/estimate/lines/${row}`),
+    body,
+  );
+  return data;
+}
+
+export async function deleteEstimateLine(
+  id: string,
+  row: number,
+  expected: { description?: string },
+  source: Source = "local",
+): Promise<BudgetDetail> {
+  const { data } = await apiClient.post<BudgetDetail>(
+    at(source, `/budgets/${id}/estimate/lines/${row}/delete`),
+    { expected },
+  );
+  return data;
+}
+
+export async function updateEstimateRates(
+  id: string,
+  rates: {
+    mode?: EstimateMode;
+    fringe_pct?: number;
+    overhead_pct?: number;
+    ga_pct?: number;
+    fee_pct?: number;
+  },
+  source: Source = "local",
+): Promise<BudgetDetail> {
+  const { data } = await apiClient.patch<BudgetDetail>(
+    at(source, `/budgets/${id}/estimate/rates`),
+    rates,
+  );
+  return data;
+}
+
+export interface EstimateCommitResult {
+  rows_added: number;
+  allocated: number;
+  allotment_set: boolean;
+  budget: BudgetDetail;
+}
+
+/** The award: every line becomes an Allocated ledger row; the total can become the allotment. */
+export async function commitEstimate(
+  id: string,
+  body: { set_allotment: boolean; force?: boolean },
+  source: Source = "local",
+): Promise<EstimateCommitResult> {
+  const { data } = await apiClient.post<EstimateCommitResult>(
+    at(source, `/budgets/${id}/estimate/commit`),
+    body,
   );
   return data;
 }

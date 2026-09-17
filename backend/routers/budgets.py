@@ -23,7 +23,7 @@ from dependencies import get_current_user
 from models.db.budget import Budget, BudgetFolder, BudgetReference
 from models.db.task import Project
 from models.db.user import User
-from services import budget_folder_service, budget_service
+from services import budget_estimate_service, budget_folder_service, budget_service
 from services.budget_folder_service import BudgetFolderError, folder_extracted_total
 from services.budget_service import BudgetError
 from services.projects.access import resolve_role, role_at_least
@@ -67,6 +67,7 @@ class BudgetMirror(BaseModel):
     cached_ledger: list = Field(default_factory=list)
     cached_categories: list = Field(default_factory=list)
     cached_summary: dict = Field(default_factory=dict)
+    cached_estimate: list = Field(default_factory=list)
 
 
 class BudgetUpdate(BaseModel):
@@ -159,6 +160,51 @@ class EntryDelete(BaseModel):
     expected: EntryExpected
 
 
+EstimateKind = Literal["Labor", "Materials", "Travel", "Subcontract", "Other"]
+
+
+class EstimateLineCreate(BaseModel):
+    phase: str = Field("", max_length=100)
+    kind: EstimateKind = "Other"
+    description: str = Field(..., min_length=1, max_length=300)
+    qty: float | None = Field(None, ge=0)
+    unit_cost: float | None = None
+    amount: float | None = None
+    note: str = Field("", max_length=500)
+
+
+class EstimateLineExpected(BaseModel):
+    description: str = ""
+
+
+class EstimateLineUpdate(BaseModel):
+    expected: EstimateLineExpected
+    phase: str | None = Field(None, max_length=100)
+    kind: EstimateKind | None = None
+    description: str | None = Field(None, min_length=1, max_length=300)
+    qty: float | None = Field(None, ge=0)
+    unit_cost: float | None = None
+    amount: float | None = None
+    note: str | None = Field(None, max_length=500)
+
+
+class EstimateLineDelete(BaseModel):
+    expected: EstimateLineExpected
+
+
+class EstimateRates(BaseModel):
+    mode: Literal["Simple", "Cost build-up"] | None = None
+    fringe_pct: float | None = Field(None, ge=0, le=1000)
+    overhead_pct: float | None = Field(None, ge=0, le=1000)
+    ga_pct: float | None = Field(None, ge=0, le=1000)
+    fee_pct: float | None = Field(None, ge=0, le=1000)
+
+
+class EstimateCommit(BaseModel):
+    set_allotment: bool = True
+    force: bool = False
+
+
 class BudgetOut(BaseModel):
     id: uuid.UUID
     title: str
@@ -180,6 +226,7 @@ class BudgetOut(BaseModel):
 class BudgetDetailOut(BudgetOut):
     cached_ledger: list = []
     cached_categories: list = []
+    cached_estimate: list = []
     folders: list[FolderOut] = []
     references: list[dict] = []
 
@@ -301,6 +348,7 @@ async def mirror_budget(
     budget.cached_ledger = body.cached_ledger
     budget.cached_categories = body.cached_categories
     budget.cached_summary = body.cached_summary
+    budget.cached_estimate = body.cached_estimate
     budget.cached_at = datetime.now(timezone.utc)
     await db.flush()
     await db.commit()
@@ -465,6 +513,99 @@ async def delete_entry(
         raise HTTPException(409, str(exc))
     await db.commit()
     return BudgetDetailOut.model_validate(budget)
+
+
+# ── Estimate (the plan before the money) ─────────────────────────────────
+
+
+@router.post("/{budget_id}/estimate/lines", response_model=BudgetDetailOut, status_code=201)
+async def add_estimate_line(
+    budget_id: uuid.UUID,
+    body: EstimateLineCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BudgetDetailOut:
+    budget = await _get_owned(db, budget_id, current_user.id)
+    try:
+        await budget_estimate_service.add_line(db, budget, **body.model_dump())
+    except BudgetError as exc:
+        raise HTTPException(400, str(exc))
+    await db.commit()
+    return BudgetDetailOut.model_validate(budget)
+
+
+@router.patch("/{budget_id}/estimate/lines/{row_index}", response_model=BudgetDetailOut)
+async def update_estimate_line(
+    budget_id: uuid.UUID,
+    row_index: int,
+    body: EstimateLineUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BudgetDetailOut:
+    budget = await _get_owned(db, budget_id, current_user.id)
+    fields = {k: v for k, v in body.model_dump(exclude={"expected"}, exclude_unset=True).items()}
+    if not fields:
+        raise HTTPException(422, "Nothing to update.")
+    try:
+        await budget_estimate_service.update_line(
+            db, budget, row_index, body.expected.model_dump(), fields
+        )
+    except BudgetError as exc:
+        raise HTTPException(409, str(exc))
+    await db.commit()
+    return BudgetDetailOut.model_validate(budget)
+
+
+@router.post("/{budget_id}/estimate/lines/{row_index}/delete", response_model=BudgetDetailOut)
+async def delete_estimate_line(
+    budget_id: uuid.UUID,
+    row_index: int,
+    body: EstimateLineDelete,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BudgetDetailOut:
+    budget = await _get_owned(db, budget_id, current_user.id)
+    try:
+        await budget_estimate_service.delete_line(db, budget, row_index, body.expected.model_dump())
+    except BudgetError as exc:
+        raise HTTPException(409, str(exc))
+    await db.commit()
+    return BudgetDetailOut.model_validate(budget)
+
+
+@router.patch("/{budget_id}/estimate/rates", response_model=BudgetDetailOut)
+async def update_estimate_rates(
+    budget_id: uuid.UUID,
+    body: EstimateRates,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BudgetDetailOut:
+    budget = await _get_owned(db, budget_id, current_user.id)
+    try:
+        await budget_estimate_service.update_rates(db, budget, **body.model_dump())
+    except BudgetError as exc:
+        raise HTTPException(400, str(exc))
+    await db.commit()
+    return BudgetDetailOut.model_validate(budget)
+
+
+@router.post("/{budget_id}/estimate/commit")
+async def commit_estimate(
+    budget_id: uuid.UUID,
+    body: EstimateCommit,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Turn the estimate into Allocated ledger rows (and, by default, the allotment)."""
+    budget = await _get_owned(db, budget_id, current_user.id)
+    try:
+        result = await budget_estimate_service.commit(
+            db, budget, set_allotment=body.set_allotment, force=body.force
+        )
+    except BudgetError as exc:
+        raise HTTPException(409, str(exc))
+    await db.commit()
+    return {**result, "budget": BudgetDetailOut.model_validate(budget).model_dump(mode="json")}
 
 
 # ── Linked folders (Phase 6 — read-only to Gerry) ─────────────────────

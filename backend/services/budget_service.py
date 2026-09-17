@@ -367,6 +367,14 @@ async def refresh_budget(db: AsyncSession, budget: Budget, force: bool = False) 
     budget.cached_ledger = entries
     budget.cached_categories = categories
     budget.cached_summary = summarize_entries(entries, allotment)
+    # The Estimate tab rides along on every refresh so the plan and the ledger
+    # are never read at two different moments.
+    from services import budget_estimate_service as est
+
+    try:
+        await est.read_into_cache(budget)
+    except Exception:  # noqa: BLE001 — a broken estimate tab must not hide the ledger
+        logger.info("Could not read the Estimate tab of budget %s", budget.id, exc_info=True)
     if sheet_allotment is not None:
         budget.allotment = sheet_allotment
     if sheet_title:

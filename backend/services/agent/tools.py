@@ -2112,6 +2112,160 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "read_budget_estimate",
+            "description": (
+                "Read a budget's cost ESTIMATE — the plan for a contract or "
+                "R&D effort before the money exists (kept apart from the "
+                "ledger). Lines by phase and kind (Labor/Materials/Travel/"
+                "Subcontract/Other), the mode (Simple sum or government Cost "
+                "build-up with Fringe/Overhead/G&A/Fee rates), and the totals."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Budget title (fuzzy matched). Omit if the user has exactly one budget.",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_estimate_line",
+            "description": (
+                "Add one line to a budget's cost estimate (NOT the ledger — no "
+                "money moves). Give qty and unit_cost (hours × rate, units × "
+                "price) or a flat amount. Requires the per-budget 'Let Gerry "
+                "manage entries' permission."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {"type": "string", "description": "What the line is for, e.g. 'Mechanical engineer'."},
+                    "kind": {
+                        "type": "string",
+                        "enum": ["Labor", "Materials", "Travel", "Subcontract", "Other"],
+                        "description": "Cost bucket. Labor is the base for fringe/overhead in Cost build-up mode.",
+                    },
+                    "qty": {"type": "number", "description": "Hours or units."},
+                    "unit_cost": {"type": "number", "description": "Rate per hour or price per unit."},
+                    "amount": {"type": "number", "description": "Flat amount — use when qty × unit_cost does not apply."},
+                    "phase": {"type": "string", "description": "Optional grouping: Base, Option 1, Year 2, CLIN 0001…"},
+                    "note": {"type": "string"},
+                    "budget_title": {
+                        "type": "string",
+                        "description": "Budget title (fuzzy matched). Omit if the user has exactly one budget.",
+                    },
+                },
+                "required": ["description"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_estimate_line",
+            "description": (
+                "Change ONE estimate line (matched by description; phase "
+                "disambiguates). Requires the per-budget permission PLUS "
+                "confirm=true after the user agreed to the exact change."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {"type": "string", "description": "Description of the line to change."},
+                    "match_phase": {"type": "string", "description": "Phase — when the same description sits in several phases."},
+                    "new_description": {"type": "string"},
+                    "new_kind": {"type": "string", "enum": ["Labor", "Materials", "Travel", "Subcontract", "Other"]},
+                    "new_qty": {"type": "number"},
+                    "new_unit_cost": {"type": "number"},
+                    "new_amount": {"type": "number", "description": "Flat amount; clears qty/unit_cost unless those are also given."},
+                    "new_phase": {"type": "string"},
+                    "new_note": {"type": "string"},
+                    "budget_title": {"type": "string"},
+                    "confirm": {"type": "boolean", "description": "Must be true, and only after the user explicitly confirmed this change."},
+                },
+                "required": ["description", "confirm"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remove_estimate_line",
+            "description": (
+                "Delete ONE estimate line (matched by description; phase "
+                "disambiguates; ambiguous matches are listed, nothing "
+                "deleted). Requires the per-budget permission PLUS "
+                "confirm=true after the user explicitly confirmed THIS deletion."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {"type": "string"},
+                    "match_phase": {"type": "string"},
+                    "budget_title": {"type": "string"},
+                    "confirm": {"type": "boolean"},
+                },
+                "required": ["description", "confirm"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_estimate_rates",
+            "description": (
+                "Set how a budget's estimate is totalled: mode 'Simple' (sum "
+                "of lines) or 'Cost build-up' (labor → Fringe % → Overhead % → "
+                "other direct costs → G&A % → Fee %), and the percentages. "
+                "Only the fields given are changed. Requires the per-budget "
+                "permission."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "mode": {"type": "string", "enum": ["Simple", "Cost build-up"]},
+                    "fringe_pct": {"type": "number", "description": "Percent, e.g. 30 for 30%."},
+                    "overhead_pct": {"type": "number"},
+                    "ga_pct": {"type": "number"},
+                    "fee_pct": {"type": "number"},
+                    "budget_title": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "commit_budget_estimate",
+            "description": (
+                "The contract was AWARDED: write every estimate line (and, in "
+                "Cost build-up mode, the Fringe/Overhead/G&A/Fee pools) to the "
+                "ledger as Allocated rows, and by default set the allotment to "
+                "the estimate total. The estimate stays as the baseline. "
+                "Refuses if already committed unless force=true. Requires the "
+                "per-budget permission PLUS confirm=true after the user "
+                "explicitly agreed."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "budget_title": {"type": "string"},
+                    "set_allotment": {"type": "boolean", "description": "Default true — make the estimate total the allotment."},
+                    "force": {"type": "boolean", "description": "Add a second set of Allocated rows even though one exists."},
+                    "confirm": {"type": "boolean"},
+                },
+                "required": ["confirm"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "file_invoice_from_email",
             "description": (
                 "File an invoice attachment from a Gmail message into the "
@@ -4812,6 +4966,12 @@ def _read_budget_body(budget) -> str:
             )
     else:
         lines.append("Ledger is empty.")
+    est_s = s.get("estimate") or {}
+    if est_s.get("line_count"):
+        lines.append(
+            f"Estimate (plan, not spend): {_fmt_money(est_s.get('total'), cur)} across "
+            f"{est_s['line_count']} lines, {est_s.get('mode')} mode — read_budget_estimate for detail."
+        )
     lines.append(f"Sheet: {budget.drive_url}")
     return "\n".join(lines)
 
@@ -5052,6 +5212,284 @@ async def execute_get_budget_snapshot(ctx: ToolContext, args: dict[str, Any]) ->
     lines = [f'"{b.title}": {_budget_summary_line(b)}' for b in budgets]
     lines.append("(Cached snapshot — for the full ledger or a fresh read use read_budget.)")
     return "\n".join(lines)
+
+
+# ── budget estimates (the plan before the money) ─────────────────────────
+
+
+def _estimate_body(budget) -> str:
+    from services import budget_estimate_service as est
+
+    cur = budget.currency or "USD"
+    s = (budget.cached_summary or {}).get("estimate") or {}
+    lines_ = budget.cached_estimate or []
+    out = [f'Estimate for "{budget.title}" — mode: {s.get("mode", est.MODE_SIMPLE)}']
+    if not lines_:
+        out.append("No estimate lines yet. Add them with add_estimate_line.")
+        out.append(f"Sheet (Estimate tab): {budget.drive_url}")
+        return "\n".join(out)
+    if s.get("mode") == est.MODE_COST:
+        out.append(
+            f"Rates: fringe {s.get('fringe_pct', 0):g}%, overhead {s.get('overhead_pct', 0):g}%, "
+            f"G&A {s.get('ga_pct', 0):g}%, fee {s.get('fee_pct', 0):g}%"
+        )
+    out.append(f"Lines ({len(lines_)}):")
+    for l in lines_:
+        phase = f"[{l['phase']}] " if l.get("phase") else ""
+        calc = (
+            f" ({l['qty']:g} × {_fmt_money(l['unit_cost'], cur)})"
+            if l.get("qty") is not None and l.get("unit_cost") is not None else ""
+        )
+        note = f" — {l['note']}" if l.get("note") else ""
+        out.append(f"- {phase}{l.get('kind', 'Other')}: {l.get('description', '')} {_fmt_money(l.get('amount'), cur)}{calc}{note}")
+    if s.get("by_phase") and len(s["by_phase"]) > 1:
+        out.append("By phase: " + "; ".join(f"{p} {_fmt_money(v, cur)}" for p, v in s["by_phase"].items()))
+    if s.get("mode") == est.MODE_COST:
+        out.append(
+            f"Labor {_fmt_money(s.get('labor'), cur)} + fringe {_fmt_money(s.get('fringe'), cur)} "
+            f"+ overhead {_fmt_money(s.get('overhead'), cur)} + other direct {_fmt_money(s.get('odc'), cur)} "
+            f"+ G&A {_fmt_money(s.get('ga'), cur)} = cost {_fmt_money(s.get('cost'), cur)}; "
+            f"fee {_fmt_money(s.get('fee'), cur)}"
+        )
+    out.append(f"ESTIMATE TOTAL: {_fmt_money(s.get('total'), cur)}")
+    when = est.committed_on(budget)
+    if when:
+        out.append(f"Committed to the ledger as Allocated rows on {when}.")
+    out.append(f"Sheet (Estimate tab): {budget.drive_url}")
+    return "\n".join(out)
+
+
+async def execute_read_budget_estimate(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args, key="title")
+    if err:
+        return err
+    try:
+        await bs.refresh_budget(ctx.db, budget)
+    except bs.BudgetError as exc:
+        return f"Warning — couldn't refresh from the sheet ({exc}); showing the cached copy.\n" + _estimate_body(budget)
+    return _estimate_body(budget)
+
+
+def _estimate_total_line(budget) -> str:
+    s = (budget.cached_summary or {}).get("estimate") or {}
+    return f"Estimate total now {_fmt_money(s.get('total'), budget.currency or 'USD')} ({s.get('line_count', 0)} lines)."
+
+
+def _match_estimate_lines(budget, args: dict[str, Any]) -> list[dict]:
+    wanted = str(args.get("description", "")).strip().lower()
+    lines_ = budget.cached_estimate or []
+    matches = [l for l in lines_ if str(l.get("description", "")).strip().lower() == wanted] or [
+        l for l in lines_ if wanted in str(l.get("description", "")).lower()
+    ]
+    phase = str(args.get("match_phase", "")).strip().lower()
+    if phase and len(matches) > 1:
+        matches = [l for l in matches if str(l.get("phase", "")).strip().lower() == phase] or matches
+    return matches
+
+
+def _estimate_line_desc(l: dict, currency: str) -> str:
+    phase = f"[{l['phase']}] " if l.get("phase") else ""
+    return f"{phase}{l.get('description', '')} {_fmt_money(l.get('amount'), currency)}"
+
+
+def _num(args: dict[str, Any], key: str) -> tuple[float | None, str | None]:
+    if args.get(key) is None:
+        return None, None
+    try:
+        return float(args[key]), None
+    except (TypeError, ValueError):
+        return None, f"Error: {key} must be a number."
+
+
+async def execute_add_estimate_line(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_estimate_service as est, budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args)
+    if err:
+        return err
+    blocked = _budget_write_blocked(budget)
+    if blocked:
+        return blocked
+    description = str(args.get("description", "")).strip()
+    if not description:
+        return "Error: description is required."
+    nums = {}
+    for key in ("qty", "unit_cost", "amount"):
+        nums[key], e = _num(args, key)
+        if e:
+            return e
+    try:
+        await est.add_line(
+            ctx.db, budget,
+            phase=str(args.get("phase", "")).strip(), kind=str(args.get("kind", "Other")),
+            description=description, note=str(args.get("note", "")).strip(), **nums,
+        )
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    added = (budget.cached_estimate or [])[-1] if budget.cached_estimate else {}
+    await _journal_budget_write(
+        ctx, budget, f'Budget "{budget.title}": Gerry added estimate line — {_estimate_line_desc(added, budget.currency)}'
+    )
+    return f'Added to the estimate of "{budget.title}": {_estimate_line_desc(added, budget.currency)}. {_estimate_total_line(budget)}'
+
+
+async def execute_update_estimate_line(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_estimate_service as est, budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args)
+    if err:
+        return err
+    blocked = _budget_write_blocked(budget)
+    if blocked:
+        return blocked
+    if not args.get("confirm"):
+        return (
+            "Confirmation required: describe the exact change to the user and "
+            "call again with confirm=true only after they explicitly agree."
+        )
+    try:
+        await bs.refresh_budget(ctx.db, budget)
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    matches = _match_estimate_lines(budget, args)
+    if not matches:
+        return f'No estimate line matches "{args.get("description", "")}" in "{budget.title}".'
+    if len(matches) > 1:
+        listing = "; ".join(_estimate_line_desc(l, budget.currency) for l in matches[:10])
+        return f"Several lines match: {listing}. Call again with match_phase to pin down one."
+    line_ = matches[0]
+    fields: dict[str, Any] = {}
+    for src, dst in (("new_description", "description"), ("new_phase", "phase"), ("new_note", "note")):
+        if args.get(src) is not None and (dst == "note" or str(args[src]).strip()):
+            fields[dst] = str(args[src]).strip()
+    if str(args.get("new_kind", "")).strip():
+        fields["kind"] = est.normalize_kind(args["new_kind"])
+    for src, dst in (("new_qty", "qty"), ("new_unit_cost", "unit_cost"), ("new_amount", "amount")):
+        val, e = _num(args, src)
+        if e:
+            return e
+        if val is not None:
+            fields[dst] = val
+    if not fields:
+        return "Nothing to change — provide new_description, new_kind, new_qty, new_unit_cost, new_amount, new_phase, or new_note."
+    before = _estimate_line_desc(line_, budget.currency)
+    try:
+        await est.update_line(
+            ctx.db, budget, int(line_["row"]), {"description": line_.get("description")}, fields
+        )
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    await _journal_budget_write(ctx, budget, f'Budget "{budget.title}": Gerry updated estimate line — {before}')
+    return (
+        f'Updated estimate line in "{budget.title}": {before} → '
+        + ", ".join(f"{k}={v}" for k, v in fields.items())
+        + f". {_estimate_total_line(budget)}"
+    )
+
+
+async def execute_remove_estimate_line(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_estimate_service as est, budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args)
+    if err:
+        return err
+    blocked = _budget_write_blocked(budget)
+    if blocked:
+        return blocked
+    if not args.get("confirm"):
+        return (
+            "Confirmation required: tell the user exactly which estimate line would be "
+            "deleted and call again with confirm=true only after they explicitly agree."
+        )
+    try:
+        await bs.refresh_budget(ctx.db, budget)
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    matches = _match_estimate_lines(budget, args)
+    if not matches:
+        return f'No estimate line matches "{args.get("description", "")}" in "{budget.title}". Nothing deleted.'
+    if len(matches) > 1:
+        listing = "; ".join(_estimate_line_desc(l, budget.currency) for l in matches[:10])
+        return f"Several lines match — nothing deleted: {listing}. Call again with match_phase to pin down exactly one."
+    line_ = matches[0]
+    label = _estimate_line_desc(line_, budget.currency)
+    try:
+        await est.delete_line(ctx.db, budget, int(line_["row"]), {"description": line_.get("description")})
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    await _journal_budget_write(ctx, budget, f'Budget "{budget.title}": Gerry deleted estimate line — {label}')
+    return f'Deleted estimate line from "{budget.title}": {label}. {_estimate_total_line(budget)}'
+
+
+async def execute_set_estimate_rates(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_estimate_service as est, budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args)
+    if err:
+        return err
+    blocked = _budget_write_blocked(budget)
+    if blocked:
+        return blocked
+    rates: dict[str, Any] = {}
+    for key in ("fringe_pct", "overhead_pct", "ga_pct", "fee_pct"):
+        val, e = _num(args, key)
+        if e:
+            return e
+        if val is not None:
+            rates[key] = val
+    mode = str(args.get("mode", "")).strip() or None
+    if not rates and not mode:
+        return "Nothing to change — give a mode and/or one or more percentages."
+    try:
+        await est.update_rates(ctx.db, budget, mode=mode, **rates)
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    s = (budget.cached_summary or {}).get("estimate") or {}
+    await _journal_budget_write(ctx, budget, f'Budget "{budget.title}": Gerry changed estimate rates/mode')
+    return (
+        f'Estimate for "{budget.title}" now totals in {s.get("mode")} mode '
+        f"(fringe {s.get('fringe_pct', 0):g}%, overhead {s.get('overhead_pct', 0):g}%, "
+        f"G&A {s.get('ga_pct', 0):g}%, fee {s.get('fee_pct', 0):g}%). {_estimate_total_line(budget)}"
+    )
+
+
+async def execute_commit_budget_estimate(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_estimate_service as est, budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args)
+    if err:
+        return err
+    blocked = _budget_write_blocked(budget)
+    if blocked:
+        return blocked
+    if not args.get("confirm"):
+        s = (budget.cached_summary or {}).get("estimate") or {}
+        return (
+            f"Confirmation required: this writes {s.get('line_count', 0)} estimate lines to the "
+            f"ledger as Allocated rows totalling {_fmt_money(s.get('total'), budget.currency)}"
+            + (" and sets the allotment to that total" if args.get("set_allotment", True) else "")
+            + ". Tell the user, and call again with confirm=true only after they explicitly agree."
+        )
+    try:
+        result = await est.commit(
+            ctx.db, budget,
+            set_allotment=bool(args.get("set_allotment", True)), force=bool(args.get("force")),
+        )
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    await _journal_budget_write(
+        ctx, budget,
+        f'Budget "{budget.title}": Gerry committed the estimate — {result["rows_added"]} Allocated rows, '
+        f"{_fmt_money(result['allocated'], budget.currency)}",
+    )
+    return (
+        f'Committed the estimate of "{budget.title}": {result["rows_added"]} Allocated ledger rows, '
+        f"{_fmt_money(result['allocated'], budget.currency)}"
+        + (", allotment set to match" if result["allotment_set"] else "")
+        + f". Now {_budget_summary_line(budget)}."
+    )
 
 
 async def _suggest_budget_entry_for_invoice(
@@ -6476,6 +6914,12 @@ TOOL_EXECUTORS = {
     "add_budget_entry": execute_add_budget_entry,
     "update_budget_entry": execute_update_budget_entry,
     "remove_budget_entry": execute_remove_budget_entry,
+    "read_budget_estimate": execute_read_budget_estimate,
+    "add_estimate_line": execute_add_estimate_line,
+    "update_estimate_line": execute_update_estimate_line,
+    "remove_estimate_line": execute_remove_estimate_line,
+    "set_estimate_rates": execute_set_estimate_rates,
+    "commit_budget_estimate": execute_commit_budget_estimate,
     "get_budget_snapshot": execute_get_budget_snapshot,
     "file_invoice_from_email": execute_file_invoice_from_email,
     "compare_budget_to_odoo": execute_compare_budget_to_odoo,
@@ -6545,6 +6989,12 @@ _PRIMARY_ARG = {
     "add_budget_entry": "description",
     "update_budget_entry": "description",
     "remove_budget_entry": "description",
+    "read_budget_estimate": "title",
+    "add_estimate_line": "description",
+    "update_estimate_line": "description",
+    "remove_estimate_line": "description",
+    "set_estimate_rates": "budget_title",
+    "commit_budget_estimate": "budget_title",
     "get_budget_snapshot": "title",
     "file_invoice_from_email": "message_id",
     "compare_budget_to_odoo": "budget_title",
@@ -6623,6 +7073,11 @@ _ARTIFACT_SPECS: dict[str, tuple[str, str, str]] = {
     "add_budget_entry": ("Added to", "/budgets", "Open the budget"),
     "update_budget_entry": ("Updated in", "/budgets", "Open the budget"),
     "remove_budget_entry": ("Deleted from", "/budgets", "Open the budget"),
+    "add_estimate_line": ("Added to the estimate", "/budgets", "Open the budget"),
+    "update_estimate_line": ("Updated estimate line", "/budgets", "Open the budget"),
+    "remove_estimate_line": ("Deleted estimate line", "/budgets", "Open the budget"),
+    "set_estimate_rates": ("Estimate for", "/budgets", "Open the budget"),
+    "commit_budget_estimate": ("Committed the estimate", "/budgets", "Open the budget"),
     "add_to_knowledge_base": ("Knowledge Base", "/documents", "Open the Knowledge Base"),
     "add_contacts": ("contact", "/contacts", "Open Contacts"),
     "manage_scheduled_task": ("Scheduled task", "/scheduled-tasks", "View scheduled tasks"),
