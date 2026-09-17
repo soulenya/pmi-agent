@@ -1,9 +1,11 @@
 import { useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { createConversation } from "@/api/chat";
 import { uploadAttachment } from "@/api/attachments";
 import { useChatSidebarStore } from "@/stores/chatSidebarStore";
 import { useProjectHere } from "@/hooks/useProjectHere";
+import { useIsPhone } from "@/hooks/useViewport";
 
 export interface AskGerryFile {
   /** The raw file bytes to attach so Gerry can read the real contents. */
@@ -34,11 +36,23 @@ export interface AskGerryOptions {
  */
 export function useAskGerry() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const phone = useIsPhone();
   const setOpen = useChatSidebarStore((s) => s.setOpen);
   const setActive = useChatSidebarStore((s) => s.setActiveConversationId);
   const setPending = useChatSidebarStore((s) => s.setPendingMessage);
   const here = useProjectHere();
   const projectConversationId = here?.conversationId ?? null;
+
+  // No side panel on a phone: the conversation page picks the seed up instead.
+  const show = useCallback(
+    (conversationId: string, hub: boolean) => {
+      setActive(conversationId);
+      if (phone) navigate(hub ? `/hub/chat/${conversationId}` : `/chat/${conversationId}`);
+      else setOpen(true);
+    },
+    [phone, navigate, setActive, setOpen],
+  );
 
   return useCallback(
     async ({ title, prompt, file }: AskGerryOptions) => {
@@ -56,7 +70,7 @@ export function useAskGerry() {
           }
         }
         setPending(prompt);
-        setOpen(true);
+        show(projectConversationId, here?.source === "hub");
         return;
       }
 
@@ -78,9 +92,8 @@ export function useAskGerry() {
 
       await qc.invalidateQueries({ queryKey: ["conversations"] });
       setPending(prompt);
-      setActive(conv.id);
-      setOpen(true);
+      show(conv.id, false);
     },
-    [qc, setOpen, setActive, setPending, projectConversationId, here?.source],
+    [qc, show, setPending, projectConversationId, here?.source],
   );
 }

@@ -1348,9 +1348,9 @@ export function DocumentsPage() {
         />
       )}
 
-      {/* Category sidebar */}
+      {/* Category sidebar. Phones get a select under the header instead. */}
       {tab === "library" && (
-      <aside className="flex w-48 shrink-0 flex-col gap-1 border-r pr-4">
+      <aside className="hidden w-48 shrink-0 flex-col gap-1 border-r pr-4 md:flex">
         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground px-3">
           Categories
         </p>
@@ -1385,10 +1385,10 @@ export function DocumentsPage() {
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden gap-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3 md:gap-4">
             <h1 className="text-2xl font-bold">Knowledge Base</h1>
-            <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-0.5 text-sm">
+            <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-0.5 text-sm">
               {(
                 [
                   ["library", "Library"],
@@ -1400,7 +1400,7 @@ export function DocumentsPage() {
                   key={key}
                   onClick={() => setTab(key)}
                   className={cn(
-                    "rounded-md px-3 py-1 transition-colors",
+                    "shrink-0 rounded-md px-3 py-1 transition-colors",
                     tab === key ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -1408,8 +1408,23 @@ export function DocumentsPage() {
                 </button>
               ))}
             </div>
+            {tab === "library" && categories.length > 0 && (
+              <select
+                value={activeCategoryId ?? ""}
+                onChange={(e) => setActiveCategoryId(e.target.value || undefined)}
+                className="rounded-md border bg-background px-2 py-1.5 text-sm md:hidden"
+                aria-label="Category"
+              >
+                <option value="">All documents</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {googleStatus?.connected && (
               <button
                 onClick={() => checkUpdatesMutation.mutate()}

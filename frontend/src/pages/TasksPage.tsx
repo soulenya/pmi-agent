@@ -20,6 +20,7 @@ import {
   useInvalidateTasks,
   type SourcedTask,
 } from "@/hooks/useAllWork";
+import { useIsPhone } from "@/hooks/useViewport";
 
 type Task = SourcedTask;
 const STATUS_ICONS: Record<TaskStatus, React.ReactNode> = {
@@ -99,7 +100,7 @@ function TaskRow({
           checked={!!selected}
           onChange={(e) => { e.stopPropagation(); onToggleSelect(task.id); }}
           onClick={(e) => e.stopPropagation()}
-          className="h-4 w-4 shrink-0 cursor-pointer accent-primary"
+          className="hidden h-4 w-4 shrink-0 cursor-pointer accent-primary md:block"
         />
       )}
       {/* Status toggle — stops propagation so clicking it doesn't open drawer */}
@@ -124,6 +125,15 @@ function TaskRow({
           {task.title}
         </span>
         <HubBadge source={task.source} className="ml-2 align-middle" />
+        {/* On a phone the right-hand column is gone; priority and due sit under the title. */}
+        <p className="mt-0.5 flex items-center gap-2 text-xs md:hidden">
+          <span className={PRIORITY_COLORS[task.priority]}>{task.priority}</span>
+          {task.due_date && (
+            <span className={isOverdue ? "font-medium text-destructive" : "text-muted-foreground"}>
+              {formatWhen(task.due_date, { overdue: !!isOverdue })}
+            </span>
+          )}
+        </p>
         {task.description && (
           <p className="mt-0.5 text-xs text-muted-foreground truncate">
             {task.description}
@@ -155,7 +165,7 @@ function TaskRow({
         <TaskSourceActions task={task} className="mt-2" />
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="hidden shrink-0 items-center gap-3 md:flex">
         <span className={cn("text-xs", PRIORITY_COLORS[task.priority])}>
           {task.priority}
         </span>
@@ -486,11 +496,13 @@ export function TasksPage() {
   const [bulkProject, setBulkProject] = useState("");
   const invalidate = useInvalidateTasks();
 
-  // View preference
-  const [view, setView] = useState<"list" | "kanban">(() => {
+  // View preference. A phone always gets the list; the kanban is five columns wide.
+  const phone = useIsPhone();
+  const [savedView, setView] = useState<"list" | "kanban">(() => {
     try { return (localStorage.getItem("tasks-view") as "list" | "kanban") || "list"; }
     catch { return "list"; }
   });
+  const view = phone ? "list" : savedView;
 
   function switchView(v: "list" | "kanban") {
     setView(v);
@@ -611,7 +623,7 @@ export function TasksPage() {
   }
 
   return (
-    <div className={cn("flex flex-col gap-6 p-6 mx-auto", view === "kanban" ? "max-w-full" : "max-w-4xl")}>
+    <div className={cn("flex flex-col gap-4 md:gap-6 md:p-6 mx-auto", view === "kanban" ? "max-w-full" : "max-w-4xl")}>
       {/* Tasks | Routines */}
       <div className="flex gap-1 rounded-lg border bg-muted p-1 self-start">
         {(["tasks", "routines"] as const).map((t) => (
@@ -653,7 +665,7 @@ export function TasksPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">
             {activeProjectName ? (
@@ -673,8 +685,8 @@ export function TasksPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* View toggle */}
-          <div className="flex gap-1 rounded-lg border bg-muted p-1">
+          {/* View toggle. Five kanban columns have no place on a phone. */}
+          <div className="hidden gap-1 rounded-lg border bg-muted p-1 md:flex">
             <button
               onClick={() => switchView("list")}
               className={cn(
@@ -699,7 +711,7 @@ export function TasksPage() {
           {googleStatus?.connected && (
             <button
               onClick={() => setShowGoogleImport(true)}
-              className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
+              className="hidden items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors md:flex"
             >
               Import from Google Tasks
             </button>

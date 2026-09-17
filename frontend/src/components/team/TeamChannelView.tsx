@@ -43,6 +43,7 @@ import { useAllTasks } from "@/hooks/useAllWork";
 import { formatAgo } from "@/lib/formatWhen";
 import { hasNativeSaveFile, saveFileNative } from "@/lib/externalLinks";
 import { cn } from "@/lib/utils";
+import { useIsPhone } from "@/hooks/useViewport";
 import { useToastStore } from "@/stores/toastStore";
 
 const POLL_MS = 4_000;
@@ -465,6 +466,7 @@ function Composer({
   onSend: (body: Parameters<typeof postMessage>[1]) => void;
 }) {
   const toast = useToastStore((s) => s.push);
+  const phone = useIsPhone();
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<TeamAttachment[]>([]);
   const [refs, setRefs] = useState<TeamRef[]>([]);
@@ -711,7 +713,11 @@ function Composer({
               void addFiles(e.clipboardData.files);
             }
           }}
-          placeholder={`Message ${channel.name} — Enter sends, Shift+Enter for a new line, @ to mention`}
+          placeholder={
+            phone
+              ? `Message ${channel.name}`
+              : `Message ${channel.name} — Enter sends, Shift+Enter for a new line, @ to mention`
+          }
           rows={Math.min(8, Math.max(1, text.split("\n").length))}
           className="min-h-[38px] flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm"
         />
@@ -752,7 +758,7 @@ function Composer({
               setPicker(picker === "task" ? null : "task");
               setFilter("");
             }}
-            className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="hidden rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground md:block"
           >
             <ListTodo className="h-4 w-4" />
           </button>
@@ -760,7 +766,7 @@ function Composer({
             type="button"
             title="Add a link"
             onClick={() => setPicker(picker === "link" ? null : "link")}
-            className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="hidden rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground md:block"
           >
             <Link2 className="h-4 w-4" />
           </button>

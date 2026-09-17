@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { NavLink, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ChevronLeft,
   FolderOpen,
   Globe2,
   Hash,
@@ -34,6 +35,7 @@ import {
 import { TeamChannelView } from "@/components/team/TeamChannelView";
 import { apiErrorText } from "@/components/waiting/WaitingForYou";
 import { useAllProjects, useHubConnected } from "@/hooks/useAllWork";
+import { useIsPhone } from "@/hooks/useViewport";
 import { formatAgo } from "@/lib/formatWhen";
 import { cn } from "@/lib/utils";
 import { useRecentPlace } from "@/stores/recentPlacesStore";
@@ -48,6 +50,7 @@ const KIND_ICON = {
 
 export function TeamPage() {
   const hub = useHubConnected();
+  const phone = useIsPhone();
   const [params, setParams] = useSearchParams();
   const selectedId = params.get("channel");
   const qc = useQueryClient();
@@ -75,11 +78,11 @@ export function TeamPage() {
     setManaging(false);
   };
 
-  // Land on Everyone when nothing is chosen.
+  // Land on Everyone when nothing is chosen. A phone shows the list first.
   useEffect(() => {
-    if (!selectedId && channels.data?.length) select(channels.data[0].id);
+    if (!phone && !selectedId && channels.data?.length) select(channels.data[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channels.data, selectedId]);
+  }, [channels.data, selectedId, phone]);
 
   const openProject = useMutation({
     mutationFn: (projectId: string) => ensureProjectChannel(projectId),
@@ -118,7 +121,12 @@ export function TeamPage() {
   return (
     <div className="flex h-full min-h-0 gap-0 overflow-hidden rounded-xl border bg-card">
       {/* ── channel list ── */}
-      <aside className="flex w-72 shrink-0 flex-col border-r">
+      <aside
+        className={cn(
+          "flex-col",
+          phone ? (selected ? "hidden" : "flex w-full") : "flex w-72 shrink-0 border-r",
+        )}
+      >
         <div className="flex items-center gap-1 border-b p-2">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -214,10 +222,20 @@ export function TeamPage() {
       </aside>
 
       {/* ── thread ── */}
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section className={cn("min-w-0 flex-1 flex-col", phone && !selected ? "hidden" : "flex")}>
         {selected ? (
           <>
             <header className="flex items-center gap-2 border-b px-4 py-2">
+              {phone && (
+                <button
+                  type="button"
+                  onClick={() => select(null)}
+                  aria-label="All channels"
+                  className="-ml-2 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+              )}
               {(() => {
                 const Icon = KIND_ICON[selected.kind];
                 return <Icon className="h-4 w-4 text-muted-foreground" />;

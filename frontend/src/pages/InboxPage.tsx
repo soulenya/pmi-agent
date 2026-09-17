@@ -23,12 +23,14 @@ import {
   Forward,
   Check,
   ChevronDown,
+  ChevronLeft,
   Folder,
   ArrowUpDown,
   X,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { hasNativeSaveFile, saveFileNative, openExternal } from "@/lib/externalLinks";
+import { useIsPhone } from "@/hooks/useViewport";
 import { EmailsPage } from "@/pages/EmailsPage";
 import { SaveToKnowledgeBaseDialog, type KbMeta } from "@/components/SaveToKnowledgeBaseDialog";
 import { AskGerryButton } from "@/components/AskGerryButton";
@@ -472,6 +474,7 @@ const SORTS: { id: SortMode; label: string }[] = [
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
+  const phone = useIsPhone();
   const [filterId, setFilterId] = useState("inbox");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -673,8 +676,8 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] flex flex-col">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+    <div className={phone ? "flex h-full flex-col" : "h-[calc(100vh-3.5rem)] flex flex-col"}>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 border-b border-zinc-800 md:px-5">
         <div className="flex items-center gap-4">
           <h1 className="text-lg font-semibold text-white flex items-center gap-2">
             <Inbox className="w-5 h-5" /> Gmail
@@ -726,14 +729,14 @@ export default function InboxPage() {
               </button>
               <button
                 onClick={() => setShowSig(true)}
-                className="text-xs px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors flex items-center gap-1.5"
+                className="hidden text-xs px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors md:flex items-center gap-1.5"
               >
                 <PenLine className="w-3.5 h-3.5" />
                 Signature
               </button>
               <button
                 onClick={() => threads.refetch()}
-                className="text-xs px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors flex items-center gap-1.5"
+                className="hidden text-xs px-2.5 py-1 rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors md:flex items-center gap-1.5"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${threads.isFetching ? "animate-spin" : ""}`} />
                 Refresh
@@ -780,8 +783,8 @@ export default function InboxPage() {
         </div>
       ) : (
         <div className="flex-1 flex min-h-0">
-        {/* ── Thread list ── */}
-        <div className="w-80 shrink-0 border-r border-zinc-800 flex flex-col">
+        {/* ── Thread list. On a phone it is the page until an email is opened. ── */}
+        <div className={phone ? (selected ? "hidden" : "flex w-full flex-col") : "w-80 shrink-0 border-r border-zinc-800 flex flex-col"}>
           <div className="p-3 space-y-2 border-b border-zinc-800">
             <input
               value={search}
@@ -945,7 +948,16 @@ export default function InboxPage() {
         </div>
 
         {/* ── Reading pane ── */}
-        <div className="flex-1 overflow-y-auto">
+        <div className={phone && !selected ? "hidden" : "flex-1 overflow-y-auto"}>
+          {phone && selected && (
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="flex items-center gap-1 px-3 py-2 text-xs text-zinc-400 active:text-zinc-200"
+            >
+              <ChevronLeft className="w-4 h-4" /> Back to the list
+            </button>
+          )}
           {!selected ? (
             <div className="h-full flex items-center justify-center text-sm text-zinc-600">
               Select an email to read it.

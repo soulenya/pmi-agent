@@ -4,6 +4,59 @@
 
 ## Changelog
 
+### v5.7.0 · build 270 — 2026-09-17
+**The hub on a phone (travel mode, phase 4 part 1)**
+
+Morgan, 2026-09-17: "instead of creating an app for each of them, I would
+rather just optimize the hub for phones and tablets." No native shell, no
+store, no TestFlight; the hub-served React app gets a phone layout.
+
+- `hooks/useViewport.ts`: `useIsPhone()` (`max-width: 767px`, matches
+  Tailwind `md`), `useIsTouch()`, `useIsStandalone()`. `AppShell` renders
+  `components/mobile/MobileShell.tsx` below `md` and the unchanged workbench
+  above it — tablets (820 px verified) keep the desktop layout. Shared
+  overlays (peek, notices, What's New, guide, move prompt, toasts) mount once
+  for both.
+- **MobileShell**: 12-px header (app mark or a Back chevron inside a project /
+  conversation, page title, section pills with the waiting/suggestions counts
+  where the rail item has several pages), the page, a fixed bottom tab bar —
+  Today · Waiting · Team · Tasks · Gerry · More — with the bell's count on
+  Waiting (amber when approvals are pending) and Team unread on Team. **More**
+  is a bottom sheet: the other six rail places as a grid, Settings, Sign out.
+  Safe-area insets honoured (`viewport-fit=cover`, `h-dvh`).
+- **List-or-detail on a phone** (no side-by-side panes): Gerry (conversation
+  list → thread, header Back returns), Team (channels → thread; no auto-select
+  of Everyone), Inbox (threads → reading pane with *Back to the list*),
+  Budgets (list → detail with *All budgets*). Ask Gerry (`useAskGerry`) opens
+  `/chat/:id` on a phone instead of the absent side panel; `ChatPage` picks up
+  the pending seed from `chatSidebarStore` when it is the active conversation.
+- **Page passes**: Tasks (kanban toggle and Google import hidden; priority +
+  due under the title; saved kanban preference ignored on phones), Projects
+  (cards `min-w-0 overflow-hidden`; the 3 stat cards were 405 px wide),
+  Documents (category sidebar → a `<select>` under the header; tab strip
+  scrolls), Settings (tab strip scrolls), Calendar/Dashboard/Projects/Tasks
+  headers wrap, Project space header and 8-tab strip scroll, page padding
+  `p-3` on phones. Every route probed at 390 px: no horizontal overflow left
+  on today, waiting, team, tasks, chat, projects, inbox, calendar, budgets,
+  documents, regulatory, contacts, meetings, audit, assistant, settings.
+- **Touch pass** (`index.css`, `pointer: coarse`): hover-only controls (row
+  actions, rename/archive, forget-a-place) are shown; fields under 16 px get
+  `font-size: max(16px, 1em)` on phones so iOS Safari stops zooming on focus.
+- **Installable**: `public/manifest.webmanifest` (standalone, start `/today`,
+  black theme), icons 192/512/512-maskable/apple-touch generated from the
+  spaceman mark by `scripts/gen_pwa_icons.py`; `index.html` gains the
+  manifest link, `theme-color`, Apple web-app metas and `viewport-fit=cover`;
+  title is now "Little Gerry" (was "PMI Agent"). The hub's SPA fallback
+  already serves any file in `dist`, so the manifest and icons need no server
+  change. A one-time *Keep Gerry on your home screen* card (iOS wording:
+  Share → Add to Home Screen) is shown on phones until dismissed or installed.
+- Team composer: shorter placeholder on phones; task/link chips desktop-only.
+- Verified with headless Edge over CDP at 390×844 (the Playwright tool is
+  still down): Today, Waiting, Team list + Everyone thread, Tasks, Gerry list
+  + thread, Projects, Inbox, Settings, the More sheet. Not verified on a real
+  phone; not verified on the hub itself (same build).
+- Not in this release: web push (next), phone-aware Gerry (after).
+
 ### v5.6.0 · build 269 — 2026-09-17
 **The desktop is a client of the hub (travel mode, phase 3b)**
 

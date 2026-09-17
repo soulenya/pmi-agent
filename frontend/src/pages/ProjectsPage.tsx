@@ -475,7 +475,7 @@ function ProjectCard({
     source === "hub" ? `/hub/projects/${project.id}/space` : `/projects/${project.id}/space`;
 
   return (
-    <div className="group rounded-xl border bg-card shadow-sm hover:shadow-md transition-shadow">
+    <div className="group min-w-0 overflow-hidden rounded-xl border bg-card shadow-sm hover:shadow-md transition-shadow">
       {/* Color bar */}
       <div
         className="h-1.5 w-full rounded-t-xl"
@@ -716,8 +716,8 @@ export function ProjectsPage() {
 
   if (view === "rooms") {
     return (
-      <div className="flex flex-col gap-4 p-6 max-w-6xl mx-auto">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:p-6 max-w-6xl mx-auto">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Rooms</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -732,7 +732,7 @@ export function ProjectsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-6xl mx-auto">
+    <div className="flex flex-col gap-4 md:gap-6 md:p-6 max-w-6xl mx-auto">
       {/* Edit modal */}
       {editingProject && (
         <EditProjectModal
@@ -750,14 +750,14 @@ export function ProjectsPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Projects</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Track progress across all active projects
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {viewTabs}
           <button
             onClick={() => setShowForm((x) => !x)}
@@ -780,18 +780,18 @@ export function ProjectsPage() {
 
       {/* Stats */}
       {statsReady && statProjects.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-lg border bg-card p-4">
+        <div className="grid grid-cols-3 gap-2 md:gap-4">
+          <div className="rounded-lg border bg-card p-3 md:p-4">
             <p className="text-xs text-muted-foreground">Total Projects</p>
             <p className="text-2xl font-bold mt-1">{statProjects.length}</p>
           </div>
-          <div className="rounded-lg border bg-card p-4">
+          <div className="rounded-lg border bg-card p-3 md:p-4">
             <p className="text-xs text-muted-foreground">Open Tasks</p>
             <p className="text-2xl font-bold mt-1">
               {statTasks.filter((t) => !STATUS_DONE.includes(t.status)).length}
             </p>
           </div>
-          <div className="rounded-lg border bg-card p-4">
+          <div className="rounded-lg border bg-card p-3 md:p-4">
             <p className="text-xs text-muted-foreground">Unassigned Tasks</p>
             <p className={cn("text-2xl font-bold mt-1", statUnassigned.length > 0 && "text-amber-500")}>
               {statUnassigned.length}
