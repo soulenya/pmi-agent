@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 268;
-export const BUILD_DATE = "2026-09-16";
+export const BUILD_NUMBER = 269;
+export const BUILD_DATE = "2026-09-17";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 269,
+    date: "2026-09-17",
+    title: "Your work lives on the hub; this computer reads it",
+    changes: [
+      "With your work moved to the hub, a new task with no project now goes to the hub too — from the Tasks page, from a meeting's action items, and when Gerry creates one. Until now those went onto this computer and quietly rebuilt the pile the move had just cleared.",
+      "Ask Gerry 'what are my tasks' on this computer and she lists the ones on the hub as well, and can mark them done or change them by id. The archived copies left behind by the move are no longer read back as if they were current.",
+      "When the hub can't be reached, a bar says so, says why, and says what it means: your projects, tasks, budgets and Team are missing from the lists and can't be changed until it answers. It tries again every 30 seconds; Try again does it now. The hub chip in the service bar turns red. Nothing is served from a stale copy.",
+      "Projects page: once you are signed in to the hub, the hub list comes first with the totals; anything still on this computer sits below it under 'Still on this computer' with a pointer to Move my work to the hub.",
+      "Odoo on the hub: paste your own Odoo API key on the hub's Odoo page and the bank balance shows on budgets there. It was already per person; the notice that said Odoo was not on the hub was wrong and has been corrected.",
+    ],
+  },
   {
     build: 268,
     date: "2026-09-16",

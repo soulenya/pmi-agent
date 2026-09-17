@@ -600,10 +600,10 @@ async def system_notices(
             "severity": "info",
             "title": "You're on the hub",
             "message": (
-                "Shared projects, their tasks, budgets and chats, Team, and Gerry are all here. "
-                "The knowledge base on your own computer, your chat history there and Odoo "
-                "are not. Connect your Google account under Settings to use Drive, Gmail and "
-                "Calendar from here."
+                "Your projects, tasks, budgets and chats, Team, and Gerry are all here. "
+                "The knowledge base on your own computer and your chat history there are not. "
+                "Connect your Google account under Settings to use Drive, Gmail and Calendar "
+                "from here, and paste your Odoo API key on the Odoo page to see the bank balance."
             ),
             "route": "/settings?tab=connections",
         })

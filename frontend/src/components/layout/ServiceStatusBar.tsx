@@ -6,6 +6,7 @@ import { getSettingsHealth } from "@/api/settings";
 import { getOdooStatus } from "@/api/odoo";
 import { getSttCredentialsStatus } from "@/api/meetings";
 import { cn } from "@/lib/utils";
+import { useHubReachStore } from "@/stores/hubReachStore";
 
 type State = "ok" | "off" | "error" | "unknown";
 
@@ -49,6 +50,7 @@ export function ServiceStatusBar() {
     ...POLL,
   });
   const { data: hub } = useQuery({ queryKey: ["hub-status"], queryFn: getHubStatus, ...POLL });
+  const hubOffline = useHubReachStore((s) => s.offline);
   const { data: health } = useQuery({
     queryKey: ["settings-health"],
     queryFn: getSettingsHealth,
@@ -77,13 +79,16 @@ export function ServiceStatusBar() {
 
   // A build with no hub address can't connect to one, so there's nothing to show.
   if (hub?.available) {
+    const unreachable = hub.connected && !hub.here && hubOffline;
     services.push({
       key: "hub",
       label: "The hub",
-      state: hub.connected ? "ok" : hub.last_error ? "error" : "off",
-      detail: hub.connected
-        ? `connected as ${hub.email ?? "your account"}`
-        : (hub.last_error ?? "not connected"),
+      state: unreachable ? "error" : hub.connected ? "ok" : hub.last_error ? "error" : "off",
+      detail: unreachable
+        ? "signed in, but the hub is not answering"
+        : hub.connected
+          ? `connected as ${hub.email ?? "your account"}`
+          : (hub.last_error ?? "not connected"),
       to: "/settings?section=hub",
     });
   }

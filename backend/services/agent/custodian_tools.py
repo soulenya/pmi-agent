@@ -238,7 +238,9 @@ async def execute_update_task(ctx: "ToolContext", args: dict[str, Any]) -> str:
         await ctx.db.execute(select(Task).where(Task.id == task_id))
     ).scalar_one_or_none()
     if task is None:
-        return "Task not found."
+        # Not here. Work moved to the hub lives only there, and get_tasks lists
+        # those ids too, so the hub is asked before giving up.
+        return await _update_task_on_hub(ctx, task_id, args)
 
     if str(args.get("action", "")).lower() == "delete":
         if not args.get("confirm"):
@@ -268,6 +270,69 @@ async def execute_update_task(ctx: "ToolContext", args: dict[str, Any]) -> str:
     if not changed:
         return "Nothing to update — provide title, description, status, or priority."
     return f"Task '{task.title}' updated ({', '.join(changed)})."
+
+
+async def _update_task_on_hub(ctx: "ToolContext", task_id: uuid.UUID, args: dict[str, Any]) -> str:
+    from config import settings
+    from models.db.enums import TaskPriority, TaskStatus
+    from services.hub import client as hub
+
+    if settings.hub_mode or not hub.configured():
+        return "Task not found."
+    if await hub.get_link(ctx.db, ctx.user_id) is None:
+        return "Task not found."
+
+    try:
+        resp = await hub.request(ctx.db, ctx.user_id, "GET", f"/tasks/{task_id}")
+    except hub.HubError as exc:
+        return f"Error: could not reach the hub to look for that task: {exc}"
+    if resp.status_code == 404:
+        return "Task not found (neither here nor on the hub)."
+    if resp.status_code != 200:
+        return f"Error: the hub refused that request ({resp.status_code})."
+    task = resp.json()
+    title = str(task.get("title", ""))
+
+    if str(args.get("action", "")).lower() == "delete":
+        if not args.get("confirm"):
+            return _CONFIRM_MSG
+        try:
+            resp = await hub.request(ctx.db, ctx.user_id, "DELETE", f"/tasks/{task_id}")
+        except hub.HubError as exc:
+            return f"Error: could not reach the hub to delete the task: {exc}"
+        if resp.status_code not in (200, 204):
+            return f"Error: the hub refused to delete '{title}' ({resp.status_code}). {resp.text[:200]}"
+        return f"Deleted task '{title}' on the hub."
+
+    body: dict[str, Any] = {}
+    changed = []
+    if args.get("title"):
+        body["title"] = str(args["title"])[:200]
+        changed.append("title")
+    if args.get("description") is not None and "description" in args:
+        body["description"] = str(args["description"])
+        changed.append("description")
+    if args.get("status"):
+        status = str(args["status"]).lower()
+        if status not in {s.value for s in TaskStatus}:
+            return f"Error: invalid status '{args['status']}'."
+        body["status"] = status
+        changed.append(f"status={status}")
+    if args.get("priority"):
+        priority = str(args["priority"]).lower()
+        if priority not in {p.value for p in TaskPriority}:
+            return f"Error: invalid priority '{args['priority']}'."
+        body["priority"] = priority
+        changed.append(f"priority={priority}")
+    if not changed:
+        return "Nothing to update — provide title, description, status, or priority."
+    try:
+        resp = await hub.request(ctx.db, ctx.user_id, "PATCH", f"/tasks/{task_id}", json_body=body)
+    except hub.HubError as exc:
+        return f"Error: could not reach the hub to update the task: {exc}"
+    if resp.status_code != 200:
+        return f"Error: the hub refused the change to '{title}' ({resp.status_code}). {resp.text[:200]}"
+    return f"Task '{body.get('title', title)}' updated on the hub ({', '.join(changed)})."
 
 
 # ── Scheduled tasks (read + write) ────────────────────────────────────────────

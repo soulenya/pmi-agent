@@ -6,6 +6,7 @@ import { ChatSidebar } from "./ChatSidebar";
 import { WhatsNewModal } from "./WhatsNewModal";
 import { FeatureGuideModal } from "./FeatureGuideModal";
 import { MoveToHubPrompt } from "@/components/hub/MoveToHubPrompt";
+import { HubOfflineBar } from "@/components/hub/HubOfflineBar";
 import { useNotificationWS } from "@/hooks/useNotificationWS";
 import { PeekHost } from "@/components/PeekHost";
 import { LiveMeetingAssist } from "@/components/meetings/LiveMeetingAssist";
@@ -105,6 +106,7 @@ export function AppShell() {
         <div className="flex flex-1 flex-col overflow-hidden">
           <WorkbenchHeader />
           <ServiceStatusBar />
+          <HubOfflineBar />
           <div className="flex flex-1 overflow-hidden">
             <main className="flex-1 overflow-y-auto p-6">
               <Outlet />
