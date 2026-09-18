@@ -2154,6 +2154,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     "unit_cost": {"type": "number", "description": "Rate per hour or price per unit."},
                     "amount": {"type": "number", "description": "Flat amount — use when qty × unit_cost does not apply."},
                     "phase": {"type": "string", "description": "Optional grouping: Base, Option 1, Year 2, CLIN 0001…"},
+                    "category": {"type": "string", "description": "One of the budget's categories (see read_budget). Blank falls back to the kind when committed."},
                     "note": {"type": "string"},
                     "budget_title": {
                         "type": "string",
@@ -2184,6 +2185,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     "new_unit_cost": {"type": "number"},
                     "new_amount": {"type": "number", "description": "Flat amount; clears qty/unit_cost unless those are also given."},
                     "new_phase": {"type": "string"},
+                    "new_category": {"type": "string"},
                     "new_note": {"type": "string"},
                     "budget_title": {"type": "string"},
                     "confirm": {"type": "boolean", "description": "Must be true, and only after the user explicitly confirmed this change."},
@@ -5236,12 +5238,13 @@ def _estimate_body(budget) -> str:
     out.append(f"Lines ({len(lines_)}):")
     for l in lines_:
         phase = f"[{l['phase']}] " if l.get("phase") else ""
+        cat = f" ({l['category']})" if l.get("category") else ""
         calc = (
             f" ({l['qty']:g} × {_fmt_money(l['unit_cost'], cur)})"
             if l.get("qty") is not None and l.get("unit_cost") is not None else ""
         )
         note = f" — {l['note']}" if l.get("note") else ""
-        out.append(f"- {phase}{l.get('kind', 'Other')}: {l.get('description', '')} {_fmt_money(l.get('amount'), cur)}{calc}{note}")
+        out.append(f"- {phase}{l.get('kind', 'Other')}{cat}: {l.get('description', '')} {_fmt_money(l.get('amount'), cur)}{calc}{note}")
     if s.get("by_phase") and len(s["by_phase"]) > 1:
         out.append("By phase: " + "; ".join(f"{p} {_fmt_money(v, cur)}" for p, v in s["by_phase"].items()))
     if s.get("mode") == est.MODE_COST:
@@ -5324,7 +5327,8 @@ async def execute_add_estimate_line(ctx: ToolContext, args: dict[str, Any]) -> s
         await est.add_line(
             ctx.db, budget,
             phase=str(args.get("phase", "")).strip(), kind=str(args.get("kind", "Other")),
-            description=description, note=str(args.get("note", "")).strip(), **nums,
+            description=description, note=str(args.get("note", "")).strip(),
+            category=str(args.get("category", "")).strip(), **nums,
         )
     except bs.BudgetError as exc:
         return f"Error: {exc}"
@@ -5361,8 +5365,8 @@ async def execute_update_estimate_line(ctx: ToolContext, args: dict[str, Any]) -
         return f"Several lines match: {listing}. Call again with match_phase to pin down one."
     line_ = matches[0]
     fields: dict[str, Any] = {}
-    for src, dst in (("new_description", "description"), ("new_phase", "phase"), ("new_note", "note")):
-        if args.get(src) is not None and (dst == "note" or str(args[src]).strip()):
+    for src, dst in (("new_description", "description"), ("new_phase", "phase"), ("new_note", "note"), ("new_category", "category")):
+        if args.get(src) is not None and (dst in ("note", "category") or str(args[src]).strip()):
             fields[dst] = str(args[src]).strip()
     if str(args.get("new_kind", "")).strip():
         fields["kind"] = est.normalize_kind(args["new_kind"])
@@ -5373,7 +5377,7 @@ async def execute_update_estimate_line(ctx: ToolContext, args: dict[str, Any]) -
         if val is not None:
             fields[dst] = val
     if not fields:
-        return "Nothing to change — provide new_description, new_kind, new_qty, new_unit_cost, new_amount, new_phase, or new_note."
+        return "Nothing to change — provide new_description, new_kind, new_qty, new_unit_cost, new_amount, new_phase, new_category, or new_note."
     before = _estimate_line_desc(line_, budget.currency)
     try:
         await est.update_line(

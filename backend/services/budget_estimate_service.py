@@ -8,12 +8,15 @@ never be mistaken for spend.
 
 Estimate tab, one line per row:
 
-    Phase | Kind | Description | Qty | Unit cost | Amount | Note
+    Phase | Kind | Description | Qty | Unit cost | Amount | Note | Category
 
 Qty × Unit cost gives Amount when both are filled (hours × rate, units ×
 price); otherwise Amount is typed straight in. Kind is one of Labor,
 Materials, Travel, Subcontract, Other — the buckets a government cost volume
-expects, and enough for anything else.
+expects, and enough for anything else. Category is the budget's own category
+(the Categories tab), so a committed line lands in the ledger under it;
+blank falls back to the kind. It sits last because tabs made before it
+existed have data in A:G.
 
 Two ways to total it, chosen per budget on the Settings tab:
 
@@ -48,11 +51,11 @@ from services.budget_service import (
 logger = logging.getLogger(__name__)
 
 TAB = "Estimate"
-COLUMNS = ("phase", "kind", "description", "qty", "unit_cost", "amount", "note")
+COLUMNS = ("phase", "kind", "description", "qty", "unit_cost", "amount", "note", "category")
 WIDTH = len(COLUMNS)
-HEADER = ["Phase", "Kind", "Description", "Qty", "Unit cost", "Amount", "Note"]
-RANGE = f"{TAB}!A2:G2000"
-APPEND_RANGE = f"{TAB}!A:G"
+HEADER = ["Phase", "Kind", "Description", "Qty", "Unit cost", "Amount", "Note", "Category"]
+RANGE = f"{TAB}!A2:H2000"
+APPEND_RANGE = f"{TAB}!A:H"
 
 KINDS = ("Labor", "Materials", "Travel", "Subcontract", "Other")
 _KIND_SYNONYMS = {
@@ -129,6 +132,7 @@ def parse_lines(rows: list) -> list[dict]:
                 "unit_cost": unit,
                 "amount": amount,
                 "note": str(padded[6]).strip(),
+                "category": str(padded[7]).strip(),
             }
         )
     return lines
@@ -166,8 +170,11 @@ def summarize(lines: list[dict], rates: dict) -> dict:
     """The estimate as the app shows it: totals overall, by phase and by kind."""
     priced = [l for l in lines if l.get("amount") is not None]
     by_kind: dict[str, float] = {}
+    by_category: dict[str, float] = {}
     for l in priced:
         by_kind[l["kind"]] = round(by_kind.get(l["kind"], 0) + l["amount"], 2)
+        cat = l.get("category") or l["kind"]
+        by_category[cat] = round(by_category.get(cat, 0) + l["amount"], 2)
     phases: list[str] = []
     for l in priced:
         if l["phase"] not in phases:
@@ -180,6 +187,7 @@ def summarize(lines: list[dict], rates: dict) -> dict:
         **_build_up(priced, rates),
         **rates,
         "by_kind": by_kind,
+        "by_category": by_category,
         "by_phase": by_phase,
         "line_count": len(lines),
     }
@@ -207,8 +215,14 @@ async def ensure_tab(budget: Budget) -> bool:
         tabs = gs.sheets_get_metadata(budget.drive_file_id).get("sheets", [])
         if TAB not in tabs:
             gs.sheets_add_tab(budget.drive_file_id, TAB, frozen_rows=1)
-            gs.sheets_update_range(budget.drive_file_id, f"{TAB}!A1:G1", [HEADER])
+            gs.sheets_update_range(budget.drive_file_id, f"{TAB}!A1:H1", [HEADER])
             changed = True
+        else:
+            # A tab from before the Category column: label H so a hand-typed row lands in it.
+            head = gs.sheets_read(budget.drive_file_id, f"{TAB}!A1:H1").get("rows", [[]])
+            if len(head[0] if head else []) < WIDTH:
+                gs.sheets_update_range(budget.drive_file_id, f"{TAB}!H1", [[HEADER[-1]]])
+                changed = True
         rows = gs.sheets_read(budget.drive_file_id, SETTINGS_RANGE).get("rows", [])
         keys = {str(r[0]).strip() for r in rows if r}
         missing = [
@@ -262,7 +276,7 @@ async def _prepare(db: AsyncSession, budget: Budget) -> None:
 
 def _row_values(
     *, phase: str, kind: str, description: str, qty: float | None, unit_cost: float | None,
-    amount: float | None, note: str,
+    amount: float | None, note: str, category: str = "",
 ) -> list:
     if qty is not None and unit_cost is not None:
         amount = round(qty * unit_cost, 2)
@@ -271,7 +285,7 @@ def _row_values(
     return [
         phase.strip()[:100], normalize_kind(kind), description.strip()[:300],
         qty if qty is not None else "", unit_cost if unit_cost is not None else "",
-        amount, note.strip()[:500],
+        amount, note.strip()[:500], (category or "").strip()[:100],
     ]
 
 
@@ -285,7 +299,9 @@ async def add_line(db: AsyncSession, budget: Budget, **fields) -> Budget:
         phase=fields.get("phase", ""), kind=fields.get("kind", "Other"),
         description=fields["description"], qty=fields.get("qty"),
         unit_cost=fields.get("unit_cost"), amount=fields.get("amount"), note=fields.get("note", ""),
+        category=fields.get("category") or "",
     )
+    await ensure_category(budget, row[-1])
     await _run(lambda: gs.sheets_append_row(budget.drive_file_id, APPEND_RANGE, row))
     return await refresh_budget(db, budget, force=True)
 
@@ -294,7 +310,7 @@ async def _read_row(budget: Budget, row_index: int) -> list:
     from services import google_service as gs
 
     got = await _run(
-        lambda: gs.sheets_read(budget.drive_file_id, f"{TAB}!A{row_index}:G{row_index}")
+        lambda: gs.sheets_read(budget.drive_file_id, f"{TAB}!A{row_index}:H{row_index}")
     )
     rows = got.get("rows", [])
     return ((list(rows[0]) if rows else []) + [""] * WIDTH)[:WIDTH]
@@ -328,6 +344,7 @@ async def update_line(
         "unit_cost": current["unit_cost"] if current else None,
         "amount": current["amount"] if current else None,
         "note": current["note"] if current else "",
+        "category": current.get("category", "") if current else "",
     }
     for key in COLUMNS:
         if key in fields:
@@ -338,9 +355,10 @@ async def update_line(
     ):
         merged["qty"], merged["unit_cost"] = None, None
     row = _row_values(**merged)
+    await ensure_category(budget, row[-1])
     await _run(
         lambda: gs.sheets_update_range(
-            budget.drive_file_id, f"{TAB}!A{row_index}:G{row_index}", [row]
+            budget.drive_file_id, f"{TAB}!A{row_index}:H{row_index}", [row]
         )
     )
     return await refresh_budget(db, budget, force=True)
@@ -435,7 +453,7 @@ async def commit(
         if l.get("note"):
             note_bits.append(l["note"])
         rows.append([
-            today, f"{phase}{l['description']}"[:300], l["kind"], l["amount"],
+            today, f"{phase}{l['description']}"[:300], l.get("category") or l["kind"], l["amount"],
             "estimate", " — ".join(note_bits)[:500], STATUS_ALLOCATED,
         ])
     if est.get("mode") == MODE_COST:

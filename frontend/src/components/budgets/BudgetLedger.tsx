@@ -11,11 +11,12 @@
  * money apart from spent money is the whole point — a budget that adds them
  * together cannot tell you what is left to promise.
  */
-import { CheckCircle2, Landmark, Loader2, Pencil, RefreshCw, Trash2, X } from "lucide-react";
+import { Calculator, CheckCircle2, Landmark, Loader2, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  addBudgetCategory,
   addBudgetEntry,
   deleteBudgetEntry,
   updateBudgetEntry,
@@ -30,6 +31,8 @@ import { getOdooBankBalance, getOdooStatus } from "@/api/odoo";
 import type { Source } from "@/api/tasks";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/stores/toastStore";
+
+import { CategorySelect } from "./CategorySelect";
 
 export function money(n: number | null | undefined, currency = "USD"): string {
   if (n === null || n === undefined) return "—";
@@ -179,10 +182,31 @@ export function BudgetSummaryCards({ budget, bank = false }: { budget: LedgerBud
   const allotment = s.allotment ?? null;
   const pct = allotment ? Math.min(100, Math.round(((spent + allocated) / allotment) * 100)) : null;
   const overspent = (s.remaining ?? 0) < 0;
+  // The plan, kept apart from the money: never in allotment or remaining.
+  const est = s.estimate;
+  const estimateTotal = est && est.line_count > 0 ? est.total : null;
+  const variance = estimateTotal !== null && allotment !== null ? allotment - estimateTotal : null;
 
   return (
     <section className="space-y-3">
-      <div className={cn("grid grid-cols-2 gap-2 sm:gap-3 [&>div]:p-3 sm:[&>div]:p-4 [&_.text-xl]:text-base sm:[&_.text-xl]:text-xl", showBank ? "lg:grid-cols-5" : "sm:grid-cols-4")}>
+      <div className={cn("grid grid-cols-2 gap-2 sm:gap-3 [&>div]:p-3 sm:[&>div]:p-4 [&_.text-xl]:text-base sm:[&_.text-xl]:text-xl", showBank ? "sm:grid-cols-3 lg:grid-cols-6" : "sm:grid-cols-5")}>
+        <div className="rounded-xl border border-violet-300/60 bg-violet-500/5 p-4 dark:border-violet-800/60">
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Calculator className="h-3 w-3" /> Estimate
+          </p>
+          <p className="text-xl font-semibold text-violet-700 dark:text-violet-300">
+            {estimateTotal === null ? "—" : money(estimateTotal, cur)}
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {estimateTotal === null
+              ? "Pro forma — build it below"
+              : variance === null
+                ? `${est!.line_count} line${est!.line_count === 1 ? "" : "s"} · ${est!.mode}`
+                : variance >= 0
+                  ? `${money(variance, cur)} under the allotment`
+                  : `${money(-variance, cur)} over the allotment`}
+          </p>
+        </div>
         <div className="rounded-xl border bg-card p-4">
           <p className="text-xs text-muted-foreground">Spent</p>
           <p className="text-xl font-semibold">{money(spent, cur)}</p>
@@ -199,7 +223,7 @@ export function BudgetSummaryCards({ budget, bank = false }: { budget: LedgerBud
           <p className="text-xs text-muted-foreground">Allotment</p>
           <p className="text-xl font-semibold">{money(allotment, cur)}</p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {allotment === null ? "Not set" : `${money(spent + allocated, cur)} committed`}
+            {allotment === null ? "Funds issued — not set" : `${money(spent + allocated, cur)} committed`}
           </p>
         </div>
         <div className="rounded-xl border bg-card p-4">
@@ -420,6 +444,22 @@ export function BudgetLedgerTable({
   };
 
   const [settling, setSettling] = useState(false);
+  const [addingCat, setAddingCat] = useState(false);
+
+  const addCategory = async () => {
+    const name = window.prompt("New category name")?.trim();
+    if (!name) return;
+    setAddingCat(true);
+    try {
+      await addBudgetCategory(budget.id, { name }, source);
+      push("success", `Category "${name}" added to the sheet.`);
+      onChanged();
+    } catch (e) {
+      err(e, "Couldn't add the category.");
+    } finally {
+      setAddingCat(false);
+    }
+  };
   const selectedAllocated = useMemo(
     () =>
       budget.cached_ledger.filter(
@@ -495,7 +535,7 @@ export function BudgetLedgerTable({
   return (
     <div className="space-y-4">
       {/* Categories — tap to filter */}
-      {filterCats.length > 0 && (
+      {(filterCats.length > 0 || canEdit) && (
         <div className="flex flex-wrap items-center gap-1.5">
           {filterCats.map((name) => {
             const committed =
@@ -538,6 +578,16 @@ export function BudgetLedgerTable({
               className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
             >
               <X className="h-3 w-3" /> Clear categories
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={() => void addCategory()}
+              disabled={addingCat}
+              className="flex items-center gap-1 rounded-md border border-dashed px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-60"
+              title="Add a category to the sheet's Categories tab"
+            >
+              {addingCat ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} Category
             </button>
           )}
         </div>
@@ -681,10 +731,14 @@ export function BudgetLedgerTable({
                       />
                     </td>
                     <td className="px-2 py-1">
-                      <input
+                      <CategorySelect
+                        budgetId={budget.id}
+                        categories={budget.cached_categories}
                         value={editDraft.category ?? e.category}
-                        onChange={(ev) => setEditDraft((d) => ({ ...d, category: ev.target.value }))}
-                        className="w-28 rounded border bg-background px-1.5 py-1 text-xs"
+                        onChange={(name) => setEditDraft((d) => ({ ...d, category: name }))}
+                        onAdded={onChanged}
+                        source={source}
+                        className="w-32 px-1.5 py-1 text-xs"
                       />
                     </td>
                     <td className="px-2 py-1 text-right">
@@ -826,18 +880,15 @@ export function BudgetLedgerTable({
               placeholder="Description"
               className="min-w-[160px] flex-1 rounded-md border bg-background px-2 py-1.5 text-sm"
             />
-            <input
+            <CategorySelect
+              budgetId={budget.id}
+              categories={budget.cached_categories}
               value={entryCategory}
-              onChange={(e) => setEntryCategory(e.target.value)}
-              placeholder="Category"
-              list={`categories-${budget.id}`}
-              className="w-40 rounded-md border bg-background px-2 py-1.5 text-sm"
+              onChange={setEntryCategory}
+              onAdded={onChanged}
+              source={source}
+              className="w-40"
             />
-            <datalist id={`categories-${budget.id}`}>
-              {budget.cached_categories.map((c) => (
-                <option key={c.name} value={c.name} />
-              ))}
-            </datalist>
             <input
               type="number"
               value={entryAmount}

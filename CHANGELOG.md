@@ -4,6 +4,34 @@
 
 ## Changelog
 
+### v5.12.0 · build 275 — 2026-09-18
+**Estimate card in the budget summary; categories as a dropdown, with add**
+
+- **Estimate card.** `BudgetSummaryCards` gains a first, violet card:
+  the estimate total, its line count and mode, and — when an allotment is
+  set — the variance ("$X under/over the allotment"). It reads
+  `cached_summary.estimate` only; the plan never enters Spent, Allocated,
+  Allotment or Remaining, which stay for funds actually issued (the Allotment
+  card now says "Funds issued — not set" when empty). Grid becomes 5 cards
+  (6 with the bank card), 2-up on a phone.
+- **Category dropdown.** New `components/budgets/CategorySelect.tsx`: the
+  budget's categories plus "＋ New category…", which prompts for a name,
+  writes it to the sheet's Categories tab (`POST /budgets/{id}/categories`,
+  `budget_service.add_category` → `ensure_category(name, cap)`), then
+  selects it. Used in the ledger's add row and edit row, and in the estimate's
+  add and edit rows. A value the sheet does not know (typed in Sheets) still
+  appears as an option. "+ Category" button beside the category filter chips.
+- **Estimate lines carry a category.** The Estimate tab gains column H
+  `Category` — appended so tabs made by 5.10.0 keep their A:G data;
+  `ensure_tab` labels H1 on an old tab. `parse_lines` reads it, `add_line`/
+  `update_line` write it (and `ensure_category` it), `summarize()` adds
+  `by_category` (blank → kind), and **commit** files each Allocated row under
+  the line's category, falling back to the kind. Simple-mode footer lists
+  by_category. Gerry: `add_estimate_line.category`,
+  `update_estimate_line.new_category`; `read_budget_estimate` shows it.
+  Tests: 37 pass (`test_budget_estimate.py` +2).
+- Hub image rebuilt (backend + frontend changed). No migration.
+
 ### v5.11.0 · build 274 — 2026-09-17
 **The phone layout, decluttered (field report: "cluttered, overlapping, too much on each section")**
 

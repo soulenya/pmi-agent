@@ -10,10 +10,10 @@ wrong base.
 from services import budget_estimate_service as est
 
 
-def line(kind="Labor", amount=None, qty=None, unit_cost=None, phase="", row=2):
+def line(kind="Labor", amount=None, qty=None, unit_cost=None, phase="", row=2, category=""):
     return {
         "row": row, "phase": phase, "kind": kind, "description": "x",
-        "qty": qty, "unit_cost": unit_cost, "amount": amount, "note": "",
+        "qty": qty, "unit_cost": unit_cost, "amount": amount, "note": "", "category": category,
     }
 
 
@@ -21,6 +21,10 @@ class TestParseLines:
     def test_qty_times_unit_wins_over_typed_amount(self):
         rows = [["", "Labor", "Eng", "100", "95", "1"]]
         assert est.parse_lines(rows)[0]["amount"] == 9500.0
+
+    def test_a_row_from_before_the_category_column_reads_blank(self):
+        assert est.parse_lines([["", "Labor", "Eng", "", "", "1", "n"]])[0]["category"] == ""
+        assert est.parse_lines([["", "Labor", "Eng", "", "", "1", "n", "Engineering"]])[0]["category"] == "Engineering"
 
     def test_typed_amount_stands_when_a_factor_is_missing(self):
         rows = [["", "Materials", "Steel", "", "", "$1,250.50"]]
@@ -57,6 +61,12 @@ class TestSummarize:
         assert s["total"] == 150.0
         assert s["fee"] == 0.0
         assert s["by_kind"] == {"Labor": 100.0, "Travel": 50.0}
+
+    def test_by_category_falls_back_to_kind(self):
+        s = est.summarize(
+            [line(amount=100, category="Engineering"), line("Travel", amount=50)], est.parse_rates({})
+        )
+        assert s["by_category"] == {"Engineering": 100.0, "Travel": 50.0}
 
     def test_cost_build_up_order(self):
         """Fringe on labor; overhead on labor+fringe; G&A on everything; fee on cost."""

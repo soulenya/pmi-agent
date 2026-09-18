@@ -171,6 +171,7 @@ class EstimateLineCreate(BaseModel):
     unit_cost: float | None = None
     amount: float | None = None
     note: str = Field("", max_length=500)
+    category: str = Field("", max_length=100)
 
 
 class EstimateLineExpected(BaseModel):
@@ -186,10 +187,16 @@ class EstimateLineUpdate(BaseModel):
     unit_cost: float | None = None
     amount: float | None = None
     note: str | None = Field(None, max_length=500)
+    category: str | None = Field(None, max_length=100)
 
 
 class EstimateLineDelete(BaseModel):
     expected: EstimateLineExpected
+
+
+class CategoryCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    cap: float | None = Field(None, ge=0)
 
 
 class EstimateRates(BaseModel):
@@ -511,6 +518,26 @@ async def delete_entry(
         await budget_service.delete_entry(db, budget, row_index, body.expected.model_dump())
     except BudgetError as exc:
         raise HTTPException(409, str(exc))
+    await db.commit()
+    return BudgetDetailOut.model_validate(budget)
+
+
+# ── Categories ───────────────────────────────────────────────────────────────────
+
+
+@router.post("/{budget_id}/categories", response_model=BudgetDetailOut, status_code=201)
+async def add_category(
+    budget_id: uuid.UUID,
+    body: CategoryCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BudgetDetailOut:
+    """A new row on the sheet's Categories tab, for the dropdowns to offer."""
+    budget = await _get_owned(db, budget_id, current_user.id)
+    try:
+        await budget_service.add_category(db, budget, body.name, body.cap)
+    except BudgetError as exc:
+        raise HTTPException(400, str(exc))
     await db.commit()
     return BudgetDetailOut.model_validate(budget)
 

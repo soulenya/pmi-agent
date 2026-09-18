@@ -2277,8 +2277,8 @@ def sheets_create_budget_spreadsheet(
     values_payload = [
         {"range": "Ledger!A1:G1",
          "values": [["Date", "Description", "Category", "Amount", "Source", "Note", "Status"]]},
-        {"range": "Estimate!A1:G1",
-         "values": [["Phase", "Kind", "Description", "Qty", "Unit cost", "Amount", "Note"]]},
+        {"range": "Estimate!A1:H1",
+         "values": [["Phase", "Kind", "Description", "Qty", "Unit cost", "Amount", "Note", "Category"]]},
         {"range": "Categories!A1:B1", "values": [["Category", "Cap"]]},
         # Rows 12–16: how the Estimate tab is totalled. Simple = sum of lines;
         # Cost build-up applies the four rates the way a proposal is priced.
