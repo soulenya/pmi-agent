@@ -21,8 +21,9 @@ existed have data in A:G.
 Two ways to total it, chosen per budget on the Settings tab:
 
     Simple          the sum of the lines
-    Cost build-up   labor → fringe → overhead → other direct costs → G&A → fee,
-                    each rate on the Settings tab, the way a proposal is priced
+    Cost build-up   labor → fringe → overhead → other direct costs → G&A →
+                    contingency → fee, each rate on the Settings tab, the way
+                    a proposal is priced
 
 Committing an estimate turns each line into an Allocated ledger row (money
 promised, not yet paid) and can set the allotment to the estimate total; the
@@ -78,7 +79,8 @@ SETTING_FRINGE = "Fringe %"
 SETTING_OVERHEAD = "Overhead %"
 SETTING_GA = "G&A %"
 SETTING_FEE = "Fee %"
-RATE_KEYS = (SETTING_FRINGE, SETTING_OVERHEAD, SETTING_GA, SETTING_FEE)
+SETTING_CONTINGENCY = "Contingency %"
+RATE_KEYS = (SETTING_FRINGE, SETTING_OVERHEAD, SETTING_GA, SETTING_FEE, SETTING_CONTINGENCY)
 SETTINGS_RANGE = "Settings!A1:B30"
 
 _COMMIT_MARK = "estimate-commit:"
@@ -145,25 +147,32 @@ def parse_rates(settings: dict) -> dict:
         "overhead_pct": _pct(settings.get(SETTING_OVERHEAD)),
         "ga_pct": _pct(settings.get(SETTING_GA)),
         "fee_pct": _pct(settings.get(SETTING_FEE)),
+        "contingency_pct": _pct(settings.get(SETTING_CONTINGENCY)),
     }
 
 
 def _build_up(lines: list[dict], rates: dict) -> dict:
-    """One priced total: direct costs, the pools on top, and the fee."""
+    """One priced total: direct costs, the pools on top, contingency, then fee.
+
+    Contingency is a reserve against the cost, so it is taken on the cost and
+    the fee is taken on cost plus contingency — the fee covers the reserve too.
+    """
     labor = round(sum(l["amount"] or 0 for l in lines if l["kind"] == "Labor"), 2)
     odc = round(sum(l["amount"] or 0 for l in lines if l["kind"] != "Labor"), 2)
     if rates["mode"] != MODE_COST:
         total = round(labor + odc, 2)
         return {"direct": total, "labor": labor, "odc": odc, "fringe": 0.0, "overhead": 0.0,
-                "ga": 0.0, "fee": 0.0, "cost": total, "total": total}
+                "ga": 0.0, "contingency": 0.0, "fee": 0.0, "cost": total, "total": total}
     fringe = round(labor * rates["fringe_pct"] / 100, 2)
     overhead = round((labor + fringe) * rates["overhead_pct"] / 100, 2)
     subtotal = round(labor + fringe + overhead + odc, 2)
     ga = round(subtotal * rates["ga_pct"] / 100, 2)
     cost = round(subtotal + ga, 2)
-    fee = round(cost * rates["fee_pct"] / 100, 2)
+    contingency = round(cost * rates.get("contingency_pct", 0.0) / 100, 2)
+    fee = round((cost + contingency) * rates["fee_pct"] / 100, 2)
     return {"direct": round(labor + odc, 2), "labor": labor, "odc": odc, "fringe": fringe,
-            "overhead": overhead, "ga": ga, "fee": fee, "cost": cost, "total": round(cost + fee, 2)}
+            "overhead": overhead, "ga": ga, "contingency": contingency, "fee": fee, "cost": cost,
+            "total": round(cost + contingency + fee, 2)}
 
 
 def summarize(lines: list[dict], rates: dict) -> dict:
@@ -384,6 +393,7 @@ async def update_rates(
     overhead_pct: float | None = None,
     ga_pct: float | None = None,
     fee_pct: float | None = None,
+    contingency_pct: float | None = None,
 ) -> Budget:
     """Write the mode and rates onto the Settings tab, wherever their rows sit."""
     from services import google_service as gs
@@ -395,6 +405,7 @@ async def update_rates(
         SETTING_OVERHEAD: overhead_pct,
         SETTING_GA: ga_pct,
         SETTING_FEE: fee_pct,
+        SETTING_CONTINGENCY: contingency_pct,
     }
 
     def _write() -> None:
@@ -457,7 +468,7 @@ async def commit(
             "estimate", " — ".join(note_bits)[:500], STATUS_ALLOCATED,
         ])
     if est.get("mode") == MODE_COST:
-        for label, key in (("Fringe", "fringe"), ("Overhead", "overhead"), ("G&A", "ga"), ("Fee", "fee")):
+        for label, key in (("Fringe", "fringe"), ("Overhead", "overhead"), ("G&A", "ga"), ("Contingency", "contingency"), ("Fee", "fee")):
             if est.get(key):
                 rows.append([
                     today, f"{label} (estimate, {est.get(f'{key}_pct', 0):g}%)"[:300],

@@ -262,7 +262,7 @@ export function BudgetEstimate({
   const saveRates = async () => {
     setSavingRates(true);
     const body: Parameters<typeof updateEstimateRates>[1] = {};
-    for (const k of ["fringe_pct", "overhead_pct", "ga_pct", "fee_pct"] as const) {
+    for (const k of ["fringe_pct", "overhead_pct", "ga_pct", "fee_pct", "contingency_pct"] as const) {
       if (rateDraft[k] !== undefined) {
         const v = num(rateDraft[k]);
         if (v === null && rateDraft[k].trim() !== "") {
@@ -517,7 +517,7 @@ export function BudgetEstimate({
                 title={
                   m === "Simple"
                     ? "The sum of the lines."
-                    : "Labor → fringe → overhead → other direct costs → G&A → fee, the way a proposal is priced."
+                    : "Labor → fringe → overhead → other direct costs → G&A → contingency → fee, the way a proposal is priced."
                 }
               >
                 {m}
@@ -529,7 +529,8 @@ export function BudgetEstimate({
                 className="rounded-md border px-2 py-1 hover:bg-accent"
                 title="The rates applied on top of the direct costs"
               >
-                Fringe {pct(est?.fringe_pct)} · Overhead {pct(est?.overhead_pct)} · G&A {pct(est?.ga_pct)} · Fee {pct(est?.fee_pct)}
+                Fringe {pct(est?.fringe_pct)} · Overhead {pct(est?.overhead_pct)} · G&A {pct(est?.ga_pct)}
+                {(est?.contingency_pct ?? 0) > 0 && <> · Contingency {pct(est?.contingency_pct)}</>} · Fee {pct(est?.fee_pct)}
               </button>
             )}
             {committedOn && (
@@ -549,7 +550,8 @@ export function BudgetEstimate({
                   ["fringe_pct", "Fringe %", "On labor."],
                   ["overhead_pct", "Overhead %", "On labor + fringe."],
                   ["ga_pct", "G&A %", "On everything above, including other direct costs."],
-                  ["fee_pct", "Fee %", "On the total cost."],
+                  ["contingency_pct", "Contingency %", "A reserve on the cost. The fee is taken on cost plus contingency."],
+                  ["fee_pct", "Fee %", "On the total cost plus contingency."],
                 ] as const
               ).map(([key, label, help]) => (
                 <label key={key} className="flex flex-col gap-1" title={help}>
@@ -575,7 +577,8 @@ export function BudgetEstimate({
               )}
               <p className="basis-full text-muted-foreground">
                 Rates are written to the sheet's Settings tab. Fringe applies to labor; overhead to labor plus
-                fringe; G&A to all of that plus materials, travel, subcontracts and other; fee to the resulting cost.
+                fringe; G&A to all of that plus materials, travel, subcontracts and other; contingency to the
+                resulting cost; fee to cost plus contingency.
               </p>
             </div>
           )}
@@ -634,6 +637,9 @@ export function BudgetEstimate({
                       <FootRow label="Materials, travel, subcontracts, other" value={est.odc} currency={budget.currency} />
                       <FootRow label={`G&A (${pct(est.ga_pct)})`} value={est.ga} currency={budget.currency} />
                       <FootRow label="Total cost" value={est.cost} currency={budget.currency} strong />
+                      {(est.contingency ?? 0) > 0 && (
+                        <FootRow label={`Contingency (${pct(est.contingency_pct)} of cost)`} value={est.contingency!} currency={budget.currency} />
+                      )}
                       <FootRow label={`Fee (${pct(est.fee_pct)})`} value={est.fee} currency={budget.currency} />
                       <FootRow label="Estimate total" value={est.total} currency={budget.currency} strong big />
                     </>

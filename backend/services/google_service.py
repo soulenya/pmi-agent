@@ -2282,12 +2282,13 @@ def sheets_create_budget_spreadsheet(
         {"range": "Categories!A1:B1", "values": [["Category", "Cap"]]},
         # Rows 12–16: how the Estimate tab is totalled. Simple = sum of lines;
         # Cost build-up applies the four rates the way a proposal is priced.
-        {"range": "Settings!A12:B16", "values": [
+        {"range": "Settings!A12:B17", "values": [
             ["Estimate Mode", "Simple"],
             ["Fringe %", ""],
             ["Overhead %", ""],
             ["G&A %", ""],
             ["Fee %", ""],
+            ["Contingency %", ""],
         ]},
         {"range": "Settings!A1:B10", "values": [
             ["Title", title],
