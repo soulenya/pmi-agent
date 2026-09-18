@@ -4581,7 +4581,13 @@ MAX_PIN_LABEL_CHARS = 600
 
 
 async def _resolve_room_or_error(ctx: ToolContext, args: dict[str, Any]):
-    """Shared resolution: (room, None) on success, (None, error_message) otherwise."""
+    """Shared resolution: (room, None) on success, (None, error_message) otherwise.
+
+    The room may be local (a Workroom row) or a ``HubRoom`` — the built-in room
+    of a shared project that lives on the hub. A conversation opened inside a
+    hub project is bound to that project, so its room is the project's room
+    even though no local Workroom row points at this conversation.
+    """
     from services.workroom_context import resolve_workroom
 
     title_hint = str(args.get("workroom_title", "")).strip()
@@ -4590,6 +4596,10 @@ async def _resolve_room_or_error(ctx: ToolContext, args: dict[str, Any]):
     )
     if room is not None:
         return room, None
+    hub_room, hub_titles = await _resolve_hub_room(ctx, title_hint)
+    if hub_room is not None:
+        return hub_room, None
+    titles = [*titles, *hub_titles]
     if not titles:
         return None, (
             "No workrooms exist yet. The user can create one from the Workrooms "
@@ -4605,6 +4615,82 @@ async def _resolve_room_or_error(ctx: ToolContext, args: dict[str, Any]):
         "This conversation is not inside a workroom. Pass workroom_title to "
         f"target one of the active rooms: {listing}."
     )
+
+
+class HubRoom:
+    """A project's room on the hub, addressed by id; reads and writes go over HTTP."""
+
+    def __init__(self, room_id: str, title: str, goal: str = "") -> None:
+        self.id = room_id
+        self.title = title
+        self.goal = goal
+
+
+async def _hub_project_room(ctx: ToolContext, project_id: str, title: str) -> HubRoom | None:
+    """The built-in room of a hub project, created on first use like the app does."""
+    from services.hub import client as hub
+
+    if not hub.configured():
+        return None
+    try:
+        resp = await hub.request(ctx.db, ctx.user_id, "POST", f"/projects/{project_id}/workroom")
+    except hub.HubError:
+        return None
+    if resp.status_code >= 300:
+        return None
+    data = resp.json()
+    return HubRoom(str(data.get("id")), str(data.get("title") or title))
+
+
+async def _resolve_hub_room(ctx: ToolContext, title_hint: str) -> tuple[HubRoom | None, list[str]]:
+    """(room, hub_room_titles). With no hint, the room is the one belonging to the
+    hub project this conversation was opened in; with a hint, a hub project by name."""
+    from sqlalchemy import select as _select
+
+    from models.db.conversation import Conversation
+    from models.db.task import Project
+    from services.agent.project_tools import hub_projects
+
+    projects = await hub_projects(ctx.db, ctx.user_id)
+    titles = [str(p.get("name", "")) for p in projects if p.get("name")]
+    if title_hint:
+        low = title_hint.lower()
+        exact = [p for p in projects if str(p.get("name", "")).lower() == low]
+        near = exact or [p for p in projects if low in str(p.get("name", "")).lower() or str(p.get("name", "")).lower() in low]
+        if len(near) == 1:
+            return await _hub_project_room(ctx, str(near[0]["id"]), str(near[0].get("name", ""))), titles
+        return None, titles
+    try:
+        conv_id = uuid.UUID(str(ctx.conversation_id))
+    except (TypeError, ValueError):
+        return None, titles
+    conv = (await ctx.db.execute(_select(Conversation).where(Conversation.id == conv_id))).scalar_one_or_none()
+    if conv is None or conv.project_id is None:
+        return None, titles
+    # A project id with no local row is a hub project (the conversation was opened there).
+    local = (await ctx.db.execute(_select(Project.id).where(Project.id == conv.project_id))).scalar_one_or_none()
+    if local is not None:
+        return None, titles
+    match = next((p for p in projects if str(p.get("id")) == str(conv.project_id)), None)
+    if match is None:
+        return None, titles
+    return await _hub_project_room(ctx, str(match["id"]), str(match.get("name", ""))), titles
+
+
+async def _hub_room_call(ctx: ToolContext, method: str, path: str, body: dict | None = None):
+    """(payload, "") or (None, error) for a hub workroom call."""
+    from services.hub import client as hub
+
+    try:
+        resp = await hub.request(ctx.db, ctx.user_id, method, path, json_body=body)
+    except hub.HubError as exc:
+        return None, f"Error: could not reach the hub: {exc}"
+    if resp.status_code >= 300:
+        return None, f"Error: the hub refused that request ({resp.status_code})."
+    try:
+        return resp.json(), ""
+    except ValueError:
+        return {}, ""
 
 
 async def execute_create_workroom(ctx: ToolContext, args: dict[str, Any]) -> str:
@@ -4677,6 +4763,24 @@ async def execute_add_to_workroom(ctx: ToolContext, args: dict[str, Any]) -> str
     room, err = await _resolve_room_or_error(ctx, args)
     if err:
         return err
+    if isinstance(room, HubRoom):
+        existing, e = await _hub_room_call(ctx, "GET", f"/workrooms/{room.id}")
+        if e:
+            return e
+        for it in existing.get("items", []):
+            same = (it.get("ref_id") == ref_id) if ref_id else (it.get("label") == label)
+            if it.get("kind") == kind and same:
+                return f'Already pinned in "{room.title}": [{kind}] {it.get("label")}.'
+        _, e = await _hub_room_call(
+            ctx, "POST", f"/workrooms/{room.id}/items", {"kind": kind, "ref_id": ref_id, "label": label[:300]}
+        )
+        if e:
+            return e
+        return (
+            f'Pinned to the project room "{room.title}" on the hub: [{kind}] {label}'
+            + (f" (ref: {ref_id})" if ref_id else "")
+            + ". Everyone on the project sees it in the room."
+        )
     item, created = await pin_workroom_item(ctx.db, room, kind, label, ref_id)
     if not created:
         return f'Already pinned in "{room.title}": [{kind}] {item.label}.'
@@ -4695,6 +4799,27 @@ async def execute_list_workroom_items(ctx: ToolContext, args: dict[str, Any]) ->
     room, err = await _resolve_room_or_error(ctx, args)
     if err:
         return err
+    if isinstance(room, HubRoom):
+        data, e = await _hub_room_call(ctx, "GET", f"/workrooms/{room.id}")
+        if e:
+            return e
+        lines = [f'Project room "{data.get("title", room.title)}" (on the hub)']
+        if str(data.get("goal", "")).strip():
+            lines.append(f"Goal: {str(data['goal']).strip()}")
+        items_ = data.get("items", [])
+        if items_:
+            lines.append(f"Pinned items ({len(items_)}):")
+            for it in items_:
+                ref = f" (ref: {it['ref_id']})" if it.get("ref_id") else ""
+                lines.append(f"- [{it.get('kind')}] {it.get('label')}{ref}")
+        else:
+            lines.append("No items pinned yet.")
+        journal_ = data.get("journal", [])[:10]
+        if journal_:
+            lines.append("Recent journal (newest first):")
+            for j in journal_:
+                lines.append(f"- {str(j.get('created_at', ''))[:10]}: {j.get('entry')}")
+        return "\n".join(lines)
     items = list(
         (
             await ctx.db.execute(
@@ -4743,6 +4868,29 @@ async def execute_remove_from_workroom(ctx: ToolContext, args: dict[str, Any]) -
     room, err = await _resolve_room_or_error(ctx, args)
     if err:
         return err
+    if isinstance(room, HubRoom):
+        data, e = await _hub_room_call(ctx, "GET", f"/workrooms/{room.id}")
+        if e:
+            return e
+        items_ = data.get("items", [])
+        if not items_:
+            return f'Project room "{room.title}" has no pinned items.'
+        low = wanted.lower()
+        matches = [
+            i for i in items_
+            if str(i.get("label", "")).lower() == low or (i.get("ref_id") and i.get("ref_id") == wanted)
+        ] or [i for i in items_ if low in str(i.get("label", "")).lower()]
+        if not matches:
+            listing = "; ".join(f"[{i.get('kind')}] {i.get('label')}" for i in items_[:15])
+            return f'No pinned item matches "{wanted}". Currently pinned: {listing}.'
+        if len(matches) > 1:
+            listing = "; ".join(f"[{i.get('kind')}] {i.get('label')}" for i in matches[:10])
+            return f'Several items match "{wanted}": {listing}. Call again with the exact label.'
+        it = matches[0]
+        _, e = await _hub_room_call(ctx, "DELETE", f"/workrooms/{room.id}/items/{it['id']}")
+        if e:
+            return e
+        return f'Unpinned from "{room.title}" on the hub: [{it.get("kind")}] {it.get("label")}.'
     items = list(
         (
             await ctx.db.execute(
@@ -4774,6 +4922,24 @@ async def execute_update_workroom(ctx: ToolContext, args: dict[str, Any]) -> str
     room, err = await _resolve_room_or_error(ctx, args)
     if err:
         return err
+    if isinstance(room, HubRoom):
+        body: dict[str, Any] = {}
+        new_title = str(args.get("new_title", "")).strip()
+        if new_title:
+            body["title"] = new_title[:200]
+        if args.get("goal") is not None and "goal" in args:
+            body["goal"] = str(args["goal"]).strip()[:4000]
+        status = str(args.get("status", "")).strip().lower()
+        if status:
+            if status not in ("active", "archived"):
+                return "Error: status must be 'active' or 'archived'."
+            body["status"] = status
+        if not body:
+            return "Nothing to update — provide goal, new_title, or status."
+        _, e = await _hub_room_call(ctx, "PATCH", f"/workrooms/{room.id}", body)
+        if e:
+            return e
+        return f'Project room "{body.get("title", room.title)}" on the hub updated ({", ".join(body)}).'
     changed = []
     new_title = str(args.get("new_title", "")).strip()
     if new_title:
@@ -4805,6 +4971,11 @@ async def execute_log_workroom_progress(ctx: ToolContext, args: dict[str, Any]) 
     room, err = await _resolve_room_or_error(ctx, args)
     if err:
         return err
+    if isinstance(room, HubRoom):
+        _, e = await _hub_room_call(ctx, "POST", f"/workrooms/{room.id}/journal", {"entry": entry[:4000]})
+        if e:
+            return e
+        return f'Logged to the project room "{room.title}" journal on the hub: {entry}'
     await add_journal_entry(ctx.db, room, entry)
     return f'Logged to "{room.title}" journal: {entry}'
 

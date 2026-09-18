@@ -4,6 +4,29 @@
 
 ## Changelog
 
+### v5.13.1 · build 279 — 2026-09-18
+**Gerry knows a hub project's room**
+
+- Field report: inside the conversation of the hub project "IQT Future
+  Projects", asked to pin a new sheet to the room, Gerry said "I'm not
+  inside a workroom" and offered the four local rooms. Cause: every room
+  helper (`resolve_workroom`, `build_workroom_context`, the four room tools)
+  read the local `workrooms` table only; a hub project's built-in room lives
+  on the hub, and the conversation carries only the project's id.
+- `_resolve_room_or_error` now falls through to `_resolve_hub_room`: with no
+  title, the conversation's `project_id` that has no local Project row is a
+  hub project → `POST /projects/{id}/workroom` (creates the room on first use,
+  as the app does) → a `HubRoom` handle; with a title, hub projects are matched
+  by name. `add_to_workroom`, `list_workroom_items`, `remove_from_workroom`,
+  `log_workroom_progress` and `update_workroom` take a `HubRoom` branch over
+  `/workrooms/{id}[/items|/journal]` (dedup on kind+ref/label preserved).
+  Error listings include hub project names.
+- `build_workroom_context` falls through to `_hub_project_room_context`, so the
+  system prompt names the room and says the tools act on it without a title.
+- Verified against the live hub on the reporting conversation: tool resolves
+  "Project room ‘IQT Future Projects’ (on the hub)"; context block present.
+  Backend only; hub image rebuilt.
+
 ### v5.13.0 · build 278 — 2026-09-18
 **Contingency in the cost build-up**
 

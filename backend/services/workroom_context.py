@@ -72,7 +72,7 @@ async def build_workroom_context(db: AsyncSession, conversation_id, user_id=None
     try:
         room = await get_workroom_for_conversation(db, conversation_id)
         if room is None:
-            return ""
+            return await _hub_project_room_context(db, conversation_id, user_id)
         items = list(
             (
                 await db.execute(
@@ -153,6 +153,66 @@ async def build_workroom_context(db: AsyncSession, conversation_id, user_id=None
     except Exception:  # noqa: BLE001 — context must never break a turn
         logger.exception("Failed to build workroom context for %s", conversation_id)
         return ""
+
+
+async def _hub_project_room_context(db: AsyncSession, conversation_id, user_id) -> str:
+    """The room block for a conversation opened inside a HUB project.
+
+    Such a conversation carries the project's id but no local Workroom row — the
+    room lives on the hub with the project. Without this block the agent tells
+    the user it is "not inside a workroom" while sitting in one.
+    """
+    if user_id is None:
+        return ""
+    from models.db.conversation import Conversation
+    from models.db.task import Project
+    from services.hub import client as hub
+
+    if not hub.configured():
+        return ""
+    try:
+        conv_uuid = uuid.UUID(str(conversation_id))
+    except (TypeError, ValueError):
+        return ""
+    conv = (await db.execute(select(Conversation).where(Conversation.id == conv_uuid))).scalar_one_or_none()
+    if conv is None or conv.project_id is None:
+        return ""
+    if (await db.execute(select(Project.id).where(Project.id == conv.project_id))).scalar_one_or_none() is not None:
+        return ""  # a local project: its room, if any, was looked up above
+    try:
+        space = await hub.request(db, user_id, "GET", f"/projects/{conv.project_id}/space")
+        if space.status_code != 200:
+            return ""
+        brief = (space.json() or {}).get("workroom")
+        if not brief:
+            return ""
+        detail = await hub.request(db, user_id, "GET", f"/workrooms/{brief['id']}")
+        if detail.status_code != 200:
+            return ""
+        data = detail.json()
+    except hub.HubError:
+        return ""
+    name = (space.json() or {}).get("project", {}).get("name", data.get("title", ""))
+    lines = [
+        f'\n\nWORKROOM: "{data.get("title", name)}" — the built-in room of the shared project '
+        f'"{name}", which lives on the hub. This conversation is inside it: add_to_workroom, '
+        "list_workroom_items and log_workroom_progress act on this room with no workroom_title.",
+    ]
+    if str(data.get("goal", "")).strip():
+        lines.append(f"GOAL: {str(data['goal']).strip()}")
+    items = data.get("items", [])
+    if items:
+        lines.append("PINNED ITEMS:")
+        for it in items:
+            kind = _KIND_LABELS.get(it.get("kind"), it.get("kind"))
+            ref = f" (ref: {it['ref_id']})" if it.get("ref_id") else ""
+            lines.append(f"- [{kind}] {it.get('label')}{ref}")
+    journal = data.get("journal", [])[:_JOURNAL_ENTRIES]
+    if journal:
+        lines.append("RECENT PROGRESS (newest first):")
+        for j in journal:
+            lines.append(f"- {str(j.get('created_at', ''))[:10]}: {j.get('entry')}")
+    return "\n".join(lines)[:MAX_WORKROOM_CONTEXT_CHARS] + "\n"
 
 
 # ── Phase 2 helpers — used by agent tools and auto-journal hooks ─────────
