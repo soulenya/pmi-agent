@@ -304,6 +304,7 @@ export async function mirrorBudget(
     cached_ledger: budget.cached_ledger ?? [],
     cached_categories: budget.cached_categories ?? [],
     cached_summary: budget.cached_summary ?? {},
+    cached_estimate: budget.cached_estimate ?? [],
   });
   return data;
 }

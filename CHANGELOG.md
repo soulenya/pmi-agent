@@ -30,6 +30,18 @@
   by_category. Gerry: `add_estimate_line.category`,
   `update_estimate_line.new_category`; `read_budget_estimate` shows it.
   Tests: 37 pass (`test_budget_estimate.py` +2).
+- **Project Budget tab.** *Let Gerry manage entries* switch (owner with a
+  writable twin): PATCHes the local twin and, on a hub project, the hub's row
+  too, so Gerry on either side agrees. The twin query now refetches every 30 s
+  and on focus (`getBudget` is modifiedTime-gated, so a row typed into the
+  sheet appears here as on the Budgets page) and, on a hub project, mirrors
+  up whenever `cached_at` moves. Fixed: the frontend `mirrorBudget` never sent
+  `cached_estimate`, so the hub's copy of a budget had no estimate.
+- **Canvas.** Double-clicking a budget card opens the project's Budget tab
+  (`RefNode` uses `ctx.projectId/source`).
+- **Tabs refresh on open.** `ProjectSpacePage` invalidates every query keyed
+  on the project id (and the budget twin) when the active tab changes, so a
+  tab clicked inside the 30 s stale window still refetches.
 - Hub image rebuilt (backend + frontend changed). No migration.
 
 ### v5.11.0 · build 274 — 2026-09-17

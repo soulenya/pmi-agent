@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Handle,
   NodeResizer,
@@ -337,9 +338,18 @@ const STATE_RING: Record<string, string> = {
 const CARD_STATUSES = TASK_STATUSES;
 
 function RefNode({ data, selected }: NodeProps) {
-  const { node, resolved, canEdit, folded } = data as unknown as NodeData;
+  const { node, resolved, canEdit, folded, ctx } = data as unknown as NodeData;
   const board = useBoard();
+  const navigate = useNavigate();
   const title = resolved?.title || node.label || "Loading…";
+  // A budget card is a doorway: double-click lands on the project's Budget tab.
+  const openBudget =
+    node.kind === "budget"
+      ? () =>
+          navigate(
+            `${ctx.source === "hub" ? "/hub/projects" : "/projects"}/${ctx.projectId}/space/budget`,
+          )
+      : undefined;
   const editableTask =
     canEdit && node.kind === "task" && Boolean(node.ref_id) && !resolved?.missing;
   const stroke = styleOf(node).stroke;
@@ -368,8 +378,11 @@ function RefNode({ data, selected }: NodeProps) {
         </button>
       ) : null}
       <div
+        onDoubleClick={openBudget}
+        title={openBudget ? "Double-click to open the Budget tab" : undefined}
         className={cn(
           "flex h-full w-full flex-col gap-1 overflow-hidden rounded-md bg-card p-2 shadow-sm",
+          openBudget && "cursor-pointer",
           statusRing ? cn("border-2", statusRing) : "border",
           statusRing ? null : STATE_RING[resolved?.state ?? "ok"],
         )}

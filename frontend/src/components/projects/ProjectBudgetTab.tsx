@@ -15,8 +15,8 @@
  * much is still free to promise.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, ExternalLink, Plus, Wallet, X } from "lucide-react";
-import { useState } from "react";
+import { Bot, ChevronDown, ChevronRight, ExternalLink, Plus, Wallet, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   createBudget,
@@ -34,6 +34,7 @@ import type { Source } from "@/api/tasks";
 import { BudgetLedgerTable, BudgetSummaryCards } from "@/components/budgets/BudgetLedger";
 import { BudgetEstimate } from "@/components/budgets/BudgetEstimate";
 import { InvoiceIntake } from "@/components/budgets/InvoiceIntake";
+import { cn } from "@/lib/utils";
 
 /** Pulls the file id out of a pasted Drive link, or accepts a bare id. */
 function driveFileId(input: string): string | null {
@@ -77,7 +78,20 @@ function useLocalTwin(budget: ProjectBudget, source: Source, onSynced: () => voi
       return here ? await getBudget(here.id, "local") : null;
     },
     enabled: Boolean(fileId) && budget.is_mine,
+    // getBudget checks Drive's modifiedTime, so a row typed into the sheet
+    // shows up here within the interval, on this tab as on the Budgets page.
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
+
+  // The hub's copy follows the sheet: whenever the twin has re-read it, send it up.
+  const lastSent = useRef<string | null>(null);
+  useEffect(() => {
+    const t = twin.data;
+    if (!t || source !== "hub" || !t.cached_at || lastSent.current === t.cached_at) return;
+    lastSent.current = t.cached_at;
+    void mirrorBudget(t, "hub").then(onSynced).catch(() => undefined);
+  }, [twin.data, source, onSynced]);
 
   const settle = async () => {
     if (!twin.data) return;
@@ -113,12 +127,25 @@ function BudgetLedgerPanel({
     queryFn: () => getProjectBudget(projectId, budget.id, source),
   });
 
-  const onChanged = () => {
+  const onChanged = useCallback(() => {
     qc.invalidateQueries({ queryKey: ["project-budget", source, projectId, budget.id] });
     qc.invalidateQueries({ queryKey: ["project-budgets", source, projectId] });
-  };
+  }, [qc, source, projectId, budget.id]);
 
   const local = useLocalTwin(budget, source, onChanged);
+
+  // Gerry's write permission lives on the owner's row: the twin here, and the
+  // hub's copy too when the project is there, so Gerry on either side agrees.
+  const grant = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      if (local.twin) await updateBudget(local.twin.id, { gerry_write_enabled: enabled }, "local");
+      if (source === "hub") await updateBudget(budget.id, { gerry_write_enabled: enabled }, "hub");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["budget-twin", local.fileId] });
+      onChanged();
+    },
+  });
 
   // A shared budget's sheet is read through this computer's Google account and
   // the figures are sent up, because the hub has no Google account of its own.
@@ -151,6 +178,38 @@ function BudgetLedgerPanel({
   return (
     <div className="space-y-4 border-t border-slate-200 p-4 dark:border-slate-700">
       <BudgetSummaryCards budget={data} bank />
+
+      {canEditLedger && local.twin && (
+        <section className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+          <div className="flex items-start gap-3">
+            <Bot className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Let Gerry manage entries</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                When on, you can ask Gerry in chat to add or edit entries and estimate lines here.
+                Deletions and commits always require your confirmation.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => grant.mutate(!local.twin!.gerry_write_enabled)}
+            disabled={grant.isPending}
+            className={cn(
+              "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+              local.twin.gerry_write_enabled ? "bg-primary" : "bg-muted-foreground/30",
+            )}
+            title={local.twin.gerry_write_enabled ? "Revoke Gerry's write access" : "Grant Gerry write access"}
+          >
+            <span
+              className={cn(
+                "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                local.twin.gerry_write_enabled ? "left-[22px]" : "left-0.5",
+              )}
+            />
+          </button>
+        </section>
+      )}
 
       {data.references.length > 0 && (
         <section className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">

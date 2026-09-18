@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { NavLink, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -89,6 +89,15 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
     enabled: Boolean(id),
   });
   useRecentPlace(data?.project.name, onHub ? "hub project" : "project", `${base}/space`);
+
+  // Opening a tab asks again for everything about this project, so what you
+  // see is what is there now, not what was fetched under the 30 s stale window.
+  useEffect(() => {
+    if (!id) return;
+    void qc.invalidateQueries({
+      predicate: (q) => q.queryKey.some((k) => k === id || k === "budget-twin"),
+    });
+  }, [active, id, qc]);
 
   const visibilityMutation = useMutation({
     mutationFn: (visibility: ProjectVisibility) =>
