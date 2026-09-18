@@ -4,6 +4,23 @@
 
 ## Changelog
 
+### v5.12.2 · build 277 — 2026-09-18
+**A cleared allotment now clears**
+
+- Field report (Gerry, on the hub): `set_budget_allotment` blanked Settings!B2
+  — the sheet showed an empty cell — but `read_budget` and the hub card kept
+  reporting $5,806,306.00. Cause in `refresh_budget`: a blank Allotment cell
+  parsed to `None`, which was treated as "no information" and fell back to
+  the stored `budget.allotment`; the stored value was only ever overwritten
+  when the sheet held a number, so once set it could not be cleared through
+  the sheet at all — not by Gerry, not by the Manage Budgets card, not by
+  typing into the sheet. New `allotment_from_sheet(settings, current)`: a
+  Settings tab with an Allotment row is authoritative, blank included;
+  only a sheet with no Allotment row (a linked external sheet) keeps the stored
+  value. `budget.allotment` follows the same rule. Tests: 40 pass
+  (`test_budget_status.py` +3).
+- Backend only; hub image rebuilt.
+
 ### v5.12.1 · build 276 — 2026-09-18
 **Gerry can set or clear the allotment**
 
