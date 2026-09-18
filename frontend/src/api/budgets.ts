@@ -65,6 +65,8 @@ export interface EstimateLine {
   unit_cost: number | null;
   amount: number | null;
   note: string;
+  /** One of the budget's categories; blank falls back to `kind` when committed. */
+  category: string;
 }
 
 /**
@@ -91,6 +93,7 @@ export interface EstimateSummary {
   fee: number;
   total: number;
   by_kind: Record<string, number>;
+  by_category: Record<string, number>;
   by_phase: Record<string, number>;
   line_count: number;
 }
@@ -397,6 +400,17 @@ export interface EstimateLineInput {
   unit_cost?: number | null;
   amount?: number | null;
   note?: string;
+  category?: string;
+}
+
+/** A new row on the sheet's Categories tab. */
+export async function addBudgetCategory(
+  id: string,
+  body: { name: string; cap?: number | null },
+  source: Source = "local",
+): Promise<BudgetDetail> {
+  const { data } = await apiClient.post<BudgetDetail>(at(source, `/budgets/${id}/categories`), body);
+  return data;
 }
 
 export async function addEstimateLine(

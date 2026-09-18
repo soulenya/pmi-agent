@@ -396,12 +396,12 @@ def _require_writable(budget: Budget) -> None:
         )
 
 
-async def ensure_category(budget: Budget, name: str) -> bool:
+async def ensure_category(budget: Budget, name: str, cap: float | None = None) -> bool:
     """Put a category on the Categories tab when the sheet has not met it yet.
 
     An invoice names costs the budget was never set up for. Dropping the name
     would leave the row uncategorised and the totals unusable, so the sheet
-    learns it instead — with no cap, which is a category nobody is policing.
+    learns it instead — with no cap unless one is given.
     """
     from services import google_service as gs
 
@@ -416,13 +416,27 @@ async def ensure_category(budget: Budget, name: str) -> bool:
     try:
         await _run(
             lambda: gs.sheets_append_row(
-                budget.drive_file_id, CATEGORY_APPEND_RANGE, [wanted, ""]
+                budget.drive_file_id, CATEGORY_APPEND_RANGE, [wanted, cap if cap is not None else ""]
             )
         )
     except Exception:  # noqa: BLE001 — a sheet with no Categories tab still takes the entry
         logger.info("Could not add category %r to budget %s", wanted, budget.id)
         return False
     return True
+
+
+async def add_category(db: AsyncSession, budget: Budget, name: str, cap: float | None = None) -> Budget:
+    """A category added on purpose: written to the sheet, then the mirror re-read."""
+    _require_google()
+    _require_writable(budget)
+    if not name.strip():
+        raise BudgetError("Category name is required.")
+    if not await ensure_category(budget, name, cap):
+        known = {str(c.get("name", "")).strip().lower() for c in (budget.cached_categories or [])}
+        if name.strip().lower() in known:
+            raise BudgetError(f'"{name.strip()}" is already a category on this budget.')
+        raise BudgetError("Couldn't write to the Categories tab of the sheet.")
+    return await refresh_budget(db, budget, force=True)
 
 
 async def add_entry(

@@ -27,6 +27,7 @@ import {
   type EstimateLine,
   type EstimateMode,
   type EstimateSummary,
+  type BudgetCategory,
   type BudgetSummary,
 } from "@/api/budgets";
 import type { Source } from "@/api/tasks";
@@ -34,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { useToastStore } from "@/stores/toastStore";
 
 import { money } from "./BudgetLedger";
+import { CategorySelect } from "./CategorySelect";
 
 /** The parts of a budget the estimate needs, whichever endpoint served it. */
 export interface EstimateBudget {
@@ -41,6 +43,7 @@ export interface EstimateBudget {
   currency: string;
   cached_summary: BudgetSummary;
   cached_estimate?: EstimateLine[];
+  cached_categories: BudgetCategory[];
   cached_ledger: { note: string }[];
 }
 
@@ -105,6 +108,7 @@ export function BudgetEstimate({
   // ── add line ──
   const [phase, setPhase] = useState("");
   const [kind, setKind] = useState<EstimateKind>("Labor");
+  const [cat, setCat] = useState("");
   const [desc, setDesc] = useState("");
   const [qty, setQty] = useState("");
   const [unit, setUnit] = useState("");
@@ -163,6 +167,7 @@ export function BudgetEstimate({
           unit_cost: num(unit),
           amount: num(qty) !== null && num(unit) !== null ? undefined : num(amount),
           note: note.trim(),
+          category: cat,
         },
         source,
       );
@@ -189,6 +194,7 @@ export function BudgetEstimate({
       unit_cost: l.unit_cost === null ? "" : String(l.unit_cost),
       amount: l.amount === null ? "" : String(l.amount),
       note: l.note,
+      category: l.category ?? "",
     });
   };
 
@@ -202,6 +208,7 @@ export function BudgetEstimate({
       kind: (draft.kind as EstimateKind) ?? l.kind,
       description: (draft.description ?? l.description).trim() || l.description,
       note: draft.note ?? l.note,
+      category: draft.category ?? l.category ?? "",
       qty: q,
       unit_cost: u,
     };
@@ -344,6 +351,18 @@ export function BudgetEstimate({
             </select>
           </td>
           <td className="px-2 py-1">
+            <CategorySelect
+              budgetId={budget.id}
+              categories={budget.cached_categories}
+              value={draft.category ?? ""}
+              onChange={(name) => setDraft((d) => ({ ...d, category: name }))}
+              onAdded={onChanged}
+              source={source}
+              canAdd={canEdit}
+              className={cn(inputCls, "w-32")}
+            />
+          </td>
+          <td className="px-2 py-1">
             <input
               value={draft.description ?? ""}
               onChange={(ev) => setDraft((d) => ({ ...d, description: ev.target.value }))}
@@ -416,6 +435,7 @@ export function BudgetEstimate({
         <td className="whitespace-nowrap px-3 py-2">
           <KindPill kind={l.kind} />
         </td>
+        <td className="whitespace-nowrap px-3 py-2 text-xs text-muted-foreground">{l.category}</td>
         <td className="px-3 py-2">{l.description}</td>
         <td className="whitespace-nowrap px-3 py-2 text-right text-xs text-muted-foreground">
           {l.qty === null ? "" : l.qty.toLocaleString()}
@@ -567,6 +587,7 @@ export function BudgetEstimate({
                 <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
                   <th className="px-3 py-2">Phase</th>
                   <th className="px-3 py-2">Kind</th>
+                  <th className="px-3 py-2">Category</th>
                   <th className="px-3 py-2">Description</th>
                   <th className="px-3 py-2 text-right">Qty</th>
                   <th className="px-3 py-2 text-right">Unit cost</th>
@@ -578,7 +599,7 @@ export function BudgetEstimate({
               <tbody>
                 {lines.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
+                    <td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">
                       No estimate yet
                       {canEdit
                         ? " — add lines below, ask Gerry (“add 200 hours of mechanical engineering at $95”), or type them into the sheet's Estimate tab."
@@ -618,7 +639,7 @@ export function BudgetEstimate({
                     </>
                   ) : (
                     <>
-                      {Object.entries(est.by_kind).map(([k, v]) => (
+                      {Object.entries(est.by_category ?? est.by_kind).map(([k, v]) => (
                         <FootRow key={k} label={k} value={v} currency={budget.currency} />
                       ))}
                       <FootRow label="Estimate total" value={est.total} currency={budget.currency} strong big />
@@ -657,6 +678,15 @@ export function BudgetEstimate({
                   </option>
                 ))}
               </select>
+              <CategorySelect
+                budgetId={budget.id}
+                categories={budget.cached_categories}
+                value={cat}
+                onChange={setCat}
+                onAdded={onChanged}
+                source={source}
+                className={cn(inputCls, "w-36")}
+              />
               <input
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
@@ -749,7 +779,7 @@ function PhaseGroup({
     <>
       {showHeader && (
         <tr className="border-b bg-violet-500/5 text-xs">
-          <td colSpan={5} className="px-3 py-1.5 font-semibold">
+          <td colSpan={6} className="px-3 py-1.5 font-semibold">
             {label}
           </td>
           <td className="whitespace-nowrap px-3 py-1.5 text-right font-semibold" title={costMode ? "Loaded, with the rates applied" : undefined}>
@@ -778,7 +808,7 @@ function FootRow({
 }) {
   return (
     <tr className={cn(strong && "border-t")}>
-      <td colSpan={5} className={cn("px-3 py-1 text-right text-muted-foreground", strong && "font-semibold text-foreground")}>
+      <td colSpan={6} className={cn("px-3 py-1 text-right text-muted-foreground", strong && "font-semibold text-foreground")}>
         {label}
       </td>
       <td className={cn("whitespace-nowrap px-3 py-1 text-right", strong && "font-semibold", big && "text-sm text-violet-700 dark:text-violet-300")}>

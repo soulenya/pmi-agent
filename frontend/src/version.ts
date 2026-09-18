@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 274;
-export const BUILD_DATE = "2026-09-17";
+export const BUILD_NUMBER = 275;
+export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 275,
+    date: "2026-09-18",
+    title: "Estimate card and category dropdowns",
+    changes: [
+      "The budget summary starts with an Estimate card: the estimate total and, once an allotment is set, how far under or over it the plan is. Estimated figures never enter Allotment or Remaining — those are for funds actually issued.",
+      "Categories are a dropdown in the ledger and in the estimate. Choose ＋ New category… to add one on the spot; it goes onto the sheet's Categories tab. A + Category button sits beside the category chips.",
+      "Estimate lines carry a category, so a committed line lands in the ledger under it.",
+    ],
+  },
   {
     build: 274,
     date: "2026-09-17",
