@@ -117,6 +117,7 @@ _TOOLS = [
     "add_budget_entry",
     "update_budget_entry",
     "remove_budget_entry",
+    "set_budget_allotment",
     "read_budget_estimate",
     "add_estimate_line",
     "update_estimate_line",

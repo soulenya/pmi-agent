@@ -4,6 +4,19 @@
 
 ## Changelog
 
+### v5.12.1 · build 276 — 2026-09-18
+**Gerry can set or clear the allotment**
+
+- Field report: after clearing a ledger Gerry could not blank the allotment
+  left behind by an earlier `commit_budget_estimate` — no tool touched that
+  field alone. New tool **`set_budget_allotment`** (`amount` or `clear=true`,
+  `budget_title`, `confirm`): calls `budget_service.update_settings(allotment=)`
+  so only Settings!B2 changes; ledger and estimate untouched. Gated by the
+  per-budget write permission and `confirm=true` after the exact figure is
+  agreed; journals the change. Registered in TOOL_DEFINITIONS / TOOL_EXECUTORS /
+  _PRIMARY_ARG / executor labels / lc_tools docs and the EA, House, IR and
+  Operations whitelists. Backend only; hub image rebuilt for Gerry on the hub.
+
 ### v5.12.0 · build 275 — 2026-09-18
 **Estimate card in the budget summary; categories as a dropdown, with add**
 

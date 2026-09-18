@@ -187,6 +187,7 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "add_budget_entry": "Adding the budget entry…",
     "update_budget_entry": "Updating the budget entry…",
     "remove_budget_entry": "Removing the budget entry…",
+    "set_budget_allotment": "Setting the allotment…",
     "read_budget_estimate": "Reading the estimate…",
     "add_estimate_line": "Adding the estimate line…",
     "update_estimate_line": "Updating the estimate line…",
