@@ -2112,6 +2112,34 @@ TOOL_DEFINITIONS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "set_budget_allotment",
+            "description": (
+                "Set or clear a budget's ALLOTMENT — the funds actually issued, "
+                "which Remaining is measured against. Pass amount as a number to "
+                "set it, or clear=true to blank it (no allotment; Remaining then "
+                "shows nothing). Touches only the Settings tab; the ledger and the "
+                "estimate are untouched. Requires the per-budget 'Let Gerry manage "
+                "entries' permission PLUS confirm=true after the user explicitly "
+                "agreed to the exact figure."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "amount": {"type": "number", "description": "The new allotment. Omit when clear=true."},
+                    "clear": {"type": "boolean", "description": "Blank the allotment instead of setting one."},
+                    "budget_title": {
+                        "type": "string",
+                        "description": "Budget title (fuzzy matched). Omit if the user has exactly one budget.",
+                    },
+                    "confirm": {"type": "boolean", "description": "Must be true, and only after the user explicitly confirmed the figure."},
+                },
+                "required": ["confirm"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "read_budget_estimate",
             "description": (
                 "Read a budget's cost ESTIMATE — the plan for a contract or "
@@ -5216,6 +5244,42 @@ async def execute_get_budget_snapshot(ctx: ToolContext, args: dict[str, Any]) ->
     return "\n".join(lines)
 
 
+async def execute_set_budget_allotment(ctx: ToolContext, args: dict[str, Any]) -> str:
+    from services import budget_service as bs
+
+    budget, err = await _resolve_budget(ctx, args)
+    if err:
+        return err
+    blocked = _budget_write_blocked(budget)
+    if blocked:
+        return blocked
+    clear = bool(args.get("clear"))
+    amount = None
+    if not clear:
+        try:
+            amount = float(args.get("amount"))
+        except (TypeError, ValueError):
+            return "Error: give amount as a number, or clear=true to blank the allotment."
+        if amount < 0:
+            return "Error: the allotment cannot be negative."
+    before = _fmt_money(float(budget.allotment), budget.currency) if budget.allotment is not None else "blank"
+    after = "blank" if clear else _fmt_money(amount, budget.currency)
+    if not args.get("confirm"):
+        return (
+            f'Confirmation required: this changes the allotment of "{budget.title}" from {before} to '
+            f"{after}. Remaining is measured against it. Tell the user, and call again with "
+            "confirm=true only after they explicitly agree."
+        )
+    try:
+        await bs.update_settings(ctx.db, budget, allotment=None if clear else amount)
+    except bs.BudgetError as exc:
+        return f"Error: {exc}"
+    await _journal_budget_write(
+        ctx, budget, f'Budget "{budget.title}": Gerry set the allotment {before} → {after}'
+    )
+    return f'Allotment of "{budget.title}" is now {after} (was {before}). Now {_budget_summary_line(budget)}.'
+
+
 # ── budget estimates (the plan before the money) ─────────────────────────
 
 
@@ -6918,6 +6982,7 @@ TOOL_EXECUTORS = {
     "add_budget_entry": execute_add_budget_entry,
     "update_budget_entry": execute_update_budget_entry,
     "remove_budget_entry": execute_remove_budget_entry,
+    "set_budget_allotment": execute_set_budget_allotment,
     "read_budget_estimate": execute_read_budget_estimate,
     "add_estimate_line": execute_add_estimate_line,
     "update_estimate_line": execute_update_estimate_line,
@@ -6993,6 +7058,7 @@ _PRIMARY_ARG = {
     "add_budget_entry": "description",
     "update_budget_entry": "description",
     "remove_budget_entry": "description",
+    "set_budget_allotment": "amount",
     "read_budget_estimate": "title",
     "add_estimate_line": "description",
     "update_estimate_line": "description",
@@ -7077,6 +7143,7 @@ _ARTIFACT_SPECS: dict[str, tuple[str, str, str]] = {
     "add_budget_entry": ("Added to", "/budgets", "Open the budget"),
     "update_budget_entry": ("Updated in", "/budgets", "Open the budget"),
     "remove_budget_entry": ("Deleted from", "/budgets", "Open the budget"),
+    "set_budget_allotment": ("Allotment of", "/budgets", "Open the budget"),
     "add_estimate_line": ("Added to the estimate", "/budgets", "Open the budget"),
     "update_estimate_line": ("Updated estimate line", "/budgets", "Open the budget"),
     "remove_estimate_line": ("Deleted estimate line", "/budgets", "Open the budget"),

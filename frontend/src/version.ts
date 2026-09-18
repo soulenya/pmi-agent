@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 275;
+export const BUILD_NUMBER = 276;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 276,
+    date: "2026-09-18",
+    title: "Gerry can set or clear the allotment",
+    changes: [
+      "Ask Gerry to set the allotment to a figure, or to clear it. Only that field moves — the ledger and the estimate stay as they are — and she confirms the figure with you first. Same permission toggle as the ledger.",
+    ],
+  },
   {
     build: 275,
     date: "2026-09-18",
