@@ -22,6 +22,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "The budget summary starts with an Estimate card: the estimate total and, once an allotment is set, how far under or over it the plan is. Estimated figures never enter Allotment or Remaining — those are for funds actually issued.",
       "Categories are a dropdown in the ledger and in the estimate. Choose ＋ New category… to add one on the spot; it goes onto the sheet's Categories tab. A + Category button sits beside the category chips.",
       "Estimate lines carry a category, so a committed line lands in the ledger under it.",
+      "A project's Budget tab has the Let Gerry manage entries switch, refreshes from the sheet every 30 seconds, and every project tab refetches when you open it. Double-click a budget card on the canvas to open the Budget tab.",
     ],
   },
   {
