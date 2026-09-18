@@ -2784,7 +2784,7 @@ export function SettingsPage() {
   const hasChanges = Object.keys(localSettings).length > 0;
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-3xl mx-auto">
+    <div className="flex flex-col gap-4 md:gap-6 md:p-6 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -2803,7 +2803,7 @@ export function SettingsPage() {
         )}
       </div>
 
-      <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border bg-muted p-1 self-start">
+      <div className="flex max-w-full flex-wrap gap-1 rounded-lg border bg-muted p-1 self-start md:flex-nowrap md:overflow-x-auto">
         {TABS.map((t) => {
           const Icon = t.icon;
           return (

@@ -326,7 +326,7 @@ export function UsersPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-4 md:gap-6 md:p-6 max-w-5xl mx-auto">
       {showInvite && <InviteModal onClose={() => setShowInvite(false)} />}
 
       {/* Header */}

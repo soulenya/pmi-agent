@@ -4,6 +4,49 @@
 
 ## Changelog
 
+### v5.11.0 · build 274 — 2026-09-17
+**The phone layout, decluttered (field report: "cluttered, overlapping, too much on each section")**
+
+- **Measured before changing.** Headless Edge at 390×844 over CDP against the
+  dev stack, every page plus the detail views, with an automated report of
+  elements past the right edge, horizontal scroll width and overlapping
+  text (`%TEMP%\lgops\shots.py`). Real spills: Meetings card action row (to
+  x=448), Settings tab strip, the project space's tab bar and "At a glance"
+  card (grid children without `min-w-0`), long URLs in chat bubbles. The
+  rest was density: three layers of navigation on Today, five rows of
+  chrome on Tasks before the first task, six blocks on Projects.
+- **One header.** `MobileShell` `<main>` is now `.phone-main`; under 768px
+  `index.css` hides `div:has(> h1.text-2xl)` (each page's title+explainer
+  block — sibling action buttons survive), trims `px-5` to 12px, shrinks
+  `text-2xl`. Header section pills are dropped when every page in the group
+  is already a bottom tab (Today's group).
+- **Today on a phone** is `components/mobile/PhoneToday.tsx`: greeting,
+  Waiting-for-you line with counts → /waiting, Overdue (4), Today (events,
+  tasks, meetings), Due this week (5), briefing folded under a tap, Ask
+  Gerry. `DashboardPage` renders it when `useIsPhone()`; also fixed the
+  Waiting card's count, which added suggestions twice.
+- **Pages.** Tasks: New sits beside the Tasks|Routines switch, desktop header
+  `hidden md:flex`, project select `flex-1`, "medium" priority no longer
+  printed on every row. Projects: stats grid and hub explainer `md:` only,
+  Graph tab desktop-only, tabs + New on one row. Meetings: action row wraps,
+  stats grid desktop-only. Settings: tabs wrap, page padding `md:p-6` (was
+  doubling the shell's). Project space: Back link, role and "On the hub"
+  chips desktop-only, goal clamped to two lines, `[&>*]:min-w-0` on the
+  overview grid. Project task rows wrap to two lines (title, then
+  meta + status), grip desktop-only. Budget detail: 2-column summary cards
+  with smaller figures, header wraps, "Sheets" button label. Chat bubbles
+  `break-words [&_a]:break-all`. Emails/Research/Users page roots `md:p-6`.
+  Calendar: sidebar full-width and stacked under the grid on a phone, month
+  cells `h-12` with dots only (labels `md:`). Documents: row badges
+  (category/regulated/source), edit/re-embed/delete and the stats grid are
+  desktop-only; title and meta truncate. Inbox: page h1 desktop-only.
+- After: 0 spills / 0 overlaps on Today, Waiting, Projects, Tasks, Team,
+  Inbox, Documents, Calendar, Meetings, Settings, Chat, Budgets, the project
+  space (overview/tasks/budget/team), task drawer, chat thread, team thread
+  and new-task form. The budget ledger table still scrolls sideways inside
+  its own `overflow-x-auto` — seven columns, by design.
+- No backend change. Hub image rebuilt because it serves this frontend.
+
 ### v5.10.0 · build 273 — 2026-09-17
 **Budget estimates — the cost plan before the money**
 

@@ -496,7 +496,7 @@ export function WaitingForYou({ tab, onTabChange, limit, onNavigate, className }
             </button>
           )}
           {tab === "suggestions" && (
-            <NavLink to="/assistant" onClick={onNavigate} className="text-[11px] text-muted-foreground hover:text-foreground">
+            <NavLink to="/assistant" onClick={onNavigate} className="hidden whitespace-nowrap text-[11px] text-muted-foreground hover:text-foreground md:inline">
               All suggestions
             </NavLink>
           )}

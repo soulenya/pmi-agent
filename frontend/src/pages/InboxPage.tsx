@@ -679,7 +679,7 @@ export default function InboxPage() {
     <div className={phone ? "flex h-full flex-col" : "h-[calc(100vh-3.5rem)] flex flex-col"}>
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 border-b border-zinc-800 md:px-5">
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold text-white flex items-center gap-2">
+          <h1 className="hidden text-lg font-semibold text-white md:flex items-center gap-2">
             <Inbox className="w-5 h-5" /> Gmail
           </h1>
           <div className="flex gap-1">

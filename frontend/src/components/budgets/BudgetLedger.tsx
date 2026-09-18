@@ -182,7 +182,7 @@ export function BudgetSummaryCards({ budget, bank = false }: { budget: LedgerBud
 
   return (
     <section className="space-y-3">
-      <div className={cn("grid grid-cols-1 gap-3", showBank ? "sm:grid-cols-2 lg:grid-cols-5" : "sm:grid-cols-4")}>
+      <div className={cn("grid grid-cols-2 gap-2 sm:gap-3 [&>div]:p-3 sm:[&>div]:p-4 [&_.text-xl]:text-base sm:[&_.text-xl]:text-xl", showBank ? "lg:grid-cols-5" : "sm:grid-cols-4")}>
         <div className="rounded-xl border bg-card p-4">
           <p className="text-xs text-muted-foreground">Spent</p>
           <p className="text-xl font-semibold">{money(spent, cur)}</p>
@@ -224,8 +224,8 @@ export function BudgetSummaryCards({ budget, bank = false }: { budget: LedgerBud
       </div>
 
       {(collected > 0 || expected > 0) && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border bg-card p-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <div className="rounded-xl border bg-card p-3 sm:p-4">
             <p className="text-xs text-muted-foreground">Collected</p>
             <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">
               {money(collected, cur)}

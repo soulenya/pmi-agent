@@ -125,15 +125,17 @@ function TaskRow({
           {task.title}
         </span>
         <HubBadge source={task.source} className="ml-2 align-middle" />
-        {/* On a phone the right-hand column is gone; priority and due sit under the title. */}
-        <p className="mt-0.5 flex items-center gap-2 text-xs md:hidden">
-          <span className={PRIORITY_COLORS[task.priority]}>{task.priority}</span>
-          {task.due_date && (
-            <span className={isOverdue ? "font-medium text-destructive" : "text-muted-foreground"}>
-              {formatWhen(task.due_date, { overdue: !!isOverdue })}
-            </span>
-          )}
-        </p>
+        {/* On a phone the right-hand column is gone; priority and due sit under the title. Medium is the default and says nothing. */}
+        {(task.priority !== "medium" || task.due_date) && (
+          <p className="mt-0.5 flex items-center gap-2 text-xs md:hidden">
+            {task.priority !== "medium" && <span className={PRIORITY_COLORS[task.priority]}>{task.priority}</span>}
+            {task.due_date && (
+              <span className={isOverdue ? "font-medium text-destructive" : "text-muted-foreground"}>
+                {formatWhen(task.due_date, { overdue: !!isOverdue })}
+              </span>
+            )}
+          </p>
+        )}
         {task.description && (
           <p className="mt-0.5 text-xs text-muted-foreground truncate">
             {task.description}
@@ -625,24 +627,35 @@ export function TasksPage() {
   return (
     <div className={cn("flex flex-col gap-4 md:gap-6 md:p-6 mx-auto", view === "kanban" ? "max-w-full" : "max-w-4xl")}>
       {/* Tasks | Routines */}
-      <div className="flex gap-1 rounded-lg border bg-muted p-1 self-start">
-        {(["tasks", "routines"] as const).map((t) => (
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex gap-1 rounded-lg border bg-muted p-1 self-start">
+          {(["tasks", "routines"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                if (t === "routines") next.set("tab", "routines");
+                else next.delete("tab");
+                setSearchParams(next);
+              }}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                tab === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t === "tasks" ? "Tasks" : "Routines"}
+            </button>
+          ))}
+        </div>
+        {tab === "tasks" && (
           <button
-            key={t}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams);
-              if (t === "routines") next.set("tab", "routines");
-              else next.delete("tab");
-              setSearchParams(next);
-            }}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              tab === t ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-            )}
+            onClick={() => setShowNewTask(true)}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground md:hidden"
           >
-            {t === "tasks" ? "Tasks" : "Routines"}
+            <Plus className="h-4 w-4" />
+            New
           </button>
-        ))}
+        )}
       </div>
 
       {tab === "routines" ? (
@@ -665,7 +678,7 @@ export function TasksPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="hidden flex-wrap items-center justify-between gap-3 md:flex">
         <div>
           <h1 className="text-2xl font-bold">
             {activeProjectName ? (
@@ -727,7 +740,7 @@ export function TasksPage() {
       </div>
 
       {/* Filter row */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 md:gap-3">
         {/* Status tabs — hidden in kanban (columns serve as status filter) */}
         {view === "list" && (
           <div className="flex gap-1 rounded-lg border bg-muted p-1">
@@ -753,7 +766,7 @@ export function TasksPage() {
           <select
             value={projectFilter}
             onChange={(e) => handleProjectFilterChange(e.target.value)}
-            className="rounded-md border bg-background px-2.5 py-1.5 text-sm"
+            className="min-w-0 flex-1 rounded-md border bg-background px-2.5 py-1.5 text-sm md:flex-none"
           >
             <option value="">All Projects</option>
             {projects.map((p) => (

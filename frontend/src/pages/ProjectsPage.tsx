@@ -691,6 +691,7 @@ export function ProjectsPage() {
           className={cn(
             "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
             view === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            v === "graph" && "hidden md:flex",
           )}
         >
           <Icon className="h-3.5 w-3.5" />
@@ -757,14 +758,15 @@ export function ProjectsPage() {
             Track progress across all active projects
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full items-center justify-between gap-2 md:w-auto md:flex-wrap md:justify-start">
           {viewTabs}
           <button
             onClick={() => setShowForm((x) => !x)}
-            className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 md:gap-2 md:px-4"
           >
             <Plus className="h-4 w-4" />
-            New Project
+            <span className="md:hidden">New</span>
+            <span className="hidden md:inline">New Project</span>
           </button>
         </div>
       </div>
@@ -780,7 +782,7 @@ export function ProjectsPage() {
 
       {/* Stats */}
       {statsReady && statProjects.length > 0 && (
-        <div className="grid grid-cols-3 gap-2 md:gap-4">
+        <div className="hidden grid-cols-3 gap-2 md:grid md:gap-4">
           <div className="rounded-lg border bg-card p-3 md:p-4">
             <p className="text-xs text-muted-foreground">Total Projects</p>
             <p className="text-2xl font-bold mt-1">{statProjects.length}</p>
@@ -808,7 +810,7 @@ export function ProjectsPage() {
               <h2 className="text-lg font-semibold">
                 {hubHere ? "Projects on the hub" : "On the hub"}
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="mt-0.5 hidden text-xs text-muted-foreground md:block">
                 {hubHere
                   ? `Signed in as ${hubStatus?.email}. Projects kept on your own computer are not shown here.`
                   : `Signed in as ${hubStatus?.email}. Your projects live on the hub, not on this computer.`}
