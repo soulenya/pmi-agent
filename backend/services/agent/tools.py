@@ -2251,9 +2251,10 @@ TOOL_DEFINITIONS: list[dict] = [
             "description": (
                 "Set how a budget's estimate is totalled: mode 'Simple' (sum "
                 "of lines) or 'Cost build-up' (labor → Fringe % → Overhead % → "
-                "other direct costs → G&A % → Fee %), and the percentages. "
-                "Only the fields given are changed. Requires the per-budget "
-                "permission."
+                "other direct costs → G&A % → Contingency % → Fee %), and the "
+                "percentages. Contingency is taken on the cost; fee on cost plus "
+                "contingency. Only the fields given are changed. Requires the "
+                "per-budget permission."
             ),
             "parameters": {
                 "type": "object",
@@ -2263,6 +2264,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     "overhead_pct": {"type": "number"},
                     "ga_pct": {"type": "number"},
                     "fee_pct": {"type": "number"},
+                    "contingency_pct": {"type": "number", "description": "Reserve on the cost, e.g. 10 for 10%."},
                     "budget_title": {"type": "string"},
                 },
             },
@@ -5297,7 +5299,7 @@ def _estimate_body(budget) -> str:
     if s.get("mode") == est.MODE_COST:
         out.append(
             f"Rates: fringe {s.get('fringe_pct', 0):g}%, overhead {s.get('overhead_pct', 0):g}%, "
-            f"G&A {s.get('ga_pct', 0):g}%, fee {s.get('fee_pct', 0):g}%"
+            f"G&A {s.get('ga_pct', 0):g}%, contingency {s.get('contingency_pct', 0):g}%, fee {s.get('fee_pct', 0):g}%"
         )
     out.append(f"Lines ({len(lines_)}):")
     for l in lines_:
@@ -5316,7 +5318,7 @@ def _estimate_body(budget) -> str:
             f"Labor {_fmt_money(s.get('labor'), cur)} + fringe {_fmt_money(s.get('fringe'), cur)} "
             f"+ overhead {_fmt_money(s.get('overhead'), cur)} + other direct {_fmt_money(s.get('odc'), cur)} "
             f"+ G&A {_fmt_money(s.get('ga'), cur)} = cost {_fmt_money(s.get('cost'), cur)}; "
-            f"fee {_fmt_money(s.get('fee'), cur)}"
+            f"contingency {_fmt_money(s.get('contingency'), cur)}; fee {_fmt_money(s.get('fee'), cur)}"
         )
     out.append(f"ESTIMATE TOTAL: {_fmt_money(s.get('total'), cur)}")
     when = est.committed_on(budget)
@@ -5501,7 +5503,7 @@ async def execute_set_estimate_rates(ctx: ToolContext, args: dict[str, Any]) -> 
     if blocked:
         return blocked
     rates: dict[str, Any] = {}
-    for key in ("fringe_pct", "overhead_pct", "ga_pct", "fee_pct"):
+    for key in ("fringe_pct", "overhead_pct", "ga_pct", "fee_pct", "contingency_pct"):
         val, e = _num(args, key)
         if e:
             return e
@@ -5519,7 +5521,7 @@ async def execute_set_estimate_rates(ctx: ToolContext, args: dict[str, Any]) -> 
     return (
         f'Estimate for "{budget.title}" now totals in {s.get("mode")} mode '
         f"(fringe {s.get('fringe_pct', 0):g}%, overhead {s.get('overhead_pct', 0):g}%, "
-        f"G&A {s.get('ga_pct', 0):g}%, fee {s.get('fee_pct', 0):g}%). {_estimate_total_line(budget)}"
+        f"G&A {s.get('ga_pct', 0):g}%, contingency {s.get('contingency_pct', 0):g}%, fee {s.get('fee_pct', 0):g}%). {_estimate_total_line(budget)}"
     )
 
 

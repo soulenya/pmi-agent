@@ -84,6 +84,21 @@ class TestSummarize:
         assert s["fee"] == 189.2               # 2365 × 8%
         assert s["total"] == 2554.2
 
+    def test_contingency_sits_between_cost_and_fee(self):
+        """Contingency is a reserve on the cost; the fee covers the reserve too."""
+        rates = est.parse_rates({"Estimate Mode": "Cost build-up", "Contingency %": "10", "Fee %": "10"})
+        s = est.summarize([line(amount=1000)], rates)
+        assert s["cost"] == 1000.0
+        assert s["contingency"] == 100.0
+        assert s["fee"] == 110.0               # (1000 + 100) × 10%
+        assert s["total"] == 1210.0
+
+    def test_missing_contingency_row_reads_as_zero(self):
+        """Sheets made before the row existed must total exactly as before."""
+        rates = est.parse_rates({"Estimate Mode": "Cost build-up", "Fee %": "10"})
+        assert rates["contingency_pct"] == 0.0
+        assert est.summarize([line(amount=1000)], rates)["total"] == 1100.0
+
     def test_by_phase_uses_the_same_build_up(self):
         rates = est.parse_rates({"Estimate Mode": "Cost build-up", "Fee %": "10"})
         s = est.summarize(

@@ -4,6 +4,23 @@
 
 ## Changelog
 
+### v5.13.0 · build 278 — 2026-09-18
+**Contingency in the cost build-up**
+
+- Field report (Gerry): asked to add a contingency build-up, she had only the
+  four fixed slots (Fringe/Overhead/G&A/Fee) and offered to fold it into Fee
+  or add a flat line. New **Contingency %** rate, Settings row `Contingency %`
+  (row 17 on new sheets; `ensure_tab` appends it to old ones). Order in
+  `_build_up`: labor → fringe → overhead → other direct → G&A = **cost**;
+  **contingency = cost × rate**; **fee = (cost + contingency) × rate**;
+  total = cost + contingency + fee. A sheet without the row totals exactly as
+  before (rate reads 0). `summarize()` returns `contingency` and
+  `contingency_pct`; **commit** writes a Contingency pool row when non-zero.
+  `PATCH /estimate/rates` and `set_estimate_rates` take `contingency_pct`;
+  `read_budget_estimate` prints it. Frontend: rate editor field, rates pill,
+  footer row between Total cost and Fee (shown when non-zero). Tests: 42 pass
+  (`test_budget_estimate.py` +2).
+
 ### v5.12.2 · build 277 — 2026-09-18
 **A cleared allotment now clears**
 

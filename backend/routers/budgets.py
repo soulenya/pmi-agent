@@ -205,6 +205,7 @@ class EstimateRates(BaseModel):
     overhead_pct: float | None = Field(None, ge=0, le=1000)
     ga_pct: float | None = Field(None, ge=0, le=1000)
     fee_pct: float | None = Field(None, ge=0, le=1000)
+    contingency_pct: float | None = Field(None, ge=0, le=1000)
 
 
 class EstimateCommit(BaseModel):

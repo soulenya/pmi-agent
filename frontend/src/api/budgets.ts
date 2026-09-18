@@ -74,7 +74,8 @@ export interface EstimateLine {
  * `labor` and `odc` is zero. In Cost build-up:
  *   fringe = labor × fringe%; overhead = (labor + fringe) × overhead%;
  *   ga = (labor + fringe + overhead + odc) × ga%; cost = that + ga;
- *   fee = cost × fee%; total = cost + fee.
+ *   contingency = cost × contingency%; fee = (cost + contingency) × fee%;
+ *   total = cost + contingency + fee.
  */
 export interface EstimateSummary {
   mode: EstimateMode;
@@ -82,6 +83,8 @@ export interface EstimateSummary {
   overhead_pct: number;
   ga_pct: number;
   fee_pct: number;
+  /** Absent on summaries cached before the rate existed. */
+  contingency_pct?: number;
   labor: number;
   /** Other direct costs: everything that is not Labor. */
   odc: number;
@@ -90,6 +93,7 @@ export interface EstimateSummary {
   overhead: number;
   ga: number;
   cost: number;
+  contingency?: number;
   fee: number;
   total: number;
   by_kind: Record<string, number>;
@@ -460,6 +464,7 @@ export async function updateEstimateRates(
     overhead_pct?: number;
     ga_pct?: number;
     fee_pct?: number;
+    contingency_pct?: number;
   },
   source: Source = "local",
 ): Promise<BudgetDetail> {

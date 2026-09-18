@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 277;
+export const BUILD_NUMBER = 278;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 278,
+    date: "2026-09-18",
+    title: "Contingency in the cost build-up",
+    changes: [
+      "The estimate's cost build-up gains a Contingency % rate: a reserve taken on the cost, with the fee then taken on cost plus contingency. Set it in the Estimate section's rates or ask Gerry (“add 10% contingency”). Committing writes it to the ledger as its own Allocated row.",
+    ],
+  },
   {
     build: 277,
     date: "2026-09-18",
