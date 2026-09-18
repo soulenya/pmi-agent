@@ -124,6 +124,21 @@ class TestSummarizeEntries:
         assert s["entry_count"] == 2
 
 
+class TestAllotmentFromSheet:
+    """A cleared Allotment cell must clear the mirror (field report 2026-09-18:
+    set_budget_allotment blanked the sheet, read_budget kept saying $5.8M)."""
+
+    def test_blank_cell_on_a_settings_tab_clears_the_allotment(self):
+        assert bs.allotment_from_sheet({"Title": "x", "Allotment": ""}, 5_806_306.0) == (True, None)
+
+    def test_a_figure_on_the_sheet_wins(self):
+        assert bs.allotment_from_sheet({"Allotment": "$250,000"}, 10.0) == (True, 250_000.0)
+
+    def test_no_settings_tab_keeps_the_stored_value(self):
+        assert bs.allotment_from_sheet({}, 10.0) == (False, 10.0)
+        assert bs.allotment_from_sheet({"Title": "external"}, None) == (False, None)
+
+
 class TestReferenceRows:
     def test_a_legacy_marker_is_read_as_the_spent_row(self):
         """References written before column G existed carried the total spent."""

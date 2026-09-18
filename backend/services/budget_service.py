@@ -283,6 +283,20 @@ async def _ensure_status_header(budget: Budget) -> None:
         logger.info("Could not label the status column on budget %s", budget.id)
 
 
+def allotment_from_sheet(settings: dict, current: float | None) -> tuple[bool, float | None]:
+    """(authoritative, value) for the allotment after reading the Settings tab.
+
+    The sheet is the record. A Settings tab with an Allotment row — even a
+    blank one — is authoritative, so clearing the cell clears the mirror;
+    otherwise a cleared allotment would report the old figure forever. Only a
+    sheet with no Allotment row at all (a linked external sheet) leaves the
+    stored value alone.
+    """
+    if "Allotment" in settings:
+        return True, _parse_amount(settings.get("Allotment"))
+    return False, current
+
+
 async def refresh_budget(db: AsyncSession, budget: Budget, force: bool = False) -> Budget:
     """Re-read the sheet into the mirror when Drive says it changed (or forced)."""
     from services import google_service as gs
@@ -358,11 +372,9 @@ async def refresh_budget(db: AsyncSession, budget: Budget, force: bool = False) 
         categories.append({"name": name, "cap": cap})
 
     settings = {str(r[0]).strip(): (r[1] if len(r) > 1 else "") for r in settings_rows if r}
-    sheet_allotment = _parse_amount(settings.get("Allotment"))
     sheet_title = str(settings.get("Title", "")).strip()
-
-    allotment = sheet_allotment if sheet_allotment is not None else (
-        float(budget.allotment) if budget.allotment is not None else None
+    has_settings, allotment = allotment_from_sheet(
+        settings, float(budget.allotment) if budget.allotment is not None else None
     )
     budget.cached_ledger = entries
     budget.cached_categories = categories
@@ -375,8 +387,8 @@ async def refresh_budget(db: AsyncSession, budget: Budget, force: bool = False) 
         await est.read_into_cache(budget)
     except Exception:  # noqa: BLE001 — a broken estimate tab must not hide the ledger
         logger.info("Could not read the Estimate tab of budget %s", budget.id, exc_info=True)
-    if sheet_allotment is not None:
-        budget.allotment = sheet_allotment
+    if has_settings:
+        budget.allotment = allotment
     if sheet_title:
         budget.title = sheet_title[:200]
     budget.drive_modified_at = modified

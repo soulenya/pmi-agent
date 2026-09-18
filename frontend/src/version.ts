@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 276;
+export const BUILD_NUMBER = 277;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 277,
+    date: "2026-09-18",
+    title: "A cleared allotment now clears",
+    changes: [
+      "Blanking a budget's allotment — in the sheet, on the Manage Budgets card, or through Gerry — now clears it everywhere. Before, a blank cell was read as 'no change' and the old figure stayed on the card and in Remaining.",
+    ],
+  },
   {
     build: 276,
     date: "2026-09-18",
