@@ -61,7 +61,7 @@ function DayPanel({
   const [adding, setAdding] = useState(false);
   const dayIso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   return (
-    <div className="w-72 shrink-0 rounded-xl border bg-card flex flex-col overflow-hidden">
+    <div className="w-full shrink-0 rounded-xl border bg-card flex flex-col overflow-hidden md:w-72">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <h3 className="font-semibold text-sm">
           {date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: timezone })}
@@ -343,7 +343,7 @@ export function CalendarPage() {
       )}
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-blue-500" /> Task due</span>
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-destructive" /> Overdue task</span>
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-green-500" /> Meeting</span>
@@ -357,7 +357,7 @@ export function CalendarPage() {
         )}
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-4 md:flex-row">
         {/* Calendar grid */}
         <div className="flex-1 rounded-xl border bg-card overflow-hidden">
           {/* Day headers */}
@@ -373,7 +373,7 @@ export function CalendarPage() {
           <div className="grid grid-cols-7">
             {cells.map((date, idx) => {
               if (!date) {
-                return <div key={`empty-${idx}`} className="h-24 border-b border-r last:border-r-0 bg-muted/20" />;
+                return <div key={`empty-${idx}`} className="h-12 border-b border-r last:border-r-0 bg-muted/20 md:h-24" />;
               }
 
               const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -390,7 +390,7 @@ export function CalendarPage() {
                   key={dateKey}
                   onClick={() => setSelectedDate(isSelected ? null : date)}
                   className={cn(
-                    "h-24 border-b border-r last:border-r-0 p-1.5 text-left flex flex-col gap-0.5 transition-colors",
+                    "h-12 border-b border-r last:border-r-0 p-1 text-left flex flex-col gap-0.5 transition-colors md:h-24 md:p-1.5",
                     (idx + 1) % 7 === 0 && "border-r-0",
                     isSelected
                       ? "bg-primary/10"
@@ -425,8 +425,8 @@ export function CalendarPage() {
                       <span key={ev.id} className="h-1.5 w-1.5 rounded-full bg-purple-500" title={ev.title} />
                     ))}
                   </div>
-                  {/* Mini labels for visible items */}
-                  <div className="space-y-0.5 mt-0.5">
+                  {/* Mini labels for visible items (a phone cell only has room for the dots) */}
+                  <div className="hidden space-y-0.5 mt-0.5 md:block">
                     {dayTasks.slice(0, 1).map((t) => (
                       <p key={t.id} className="text-[9px] leading-tight truncate text-muted-foreground">
                         {t.title}

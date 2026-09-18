@@ -34,6 +34,8 @@ import { listMeetings } from "@/api/meetings";
 import { getTodayBriefing } from "@/api/regulatory";
 import { getGoogleStatus, listGoogleCalendarEvents, type GoogleCalendarEvent } from "@/api/google";
 import type { MeetingNote } from "@/types/meetings";
+import { PhoneToday } from "@/components/mobile/PhoneToday";
+import { useIsPhone } from "@/hooks/useViewport";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -143,6 +145,7 @@ function WeekTaskRow({ task }: { task: Task }) {
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
+  const phone = useIsPhone();
   const { tasks } = useAllTasks();
   const waitingCounts = useWaitingCounts();
   const [waitingTab, setWaitingTab] = useState<WaitingTab | null>(null);
@@ -195,9 +198,29 @@ export function DashboardPage() {
     .slice(0, 6);
   const recentConversations = conversations.filter((c) => !c.hub_mirror).slice(0, 5);
   const activeProjects = projects.filter((p) => p.status === "active");
-  const waiting = waitingCounts.total + waitingCounts.suggestions;
+  const waiting = waitingCounts.total;
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const dateLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: timezone });
+
+  if (phone) {
+    return (
+      <PhoneToday
+        greeting={greeting}
+        dateLabel={dateLabel}
+        timezone={timezone}
+        counts={waitingCounts}
+        overdue={overdueTasks}
+        todayEvents={todayEvents}
+        todayTasks={todayTasks}
+        todayMeetings={todayMeetings}
+        weekTasks={weekTasks}
+        briefing={briefing?.full_content}
+        briefingLoading={briefingLoading || isFetching}
+        onRefreshBriefing={refetchBriefing}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 md:gap-6 max-w-6xl mx-auto">
@@ -206,7 +229,7 @@ export function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">{greeting}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: timezone })}
+            {dateLabel}
             {agendaItems > 0 && (
               <span className="ml-2 text-primary font-medium">
                 &middot; {agendaItems} item{agendaItems !== 1 ? "s" : ""} on today&apos;s agenda

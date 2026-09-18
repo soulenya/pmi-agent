@@ -85,7 +85,7 @@ export function MobileShell() {
       <MobileHeader pathname={pathname} />
       <HubOfflineBar />
       <main
-        className="min-h-0 flex-1 overflow-y-auto p-3"
+        className="phone-main min-h-0 flex-1 overflow-y-auto p-3"
         style={{ paddingBottom: "calc(4rem + env(safe-area-inset-bottom))" }}
       >
         <Outlet />
@@ -103,7 +103,11 @@ function MobileHeader({ pathname }: { pathname: string }) {
   const item = railItemFor(pathname);
   const page = railPageFor(pathname);
   const counts = useWaitingCounts();
-  const pills = item && item.pages.length > 1 && !parent ? item.pages : [];
+  // Section pills, unless every section is already a bottom tab (Today's group).
+  const pills =
+    item && item.pages.length > 1 && !parent && !item.pages.every((p) => TAB_ROUTES.has(p.route))
+      ? item.pages
+      : [];
   return (
     <header className="shrink-0 border-b bg-card" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       <div className="flex h-12 items-center gap-2 px-3">

@@ -109,6 +109,29 @@
     font-size: max(16px, 1em);
   }
 }
+/* ── Phone pages ───────────────────────────────────────────────────────────
+   The pages were written for a desktop pane with their own title, a line of
+   explanation and generous card padding. Inside the phone shell the header
+   already names the page, and 390px has no room for the rest. These rules
+   apply only under MobileShell's <main class="phone-main">. */
+@media (max-width: 767px) {
+  /* A page title block: the h1 and the explainer sitting beside it. Sibling
+     action buttons in the same header row are kept. */
+  .phone-main div:has(> h1.text-2xl) {
+    display: none;
+  }
+  .phone-main .px-5 {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  .phone-main .rounded-xl {
+    border-radius: 0.625rem;
+  }
+  .phone-main .text-2xl {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+}
 /* ── Canvas ────────────────────────────────────────────────────────────────
    Deliberately not gated on prefers-reduced-motion: Windows reports that
    whenever "Animation effects" is off, which is the default on plenty of

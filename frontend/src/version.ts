@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 273;
+export const BUILD_NUMBER = 274;
 export const BUILD_DATE = "2026-09-17";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 274,
+    date: "2026-09-17",
+    title: "The phone layout, decluttered",
+    changes: [
+      "On a phone each page has one header — the shell's. Pages no longer repeat their title and explanation underneath it, cards are tighter, and desktop-only views (project statistics, the Graph view, the Kanban board) stay out of the way.",
+      "Today on a phone is a short list: Waiting for you with the counts, Overdue, Today, Due this week, the briefing folded under a tap, and Ask Gerry.",
+      "Tasks and Projects put New beside the section switch on the first row. Meeting card actions wrap instead of running off the screen; Settings tabs wrap; the project space header is one line with the tabs under it; budget summary cards sit two to a row.",
+      "Long links in Gerry's replies wrap inside the bubble.",
+    ],
+  },
   {
     build: 273,
     date: "2026-09-17",

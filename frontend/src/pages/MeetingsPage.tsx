@@ -438,8 +438,8 @@ function MeetingCard({ note, focus = false }: { note: MeetingNote; focus?: boole
       )}
     >
       {/* Header */}
-      <div className="flex items-start justify-between px-5 pt-4 pb-3">
-        <div className="flex-1 min-w-0 pr-4">
+      <div className="flex flex-col gap-2 px-5 pt-4 pb-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex-1 min-w-0 md:pr-4">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold text-sm truncate">{note.title}</h3>
             <StatusBadge note={note} />
@@ -464,7 +464,7 @@ function MeetingCard({ note, focus = false }: { note: MeetingNote; focus?: boole
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:flex-nowrap">
           {!note.summary && (
             <button
               onClick={() => summarizeMutation.mutate()}
@@ -647,7 +647,7 @@ export function MeetingsPage() {
   const summarized = meetings.filter((m) => !!m.summary).length;
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-3xl mx-auto">
+    <div className="flex flex-col gap-4 md:gap-6 md:p-6 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -669,7 +669,7 @@ export function MeetingsPage() {
 
       {/* Stats */}
       {meetings.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="hidden grid-cols-3 gap-3 md:grid">
           {[
             { label: "Total Meetings", value: meetings.length },
             { label: "Summarized", value: summarized },

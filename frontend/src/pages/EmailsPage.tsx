@@ -614,7 +614,7 @@ export function EmailsPage() {
   const pendingCount = drafts.filter((d) => d.status === "pending_approval").length;
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-3xl mx-auto">
+    <div className="flex flex-col gap-4 md:gap-6 md:p-6 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

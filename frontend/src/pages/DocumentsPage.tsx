@@ -481,11 +481,11 @@ function DocumentRow({
       "rounded-lg border bg-card overflow-hidden",
       sync && "border-amber-300",
     )}>
-      <div className="flex items-center gap-3 px-4 py-3">
+      <div className="flex items-center gap-2 px-3 py-2.5 md:gap-3 md:px-4 md:py-3">
         {/* Expand toggle */}
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          className="hidden text-muted-foreground hover:text-foreground transition-colors md:block"
           aria-label={expanded ? "Collapse" : "Expand"}
         >
           {expanded
@@ -499,23 +499,23 @@ function DocumentRow({
 
         {/* Main info */}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="truncate text-sm font-medium">{doc.title}</span>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 md:flex-wrap">
+            <span className="min-w-0 truncate text-sm font-medium">{doc.title}</span>
+            <span className="hidden items-center gap-1 text-xs text-muted-foreground md:flex">
               {STATUS_ICON[doc.status]} {STATUS_LABEL[doc.status]}
             </span>
             {categoryName && (
-              <span className="rounded-full bg-accent px-2 py-0.5 text-xs text-muted-foreground">
+              <span className="hidden rounded-full bg-accent px-2 py-0.5 text-xs text-muted-foreground md:inline">
                 {categoryName}
               </span>
             )}
             {doc.is_regulated && (
-              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700">
+              <span className="hidden rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-700 md:inline">
                 Regulated
               </span>
             )}
             {SOURCE_LABEL[doc.source_type] && (
-              <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground" title="Where this came from">
+              <span className="hidden rounded-full border px-2 py-0.5 text-xs text-muted-foreground md:inline" title="Where this came from">
                 {SOURCE_LABEL[doc.source_type]}
               </span>
             )}
@@ -529,14 +529,14 @@ function DocumentRow({
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {doc.file_extension?.toUpperCase().replace(".", "") ?? "—"} ·{" "}
             {formatBytes(doc.file_size_bytes)} · {doc.chunk_count} chunks ·{" "}
             uploaded {timeAgo(doc.created_at)}
           </p>
         </div>
 
-        {/* Actions */}
+        {/* Actions. On a phone: open it, or ask Gerry; edit/re-embed/delete are desk work. */}
         <div className="flex items-center gap-1 shrink-0">
           <AskGerryButton
             className="p-1.5"
@@ -559,21 +559,21 @@ function DocumentRow({
           </button>
           <button
             onClick={onEdit}
-            className="rounded p-1.5 text-muted-foreground hover:text-foreground"
+            className="hidden rounded p-1.5 text-muted-foreground hover:text-foreground md:block"
             title="Edit"
           >
             <Pencil className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={onReembed}
-            className="rounded p-1.5 text-muted-foreground hover:text-primary"
+            className="hidden rounded p-1.5 text-muted-foreground hover:text-primary md:block"
             title="Re-embed"
           >
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={onDelete}
-            className="rounded p-1.5 text-muted-foreground hover:text-destructive"
+            className="hidden rounded p-1.5 text-muted-foreground hover:text-destructive md:block"
             title="Delete"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -1387,7 +1387,7 @@ export function DocumentsPage() {
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3 md:gap-4">
-            <h1 className="text-2xl font-bold">Knowledge Base</h1>
+            <h1 className="hidden font-bold md:block md:text-2xl">Knowledge Base</h1>
             <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-0.5 text-sm">
               {(
                 [
@@ -1429,7 +1429,7 @@ export function DocumentsPage() {
               <button
                 onClick={() => checkUpdatesMutation.mutate()}
                 disabled={checkUpdatesMutation.isPending}
-                className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+                className="hidden items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50 md:flex"
                 title="Check Drive-linked documents for source changes"
               >
                 {checkUpdatesMutation.isPending
@@ -1449,7 +1449,7 @@ export function DocumentsPage() {
             <button
               onClick={() => scanDuplicatesMutation.mutate()}
               disabled={scanDuplicatesMutation.isPending}
-              className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+              className="hidden items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50 md:flex"
               title="Scan the Knowledge Base for byte-identical duplicate files"
             >
               {scanDuplicatesMutation.isPending
@@ -1459,7 +1459,7 @@ export function DocumentsPage() {
             </button>
             <button
               onClick={() => setShowShareKb(true)}
-              className="flex items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+              className="hidden items-center gap-1.5 rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors md:flex"
               title="Link documents to Drive and export/import a shareable manifest"
             >
               <Share2 className="h-4 w-4" />
@@ -1531,7 +1531,7 @@ export function DocumentsPage() {
 
         {/* Stats bar */}
         {tab === "library" && !isLoading && allDocs.length > 0 && (
-          <div className="grid grid-cols-4 gap-3">
+          <div className="hidden grid-cols-4 gap-3 md:grid">
             {[
               { label: "Total documents", value: allDocs.length },
               { label: "Total chunks", value: totalChunks },

@@ -151,19 +151,19 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
 
   return (
     <div className="flex h-full flex-col">
-      <header className="border-b px-3 py-3 md:px-6 md:py-4">
+      <header className="border-b px-3 py-2 md:px-6 md:py-4">
         <NavLink
           to="/projects"
-          className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          className="mb-2 hidden items-center gap-1 text-xs text-muted-foreground hover:text-foreground md:inline-flex"
         >
           <ArrowLeft className="h-3 w-3" /> Projects
         </NavLink>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
           <span
             className="h-3 w-3 shrink-0 rounded-full"
             style={{ backgroundColor: project.color ?? "#64748b" }}
           />
-          <h1 className="text-xl font-semibold">{project.name}</h1>
+          <h1 className="min-w-0 flex-1 truncate text-lg font-semibold md:flex-none md:text-xl">{project.name}</h1>
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs",
@@ -175,20 +175,20 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
             <VisIcon className="h-3 w-3" />
             {claimsShared ? "Not shared yet" : vis.label}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="hidden text-xs text-muted-foreground md:inline">
             you are {myRole}
           </span>
           {onHub && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs">
+            <span className="hidden items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs md:inline-flex">
               On the hub
             </span>
           )}
         </div>
         {project.goal ? (
-          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{project.goal}</p>
+          <p className="mt-1 line-clamp-2 max-w-3xl text-xs text-muted-foreground md:mt-2 md:line-clamp-none md:text-sm">{project.goal}</p>
         ) : null}
 
-        <nav className="-mx-3 mt-4 flex gap-1 overflow-x-auto px-3 md:mx-0 md:flex-wrap md:px-0">
+        <nav className="-mx-3 mt-2 flex gap-1 overflow-x-auto px-3 md:mx-0 md:mt-4 md:flex-wrap md:px-0">
           {TABS.filter(t => t.id !== "team" || onHub).map(t => {
             const Icon = t.icon;
             // A tab that holds something says so, so the space does not look
@@ -226,7 +226,7 @@ export function ProjectSpacePage({ source = "local" }: { source?: Source } = {})
 
       <div className="flex-1 overflow-y-auto p-3 md:p-6">
         {active === "overview" && (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 [&>*]:min-w-0">
             <div className="rounded-xl border bg-card p-5">
               <h2 className="mb-3 text-sm font-medium">At a glance</h2>
               <dl className="grid grid-cols-2 gap-3 text-sm">

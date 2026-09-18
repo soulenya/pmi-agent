@@ -141,7 +141,7 @@ function TaskRow({
       )}
     >
       <div
-        className="flex items-center gap-2 py-2 pr-3"
+        className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 pr-3 md:flex-nowrap"
         style={{ paddingLeft: 12 + depth * 18 }}
         draggable={canEdit}
         onDragStart={(e) => {
@@ -151,7 +151,7 @@ function TaskRow({
       >
         {canEdit && (
           <GripVertical
-            className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground/50"
+            className="hidden h-4 w-4 shrink-0 cursor-grab text-muted-foreground/50 md:block"
             aria-hidden
           />
         )}
@@ -194,6 +194,8 @@ function TaskRow({
           </span>
         </button>
 
+        {/* On a phone the meta wraps under the title; the title keeps the whole first line. */}
+        <div className="flex w-full items-center gap-2 pl-6 md:w-auto md:pl-0">
         {task.is_milestone && (
           <Flag className="h-3.5 w-3.5 shrink-0 text-primary" aria-label="Milestone" />
         )}
@@ -220,7 +222,7 @@ function TaskRow({
           value={task.status}
           disabled={!canEdit || busy}
           onChange={(e) => onPatch(task.id, { status: e.target.value as TaskStatus })}
-          className="shrink-0 rounded border bg-background px-1.5 py-0.5 text-xs disabled:opacity-60"
+          className="ml-auto shrink-0 rounded border bg-background px-1.5 py-0.5 text-xs disabled:opacity-60 md:ml-0"
         >
           {STATUSES.map((s) => (
             <option key={s.id} value={s.id}>
@@ -228,6 +230,7 @@ function TaskRow({
             </option>
           ))}
         </select>
+        </div>
       </div>
 
       {open && (

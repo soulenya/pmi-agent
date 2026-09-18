@@ -355,7 +355,7 @@ export function MessageBubble({ message, compact = false }: Props) {
       {/* Bubble */}
       <div
         className={cn(
-          "max-w-[92%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed md:max-w-[75%]",
+          "min-w-0 max-w-[92%] break-words rounded-2xl px-4 py-2.5 text-sm leading-relaxed md:max-w-[75%] [&_a]:break-all",
           compact && "px-3 py-1.5 text-xs max-w-[90%]",
           isUser
             ? "rounded-tr-sm bg-primary text-primary-foreground"
