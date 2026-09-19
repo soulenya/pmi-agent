@@ -675,6 +675,9 @@ async def lifespan(app: FastAPI):
     meeting_task = asyncio.create_task(_meeting_monitor_loop())
     cleanup_task = asyncio.create_task(_gerry_draft_cleanup_loop())
     backup_task = asyncio.create_task(_conversation_backup_loop())
+    from services import gmail_watch
+
+    gmail_task = asyncio.create_task(gmail_watch.run(get_db, notification_manager.push))
     # One-shot: refresh the company-context cache from Drive (never blocks boot).
     company_ctx_task = asyncio.create_task(_company_context_sync_once())
     hub_client_task = asyncio.create_task(_hub_client_fetch_once())
@@ -687,9 +690,10 @@ async def lifespan(app: FastAPI):
     meeting_task.cancel()
     cleanup_task.cancel()
     backup_task.cancel()
+    gmail_task.cancel()
     company_ctx_task.cancel()
     hub_client_task.cancel()
-    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, company_ctx_task, hub_client_task):
+    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, gmail_task, company_ctx_task, hub_client_task):
         try:
             await _t
         except asyncio.CancelledError:

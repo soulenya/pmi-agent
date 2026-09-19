@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
+import { useToastStore } from "@/stores/toastStore";
 
 const WS_BASE = import.meta.env.VITE_WS_BASE ?? "ws://127.0.0.1:8000";
 const RECONNECT_DELAY_MS = 5_000;
@@ -8,7 +9,9 @@ const RECONNECT_DELAY_MS = 5_000;
 /**
  * Opens /ws/notifications and keeps it alive.
  * On receiving any notification frame, invalidates ["notifications"] so the
- * sidebar badge and NotificationsPage refresh automatically.
+ * sidebar badge and NotificationsPage refresh automatically. A `gmail_changed`
+ * frame refetches the Inbox; a new-email notification also shows a toast that
+ * opens the thread.
  */
 export function useNotificationWS(): void {
   const queryClient = useQueryClient();
@@ -35,10 +38,27 @@ export function useNotificationWS(): void {
               unread_count?: number;
               id?: string;
               title?: string;
+              message?: string | null;
+              notif_type?: string;
+              route?: string;
             };
             if (data.type === "notification") {
               // Invalidate so sidebar badge and page re-fetch
               queryClient.invalidateQueries({ queryKey: ["notifications"] });
+              if (data.notif_type === "email_received" && data.title) {
+                useToastStore
+                  .getState()
+                  .push(
+                    "info",
+                    data.message ? `${data.title} — ${data.message}` : data.title,
+                    8000,
+                    data.route ?? "/inbox",
+                  );
+              }
+            } else if (data.type === "gmail_changed") {
+              queryClient.invalidateQueries({ queryKey: ["gmail-inbox"] });
+              queryClient.invalidateQueries({ queryKey: ["gmail-by-tag"] });
+              queryClient.invalidateQueries({ queryKey: ["gmail-thread"] });
             } else if (data.type === "init") {
               // Optionally prime the cache or simply invalidate
               queryClient.invalidateQueries({ queryKey: ["notifications"] });

@@ -110,6 +110,8 @@ export interface Notification {
   message: string | null;
   entity_type: string | null;
   entity_id: string | null;
+  /** Pointer for targets without a UUID, e.g. `{thread_id}` on a new-email row. */
+  payload?: Record<string, unknown> | null;
   is_read: boolean;
   read_at: string | null;
   created_at: string;

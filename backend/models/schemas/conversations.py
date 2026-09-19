@@ -139,6 +139,7 @@ class NotificationOut(BaseModel):
     message: str | None
     entity_type: str | None
     entity_id: uuid.UUID | None
+    payload: dict[str, Any] | None = None
     is_read: bool
     created_at: datetime
 

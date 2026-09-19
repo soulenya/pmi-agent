@@ -3,12 +3,14 @@
  * unmounts (e.g. an approval card disappearing from a list after resolving).
  */
 import { CheckCircle2, XCircle, Info, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/stores/toastStore";
 
 export function Toaster() {
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
+  const navigate = useNavigate();
 
   if (toasts.length === 0) return null;
 
@@ -17,8 +19,14 @@ export function Toaster() {
       {toasts.map((t) => (
         <div
           key={t.id}
+          onClick={() => {
+            if (!t.route) return;
+            dismiss(t.id);
+            navigate(t.route);
+          }}
           className={cn(
             "flex items-start gap-2.5 rounded-lg border px-3.5 py-2.5 text-sm shadow-lg backdrop-blur",
+            t.route && "cursor-pointer hover:brightness-110",
             t.kind === "success" &&
               "border-green-300 bg-green-50/95 text-green-800 dark:border-green-700 dark:bg-green-950/90 dark:text-green-200",
             t.kind === "error" &&
@@ -37,7 +45,10 @@ export function Toaster() {
           </span>
           <p className="flex-1 leading-snug">{t.text}</p>
           <button
-            onClick={() => dismiss(t.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              dismiss(t.id);
+            }}
             className="shrink-0 rounded p-0.5 opacity-60 hover:opacity-100"
             aria-label="Dismiss"
           >

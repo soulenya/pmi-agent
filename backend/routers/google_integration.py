@@ -89,12 +89,28 @@ async def gmail_message(message_id: str, _user=Depends(get_current_user)):
 
 
 @router.get("/gmail/thread/{thread_id}")
-async def gmail_thread(thread_id: str, _user=Depends(get_current_user)):
+async def gmail_thread(
+    thread_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Preview a Gmail thread (all messages + attachment metadata) before import."""
     try:
-        return gs.gmail_get_thread(thread_id)
+        detail = gs.gmail_get_thread(thread_id)
     except RuntimeError as e:
         raise HTTPException(401, str(e))
+    # Reading the thread reads its "new email" bell rows too.
+    from services import gmail_watch
+
+    if await gmail_watch.mark_thread_seen(db, current_user.id, thread_id):
+        await db.commit()
+        try:
+            from main import notification_manager
+
+            await notification_manager.push(str(current_user.id), {"type": "notification"})
+        except Exception:  # noqa: BLE001
+            pass
+    return detail
 
 
 @router.get("/gmail/message/{message_id}/attachment/{attachment_id}")

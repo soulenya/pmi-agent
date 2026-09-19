@@ -381,6 +381,7 @@ class NotificationRepository:
         message: str | None = None,
         entity_type: str | None = None,
         entity_id: uuid.UUID | None = None,
+        payload: dict | None = None,
     ) -> Notification:
         notif = Notification(
             user_id=user_id,
@@ -389,6 +390,7 @@ class NotificationRepository:
             message=message,
             entity_type=entity_type,
             entity_id=entity_id,
+            payload=payload,
         )
         self.db.add(notif)
         await self.db.flush()
@@ -402,7 +404,7 @@ class NotificationRepository:
             user_id,
             title,
             message,
-            push.route_for(kind, entity_type, entity_id),
+            push.route_for(kind, entity_type, entity_id, payload),
             tag=f"{kind}:{entity_id}" if entity_id else None,
         )
         return notif

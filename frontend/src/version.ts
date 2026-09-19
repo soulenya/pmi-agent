@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 279;
+export const BUILD_NUMBER = 280;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 280,
+    date: "2026-09-18",
+    title: "New email arrives on its own",
+    changes: [
+      "The Inbox updates the moment your mailbox changes — no Refresh. Each new email rings the bell and shows a pop-up in the corner; click either to open it. Opening the thread clears the notification. Phones with hub notifications on get the same alert.",
+    ],
+  },
   {
     build: 279,
     date: "2026-09-18",

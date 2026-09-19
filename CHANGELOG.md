@@ -4,6 +4,31 @@
 
 ## Changelog
 
+### v5.14.0 · build 280 — 2026-09-18
+**Live inbox: new email arrives on its own**
+
+- The Inbox refreshed only on a 60 s timer or the Refresh button. Now the
+  backend watches each connected mailbox with Gmail's history API (one call
+  every 15 s per person, `services/gmail_watch.py`) and pushes a
+  `gmail_changed` frame over the notifications socket whenever anything moves —
+  new mail, read/unread, archive, sent. The thread list and the open thread
+  refetch immediately; the 60 s poll stays as a fallback.
+- A message newly landed in Inbox becomes a bell notification ("New email from
+  X" / subject) and an in-app toast; clicking either opens the thread. More
+  than eight in one tick collapse into one "N new emails" row. Opening the
+  thread marks its rows read. On a subscribed phone the same row arrives as a
+  web push (`/inbox?thread=…`). Sent mail and drafts never notify; the first
+  tick after start seeds the cursor and reports nothing, so a restart does not
+  replay the backlog.
+- Migration 048: `notifications.payload jsonb` (a Gmail thread id is not a
+  UUID). `NotificationType.EMAIL_RECEIVED`; `NotificationOut.payload`;
+  `push.route_for` takes the payload. Toasts accept a route and are clickable.
+- Hub: one watcher per connected person under their own grant. Desktop: the
+  install owner. Verified against the live mailbox: seed → history diff →
+  4 real inbox messages described, rows written with payload, mark-read by
+  thread, second tick from the same cursor re-notifies nothing; test rows
+  removed.
+
 ### v5.13.1 · build 279 — 2026-09-18
 **Gerry knows a hub project's room**
 
