@@ -8,11 +8,13 @@ export interface Toast {
   id: number;
   kind: "success" | "error" | "info";
   text: string;
+  /** Where a click takes you; the toast is inert without one. */
+  route?: string;
 }
 
 interface ToastState {
   toasts: Toast[];
-  push: (kind: Toast["kind"], text: string, durationMs?: number) => void;
+  push: (kind: Toast["kind"], text: string, durationMs?: number, route?: string) => void;
   dismiss: (id: number) => void;
 }
 
@@ -20,9 +22,9 @@ let nextId = 1;
 
 export const useToastStore = create<ToastState>()((set) => ({
   toasts: [],
-  push: (kind, text, durationMs = 6000) => {
+  push: (kind, text, durationMs = 6000, route) => {
     const id = nextId++;
-    set((s) => ({ toasts: [...s.toasts, { id, kind, text }] }));
+    set((s) => ({ toasts: [...s.toasts, { id, kind, text, route }] }));
     window.setTimeout(
       () => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
       durationMs,

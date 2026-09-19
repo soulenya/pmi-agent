@@ -47,7 +47,15 @@ def configured() -> bool:
     return bool(settings.vapid_public_key and settings.vapid_private_key)
 
 
-def route_for(type_: str, entity_type: str | None, entity_id: uuid.UUID | None) -> str:
+def route_for(
+    type_: str,
+    entity_type: str | None,
+    entity_id: uuid.UUID | None,
+    payload: dict | None = None,
+) -> str:
+    if type_ == "email_received":
+        thread = (payload or {}).get("thread_id")
+        return f"/inbox?thread={thread}" if thread else "/inbox"
     if entity_type == "email_draft":
         return "/inbox?view=drafts"
     if entity_type == "assistant_suggestion":

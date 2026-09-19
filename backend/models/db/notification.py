@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.db.base import Base
@@ -29,6 +29,8 @@ class Notification(Base):
     # Polymorphic link to the related entity
     entity_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     entity_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # For targets without a UUID (a Gmail thread id, say).
+    payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

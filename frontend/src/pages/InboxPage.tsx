@@ -491,6 +491,7 @@ export default function InboxPage() {
     const id = searchParams.get("thread");
     if (!id) return;
     setSelected(id);
+    setView("inbox");
     const next = new URLSearchParams(searchParams);
     next.delete("thread");
     setSearchParams(next, { replace: true });

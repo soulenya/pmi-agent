@@ -16,6 +16,7 @@ import {
   FileText,
   Info,
   Loader2,
+  Mail,
   MessageSquare,
   ShieldCheck,
   ShieldX,
@@ -143,6 +144,10 @@ export function defaultWaitingTab(c: { approvals: number; suggestions: number; n
 
 /** Where a notification takes you when clicked. */
 export function notificationRoute(notif: Notification): string | null {
+  if (notif.type === "email_received") {
+    const thread = notif.payload?.thread_id;
+    return thread ? `/inbox?thread=${thread}` : "/inbox";
+  }
   if (notif.entity_type === "email_draft") return "/inbox?view=drafts";
   if (notif.type === "chat_mention" && notif.entity_id) return `/team?channel=${notif.entity_id}`;
   switch (notif.type) {
@@ -170,6 +175,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   briefing_ready: <Info className="h-3.5 w-3.5 text-primary" />,
   feedback_submitted: <MessageSquare className="h-3.5 w-3.5 text-purple-500" />,
   chat_mention: <MessageSquare className="h-3.5 w-3.5 text-primary" />,
+  email_received: <Mail className="h-3.5 w-3.5 text-yellow-500" />,
 };
 
 // ── Notification row ─────────────────────────────────────────────────────────
