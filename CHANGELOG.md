@@ -4,6 +4,32 @@
 
 ## Changelog
 
+### v5.15.0 · build 281 — 2026-09-20
+**Continue any conversation on the hub or the desktop**
+
+- Morgan: "if I am having a chat with Gerry on the hub and switch to the
+  desktop, or vice versa, I need a way to continue those conversations."
+  Hub conversations were already listed on the desktop under "On the hub" and
+  mirrored on open (v4.5.0); desktop conversations never left the machine.
+- Every conversation a linked person has on the desktop is now offered to
+  the hub under its own id: once when opened (`POST /hub/conversations/{id}/sync`
+  adopts a local conversation), at the end of every turn (`conv_sync.after_turn`
+  in `ws_chat` — adopt if new, else push), and once ~90 s after start for the
+  backlog (`conv_sync.adopt_all`). Adopted rows become `hub_mirror`, so the
+  existing pull-before-turn / push-after-turn keeps both sides current.
+  Rename, pin and archive on the desktop are carried to the hub copy.
+- Hub: `POST /conversations/import` (`ConversationImport`: id, title, kind,
+  up to 500 `MessageAppend`s) — idempotent, owner-checked, adds only the
+  messages the hub lacks. Verified in-process: import, re-import with one new
+  message, list; rows removed.
+- Frontend: the chat list shows every local conversation including mirrors;
+  "On the hub" lists only hub conversations with no local copy yet. Opening a
+  local conversation (ChatPage and the side panel) syncs with the hub first,
+  without blocking, then refetches. Side panel and Today keep excluding
+  shared-project mirrors only.
+- Not carried: attachments, routine (scheduled-task) conversations,
+  tool-call scaffolding. No migration.
+
 ### v5.14.0 · build 280 — 2026-09-18
 **Live inbox: new email arrives on its own**
 

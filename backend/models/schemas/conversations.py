@@ -94,6 +94,23 @@ class MessageAppend(BaseModel):
     created_at: datetime | None = None
 
 
+class ConversationImport(BaseModel):
+    """A whole conversation a desktop began, offered to the hub under its own id.
+
+    Idempotent: a conversation the hub already has gains only the messages it
+    lacks. What makes a chat continuable from any device is that both copies
+    share ids, so neither side can duplicate the other.
+    """
+
+    id: uuid.UUID
+    title: str | None = Field(None, max_length=500)
+    agent_type: str | None = None
+    kind: ConversationKind = "general"
+    project_id: uuid.UUID | None = None
+    created_at: datetime | None = None
+    messages: list[MessageAppend] = Field(default_factory=list, max_length=500)
+
+
 # ── Approvals ─────────────────────────────────────────────────────────────────
 
 class ApprovalOut(BaseModel):

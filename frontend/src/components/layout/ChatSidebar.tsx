@@ -305,7 +305,9 @@ export function ChatSidebar() {
     // what spawned dozens of empty "untitled" conversations.
     if (!open || bound || !conversationsFetched || activeConversationId) return;
 
-    const own = conversations.filter((c) => !c.hub_mirror);
+    // A shared project's conversation is read inside its project, where it is
+    // kept in step; a person's own conversation that is also on the hub is fine.
+    const own = conversations.filter((c) => !(c.hub_mirror && c.project_id));
     if (own.length > 0) {
       setActiveConversationId(own[0].id);
       return;
@@ -396,8 +398,7 @@ export function ChatSidebar() {
               onChange={(e) => setActiveConversationId(e.target.value || null)}
               className="max-w-[120px] truncate rounded border bg-background px-1.5 py-0.5 text-xs"
             >
-              {/* A hub mirror is read inside its project, where it is kept in step. */}
-              {conversations.filter((c) => !c.hub_mirror).map((c) => (
+              {conversations.filter((c) => !(c.hub_mirror && c.project_id)).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.title || "New conversation"}
                 </option>

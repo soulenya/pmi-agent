@@ -25,6 +25,7 @@ from models.schemas.conversations import (
     ApprovalOut,
     ChatAttachmentOut,
     ConversationCreate,
+    ConversationImport,
     ConversationOut,
     ConversationUpdate,
     EditApprovalRequest,
@@ -122,6 +123,68 @@ async def create_conversation(
     return conv
 
 
+@router.post("/import", response_model=ConversationOut)
+async def import_conversation(
+    body: ConversationImport,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ConversationOut:
+    """Take a conversation a desktop began, so it can be continued here.
+
+    Only the hub is asked this. The row keeps the desktop's id and the
+    messages keep theirs; anything already present is left alone.
+    """
+    from models.db.conversation import Conversation, Message
+    from sqlalchemy import select
+
+    conv = await db.get(Conversation, body.id)
+    if conv is None:
+        conv = Conversation(
+            id=body.id,
+            user_id=current_user.id,
+            title=body.title,
+            agent_type=body.agent_type,
+            kind=body.kind,
+            project_id=body.project_id,
+        )
+        if body.created_at is not None:
+            conv.created_at = body.created_at
+        db.add(conv)
+        await db.flush()
+    elif conv.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="That conversation id belongs to someone else.",
+        )
+    elif body.title and not conv.title:
+        conv.title = body.title
+
+    ids = [m.id for m in body.messages]
+    here = set(
+        (await db.execute(select(Message.id).where(Message.id.in_(ids)))).scalars().all()
+    ) if ids else set()
+    for m in body.messages:
+        if m.id in here or not m.content.strip():
+            continue
+        msg = Message(
+            id=m.id,
+            conversation_id=conv.id,
+            role=MessageRole(m.role),
+            content=m.content,
+            agent_type=m.agent_type,
+            model_name=m.model_name,
+            cited_chunk_ids=[],
+            tool_calls=[],
+            tool_results=[],
+        )
+        if m.created_at is not None:
+            msg.created_at = m.created_at
+        db.add(msg)
+    await db.commit()
+    await db.refresh(conv)
+    return conv
+
+
 @router.get("/{conv_id}", response_model=ConversationOut)
 async def get_conversation(
     conv_id: uuid.UUID,
@@ -148,6 +211,11 @@ async def update_conversation(
     updates = body.model_dump(exclude_none=True)
     conv = await repo.update(conv, **updates)
     await db.commit()
+    if conv.hub_mirror and updates:
+        # A rename or archive here should read the same on the hub. Best effort.
+        from services.hub import conv_sync
+
+        await conv_sync.mirror_update(db, current_user.id, conv_id, updates)
     return conv
 
 

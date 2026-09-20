@@ -601,7 +601,8 @@ async def system_notices(
             "title": "You're on the hub",
             "message": (
                 "Your projects, tasks, budgets and chats, Team, and Gerry are all here. "
-                "The knowledge base on your own computer and your chat history there are not. "
+                "Conversations from your own computer arrive as it carries them up; "
+                "its knowledge base does not. "
                 "Connect your Google account under Settings to use Drive, Gmail and Calendar "
                 "from here, and paste your Odoo API key on the Odoo page to see the bank balance."
             ),

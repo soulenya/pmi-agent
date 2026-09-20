@@ -195,7 +195,19 @@ async def push_pending(
 async def sync(
     db: AsyncSession, user_id: uuid.UUID, conv_id: uuid.UUID
 ) -> Conversation | None:
-    """Make the local copy current in both directions. Commits."""
+    """Make the local copy current in both directions. Commits.
+
+    A conversation that began here and is not on the hub yet is put there
+    first, so it can be picked up from any other device.
+    """
+    local = await db.get(Conversation, conv_id)
+    if local is not None and not local.hub_mirror:
+        if local.user_id != user_id:
+            return None
+        if syncable(local) and await hub.get_link(db, user_id) is not None:
+            await adopt(db, user_id, local)
+        await db.commit()
+        return local
     conv = await ensure_mirror(db, user_id, conv_id)
     if conv is None:
         return None
@@ -203,3 +215,151 @@ async def sync(
     await pull(db, user_id, conv_id)
     await db.commit()
     return conv
+
+
+# ── Conversations that began here ────────────────────────────────────────────
+# The hub is the record for shared projects; for a person's own chats it is the
+# way to carry one from the desk to the phone and back. Every conversation a
+# linked person has is offered to the hub under its own id, at the end of each
+# turn and once when opened, so either device can continue it.
+
+# Scheduled-task output is a log, not a conversation anyone continues.
+_UNSHARED_KINDS = ("routine",)
+_ADOPT_MESSAGE_CAP = 500
+
+
+def syncable(conv: Conversation) -> bool:
+    return not conv.is_archived and (conv.kind or "general") not in _UNSHARED_KINDS
+
+
+async def adopt(db: AsyncSession, user_id: uuid.UUID, conv: Conversation) -> bool:
+    """Put a conversation that began here onto the hub, under the same id.
+
+    Marks it a mirror on success, so later turns pull and push like any other
+    hub conversation. Does not commit.
+    """
+    msgs = (
+        (
+            await db.execute(
+                select(Message)
+                .where(
+                    Message.conversation_id == conv.id,
+                    Message.role.in_(_SHARED_ROLES),
+                )
+                .order_by(Message.created_at.desc())
+                .limit(_ADOPT_MESSAGE_CAP)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    msgs.reverse()
+    body = {
+        "id": str(conv.id),
+        "title": conv.title,
+        "agent_type": getattr(conv.agent_type, "value", conv.agent_type),
+        "kind": conv.kind or "general",
+        # A local project's id means nothing on the hub; a hub project's
+        # conversation is already a mirror and never comes through here.
+        "project_id": None,
+        "created_at": conv.created_at.isoformat() if conv.created_at else None,
+        "messages": [
+            {
+                "id": str(m.id),
+                "role": getattr(m.role, "value", m.role),
+                "content": m.content,
+                "agent_type": getattr(m.agent_type, "value", m.agent_type),
+                "model_name": m.model_name,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in msgs
+            if (m.content or "").strip()
+        ],
+    }
+    try:
+        resp = await hub.request(db, user_id, "POST", "/conversations/import", json_body=body)
+    except hub.HubError as exc:
+        logger.warning("Could not offer conversation %s to the hub: %s", conv.id, exc)
+        return False
+    if resp.status_code not in (200, 201):
+        logger.warning(
+            "Hub refused conversation %s: %s %s", conv.id, resp.status_code, resp.text[:200]
+        )
+        return False
+    for m in msgs:
+        m.hub_synced = True
+    conv.hub_mirror = True
+    await db.flush()
+    return True
+
+
+async def after_turn(db: AsyncSession, user_id: uuid.UUID, conv_id: uuid.UUID) -> None:
+    """End of a turn on the desktop: push what was said, adopting first if needed."""
+    conv = await db.get(Conversation, conv_id)
+    if conv is None:
+        return
+    await db.refresh(conv)  # another request may have adopted it meanwhile
+    if conv.user_id != user_id or not syncable(conv):
+        return
+    if conv.hub_mirror:
+        await push_pending(db, user_id, conv_id)
+        return
+    if await hub.get_link(db, user_id) is None:
+        return
+    await adopt(db, user_id, conv)
+
+
+async def mirror_update(
+    db: AsyncSession, user_id: uuid.UUID, conv_id: uuid.UUID, updates: dict
+) -> None:
+    """Carry a rename / pin / archive to the hub copy. Never raises."""
+    try:
+        await hub.request(db, user_id, "PATCH", f"/conversations/{conv_id}", json_body=updates)
+    except hub.HubError as exc:
+        logger.warning("Could not update hub conversation %s: %s", conv_id, exc)
+
+
+async def adopt_all(get_db, user_id: uuid.UUID) -> int:
+    """Offer every conversation this person has not yet put on the hub. Commits each."""
+    async for db in get_db():
+        if await hub.get_link(db, user_id) is None:
+            return 0
+        rows = (
+            (
+                await db.execute(
+                    select(Conversation)
+                    .where(
+                        Conversation.user_id == user_id,
+                        Conversation.hub_mirror.is_(False),
+                        Conversation.is_archived.is_(False),
+                        Conversation.kind.notin_(_UNSHARED_KINDS),
+                    )
+                    .order_by(Conversation.updated_at.desc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        done = 0
+        with_messages = set(
+            (
+                await db.execute(
+                    select(Message.conversation_id)
+                    .where(Message.conversation_id.in_([c.id for c in rows]))
+                    .distinct()
+                )
+            )
+            .scalars()
+            .all()
+        ) if rows else set()
+        for conv in rows:
+            if conv.id not in with_messages:
+                continue  # an empty "New conversation" is not worth a row anywhere
+            if await adopt(db, user_id, conv):
+                await db.commit()
+                done += 1
+            else:
+                await db.rollback()
+                break  # the hub is not answering; try again next start
+        return done
+    return 0

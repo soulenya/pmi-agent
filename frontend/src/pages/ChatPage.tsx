@@ -336,6 +336,9 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
     staleTime: 30_000,
     retry: false,
   });
+  // Once opened here a hub conversation has a local copy under the same id and
+  // sits in the list above; only the ones not yet here are listed separately.
+  const hubOnly = hubConversations.filter((h) => !conversations.some((c) => c.id === h.id));
 
   // Active workrooms — shown as a pinned section above the conversation list.
   const { data: workrooms = [] } = useQuery({
@@ -626,6 +629,24 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
     };
   }, [conversationId, onHub, queryClient, source]);
 
+  // ── A conversation that began here goes up too, so a phone can continue it ──
+  // Not gated: the local copy is readable regardless; the hub's additions, if
+  // any, arrive with the refetch.
+  useEffect(() => {
+    if (onHub || !conversationId || !hubConnected) return;
+    let cancelled = false;
+    syncHubConversation(conversationId)
+      .then(() => {
+        if (cancelled) return;
+        queryClient.invalidateQueries({ queryKey: ["messages", source, conversationId] });
+        queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, onHub, hubConnected, queryClient, source]);
+
   // â”€â”€ Auto-scroll to bottom â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Fire pendingMessage once conversation + WebSocket are both ready
   useEffect(() => {
@@ -826,11 +847,9 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
         )}
 
         <div className="flex-1 space-y-1 overflow-y-auto">
-          {/* A hub mirror is the same conversation as its hub row below; list it once. */}
+          {/* Every conversation on this computer, including the copies of hub ones. */}
           {GROUPS.map((g) => {
-            const items = conversations.filter(
-              (c) => !c.hub_mirror && g.kinds.includes(c.kind ?? "general"),
-            );
+            const items = conversations.filter((c) => g.kinds.includes(c.kind ?? "general"));
             return (
               <ConversationGroup
                 key={g.key}
@@ -853,14 +872,14 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
             );
           })}
 
-          {hubConversations.length > 0 && (
+          {hubOnly.length > 0 && (
             <div className="space-y-1 pt-2">
               <div className="border-t pt-2 px-1">
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   On the hub
                 </span>
               </div>
-              {hubConversations.map((c) => (
+              {hubOnly.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => navigate(`/hub/chat/${c.id}`)}

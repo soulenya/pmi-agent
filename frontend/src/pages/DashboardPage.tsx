@@ -196,7 +196,7 @@ export function DashboardPage() {
     .filter((t) => t.due_date && isThisWeek(t.due_date) && !isToday(t.due_date))
     .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
     .slice(0, 6);
-  const recentConversations = conversations.filter((c) => !c.hub_mirror).slice(0, 5);
+  const recentConversations = conversations.filter((c) => !(c.hub_mirror && c.project_id)).slice(0, 5);
   const activeProjects = projects.filter((p) => p.status === "active");
   const waiting = waitingCounts.total;
   const hour = now.getHours();
