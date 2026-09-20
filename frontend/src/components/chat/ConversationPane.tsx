@@ -20,6 +20,7 @@ import { MessageBubble, type ArtifactLink } from "@/components/chat/MessageBubbl
 import { VoiceBanner } from "@/components/chat/VoiceBanner";
 import ConfirmDriveEditModal, { type DriveEditRequest } from "@/components/ConfirmDriveEditModal";
 import { ModelSwitcher } from "@/components/ModelSwitcher";
+import { useHubRemote } from "@/hooks/useAllWork";
 import { useResizableTextarea } from "@/hooks/useResizableTextarea";
 import { useVoiceMode } from "@/hooks/useVoiceMode";
 import { modLabel } from "@/lib/platform";
@@ -361,6 +362,22 @@ export function ConversationPane({
     if (!conversationId || !synced) return;
     void loadMessages(conversationId);
   }, [conversationId, synced, loadMessages]);
+
+  // A conversation that began here goes up to the hub too (so a phone can
+  // continue it), and anything said there since comes back with the reload.
+  const hubConnected = useHubRemote();
+  useEffect(() => {
+    if (onHub || !conversationId || !hubConnected) return;
+    let cancelled = false;
+    syncHubConversation(conversationId)
+      .then(() => {
+        if (!cancelled) void loadMessages(conversationId);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, onHub, hubConnected, loadMessages]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });

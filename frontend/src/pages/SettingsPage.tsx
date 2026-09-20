@@ -2572,8 +2572,8 @@ function HubSection() {
       <Section id="hub" icon={Wifi} title="The hub" description={`You are on the hub as ${status.email}`} revision="1">
         <p className="text-sm text-muted-foreground">
           This is the hub. Your projects, tasks, budgets and chats, Team and Gerry are all
-          here. The knowledge base on your own computer and your chat history there are
-          not. To use Drive, Gmail and Calendar from the hub, connect your Google account
+          here. Conversations from your own computer arrive as it carries them up; its
+          knowledge base does not. To use Drive, Gmail and Calendar from the hub, connect your Google account
           above; to see the bank balance, paste your Odoo API key on the Odoo page — the key
           on your own computer does not travel.
         </p>

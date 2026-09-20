@@ -638,6 +638,31 @@ async def _hub_client_fetch_once() -> None:
         logger.exception("Hub sign-in client startup fetch error")
 
 
+async def _hub_chat_backfill_once() -> None:
+    """Offer this desk's conversations to the hub, so a phone can continue them.
+
+    Turns keep the hub current from here on; this catches up whatever was
+    said before the link existed. Desktop only; the hub is the record.
+    """
+    if settings.hub_mode:
+        return
+    await asyncio.sleep(90)
+    try:
+        from services.assistant.daily_scan import _owner_user
+        from services.hub import conv_sync
+
+        async for db in get_db():
+            owner = await _owner_user(db)
+            break
+        if owner is None:
+            return
+        n = await conv_sync.adopt_all(get_db, owner.id)
+        if n:
+            logger.info("Hub chat backfill: %d conversation(s) offered", n)
+    except Exception:
+        logger.exception("Hub chat backfill error")
+
+
 class _ContextExecutor(ThreadPoolExecutor):
     """The default executor, carrying the caller's contextvars into the thread.
 
@@ -681,6 +706,7 @@ async def lifespan(app: FastAPI):
     # One-shot: refresh the company-context cache from Drive (never blocks boot).
     company_ctx_task = asyncio.create_task(_company_context_sync_once())
     hub_client_task = asyncio.create_task(_hub_client_fetch_once())
+    chat_backfill_task = asyncio.create_task(_hub_chat_backfill_once())
     yield
     bg_task.cancel()
     drive_task.cancel()
@@ -693,7 +719,8 @@ async def lifespan(app: FastAPI):
     gmail_task.cancel()
     company_ctx_task.cancel()
     hub_client_task.cancel()
-    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, gmail_task, company_ctx_task, hub_client_task):
+    chat_backfill_task.cancel()
+    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, gmail_task, company_ctx_task, hub_client_task, chat_backfill_task):
         try:
             await _t
         except asyncio.CancelledError:
@@ -853,7 +880,10 @@ def create_app() -> FastAPI:
 
                     # A shared project's chat is a local copy of a hub one. Read
                     # what colleagues have added before answering, so the turn is
-                    # not built on a stale record.
+                    # not built on a stale record. (Refresh first: this socket may
+                    # have been open since before the conversation went up.)
+                    if not settings.hub_mode:
+                        await db.refresh(conv, ["hub_mirror"])
                     if conv.hub_mirror:
                         from services.hub import conv_sync
 
@@ -891,14 +921,20 @@ def create_app() -> FastAPI:
                             break
                         await websocket.send_text(frame)
 
-                    if conv.hub_mirror:
+                    if not settings.hub_mode:
                         # End this session's transaction first, or the rows the
-                        # detached run committed are outside our snapshot.
+                        # detached run committed are outside our snapshot. Then
+                        # offer the turn to the hub, so the chat can be picked up
+                        # from a phone or another desk.
                         await db.commit()
                         from services.hub import conv_sync
 
-                        await conv_sync.push_pending(db, user.id, conv_uuid)
-                        await db.commit()
+                        try:
+                            await conv_sync.after_turn(db, user.id, conv_uuid)
+                            await db.commit()
+                        except Exception:  # noqa: BLE001 — never costs the answer
+                            logger.exception("Hub sync after turn failed")
+                            await db.rollback()
 
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected: user=%s conversation=%s", user.id, conversation_id)
