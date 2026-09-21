@@ -1,5 +1,5 @@
 /**
- * The workbench's left rail: eight places, the last few things you were in,
+ * The workbench's left rail: ten places, the last few things you were in,
  * and at the bottom a labelled menu for you — settings, users, help, feedback,
  * sign out. Always the same shape; only the highlight moves.
  */

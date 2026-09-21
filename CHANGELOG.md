@@ -4,6 +4,23 @@
 
 ## Changelog
 
+### v5.15.1 · build 282 — 2026-09-21
+**Gerry on the rail; hub conversations in the side panel**
+
+- Morgan: "there is no gerry, or chat on the left rail. also i dont see any
+  hub conversations in the LG side panel." True on both counts: since the
+  5.0.0 workbench `/chat` was filed under Projects' `also` list with no rail
+  item of its own (reachable only from Today's "New →", the omnibar, or a
+  room), and the side panel read the local list only.
+- Rail: new **Gerry** place (Bot icon, `/chat`, also `/hub/chat`, `/gerry`)
+  second after Today; `/chat` routes removed from Projects. Ten places.
+- Side panel: the dropdown gains an **On the hub** group listing hub
+  conversations with no local copy; picking one calls
+  `syncHubConversation` (makes the local copy) then switches to it. New
+  open-page button (↗) in the header jumps to the conversation on the Gerry
+  page (`/hub/chat/…` for a hub project's own conversation).
+- Frontend only; hub image rebuilt so the hub gets the same rail.
+
 ### v5.15.0 · build 281 — 2026-09-20
 **Continue any conversation on the hub or the desktop**
 
