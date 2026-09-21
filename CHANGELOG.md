@@ -17,8 +17,14 @@
   import now set the conversation's `updated_at` to the newest message; the
   desktop's `conv_sync.pull` does the same locally, so both lists order by
   real activity. `listConversations` asks for 200 on both sides.
-- One-off repair run against the hub: every mirrored conversation re-offered
-  with its desktop `updated_at`; the hub-native ones are back on top.
+- Second cause, same symptom on the desktop list: `adopt()`'s flush of
+  `hub_mirror = True` fired `updated_at`'s `onupdate` locally, so the 114
+  adopted rows were stamped with the backfill time here as well. `adopt` now
+  writes the previous `updated_at` back after the flush.
+- One-off repair: local `updated_at` reset to each conversation's last
+  message (108 rows), then every mirrored conversation re-offered to the hub
+  with that time (106 + rooms). Probe after: the 8 hub-native conversations
+  are inside the first page again.
 
 ### v5.15.1 · build 282 — 2026-09-21
 **Gerry on the rail; hub conversations in the side panel**
