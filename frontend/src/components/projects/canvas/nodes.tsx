@@ -24,6 +24,7 @@ import type { TaskStatus } from "@/types/tasks";
 import { AutoGrowText } from "./AutoGrowText";
 import { useBoard, type NodeData } from "./board";
 import { inkBounds, strokePath, type InkPoint } from "./ink";
+import { useCanvasPrefs } from "@/stores/canvasPrefsStore";
 import {
   SHAPE_PATHS,
   STICKY_COLORS,
@@ -341,6 +342,12 @@ function RefNode({ data, selected }: NodeProps) {
   const { node, resolved, canEdit, folded, ctx } = data as unknown as NodeData;
   const board = useBoard();
   const navigate = useNavigate();
+  const defaultCardSize = useCanvasPrefs((s) => s.cardFontSize);
+  const cardStyle = styleOf(node);
+  // The card's own size wins; otherwise the board-wide default from the gear.
+  const fontSize = cardStyle.fontSize ?? defaultCardSize;
+  const small = Math.round(fontSize * 0.86);
+  const tiny = Math.round(fontSize * 0.72);
   const title = resolved?.title || node.label || "Loading…";
   // A budget card is a doorway: double-click lands on the project's Budget tab.
   const openBudget =
@@ -352,7 +359,7 @@ function RefNode({ data, selected }: NodeProps) {
       : undefined;
   const editableTask =
     canEdit && node.kind === "task" && Boolean(node.ref_id) && !resolved?.missing;
-  const stroke = styleOf(node).stroke;
+  const stroke = cardStyle.stroke;
   // A task shows its status as the card border, unless it is late or you picked a colour.
   const statusRing =
     node.kind === "task" &&
@@ -388,12 +395,27 @@ function RefNode({ data, selected }: NodeProps) {
         )}
         style={{ borderColor: stroke }}
       >
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        <div
+          className="uppercase tracking-wide text-muted-foreground"
+          style={{ fontSize: tiny, lineHeight: 1.3 }}
+        >
           {node.kind.replace("_", " ")}
         </div>
-        <div className="line-clamp-2 text-sm font-medium text-foreground">{title}</div>
+        <div
+          className="line-clamp-2 text-foreground"
+          style={{
+            fontSize,
+            lineHeight: 1.3,
+            fontWeight: cardStyle.bold ? 700 : 500,
+            color: cardStyle.textColor,
+          }}
+        >
+          {title}
+        </div>
         {resolved?.subtitle ? (
-          <div className="truncate text-xs text-muted-foreground">{resolved.subtitle}</div>
+          <div className="truncate text-muted-foreground" style={{ fontSize: small, lineHeight: 1.3 }}>
+            {resolved.subtitle}
+          </div>
         ) : null}
         {editableTask ? (
           <select
@@ -401,7 +423,8 @@ function RefNode({ data, selected }: NodeProps) {
             // The board owns the click, so keep it from starting a drag.
             onPointerDown={(e) => e.stopPropagation()}
             onChange={(e) => board.setTaskStatus(node.ref_id!, e.target.value)}
-            className="nodrag mt-auto rounded border border-border bg-background px-1 py-0.5 text-xs text-muted-foreground"
+            className="nodrag mt-auto rounded border border-border bg-background px-1 py-0.5 text-muted-foreground"
+            style={{ fontSize: small }}
           >
             {CARD_STATUSES.map((s) => (
               <option key={s.id} value={s.id}>
@@ -410,10 +433,14 @@ function RefNode({ data, selected }: NodeProps) {
             ))}
           </select>
         ) : resolved?.status ? (
-          <div className="mt-auto text-xs text-muted-foreground">{resolved.status}</div>
+          <div className="mt-auto text-muted-foreground" style={{ fontSize: small }}>
+            {resolved.status}
+          </div>
         ) : null}
         {resolved?.missing ? (
-          <div className="mt-auto text-xs text-rose-500">No longer exists</div>
+          <div className="mt-auto text-rose-500" style={{ fontSize: small }}>
+            No longer exists
+          </div>
         ) : null}
       </div>
     </>

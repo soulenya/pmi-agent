@@ -35,6 +35,8 @@ import {
 } from "./style";
 
 const TEXT_KINDS = ["sticky", "text", "shape", "frame"];
+/** Kinds with no words of their own; everything else is a card with a title. */
+const WORDLESS = ["image", "ink"];
 
 interface Props {
   selected: CanvasNode[];
@@ -125,6 +127,8 @@ export function CanvasInspector({
   const hasFrame = kinds.has("frame");
   const hasFill = kinds.has("sticky") || hasShape;
   const hasText = selected.some((n) => TEXT_KINDS.includes(n.kind));
+  // Task and reference cards: size and weight apply, the paper does not.
+  const hasCard = selected.some((n) => !TEXT_KINDS.includes(n.kind) && !WORDLESS.includes(n.kind));
   const one = selected.length === 1 ? selected[0] : null;
 
   const color = shared(styles.map((s) => s.color));
@@ -254,7 +258,7 @@ export function CanvasInspector({
         </Row>
       ) : null}
 
-      {hasText ? (
+      {hasText || hasCard ? (
         <Row label="Text">
           {LINE_COLORS.slice(0, 5).map((c) => (
             <Swatch
