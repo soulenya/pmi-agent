@@ -2508,9 +2508,11 @@ TOOL_DEFINITIONS: list[dict] = [
             "name": "update_task",
             "description": (
                 "Update an existing Little Gerry task — change its status (e.g. mark "
-                "it done), priority, title, or description. Use get_tasks first to "
-                "find the task_id. To DELETE a task, pass action='delete' with "
-                "confirm=true, but only after the user has explicitly confirmed."
+                "it done), priority, title, or description, or move it under another "
+                "task with `parent` (making it a sub-task) — here or on the hub. Use "
+                "get_tasks first to find the task_id. To DELETE a task, pass "
+                "action='delete' with confirm=true, but only after the user has "
+                "explicitly confirmed."
             ),
             "parameters": {
                 "type": "object",
@@ -2518,6 +2520,14 @@ TOOL_DEFINITIONS: list[dict] = [
                     "task_id": {"type": "string", "description": "The task's id (from get_tasks)."},
                     "title": {"type": "string", "description": "New title."},
                     "description": {"type": "string", "description": "New description."},
+                    "parent": {
+                        "type": "string",
+                        "description": (
+                            "Title or id of an EXISTING task in the same project to move "
+                            "this one under, making it a sub-task. Pass 'none' to make "
+                            "it a top-level task again. Ids and history are kept."
+                        ),
+                    },
                     "status": {
                         "type": "string",
                         "enum": ["backlog", "todo", "in_progress", "in_review", "done", "cancelled"],

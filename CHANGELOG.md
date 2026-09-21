@@ -4,6 +4,25 @@
 
 ## Changelog
 
+### v5.15.3 · build 284 — 2026-09-21
+**Gerry can move a task under another task**
+
+- Gerry transcript: asked to group four existing tasks under a new parent,
+  she said "`update_task` has no way to re-parent an existing task" and
+  offered delete-and-recreate. True: `parent` only existed on
+  `create_task`/`create_tasks`, and `TaskUpdate` had no `parent_task_id`.
+- `update_task` gains `parent`: title or id of an existing task in the same
+  project (matched with the same `_match_parent` rules as creation — exact
+  title, then contains; ambiguous → asks; missing → refuses, nothing
+  changed); `'none'` makes it top-level again. Works for local tasks and hub
+  tasks (resolved against the hub's task list, PATCHed with
+  `parent_task_id`). Ids and history are kept.
+- `PATCH /tasks/{id}` accepts `parent_task_id`, with checks: not itself, same
+  project, not one of its own descendants (`_check_parent`). The tool makes
+  the same checks locally.
+- Verified in-process: re-parent, loop refused, self refused, missing refused,
+  detach; hub path verified after deploy.
+
 ### v5.15.2 · build 283 — 2026-09-21
 **"On the hub" was empty**
 

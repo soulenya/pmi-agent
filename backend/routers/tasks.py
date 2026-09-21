@@ -286,6 +286,31 @@ async def _visible_task(
     raise HTTPException(status_code=404, detail="Task not found.")
 
 
+async def _check_parent(
+    db: AsyncSession, task_id: uuid.UUID, parent_id: uuid.UUID, user: User
+) -> None:
+    """A task may sit under a task in the same project, and never under itself
+    or one of its own sub-tasks."""
+    if parent_id == task_id:
+        raise HTTPException(status_code=400, detail="A task cannot be its own parent.")
+    task = await TaskRepository(db).get(task_id)
+    parent = await _visible_task(db, parent_id, user)
+    if task is not None and parent.project_id != task.project_id:
+        raise HTTPException(
+            status_code=400, detail="A task's parent must be in the same project."
+        )
+    seen = {task_id}
+    cursor = parent
+    while cursor is not None and cursor.parent_task_id is not None:
+        if cursor.parent_task_id in seen:
+            raise HTTPException(
+                status_code=400,
+                detail="That would make the task its own ancestor.",
+            )
+        seen.add(cursor.id)
+        cursor = await TaskRepository(db).get(cursor.parent_task_id)
+
+
 @router.get("", response_model=list[TaskOut])
 async def list_tasks(
     project_id: uuid.UUID | None = Query(None),
@@ -355,6 +380,8 @@ async def update_task(
             if target is None or not await resolve_role(db, target, current_user.id):
                 raise HTTPException(status_code=404, detail="Project not found.")
             await custody.take(db, target, "task", task_id, current_user.id)
+    if updates.get("parent_task_id") is not None:
+        await _check_parent(db, task_id, updates["parent_task_id"], current_user)
     task = await repo.update(task_id, **updates)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found.")

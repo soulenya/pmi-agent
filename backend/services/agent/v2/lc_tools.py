@@ -121,9 +121,10 @@ _TOOL_DOCS = {
         '"new_name": str (for rename), "confirm": bool (required true for delete, only after the user explicitly confirms)}.'
     ),
     "update_task": (
-        'Edit, complete, or delete a task on the task board, here or on the hub (the id from get_tasks decides). JSON fields: {"task_id": str (UUID), "title": str (optional), '
+        'Edit, complete, re-parent, or delete a task on the task board, here or on the hub (the id from get_tasks decides). JSON fields: {"task_id": str (UUID), "title": str (optional), '
         '"description": str (optional), "status": "backlog"|"todo"|"in_progress"|"done"|"cancelled" (optional), '
-        '"priority": "low"|"medium"|"high"|"critical" (optional), "action": "delete" (optional, destructive), '
+        '"priority": "low"|"medium"|"high"|"critical" (optional), "parent": str (optional: title or id of an existing task in the same project to move this one under; "none" to make it top-level; ids and history are kept), '
+        '"action": "delete" (optional, destructive), '
         '"confirm": bool (required true for delete, only after the user explicitly confirms)}.'
     ),
     "list_scheduled_tasks": "List all recurring scheduled tasks with their schedules and run history. No arguments needed.",

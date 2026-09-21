@@ -83,6 +83,8 @@ class TaskUpdate(BaseModel):
     sort_order: int | None = None
     tags: list[str] | None = None
     project_id: uuid.UUID | None = None
+    # Move under another task (or out from under one with null).
+    parent_task_id: uuid.UUID | None = None
 
 
 class TaskOut(BaseModel):
