@@ -4,6 +4,22 @@
 
 ## Changelog
 
+### v5.15.2 · build 283 — 2026-09-21
+**"On the hub" was empty**
+
+- Morgan: "i have no option or list for 'on the hub'". Probe against the live
+  hub: 8 hub-native conversations existed, 0 of them in the default page of
+  50. Cause: the 5.15.0 backfill imported 114 desktop conversations and the
+  hub stamped every one `updated_at = now`, so they outranked everything
+  actually held on the hub; the list is capped at 50.
+- `ConversationImport.updated_at`: the hub keeps the desktop's last-activity
+  time (and re-import of an existing row corrects it). `append_message` and
+  import now set the conversation's `updated_at` to the newest message; the
+  desktop's `conv_sync.pull` does the same locally, so both lists order by
+  real activity. `listConversations` asks for 200 on both sides.
+- One-off repair run against the hub: every mirrored conversation re-offered
+  with its desktop `updated_at`; the hub-native ones are back on top.
+
 ### v5.15.1 · build 282 — 2026-09-21
 **Gerry on the rail; hub conversations in the side panel**
 
