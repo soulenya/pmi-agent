@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bot,
@@ -23,6 +23,7 @@ import {
   Minimize2,
   PanelRight,
   PictureInPicture2,
+  SquareArrowOutUpRight,
 } from "lucide-react";
 
 import { ConversationPane } from "@/components/chat/ConversationPane";
@@ -38,7 +39,9 @@ import {
   FLOAT_MIN_HEIGHT,
 } from "@/stores/chatSidebarStore";
 import { createConversation, listConversations } from "@/api/chat";
+import { syncHubConversation } from "@/api/hub";
 import { ensureProjectWorkroom } from "@/api/tasks";
+import { useHubRemote } from "@/hooks/useAllWork";
 import { projectContextPrefix, useProjectHere } from "@/hooks/useProjectHere";
 import { cn } from "@/lib/utils";
 import { modLabel } from "@/lib/platform";
@@ -134,6 +137,7 @@ export function ChatSidebar() {
     setFloatRect,
   } = useChatSidebarStore();
   const location = useLocation();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [isConnecting, setIsConnecting] = useState(false);
 
@@ -277,6 +281,27 @@ export function ChatSidebar() {
     staleTime: 30_000,
   });
 
+  // Conversations begun on the hub that have no copy here yet. Picking one
+  // makes the copy first, so the pane can read it like any other.
+  const hubConnected = useHubRemote();
+  const { data: hubConversations = [] } = useQuery({
+    queryKey: ["hub", "conversations"],
+    queryFn: () => listConversations("hub"),
+    enabled: open && hubConnected,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const hubOnly = hubConversations.filter(
+    (h) => !h.project_id && !conversations.some((c) => c.id === h.id),
+  );
+  const pickHubConversation = useMutation({
+    mutationFn: (id: string) => syncHubConversation(id),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      setActiveConversationId(id);
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: () => createConversation(),
     onSuccess: (conv) => {
@@ -395,7 +420,11 @@ export function ChatSidebar() {
           {!bound && conversations.length > 0 && (
             <select
               value={activeConversationId ?? ""}
-              onChange={(e) => setActiveConversationId(e.target.value || null)}
+              onChange={(e) => {
+                const id = e.target.value || null;
+                if (id && hubOnly.some((h) => h.id === id)) pickHubConversation.mutate(id);
+                else setActiveConversationId(id);
+              }}
               className="max-w-[120px] truncate rounded border bg-background px-1.5 py-0.5 text-xs"
             >
               {conversations.filter((c) => !(c.hub_mirror && c.project_id)).map((c) => (
@@ -403,6 +432,15 @@ export function ChatSidebar() {
                   {c.title || "New conversation"}
                 </option>
               ))}
+              {hubOnly.length > 0 && (
+                <optgroup label="On the hub">
+                  {hubOnly.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title || "Untitled"}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           )}
           {!bound && (
@@ -413,6 +451,21 @@ export function ChatSidebar() {
               title="New conversation"
             >
               +
+            </button>
+          )}
+          {conversationId && (
+            <button
+              onClick={() =>
+                navigate(
+                  bound && here.source === "hub"
+                    ? `/hub/chat/${conversationId}`
+                    : `/chat/${conversationId}`,
+                )
+              }
+              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              title="Open on the Gerry page, with every conversation listed"
+            >
+              <SquareArrowOutUpRight className="h-3.5 w-3.5" />
             </button>
           )}
           <button

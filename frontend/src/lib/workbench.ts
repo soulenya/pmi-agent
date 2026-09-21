@@ -1,10 +1,11 @@
 /**
- * The workbench's map: eight places on the left rail, each with the pages it
+ * The workbench's map: ten places on the left rail, each with the pages it
  * holds. Flat feature URLs stay canonical, so every link in the app keeps
  * working; this only decides which rail item lights up and which section tabs
  * show under the header.
  */
 import {
+  Bot,
   CalendarDays,
   FileText,
   FolderKanban,
@@ -49,12 +50,20 @@ export const RAIL: RailItem[] = [
     also: ["/dashboard", "/approvals", "/notifications"],
   },
   {
+    id: "gerry",
+    label: "Gerry",
+    icon: Bot,
+    route: "/chat",
+    pages: [{ route: "/chat", label: "Conversations" }],
+    also: ["/hub/chat", "/gerry"],
+  },
+  {
     id: "projects",
     label: "Projects",
     icon: FolderOpen,
     route: "/projects",
     pages: [{ route: "/projects", label: "Projects" }],
-    also: ["/hub/projects", "/workrooms", "/chat", "/hub/chat", "/gerry"],
+    also: ["/hub/projects", "/workrooms"],
   },
   {
     id: "tasks",

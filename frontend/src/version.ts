@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 281;
+export const BUILD_NUMBER = 282;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 282,
+    date: "2026-09-21",
+    title: "Gerry on the rail",
+    changes: [
+      "A Gerry place on the left rail, second after Today, opens the conversation list. The side panel's dropdown now lists hub conversations too (under On the hub) and has a button to open the current one on the Gerry page.",
+    ],
+  },
   {
     build: 281,
     date: "2026-09-20",
