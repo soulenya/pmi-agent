@@ -4,6 +4,24 @@
 
 ## Changelog
 
+### v5.16.0 · build 285 — 2026-09-21
+**Canvas settings: folding on/off, zoom feel, card text size**
+
+- Morgan: an on/off for card folding, a way to change the fold distances and
+  zoom speed, and a way to make task-card text bigger like notes and shapes.
+- New gear on the canvas toolbar (`canvas/CanvasSettings.tsx`) over a
+  persisted store (`stores/canvasPrefsStore.ts`, key `pmi-canvas-prefs`):
+  fold on/off; fold-start zoom (20–90%, was fixed 34%); per-level step
+  (×1.1–3, was 1.5); wheel zoom speed (×0.25–3); zoom smoothing (0–400 ms,
+  was 130); default card text size (10–28 px, was 14). Reset to defaults.
+  Shown in read-only boards too (they are view preferences).
+- `foldZoom(depth)` is now derived from the prefs (0 when folding is off, so
+  no stage ever triggers); the wheel handler reads speed and easing.
+- Task and reference cards read `style.fontSize`/`bold`/`textColor` like
+  notes and shapes do; label, subtitle and status scale with it. The style
+  panel's Text row appears for cards too (colour, size ±2, bold).
+- Frontend only.
+
 ### v5.15.3 · build 284 — 2026-09-21
 **Gerry can move a task under another task**
 

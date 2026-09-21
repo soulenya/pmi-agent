@@ -109,6 +109,8 @@ import {
 } from "./canvas/board";
 import { CanvasMenu, type MenuItem } from "./canvas/ContextMenu";
 import { CanvasInspector } from "./canvas/Inspector";
+import { CanvasSettings } from "./canvas/CanvasSettings";
+import { useCanvasPrefs } from "@/stores/canvasPrefsStore";
 import { inkBounds, strokePath, type InkPoint } from "./canvas/ink";
 import { NODE_TYPES, isHollow, typeFor } from "./canvas/nodes";
 import {
@@ -125,17 +127,14 @@ const SAVE_DEBOUNCE_MS = 700;
 const SNAP_PX = 6;
 const GRID = 8;
 const UNDO_DEPTH = 40;
-/** Zoom out past this and a top-level task's children fold into it. */
-const FOLD_ZOOM = 0.34;
-/** Every level deeper folds one stage earlier, at this much more zoom. */
-const FOLD_STEP = 1.5;
-/** The zoom at which a card this far down the task tree folds into its parent. */
-const foldZoom = (depth: number) => FOLD_ZOOM * FOLD_STEP ** (depth - 1);
-/** Must sit below FOLD_ZOOM, or the last stage could never be reached. */
+// Fold thresholds and wheel feel come from the gear (stores/canvasPrefsStore).
+/** Must sit below the lowest fold zoom a person can pick, or the last stage could never be reached. */
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 2;
 /** A wheel step at least this big came from a notched mouse, not a trackpad. */
 const WHEEL_NOTCH = 50;
+/** Zoom change per wheel pixel at speed 1. */
+const WHEEL_RATE = 0.002;
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 // Workroom pins whose kind the canvas can draw as a reference node.
@@ -705,6 +704,16 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   // ── Folding a task family when you zoom out ───────────────────────────────
   const zoom = useStore((s) => s.transform[2]);
   const [opened, setOpened] = useState<Set<string>>(new Set());
+  const foldEnabled = useCanvasPrefs((s) => s.foldEnabled);
+  const foldBase = useCanvasPrefs((s) => s.foldZoom);
+  const foldStep = useCanvasPrefs((s) => s.foldStep);
+  const zoomSpeed = useCanvasPrefs((s) => s.zoomSpeed);
+  const zoomEase = useCanvasPrefs((s) => s.zoomEase);
+  /** The zoom at which a card this far down the task tree folds into its parent. 0 = never. */
+  const foldZoom = useCallback(
+    (depth: number) => (foldEnabled ? foldBase * foldStep ** (depth - 1) : 0),
+    [foldEnabled, foldBase, foldStep],
+  );
 
   // Wheel zoom, done here so a notched mouse eases instead of jumping. React
   // Flow applies every wheel event raw, which is smooth under a trackpad's fine
@@ -719,7 +728,10 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       e.preventDefault();
       const { x, y, zoom: from } = flow.getViewport();
       const step = e.deltaMode === 1 ? e.deltaY * 18 : e.deltaY;
-      const to = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, from * 2 ** (-step * 0.002)));
+      const to = Math.min(
+        MAX_ZOOM,
+        Math.max(MIN_ZOOM, from * 2 ** (-step * WHEEL_RATE * zoomSpeed)),
+      );
       if (to === from) return;
       const rect = el.getBoundingClientRect();
       const px = e.clientX - rect.left;
@@ -727,12 +739,12 @@ function Board({ projectId, source = "local", canEdit }: Props) {
       // Pin the board point under the cursor while the scale changes.
       flow.setViewport(
         { zoom: to, x: px - ((px - x) / from) * to, y: py - ((py - y) / from) * to },
-        { duration: Math.abs(step) >= WHEEL_NOTCH ? 130 : 0 },
+        { duration: Math.abs(step) >= WHEEL_NOTCH ? zoomEase : 0 },
       );
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [flow]);
+  }, [flow, zoomSpeed, zoomEase]);
 
   /** The task tree drawn on this board: who owns whom, and how deep each sits. */
   const tree = useMemo(() => {
@@ -805,7 +817,7 @@ function Board({ projectId, source = "local", canEdit }: Props) {
     let n = 0;
     for (let d = 1; d <= tree.deepest; d += 1) if (zoom < foldZoom(d)) n += 1;
     return n;
-  }, [zoom, tree.deepest]);
+  }, [zoom, tree.deepest, foldZoom]);
   useEffect(() => {
     setOpened(new Set());
   }, [stage]);
@@ -1724,10 +1736,12 @@ function Board({ projectId, source = "local", canEdit }: Props) {
                 >
                   <Grid3x3 className="h-4 w-4" />
                 </button>
+                <CanvasSettings />
               </div>
             ) : (
-              <div className="rounded-md border border-border bg-card/95 px-2 py-1 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1 rounded-md border border-border bg-card/95 py-1 pl-2 pr-1 text-xs text-muted-foreground">
                 Read-only
+                <CanvasSettings />
               </div>
             )}
 

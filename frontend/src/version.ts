@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 284;
+export const BUILD_NUMBER = 285;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 285,
+    date: "2026-09-21",
+    title: "The canvas, your way",
+    changes: [
+      "A gear on the canvas toolbar: turn card folding off, choose the zoom where folding starts and how much earlier each deeper level folds, set the mouse-wheel zoom speed and smoothing, and set the default text size on task cards. Remembered on this computer.",
+      "Task and reference cards take a text size, colour and bold of their own from the style panel, the same as notes and shapes.",
+    ],
+  },
   {
     build: 284,
     date: "2026-09-21",
