@@ -13,6 +13,9 @@ import type {
 export async function listConversations(source: "local" | "hub" = "local"): Promise<Conversation[]> {
   const resp = await apiClient.get<Conversation[]>(
     source === "hub" ? "/hub/api/conversations" : "/conversations",
+    // The default page of 50 hid hub-only conversations behind the ones the
+    // desktop had just carried up.
+    { params: { limit: 200 } },
   );
   return resp.data;
 }

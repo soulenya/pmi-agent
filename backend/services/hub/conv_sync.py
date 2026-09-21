@@ -109,6 +109,7 @@ async def pull(db: AsyncSession, user_id: uuid.UUID, conv_id: uuid.UUID) -> int:
     )
 
     added = 0
+    latest = None
     for item in remote:
         mid = uuid.UUID(str(item["id"]))
         if mid in here:
@@ -119,24 +120,41 @@ async def pull(db: AsyncSession, user_id: uuid.UUID, conv_id: uuid.UUID) -> int:
             continue
         if role not in _SHARED_ROLES:
             continue
-        db.add(
-            Message(
-                id=mid,
-                conversation_id=conv_id,
-                role=role,
-                content=item.get("content") or "",
-                agent_type=item.get("agent_type"),
-                model_name=item.get("model_name"),
-                cited_chunk_ids=[],
-                tool_calls=[],
-                tool_results=[],
-                hub_synced=True,
-            )
+        msg = Message(
+            id=mid,
+            conversation_id=conv_id,
+            role=role,
+            content=item.get("content") or "",
+            agent_type=item.get("agent_type"),
+            model_name=item.get("model_name"),
+            cited_chunk_ids=[],
+            tool_calls=[],
+            tool_results=[],
+            hub_synced=True,
         )
+        stamp = _dt_or_none(item.get("created_at"))
+        if stamp is not None:
+            msg.created_at = stamp
+            if latest is None or stamp > latest:
+                latest = stamp
+        db.add(msg)
         added += 1
     if added:
+        if latest is not None:
+            conv = await db.get(Conversation, conv_id)
+            if conv is not None and (conv.updated_at is None or latest > conv.updated_at):
+                conv.updated_at = latest
         await db.flush()
     return added
+
+
+def _dt_or_none(value: object):
+    from datetime import datetime
+
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")) if value else None
+    except ValueError:
+        return None
 
 
 async def push_pending(
@@ -263,6 +281,7 @@ async def adopt(db: AsyncSession, user_id: uuid.UUID, conv: Conversation) -> boo
         # conversation is already a mirror and never comes through here.
         "project_id": None,
         "created_at": conv.created_at.isoformat() if conv.created_at else None,
+        "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
         "messages": [
             {
                 "id": str(m.id),

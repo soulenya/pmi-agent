@@ -163,6 +163,7 @@ async def import_conversation(
     here = set(
         (await db.execute(select(Message.id).where(Message.id.in_(ids)))).scalars().all()
     ) if ids else set()
+    latest = body.updated_at
     for m in body.messages:
         if m.id in here or not m.content.strip():
             continue
@@ -179,7 +180,13 @@ async def import_conversation(
         )
         if m.created_at is not None:
             msg.created_at = m.created_at
+            if latest is None or m.created_at > latest:
+                latest = m.created_at
         db.add(msg)
+    if latest is not None:
+        # The list orders by this; a row imported today must not outrank a
+        # conversation actually held today.
+        conv.updated_at = latest
     await db.commit()
     await db.refresh(conv)
     return conv
@@ -296,6 +303,10 @@ async def append_message(
     if body.created_at is not None:
         msg.created_at = body.created_at
     db.add(msg)
+    # A conversation is as recent as its last message, wherever that was said.
+    from datetime import datetime, timezone
+
+    conv.updated_at = body.created_at or datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(msg)
     return msg

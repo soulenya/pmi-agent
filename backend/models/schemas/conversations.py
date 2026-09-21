@@ -108,6 +108,8 @@ class ConversationImport(BaseModel):
     kind: ConversationKind = "general"
     project_id: uuid.UUID | None = None
     created_at: datetime | None = None
+    # Last activity where it came from, so the hub lists it in the same order.
+    updated_at: datetime | None = None
     messages: list[MessageAppend] = Field(default_factory=list, max_length=500)
 
 
