@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 283;
+export const BUILD_NUMBER = 284;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 284,
+    date: "2026-09-21",
+    title: "Gerry can move a task under another task",
+    changes: [
+      "Ask Gerry to put existing tasks under a parent (\"move the four head tasks under IQT Projects\") and she does it in place — here or on the hub — keeping each task's id and history. She refuses loops and asks when a name matches more than one task.",
+    ],
+  },
   {
     build: 283,
     date: "2026-09-21",

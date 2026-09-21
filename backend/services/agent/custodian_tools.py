@@ -267,9 +267,58 @@ async def execute_update_task(ctx: "ToolContext", args: dict[str, Any]) -> str:
             changed.append(f"priority={task.priority.value}")
         except ValueError:
             return f"Error: invalid priority '{args['priority']}'."
+    if "parent" in args and args.get("parent") is not None:
+        wanted = str(args["parent"]).strip()
+        if wanted.lower() in ("", "none", "null"):
+            task.parent_task_id = None
+            changed.append("parent=none")
+        else:
+            from sqlalchemy import or_
+
+            from services.agent import project_tools as _pt
+
+            if task.project_id is not None:
+                pool = list((await ctx.db.execute(
+                    select(Task).where(Task.project_id == task.project_id)
+                )).scalars().all())
+            else:
+                pool = list((await ctx.db.execute(
+                    select(Task).where(or_(Task.created_by == ctx.user_id, Task.assignee_id == ctx.user_id))
+                )).scalars().all())
+            parent, choices = _pt._match_parent(pool, wanted, lambda t: t.title, lambda t: t.id)
+            if choices:
+                listed = ", ".join(f'"{t.title}"' for t in choices[:5])
+                return f'Error: more than one task is called "{wanted}": {listed}. Use the exact title or the id.'
+            if parent is None:
+                return (
+                    f'Error: no task called "{wanted}" in the same project. Nothing changed. '
+                    "Create it first (create_task), or use get_tasks to find the exact title or id."
+                )
+            problem = await _parent_problem(ctx, task, parent.id)
+            if problem:
+                return problem
+            task.parent_task_id = parent.id
+            changed.append(f'parent="{parent.title}"')
     if not changed:
-        return "Nothing to update — provide title, description, status, or priority."
+        return "Nothing to update — provide title, description, status, priority, or parent."
     return f"Task '{task.title}' updated ({', '.join(changed)})."
+
+
+async def _parent_problem(ctx: "ToolContext", task: Any, parent_id: uuid.UUID) -> str:
+    """Why *task* cannot sit under *parent_id*, or an empty string."""
+    from models.db.task import Task
+
+    if parent_id == task.id:
+        return "Error: a task cannot be its own parent."
+    cursor_id = parent_id
+    hops = 0
+    while cursor_id is not None and hops < 50:
+        if cursor_id == task.id:
+            return "Error: that task is a sub-task of this one; moving under it would make a loop."
+        row = (await ctx.db.execute(select(Task.parent_task_id).where(Task.id == cursor_id))).scalar_one_or_none()
+        cursor_id = row
+        hops += 1
+    return ""
 
 
 async def _update_task_on_hub(ctx: "ToolContext", task_id: uuid.UUID, args: dict[str, Any]) -> str:
@@ -324,8 +373,35 @@ async def _update_task_on_hub(ctx: "ToolContext", task_id: uuid.UUID, args: dict
             return f"Error: invalid priority '{args['priority']}'."
         body["priority"] = priority
         changed.append(f"priority={priority}")
+    if "parent" in args and args.get("parent") is not None:
+        wanted = str(args["parent"]).strip()
+        if wanted.lower() in ("", "none", "null"):
+            body["parent_task_id"] = None
+            changed.append("parent=none")
+        else:
+            from services.agent import project_tools as _pt
+
+            project_id = task.get("project_id")
+            path = f"/tasks?project_id={project_id}" if project_id else "/tasks"
+            payload, problem = await _pt._hub_get(ctx.db, ctx.user_id, path)
+            if payload is None:
+                return problem
+            rows = payload if isinstance(payload, list) else payload.get("items") or []
+            parent, choices = _pt._match_parent(rows, wanted, lambda t: t.get("title"), lambda t: t.get("id"))
+            if choices:
+                listed = ", ".join(f'"{c.get("title")}"' for c in choices[:5])
+                return f'Error: more than one task is called "{wanted}": {listed}. Use the exact title or the id.'
+            if parent is None:
+                return (
+                    f'Error: no task called "{wanted}" in the same project on the hub. Nothing changed. '
+                    "Create it first (create_task), or use get_tasks to find the exact title or id."
+                )
+            if str(parent.get("id")) == str(task_id):
+                return "Error: a task cannot be its own parent."
+            body["parent_task_id"] = str(parent.get("id"))
+            changed.append(f'parent="{parent.get("title")}"')
     if not changed:
-        return "Nothing to update — provide title, description, status, or priority."
+        return "Nothing to update — provide title, description, status, priority, or parent."
     try:
         resp = await hub.request(ctx.db, ctx.user_id, "PATCH", f"/tasks/{task_id}", json_body=body)
     except hub.HubError as exc:
