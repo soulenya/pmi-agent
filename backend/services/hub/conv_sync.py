@@ -307,8 +307,18 @@ async def adopt(db: AsyncSession, user_id: uuid.UUID, conv: Conversation) -> boo
         return False
     for m in msgs:
         m.hub_synced = True
+    stamp = conv.updated_at
     conv.hub_mirror = True
     await db.flush()
+    # Going up is bookkeeping, not activity: keep the list order. (onupdate
+    # stamped now here, which is what buried the hub's own conversations.)
+    if stamp is not None:
+        from sqlalchemy import update
+
+        await db.execute(
+            update(Conversation).where(Conversation.id == conv.id).values(updated_at=stamp)
+        )
+        await db.refresh(conv, ["updated_at"])
     return True
 
 
