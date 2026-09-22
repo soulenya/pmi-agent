@@ -77,6 +77,8 @@ _TOOLS = [
     "set_task_schedule",
     "add_task_dependency",
     "create_canvas_node",
+    "read_canvas",
+    "update_canvas_node",
     "link_canvas_nodes",
     "request_approval",
 ]

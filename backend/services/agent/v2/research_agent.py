@@ -59,6 +59,8 @@ _TOOLS = [
     "list_projects",
     "get_project_timeline",
     "create_canvas_node",
+    "read_canvas",
+    "update_canvas_node",
 ]
 
 

@@ -951,6 +951,9 @@ async def execute_create_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
     content = args.get("content")
     if not label and not content:
         return "Error: give the note a label or some content."
+    # A note shows its body, not its label; a label-only note would be blank.
+    if kind in ("sticky", "text", "shape") and not (content and str(content).strip()):
+        content = label
 
     if shared is not None:
         return await _hub_canvas_node(ctx, shared, kind, label, content)
@@ -1182,6 +1185,152 @@ async def _hub_link_canvas(ctx: Any, shared: dict[str, Any], args: dict[str, Any
         f'Linked "{src}" to "{dst}" on the canvas for the shared project '
         f'"{shared.get("name")}".'
     )
+
+
+# ── Reading and editing notes ───────────────────────────────────────────────
+# Notes are dicts here whether they came from the local table or the hub, so
+# one matcher and one renderer serve both.
+
+_NOTE_KINDS = ("sticky", "text", "shape", "frame")
+
+
+def _node_dict(n: CanvasNode) -> dict[str, Any]:
+    return {
+        "id": str(n.id),
+        "kind": n.kind,
+        "label": n.label or "",
+        "content": n.content or "",
+        "ref_id": n.ref_id,
+    }
+
+
+def _match_note(nodes: list[dict[str, Any]], text: str) -> tuple[dict[str, Any] | None, str]:
+    """The one note *text* names: its id, its label, or words from its body."""
+    text = str(text or "").strip()
+    if not text:
+        return None, "Error: say which note (its id, label, or some words from it)."
+    for n in nodes:
+        if str(n.get("id")) == text:
+            return n, ""
+    lowered = text.lower()
+    words = lambda n: f"{n.get('label') or ''}\n{n.get('content') or ''}".lower()  # noqa: E731
+    exact = [n for n in nodes if (n.get("label") or "").lower() == lowered]
+    hits = exact or [n for n in nodes if lowered in words(n)]
+    if len(hits) > 1:
+        listed = "; ".join(f'[{n["id"]}] {_note_title(n)}' for n in hits[:5])
+        return None, f"Error: more than one note matches '{text}': {listed}. Use the id."
+    if not hits:
+        return None, f"Error: no note on the canvas matches '{text}'. Call read_canvas to see them."
+    return hits[0], ""
+
+
+def _note_title(n: dict[str, Any]) -> str:
+    body = (n.get("content") or "").strip().replace("\n", " ")
+    return (n.get("label") or body[:60] or n.get("kind") or "note")[:60]
+
+
+def _render_canvas(name: str, nodes: list[dict[str, Any]], where: str = "") -> str:
+    notes = [n for n in nodes if n.get("kind") in _NOTE_KINDS]
+    cards = [n for n in nodes if n.get("kind") not in _NOTE_KINDS and n.get("kind") not in ("image", "ink")]
+    lines = [f'Canvas of "{name}"{where}: {len(notes)} note(s), {len(cards)} card(s).']
+    for n in notes:
+        body = (n.get("content") or "").strip()
+        snippet = body[:300] + ("…" if len(body) > 300 else "")
+        head = f'- [{n["id"]}] {n["kind"]}'
+        if n.get("label"):
+            head += f' "{n["label"]}"'
+        lines.append(head + (f": {snippet}" if snippet else " (empty)"))
+    for n in cards:
+        lines.append(f'- [{n["id"]}] {n["kind"]} card "{n.get("label") or ""}"')
+    if not notes and not cards:
+        lines.append("(nothing on it yet)")
+    return "\n".join(lines)
+
+
+async def execute_read_canvas(ctx: Any, args: dict[str, Any]) -> str:
+    project, shared, problem = await resolve_project_anywhere(
+        ctx.db, ctx.user_id, args.get("project", ""), "viewer"
+    )
+    if project is None and shared is None:
+        return problem
+    if shared is not None:
+        canvas, problem = await _hub_default_canvas(ctx, shared)
+        if canvas is None:
+            return problem
+        return _render_canvas(str(shared.get("name")), list(canvas.get("nodes") or []), " (shared, on the hub)")
+    canvas = await _default_canvas(ctx.db, project, ctx.user_id)
+    rows = (await ctx.db.execute(select(CanvasNode).where(CanvasNode.canvas_id == canvas.id))).scalars().all()
+    return _render_canvas(project.name, [_node_dict(n) for n in rows])
+
+
+async def execute_update_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
+    project, shared, problem = await resolve_project_anywhere(
+        ctx.db, ctx.user_id, args.get("project", ""), "editor"
+    )
+    if project is None and shared is None:
+        return problem
+
+    new_content = args.get("content")
+    append = args.get("append")
+    new_label = args.get("label")
+    if new_content is None and not append and new_label is None:
+        return "Error: give content (replaces the text), append (adds to it), or a label."
+
+    def changes(current: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+        body: dict[str, Any] = {}
+        done: list[str] = []
+        if new_content is not None:
+            body["content"] = str(new_content)
+            done.append("text replaced")
+        if append:
+            base = body.get("content", current.get("content") or "")
+            body["content"] = (base.rstrip() + "\n" + str(append).strip()) if base.strip() else str(append).strip()
+            done.append("text appended")
+        if new_label is not None:
+            body["label"] = str(new_label).strip()[:200]
+            done.append("label")
+        return body, done
+
+    if shared is not None:
+        from services.hub import client as hub
+
+        canvas, problem = await _hub_default_canvas(ctx, shared)
+        if canvas is None:
+            return problem
+        nodes = [n for n in (canvas.get("nodes") or []) if n.get("kind") in _NOTE_KINDS]
+        note, problem = _match_note(nodes, args.get("node", ""))
+        if note is None:
+            return problem
+        body, done = changes(note)
+        try:
+            resp = await hub.request(
+                ctx.db, ctx.user_id, "PATCH",
+                f"/projects/{shared.get('id')}/canvas/{canvas.get('id')}/nodes/{note['id']}",
+                json_body=body,
+            )
+        except hub.HubError as exc:
+            return f"Error: could not reach the hub: {exc}"
+        if resp.status_code >= 400:
+            return f"Error: the hub refused the change ({resp.status_code})."
+        return f'Updated the {note["kind"]} "{_note_title(note)}" on the shared canvas ({", ".join(done)}).'
+
+    canvas = await _default_canvas(ctx.db, project, ctx.user_id)
+    rows = [
+        n for n in (await ctx.db.execute(select(CanvasNode).where(CanvasNode.canvas_id == canvas.id))).scalars().all()
+        if n.kind in _NOTE_KINDS
+    ]
+    by_id = {str(n.id): n for n in rows}
+    note, problem = _match_note([_node_dict(n) for n in rows], args.get("node", ""))
+    if note is None:
+        return problem
+    row = by_id[note["id"]]
+    body, done = changes(note)
+    if "content" in body:
+        row.content = body["content"]
+    if "label" in body:
+        row.label = body["label"] or None
+    await ctx.db.flush()
+    return f'Updated the {row.kind} "{_note_title(note)}" on the canvas for "{project.name}" ({", ".join(done)}).'
 
 
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
@@ -1430,6 +1579,56 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_canvas",
+            "description": (
+                "List what is on a project's canvas: every sticky, text, shape and frame "
+                "note with its id and text, and the task/reference cards. Call this "
+                "before editing a note so you can name it exactly."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project": {"type": "string", "description": "Project name or id."},
+                },
+                "required": ["project"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_canvas_node",
+            "description": (
+                "Change the text of a note already on a project's canvas: replace it, "
+                "add to it, or rename its label. The note is found by id, label, or "
+                "words from its text (read_canvas lists them). Task and reference "
+                "cards are not edited here."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project": {"type": "string", "description": "Project name or id."},
+                    "node": {
+                        "type": "string",
+                        "description": "The note's id, its label, or distinctive words from its text.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "New text. Replaces what is there.",
+                    },
+                    "append": {
+                        "type": "string",
+                        "description": "Text to add on a new line under what is there.",
+                    },
+                    "label": {"type": "string", "description": "New label."},
+                },
+                "required": ["project", "node"],
+            },
+        },
+    },
 ]
 
 TOOL_EXECUTORS = {
@@ -1440,6 +1639,8 @@ TOOL_EXECUTORS = {
     "add_task_dependency": execute_add_task_dependency,
     "create_canvas_node": execute_create_canvas_node,
     "link_canvas_nodes": execute_link_canvas_nodes,
+    "read_canvas": execute_read_canvas,
+    "update_canvas_node": execute_update_canvas_node,
 }
 
 PRIMARY_ARGS = {
@@ -1450,6 +1651,8 @@ PRIMARY_ARGS = {
     "add_task_dependency": "task",
     "create_canvas_node": "label",
     "link_canvas_nodes": "from_node",
+    "read_canvas": "project",
+    "update_canvas_node": "node",
 }
 
 RUNNING_LABELS = {    "list_projects": "Looking through the projects\u2026",    "get_project_timeline": "Working out the timeline…",
@@ -1458,6 +1661,8 @@ RUNNING_LABELS = {    "list_projects": "Looking through the projects\u2026",    
     "add_task_dependency": "Linking the tasks…",
     "create_canvas_node": "Adding to the canvas…",
     "link_canvas_nodes": "Drawing the link…",
+    "read_canvas": "Reading the canvas…",
+    "update_canvas_node": "Editing the note…",
 }
 
 TOOL_DOCS = {
@@ -1499,6 +1704,17 @@ TOOL_DOCS = {
     "link_canvas_nodes": (
         "Draw an arrow between two existing canvas notes, found by label or id. "
         "Use add_task_dependency for task-to-task scheduling links."
+    ),
+    "read_canvas": (
+        "List every note (sticky/text/shape/frame, with id and text) and card on a "
+        "project's canvas, here or on the hub. JSON: {\"project\": str}. Call before "
+        "update_canvas_node."
+    ),
+    "update_canvas_node": (
+        "Edit an existing canvas note. JSON: {\"project\": str, \"node\": id | label | "
+        "words from its text, \"content\": str (replaces the text), \"append\": str "
+        "(adds a line), \"label\": str}. Works on shared hub projects too. Cards "
+        "(tasks, documents) are not edited here."
     ),
 }
 

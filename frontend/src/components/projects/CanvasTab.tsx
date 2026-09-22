@@ -1078,10 +1078,16 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   useEffect(() => {
     if (!editable) return;
     const onPaste = (event: ClipboardEvent) => {
+      const active = document.activeElement as HTMLElement | null;
+      // Text entered in a note, shape or any field is the browser's paste: the
+      // board must not lift it out and place it as a new item.
       if (
-        !wrapper.current?.contains(document.activeElement) &&
-        document.activeElement !== document.body
+        active &&
+        (active.tagName === "TEXTAREA" || active.tagName === "INPUT" || active.isContentEditable)
       ) {
+        return;
+      }
+      if (!wrapper.current?.contains(active) && active !== document.body) {
         return;
       }
       const file = Array.from(event.clipboardData?.files ?? [])[0];
