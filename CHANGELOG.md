@@ -4,6 +4,28 @@
 
 ## Changelog
 
+### v5.16.1 · build 286 — 2026-09-21
+**Pasting into a note pastes into the note; Gerry can edit canvas notes**
+
+- Morgan: pasting text while typing in a sticky or shape put it on the board
+  as a new item instead. The board's window `paste` listener only checked that
+  focus was inside the canvas wrapper — a note's textarea is inside it — then
+  called `preventDefault` and dropped the text as a node. It now stands aside
+  whenever focus is in a textarea, input or editable element.
+- Gerry transcript: "I don't have a tool to edit an existing canvas sticky's
+  content." True. Two tools added (`project_tools.py`), local and hub:
+  `read_canvas` lists every note with its id and text plus the cards;
+  `update_canvas_node` replaces a note's text (`content`), adds a line
+  (`append`) or renames its `label`, finding the note by id, label or words
+  from its text (ambiguous → lists candidates; none → says so). Registered in
+  all five places + EA/engineering/operations/research whitelists.
+- `create_canvas_node`: a sticky, text or shape given only a label now gets
+  that label as its body — notes show their body, so a label-only note used
+  to appear blank.
+- Verified in-process on a throwaway local project and a throwaway private
+  hub project (both removed): create, read, append, replace by words, rename,
+  missing.
+
 ### v5.16.0 · build 285 — 2026-09-21
 **Canvas settings: folding on/off, zoom feel, card text size**
 

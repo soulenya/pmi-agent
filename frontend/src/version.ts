@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 285;
+export const BUILD_NUMBER = 286;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 286,
+    date: "2026-09-21",
+    title: "Paste lands in the note; Gerry edits notes",
+    changes: [
+      "Pasting while typing in a sticky or shape pastes into it, instead of dropping the text on the board as a new item.",
+      "Gerry can read what is on a project's canvas and change a note's text — replace it, add a line, or rename it — here or on the hub.",
+      "A note Gerry makes with only a heading now shows that heading as its text instead of appearing blank.",
+    ],
+  },
   {
     build: 285,
     date: "2026-09-21",

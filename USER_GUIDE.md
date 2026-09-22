@@ -701,7 +701,7 @@ Editing:
 
 Freehand ink is decorative. It is stored and drawn and nothing more — never searched, and never read back to Gerry. A drawing is for the people in the room.
 
-**Gerry can work on both.** Ask her for a project's timeline, to schedule a task, to make one task wait on another, or to put notes on the canvas and link them. Asking her to link two task cards sends her to the dependency tool instead, so the loop check always runs.
+**Gerry can work on both.** Ask her for a project's timeline, to schedule a task, to make one task wait on another, or to put notes on the canvas and link them. She can also **read what is on the canvas** and **change a note** — "add 'check the tolerances' to the Risks sticky", "rewrite the Ideas note as…" — finding the note by its heading or a few words from it; if two notes match she lists them and asks. Asking her to link two task cards sends her to the dependency tool instead, so the loop check always runs.
 
 #### How a project fits with other work
 
