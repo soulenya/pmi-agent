@@ -1303,6 +1303,62 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
 
     win.events.closing += _on_closing
 
+    # Spelling. WebView2 underlines misspellings on its own, but pywebview turns
+    # the browser's right-click menu off together with dev tools, so the
+    # underline offered no corrections. Turn the menu back on for text only,
+    # trimmed to editing and spelling; elsewhere the app's own menus stand.
+    _menu_state = {"done": False}
+    _DROP_MENU_ITEMS = {
+        "back", "forward", "reload", "saveAs", "print", "share", "webCapture",
+        "inspectElement", "emoji", "openLinkInNewWindow", "saveLinkAs",
+        "copyLinkToHighlight", "saveImageAs", "copyImage", "copyImageLink",
+        "openImageInNewWindow", "saveMediaAs", "copyVideoFrame", "pictureInPicture",
+        "loop", "showAllControls", "other",
+    }
+
+    def _text_context_menu(*_args) -> None:
+        if not IS_WINDOWS or _menu_state["done"]:
+            return
+        try:
+            from System import Action
+            from Microsoft.Web.WebView2.Core import CoreWebView2ContextMenuItemKind
+
+            view = win.native.browser.webview
+
+            def on_menu(_sender, args) -> None:
+                try:
+                    target = args.ContextMenuTarget
+                    if not (target.IsEditable or target.HasSelection):
+                        args.Handled = True
+                        return
+                    items = args.MenuItems
+                    for i in range(items.Count - 1, -1, -1):
+                        if str(items[i].Name) in _DROP_MENU_ITEMS:
+                            items.RemoveAt(i)
+                    # No separators at the ends or doubled up after the trim.
+                    i = items.Count - 1
+                    while i >= 0:
+                        sep = items[i].Kind == CoreWebView2ContextMenuItemKind.Separator
+                        edge = i == 0 or i == items.Count - 1
+                        after_sep = i > 0 and items[i - 1].Kind == CoreWebView2ContextMenuItemKind.Separator
+                        if sep and (edge or after_sep):
+                            items.RemoveAt(i)
+                        i -= 1
+                except Exception:
+                    _log_error()
+
+            def apply() -> None:
+                core = view.CoreWebView2
+                core.Settings.AreDefaultContextMenusEnabled = True
+                core.ContextMenuRequested += on_menu
+
+            view.Invoke(Action(apply))
+            _menu_state["done"] = True
+        except Exception:
+            _log_error()
+
+    win.events.loaded += _text_context_menu
+
     def _after_start(w) -> None:
         """Called by pywebview after the GUI is ready — start services in background."""
         threading.Thread(target=_boot, args=(w,), daemon=True).start()
