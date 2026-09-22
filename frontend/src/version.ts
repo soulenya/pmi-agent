@@ -17,8 +17,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     build: 286,
     date: "2026-09-21",
-    title: "Paste lands in the note; Gerry edits notes",
+    title: "Spelling suggestions; paste lands in the note; Gerry edits notes",
     changes: [
+      "Right-click a misspelled word in any text box — chat, a note, a task — for spelling suggestions and Add to dictionary. The underline was there; the menu was switched off. (Windows app.)",
       "Pasting while typing in a sticky or shape pastes into it, instead of dropping the text on the board as a new item.",
       "Gerry can read what is on a project's canvas and change a note's text — replace it, add a line, or rename it — here or on the hub.",
       "A note Gerry makes with only a heading now shows that heading as its text instead of appearing blank.",

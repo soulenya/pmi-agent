@@ -5,8 +5,20 @@
 ## Changelog
 
 ### v5.16.1 · build 286 — 2026-09-21
-**Pasting into a note pastes into the note; Gerry can edit canvas notes**
+**Spelling suggestions; pasting into a note pastes into the note; Gerry can edit canvas notes**
 
+- Morgan: "I need a spelling check or autocorrect in this system." The Windows
+  app is a WebView2 window and Chromium already underlines misspellings, but
+  pywebview switches the browser's right-click menu off together with dev
+  tools (`AreDefaultContextMenusEnabled = debug`), so the underline offered no
+  corrections. `launcher.py` now turns the menu back on once the window has
+  loaded and trims it through `ContextMenuRequested`: only when the target is
+  editable or has a selection, and with navigation/print/share/inspect items
+  removed — what is left is Cut/Copy/Paste, Select all and the spelling
+  suggestions + Add to dictionary. Elsewhere the app's own menus (canvas,
+  chat) stand. Verified with a throwaway window: setting False → True, event
+  subscribed. Autocorrect (silent replacement) is not something the browser
+  offers; suggestions on right-click are.
 - Morgan: pasting text while typing in a sticky or shape put it on the board
   as a new item instead. The board's window `paste` listener only checked that
   focus was inside the canvas wrapper — a note's textarea is inside it — then
