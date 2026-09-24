@@ -547,8 +547,13 @@ def _list_attachments(payload: dict) -> list[dict]:
 def gmail_list_threads(query: str = "in:inbox", max_results: int = 25) -> list[dict]:
     """List threads as lightweight summaries for the Inbox view.
 
-    Each item: ``{thread_id, subject, from, date, snippet, message_count,
-    unread}``. ``from``/``date`` come from the latest message in the thread.
+    Each item: ``{thread_id, subject, from, date, received_ms, snippet,
+    message_count, unread}``. ``from``/``date``/``received_ms`` come from the
+    newest message in the thread, and the list is ordered by ``received_ms``
+    descending — Gmail's own order, so a reply on an old thread rises to the
+    top. ``received_ms`` is Gmail's ``internalDate`` (when Gmail received the
+    message), not the sender's ``Date`` header, which can be unparseable or
+    hours out.
     """
     svc = _build("gmail", "v1")
     resp = svc.users().threads().list(
@@ -561,8 +566,15 @@ def gmail_list_threads(query: str = "in:inbox", max_results: int = 25) -> list[d
             metadataHeaders=["From", "Subject", "Date"],
         ).execute()
         msgs = detail.get("messages", [])
+
+        def _ms(m: dict) -> int:
+            try:
+                return int(m.get("internalDate") or 0)
+            except (TypeError, ValueError):
+                return 0
+
         first = msgs[0] if msgs else {}
-        last = msgs[-1] if msgs else {}
+        last = max(msgs, key=_ms) if msgs else {}
         first_h = {h["name"]: h["value"] for h in first.get("payload", {}).get("headers", [])}
         last_h = {h["name"]: h["value"] for h in last.get("payload", {}).get("headers", [])}
         labels: set[str] = set()
@@ -573,10 +585,12 @@ def gmail_list_threads(query: str = "in:inbox", max_results: int = 25) -> list[d
             "subject": first_h.get("Subject", "") or last_h.get("Subject", ""),
             "from": last_h.get("From", ""),
             "date": last_h.get("Date", ""),
+            "received_ms": _ms(last),
             "snippet": t.get("snippet", ""),
             "message_count": len(msgs),
             "unread": "UNREAD" in labels,
         })
+    out.sort(key=lambda x: x["received_ms"], reverse=True)
     return out
 
 

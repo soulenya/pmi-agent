@@ -51,6 +51,8 @@ interface InboxThread {
   subject: string;
   from: string;
   date: string;
+  /** When Gmail received the newest message (ms). Gmail orders the inbox by this. */
+  received_ms?: number;
   snippet: string;
   message_count: number;
   unread: boolean;
@@ -548,13 +550,17 @@ export default function InboxPage() {
 
   const sortedThreads = useMemo(() => {
     const list = [...(threads.data ?? [])];
-    const ms = (d: string) => {
-      const n = new Date(d).getTime();
+    // Gmail's own clock for the newest message; the sender's Date header only
+    // when the server did not say (it can be unparseable or hours out, which is
+    // what sank fresh replies on old threads to the bottom).
+    const ms = (t: InboxThread) => {
+      if (t.received_ms) return t.received_ms;
+      const n = new Date(t.date).getTime();
       return Number.isNaN(n) ? 0 : n;
     };
     switch (sortBy) {
       case "oldest":
-        list.sort((a, b) => ms(a.date) - ms(b.date));
+        list.sort((a, b) => ms(a) - ms(b));
         break;
       case "sender":
         list.sort((a, b) =>
@@ -562,10 +568,10 @@ export default function InboxPage() {
         );
         break;
       case "unread":
-        list.sort((a, b) => Number(b.unread) - Number(a.unread) || ms(b.date) - ms(a.date));
+        list.sort((a, b) => Number(b.unread) - Number(a.unread) || ms(b) - ms(a));
         break;
       default: // newest
-        list.sort((a, b) => ms(b.date) - ms(a.date));
+        list.sort((a, b) => ms(b) - ms(a));
     }
     return list;
   }, [threads.data, sortBy]);
