@@ -5,8 +5,24 @@
 ## Changelog
 
 ### v5.16.2 · build 287 — 2026-09-24
-**The inbox orders threads the way Gmail does**
+**The inbox orders threads the way Gmail does; "No thanks" on a meeting means no**
 
+- Morgan: the app "fights me to listen" after No thanks on the meeting card, and
+  the button felt unresponsive. Three causes in `services/meetings/monitor.py`
+  and `LiveMeetingAssist.tsx`: (1) `live_decline` only marked the consent
+  session declined; the auto-record path (`ready and self._enabled`) ran
+  regardless, so the meeting was recorded and transcribed anyway — the button's
+  own tooltip said "just record per my auto-record setting"; (2) a call whose
+  window title flickers out of detection for 20 s and back was treated as a
+  new meeting, so the card returned; (3) the card closed only on the next 3 s
+  poll. Now: decline stops and discards any recording already running for this
+  call (`_discard_recording`), sets a quiet period during which nothing starts
+  and no card is raised (`_declined_until`, released once no call has been on
+  screen for 5 min, or after an hour), and the card closes the instant it is
+  clicked (optimistic state; buttons disabled while the request is out).
+  Verified with a faked detector/recorder: prompt → decline → recorder stopped
+  and state back to detected → same call does not restart → flicker does not
+  re-prompt → 5-min absence releases → a new call is asked again.
 - Morgan: new messages on old threads were hard to find; in Gmail a thread
   with a new message moves to the top regardless of its age.
 - Cause: the list sorted by the sender's `Date` header of the thread's last

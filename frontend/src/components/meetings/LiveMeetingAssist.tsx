@@ -242,6 +242,13 @@ export function LiveMeetingAssist() {
       if (!addresses.includes(e)) setAddresses((a) => [...a, e]);
       setAddressDraft("");
     };
+    // Close the card the moment it is clicked; the poll would otherwise leave
+    // it up for another cycle, which read as the button doing nothing.
+    const decline = () => {
+      setBusy(true);
+      setState((s) => ({ ...s, consent: "declined" }));
+      void declineLive().catch(() => {}).finally(() => setBusy(false));
+    };
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-[2px]">
         <div className="w-full max-w-lg animate-in zoom-in-95 rounded-xl border bg-card p-4 shadow-2xl">
@@ -252,9 +259,10 @@ export function LiveMeetingAssist() {
               {state.party ? ` — ${state.party}` : ""}
             </p>
             <button
-              onClick={() => void declineLive()}
-              className="ml-auto text-muted-foreground hover:text-foreground"
-              title="No thanks — just record per my auto-record setting"
+              onClick={decline}
+              disabled={busy}
+              className="ml-auto text-muted-foreground hover:text-foreground disabled:opacity-50"
+              title="No thanks — leave this meeting alone (no recording, no notes)"
             >
               <X className="h-4 w-4" />
             </button>
@@ -389,8 +397,9 @@ export function LiveMeetingAssist() {
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Follow along"}
             </button>
             <button
-              onClick={() => void declineLive()}
-              className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+              onClick={decline}
+              disabled={busy}
+              className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
             >
               No thanks
             </button>
