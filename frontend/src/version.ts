@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 286;
+export const BUILD_NUMBER = 287;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 287,
+    date: "2026-09-24",
+    title: "The inbox orders threads the way Gmail does",
+    changes: [
+      "A thread with a new message moves to the top regardless of how old the thread is, using Gmail's own received time rather than the sender's clock. Newest / Oldest / Unread first all follow it.",
+    ],
+  },
   {
     build: 286,
     date: "2026-09-21",

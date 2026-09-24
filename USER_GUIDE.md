@@ -942,7 +942,7 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 ### Reading your inbox
 
 - Pick a **folder** from the folder dropdown to browse any of Gmail's standard folders — **Inbox**, **Unread**, **Starred**, **Important**, **Sent**, **Drafts**, **Archived**, **Spam**, **Trash**, or **All Mail** — or type a search to run a Gmail search (for example `from:acme.com 510k`).
-- Use the **sort** dropdown to order the list: **Newest first** (the default), **Oldest first**, **Sender A–Z**, or **Unread first**.
+- Use the **sort** dropdown to order the list: **Newest first** (the default — Gmail's own order, so a thread with a fresh reply moves to the top however old the thread is), **Oldest first**, **Sender A–Z**, or **Unread first**.
 - **Filter by tag** to see only emails you've filed under a given tag.
 - **New mail arrives on its own.** Little Gerry watches your mailbox and updates the list the moment something changes — a new email, a read/unread change, an archive — so you never need Refresh. Each new email also rings the bell (**Waiting for you → Notifications**, "New email from …") and shows a small pop-up in the corner; click either to open the thread. Opening the thread clears its notification. If you have the hub on your phone with notifications on, the same alert reaches your phone. A minute-by-minute refresh stays on as a fallback.
 - The list shows the 30 most recent conversations — click **Load 30 more** at the bottom to reach older mail.

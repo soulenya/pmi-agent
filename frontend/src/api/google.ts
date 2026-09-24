@@ -130,6 +130,7 @@ export interface GmailThreadSummary {
   subject: string;
   from: string;
   date: string;
+  received_ms?: number;
   snippet: string;
   message_count: number;
   unread: boolean;

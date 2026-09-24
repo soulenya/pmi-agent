@@ -4,6 +4,23 @@
 
 ## Changelog
 
+### v5.16.2 · build 287 — 2026-09-24
+**The inbox orders threads the way Gmail does**
+
+- Morgan: new messages on old threads were hard to find; in Gmail a thread
+  with a new message moves to the top regardless of its age.
+- Cause: the list sorted by the sender's `Date` header of the thread's last
+  message. That header is the sender's clock and format — unparseable ones
+  became 0 and sank to the bottom; a sender hours out sorted hours out. The
+  "last" message was also taken as the last in the API's list, not the newest.
+- `gmail_list_threads` now takes `from`/`date` from the message with the
+  greatest `internalDate` (when Gmail received it), returns it as
+  `received_ms`, and orders the list by it descending — Gmail's own order.
+  The Inbox sorts Newest/Oldest/Unread by `received_ms`, falling back to the
+  header only when the server gave none. Verified on the live inbox: 15
+  threads strictly descending, multi-message threads at the top by their
+  newest reply, 0 unparseable headers in that sample.
+
 ### v5.16.1 · build 286 — 2026-09-21
 **Spelling suggestions; pasting into a note pastes into the note; Gerry can edit canvas notes**
 
