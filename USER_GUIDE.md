@@ -1011,6 +1011,8 @@ When a call is detected, a **pop-down asks whether you'd like Gerry to follow al
 
 The pop-down shows a best-effort NDA check ("NDA possibly on file: …") but **you** confirm the posture. Cards are whispered suggestions on your screen — Gerry never speaks or sends anything during a meeting. The full recording still becomes a normal meeting note at the end, and you're responsible for any consent-to-record requirements where you are. Names from your calendar are fed into transcription and reconciled afterward, so companies and people transcribe correctly ("In-Q-Tel", not a phonetic lookalike) — the wrap-up notes anything auto-corrected.
 
+**No thanks means no.** Decline the pop-down and this meeting is left alone: any recording that had already begun (auto-record on) is stopped and discarded, nothing is transcribed, and the card does not return for the same call even if the meeting window briefly drops out of view. The next separate call is asked again.
+
 Recording follows your **current** sound devices. Switch from speakers to a headset (or back) mid-call and capture moves with you within a couple of seconds; unplugging a device pauses that side until a device is available again. The recording, the live transcript and the meeting note carry on as one.
 
 ### Ask Gerry about a past meeting

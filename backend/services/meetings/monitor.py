@@ -38,6 +38,11 @@ from services.voice import gcs_stt
 logger = logging.getLogger(__name__)
 
 _AUTORECORD_KEY = "meetings.autorecord"
+# How long "No thanks" holds after the card is dismissed. Long enough to cover
+# a meeting; a genuinely new call an hour later gets asked again.
+_DECLINE_QUIET_SECONDS = 60 * 60
+# No call on screen for this long = the meeting is over; the next one is asked.
+_DECLINE_RELEASE_SECONDS = 5 * 60
 
 
 async def _owner_user(db) -> User | None:
@@ -73,6 +78,10 @@ class MeetingMonitor:
         self._gone_since: float | None = None
         self._current_platform: str | None = None
         self._prompted = False
+        # "No thanks" on the consent card: no recording for this meeting, and no
+        # second card if the window flickers out of detection and back.
+        self._declined_until: float = 0.0
+        self._absent_since: float | None = None
         # True while a user-initiated (manual) recording is in progress, which
         # suspends the auto detect/finalize logic so only an explicit stop ends it.
         self._manual = False
@@ -146,7 +155,25 @@ class MeetingMonitor:
     def live_decline(self) -> dict:
         if self._live is not None and self._live.consent == "pending":
             self._live.decline()
+        # Declining means this meeting is not Gerry's business: stop and discard
+        # any auto-recording that began while the card was up, and stay quiet
+        # for the rest of it (a title flicker used to bring the card straight back).
+        self._declined_until = time.monotonic() + _DECLINE_QUIET_SECONDS
+        if self._recorder.recording and not self._manual:
+            asyncio.create_task(self._discard_recording())
         return self.live_state()
+
+    async def _discard_recording(self) -> None:
+        try:
+            await asyncio.to_thread(self._recorder.stop)
+        except Exception:  # noqa: BLE001
+            logger.debug("Recorder stop after decline failed", exc_info=True)
+        live = self._live
+        if live is not None:
+            live.stop_tasks()
+            live.cleanup_chunks()
+        self._update(state="meeting_detected", started_at=None, last_error=None)
+        logger.info("Meeting declined (%s) — recording discarded", self._current_platform)
 
     def live_dismiss(self) -> dict:
         """Close an ended (or declined) session's panel and drop its state."""
@@ -277,13 +304,18 @@ class MeetingMonitor:
 
         if platform is not None:
             self._gone_since = None
+            self._absent_since = None
             if self._detected_since is None:
                 self._detected_since = now
                 self._current_platform = platform
                 logger.info("Meeting detected: %s", platform)
                 # Fresh meeting — stand up the consent pop-down state and kick
                 # off the best-effort party/NDA precheck in the background.
-                if self._live is None or self._live.consent in ("ended", "declined"):
+                # Not while a decline is in force: a call whose window title
+                # flickers is the same call, not a new one.
+                if now < self._declined_until:
+                    pass
+                elif self._live is None or self._live.consent in ("ended", "declined"):
                     if self._live is not None:
                         self._live.cleanup_chunks()
                     self._live = LiveMeetingSession(platform)
@@ -294,6 +326,8 @@ class MeetingMonitor:
 
             if self._recorder.recording:
                 return  # already capturing this meeting
+            if now < self._declined_until:
+                return  # the person said no to this one
 
             if ready and self._enabled and is_capture_supported():
                 started = await asyncio.to_thread(
@@ -314,6 +348,12 @@ class MeetingMonitor:
                 self._update(state="meeting_detected", platform=platform)
                 self._prompted = True
         else:
+            # No call on screen. A decline outlives the end-of-meeting grace (a
+            # flicker must not re-prompt) but not a real gap between meetings.
+            if self._absent_since is None:
+                self._absent_since = now
+            elif self._declined_until and now - self._absent_since >= _DECLINE_RELEASE_SECONDS:
+                self._declined_until = 0.0
             if self._detected_since is None:
                 return
             if self._gone_since is None:

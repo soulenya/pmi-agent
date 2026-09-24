@@ -17,8 +17,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     build: 287,
     date: "2026-09-24",
-    title: "The inbox orders threads the way Gmail does",
+    title: "Inbox in Gmail's order; No thanks means no",
     changes: [
+      "No thanks on the meeting card now means it: any recording that had already started is stopped and discarded, nothing is transcribed, and the card does not come back for the same call. The card also closes the moment you click.",
       "A thread with a new message moves to the top regardless of how old the thread is, using Gmail's own received time rather than the sender's clock. Newest / Oldest / Unread first all follow it.",
     ],
   },
