@@ -334,8 +334,14 @@ async def request(
     *,
     params: dict | None = None,
     json_body: object | None = None,
+    raw_body: bytes | None = None,
+    content_type: str | None = None,
 ) -> httpx.Response:
-    """Make one call to the hub as this user."""
+    """Make one call to the hub as this user.
+
+    ``raw_body`` + ``content_type`` carry a body that is not JSON — a
+    multipart upload, say — through unchanged.
+    """
     link = await get_link(db, user_id)
     if link is None:
         raise HubNotConnected("This machine is not connected to the hub.")
@@ -345,13 +351,18 @@ async def request(
             "Proxy-Authorization": f"Bearer {await _id_token(link)}",
             "Authorization": f"Bearer {session_token}",
         }
-        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+        if raw_body is not None and content_type:
+            headers["Content-Type"] = content_type
+        # Uploads can be large; the default 30 s is for JSON.
+        timeout = httpx.Timeout(120.0 if raw_body is not None else 30.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             return await client.request(
                 method.upper(),
                 f"{link.hub_url}{path}",
                 headers=headers,
                 params=params,
-                json=json_body,
+                json=json_body if raw_body is None else None,
+                content=raw_body,
             )
 
     try:

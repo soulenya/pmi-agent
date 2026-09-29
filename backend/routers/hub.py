@@ -289,9 +289,15 @@ async def hub_proxy(
     target = _check_path(path)
 
     body: object | None = None
+    raw_body: bytes | None = None
+    content_type = request.headers.get("content-type", "")
     if request.method in ("POST", "PATCH", "PUT"):
         raw = await request.body()
-        if raw:
+        if raw and not content_type.lower().startswith("application/json"):
+            # A file upload (canvas image, team attachment): pass the bytes
+            # and their multipart boundary through untouched.
+            raw_body = raw
+        elif raw:
             try:
                 import json
 
@@ -309,6 +315,8 @@ async def hub_proxy(
             target,
             params=dict(request.query_params),
             json_body=body,
+            raw_body=raw_body,
+            content_type=content_type if raw_body is not None else None,
         )
     except hub.HubNotConnected as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc

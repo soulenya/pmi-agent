@@ -651,7 +651,7 @@ An endless whiteboard for thinking a project through. Pick a tool from the bar i
 
 - **Sticky note**, **Text**, **Shape** and **Frame** for your own material. Pick a colour from the same bar, or change it afterwards — see below.
 - **Draw** for freehand pen, pressure-sensitive if your device reports it. **Erase** removes whatever you click.
-- **Images** — paste one with Ctrl+V or drop the file onto the board. Pictures are encrypted on your machine like every other document.
+- **Images** — paste one with Ctrl+V or drop the file onto the board, on your own projects and on hub projects alike. Pictures are encrypted on your machine like every other document; on a hub project they are stored on the hub for everyone in the project.
 - **Text** — copy a passage from anywhere, press Ctrl+V on the board, and it lands as a text box in the middle of your view. Turn it into a note or a shape afterwards if you want one.
 - **Right-click the empty board** to place something exactly where you clicked.
 
