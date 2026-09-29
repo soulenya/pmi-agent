@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 287;
+export const BUILD_NUMBER = 288;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 288,
+    date: "2026-09-29",
+    title: "Pictures go onto hub canvases again",
+    changes: [
+      "Pasting or dropping a picture onto the canvas of a hub project failed with an error. The desktop was rejecting the upload before it reached the hub; it now passes it through. Canvases on your own machine were never affected.",
+    ],
+  },
   {
     build: 287,
     date: "2026-09-24",

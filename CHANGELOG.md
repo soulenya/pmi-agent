@@ -4,6 +4,26 @@
 
 ## Changelog
 
+### v5.16.3 · build 288 — 2026-09-29
+**Pictures go onto hub canvases again**
+
+- Lindsey (5.16.1, Windows 11): on the canvas of a hub project (QMS) "it has
+  the option to insert a picture, but it wont let me when I try." Her log
+  shows `POST /hub/api/projects/…/canvas/…/images` returning 400.
+- Cause: the desktop's `/hub/api` pass-through in `routers/hub.py` parsed
+  every POST body as JSON before sending it on, and `services/hub/client.py`
+  could only send JSON. An image upload is multipart form data, so the proxy
+  rejected it locally with "Body must be JSON." — the file never reached the
+  hub. Pictures on canvases held on your own machine were never affected.
+- Fix: a body whose Content-Type is not `application/json` is forwarded
+  byte-for-byte with its original Content-Type (and a 120 s timeout instead of
+  30 s for large files); JSON bodies are handled as before. Verified against
+  the live hub from a throwaway private project: upload through the proxy 201,
+  the image read back byte-identical, a JSON POST through the same proxy still
+  201, project deleted.
+- Takes effect after a full quit and relaunch (the proxy is desktop backend
+  code); no hub change was required.
+
 ### v5.16.2 · build 287 — 2026-09-24
 **The inbox orders threads the way Gmail does; "No thanks" on a meeting means no**
 
