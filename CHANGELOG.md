@@ -4,6 +4,32 @@
 
 ## Changelog
 
+### v5.16.4 · build 289 — 2026-09-30
+**Gerry reads Excel and PowerPoint attachments; a failed attach says so**
+
+- Morgan: "Ask Gerry about this attachment" on `U.S._Bank.xlsx` opened a chat
+  whose first line said "I've attached it", and Gerry answered that no file was
+  attached.
+- Two causes. (1) `.xlsx` was not a readable attachment type: chat
+  attachments, the Knowledge Base and Gerry's `read_gmail_attachment` tool all
+  share `services/documents/ingestion._extract_text`, which handled PDF, .docx
+  (paragraphs only — tables were skipped), text, Markdown and CSV. The upload
+  was refused with 415. (2) `hooks/useAskGerry.ts` swallowed that refusal and
+  sent the seed message unchanged, so Gerry was told a file was attached that
+  never arrived and went looking for it in Gmail.
+- Now: `.xlsx`/`.xlsm` are read with openpyxl (one block per sheet, one line
+  per row, cells joined with ` | `, dates as ISO, formulas as their last
+  calculated value, 5,000 rows per sheet); `.pptx` with python-pptx (titles,
+  text boxes, tables, speaker notes per slide); `.docx` tables are included.
+  Applies to chat attachments, Knowledge Base uploads and Gerry reading an
+  attachment straight from Gmail. When an upload is still refused, the seed
+  message carries the server's reason and asks Gerry to say so plainly.
+- New backend dependency `openpyxl` (installed on first launch after update).
+  Verified in-process through the real attachment endpoint: a bank-statement
+  style .xlsx (two sheets, dates, negative amounts, a SUM formula), a .pptx with
+  a note, a .docx with a table — every value present in Gerry's context;
+  `.exe` still refused. Smoke rows deleted.
+
 ### v5.16.3 · build 288 — 2026-09-29
 **Pictures go onto hub canvases again**
 

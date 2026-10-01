@@ -263,7 +263,7 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
       disabled: !conversationId || onHub,
       onRejected: (rejected) =>
         setDropNotice(
-          `Skipped (PDF, DOCX, TXT, MD, CSV, or images only): ${rejected.map((f) => f.name).join(", ")}`,
+          `Skipped (PDF, Word, Excel, PowerPoint, TXT, MD, CSV, or images only): ${rejected.map((f) => f.name).join(", ")}`,
         ),
     },
   );

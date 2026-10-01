@@ -224,11 +224,11 @@ function UploadModal({
           ) : (
             <span className="text-sm">Drop files here or click to browse</span>
           )}
-          <span className="text-xs">PDF, DOCX, TXT, MD, CSV — max 50 MB each</span>
+          <span className="text-xs">PDF, DOCX, XLSX, PPTX, TXT, MD, CSV — max 50 MB each</span>
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf,.docx,.txt,.md,.csv"
+            accept=".pdf,.docx,.xlsx,.pptx,.txt,.md,.csv"
             multiple
             className="hidden"
             onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }}
@@ -1204,11 +1204,11 @@ export function DocumentsPage() {
       setShowUpload(true);
     },
     {
-      accept: [".pdf", ".docx", ".txt", ".md", ".csv"],
+      accept: [".pdf", ".docx", ".xlsx", ".pptx", ".txt", ".md", ".csv"],
       disabled: showUpload,
       onRejected: (rejected) =>
         setUploadError(
-          `Skipped (PDF, DOCX, TXT, MD, CSV only): ${rejected.map((f) => f.name).join(", ")}`,
+          `Skipped (PDF, DOCX, XLSX, PPTX, TXT, MD, CSV only): ${rejected.map((f) => f.name).join(", ")}`,
         ),
     },
   );
