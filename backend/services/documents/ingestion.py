@@ -117,10 +117,73 @@ def _cell_text(value: object) -> str:
 
 MAX_XLSX_ROWS_PER_SHEET = 5_000
 
+# Excel's standard palette is indexed; openpyxl ships the lookup table.
+_INDEXED_COLORS: tuple[str, ...] | None = None
+
+
+def _fill_rgb(cell) -> str | None:
+    """'RRGGBB' of a solid fill, or None for no fill / white / unresolvable theme colours."""
+    global _INDEXED_COLORS
+    fill = cell.fill
+    if fill is None or fill.fill_type != "solid":
+        return None
+    color = fill.fgColor
+    if color is None:
+        return None
+    rgb: str | None = None
+    if color.type == "rgb" and isinstance(color.rgb, str):
+        rgb = color.rgb[-6:]
+    elif color.type == "indexed":
+        if _INDEXED_COLORS is None:
+            from openpyxl.styles.colors import COLOR_INDEX
+
+            _INDEXED_COLORS = tuple(COLOR_INDEX)
+        if 0 <= color.indexed < len(_INDEXED_COLORS):
+            rgb = _INDEXED_COLORS[color.indexed][-6:]
+    if rgb is None or rgb.upper() == "FFFFFF":
+        return None
+    return rgb.upper()
+
+
+def _color_name(rgb: str) -> str:
+    """Nearest everyday colour word for an RRGGBB hex, so a highlight reads as 'orange', not '#FFC000'."""
+    import colorsys
+
+    r, g, b = (int(rgb[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+    hue = h * 360
+    if v < 0.2:
+        return "black"
+    if s < 0.1:
+        return "white" if v > 0.95 else "grey"
+    if hue < 15 or hue >= 345:
+        name = "red"
+    elif hue < 38:
+        name = "orange"
+    elif hue < 50:
+        # Excel's "Orange" (#FFC000) and pale yellows (#FFF2CC) share this band.
+        name = "orange" if s > 0.6 else "yellow"
+    elif hue < 70:
+        name = "yellow"
+    elif hue < 170:
+        name = "green"
+    elif hue < 200:
+        name = "teal"
+    elif hue < 260:
+        name = "blue"
+    elif hue < 300:
+        name = "purple"
+    else:
+        name = "pink"
+    if s < 0.35 and v > 0.85 and name not in ("white", "grey", "black"):
+        name = f"light {name}"
+    return name
+
 
 def _extract_text_xlsx(raw: bytes) -> str:
     """One block per sheet, one line per row, cells separated by ' | '.
-    Formula cells yield their last calculated value."""
+    Formula cells yield their last calculated value. A solid cell fill is
+    reported as a colour word so highlighted rows survive the conversion."""
     try:
         import io
 
@@ -132,17 +195,45 @@ def _extract_text_xlsx(raw: bytes) -> str:
     try:
         for ws in wb.worksheets:
             lines: list[str] = []
-            for n, row in enumerate(ws.iter_rows(values_only=True)):
+            colours_seen: set[str] = set()
+            for n, row in enumerate(ws.iter_rows()):
                 if n >= MAX_XLSX_ROWS_PER_SHEET:
                     lines.append(f"[... {ws.max_row - n} more rows not shown ...]")
                     break
-                cells = [_cell_text(v) for v in row]
+                cells = [_cell_text(c.value) for c in row]
+                fills = [_fill_rgb(c) for c in row]
                 while cells and not cells[-1]:
                     cells.pop()
-                if cells:
+                    fills.pop()
+                if not cells:
+                    continue
+                filled = {f for f in fills if f}
+                if len(filled) == 1 and all(fills):
+                    rgb = filled.pop()
+                    name = _color_name(rgb)
+                    colours_seen.add(name)
+                    lines.append(" | ".join(cells) + f"  [fill: {name} #{rgb}]")
+                elif filled:
+                    marked = []
+                    for text, rgb in zip(cells, fills, strict=False):
+                        if rgb:
+                            name = _color_name(rgb)
+                            colours_seen.add(name)
+                            marked.append(f"{text} [fill: {name} #{rgb}]")
+                        else:
+                            marked.append(text)
+                    lines.append(" | ".join(marked))
+                else:
                     lines.append(" | ".join(cells))
             if lines:
-                blocks.append(f"## Sheet: {ws.title}\n" + "\n".join(lines))
+                head = f"## Sheet: {ws.title}"
+                if colours_seen:
+                    head += (
+                        "\n(Cell fills are shown as [fill: colour #hex]; colours in this sheet: "
+                        + ", ".join(sorted(colours_seen))
+                        + ". Rows without a marker are unfilled.)"
+                    )
+                blocks.append(head + "\n" + "\n".join(lines))
     finally:
         wb.close()
     return "\n\n".join(blocks)

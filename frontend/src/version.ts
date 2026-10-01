@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 289;
+export const BUILD_NUMBER = 290;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 290,
+    date: "2026-10-01",
+    title: "Spreadsheet highlights reach Gerry",
+    changes: [
+      "Highlighted cells in an Excel file are now reported to Gerry as colours (\"orange\", \"yellow\", \"green\" …) next to the row, so \"the orange rows need receipts\" works without you listing them.",
+    ],
+  },
   {
     build: 289,
     date: "2026-09-30",

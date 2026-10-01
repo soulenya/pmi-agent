@@ -4,6 +4,24 @@
 
 ## Changelog
 
+### v5.16.5 · build 290 — 2026-10-01
+**Spreadsheet highlights reach Gerry**
+
+- Morgan: rows in a bank-statement workbook were highlighted orange (needs
+  receipt) and yellow (needs insight + receipt); Gerry said the file "came
+  through as plain text/values (no formatting)" and asked him to list them.
+- Cause: `_extract_text_xlsx` (v5.16.4) read values only.
+- Now each cell's solid fill is read (`openpyxl` read-only cells expose
+  styles). A row whose every cell shares one fill ends with
+  `[fill: orange #FFC000]`; a fill on some cells marks those cells only; white
+  fills are ignored; theme-palette fills openpyxl cannot resolve are skipped.
+  Hex → word via HSV bands (`_color_name`): Excel's "Orange" `#FFC000` and
+  pale yellow `#FFF2CC` share hue 45°, split on saturation. Each sheet block
+  opens with the legend and the colours present. Verified with a generated
+  workbook: orange/orange-light/yellow/pale-yellow/green-one-cell/indexed-
+  red/white rows all labelled as expected. Applies to chat attachments, KB
+  uploads and Gmail attachments alike.
+
 ### v5.16.4 · build 289 — 2026-09-30
 **Gerry reads Excel and PowerPoint attachments; a failed attach says so**
 
