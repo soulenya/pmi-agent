@@ -276,7 +276,7 @@ Whichever way you approve, a **confirmation appears in the bottom-right corner**
 Almost everywhere in the app you'll see an **"Ask Gerry about this"** button (a small robot icon). It appears on your tasks, projects, contacts, emails, email drafts, calendar events, Knowledge Base documents, generated files, and email attachments.
 
 - Click it and Little Gerry opens a **fresh conversation already primed with that item's details**, so you can dive straight into questions without copying anything over.
-- For real files — email attachments and generated files — Little Gerry reads the **actual contents** of the file, so you can ask about what's inside.
+- For real files — email attachments and generated files — Little Gerry reads the **actual contents** of the file, so you can ask about what's inside. Readable types: PDF, Word (.docx, tables included), Excel (.xlsx — every sheet, formulas as their last calculated value), PowerPoint (.pptx, speaker notes included), text, Markdown, CSV, and pictures or scans. If a file is a type Gerry cannot read, the opening message says so instead of pretending it was attached.
 - Each "Ask Gerry" chat opens in the Little Gerry side panel and becomes its own conversation you can return to later. In the conversation list they sit under **Asked about something**.
 - **Inside a project, Ask Gerry goes to the project's own conversation** instead of starting a new one, so the answer comes with the project's goal, pinned material and tasks already in hand.
 
@@ -1107,7 +1107,7 @@ Navigate to **Settings › Connections › Google Workspace**.
 
 | Service | What Little Gerry can do |
 |---------|--------------------------|
-| **Gmail** | Read, search, and tag emails; compose & send your own; reply/reply-all/forward; mark read or unread; move to Trash; summarise and collapse long threads; open attachments — see [Gmail](#gmail-inbox-compose--replies). In chat, Gerry sees what is attached to an email and can read inside the attachments (Word, PDF, text, CSV, pictures and scans) — "get the totals from the three invoices on Geof's latest email" works. Signature logos are recognised for what they are |
+| **Gmail** | Read, search, and tag emails; compose & send your own; reply/reply-all/forward; mark read or unread; move to Trash; summarise and collapse long threads; open attachments — see [Gmail](#gmail-inbox-compose--replies). In chat, Gerry sees what is attached to an email and can read inside the attachments (Word, Excel, PowerPoint, PDF, text, CSV, pictures and scans) — "get the totals from the three invoices on Geof's latest email" works. Signature logos are recognised for what they are |
 | **Google Drive** | Browse folders, read files, import to KB; edit a specific file in place once you allow it — see [Letting Gerry edit a Drive file](#letting-gerry-edit-a-drive-file) |
 | **Google Calendar** | Read events, show on Calendar page |
 | **Contacts** | Look up contact information |

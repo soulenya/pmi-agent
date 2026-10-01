@@ -59,41 +59,49 @@ export function useAskGerry() {
       if (projectConversationId) {
         // Attachments belong to this computer's conversations; a hub one
         // carries the question only.
+        let seed = prompt;
         if (file && here?.source !== "hub") {
-          try {
-            const f = new File([file.blob], file.filename, {
-              type: file.blob.type || "application/octet-stream",
-            });
-            await uploadAttachment(projectConversationId, f);
-          } catch {
-            /* attachment is optional */
-          }
+          seed = await attachOrExplain(projectConversationId, file, prompt);
         }
-        setPending(prompt);
+        setPending(seed);
         show(projectConversationId, here?.source === "hub");
         return;
       }
 
       const conv = await createConversation({ title: title.slice(0, 120), kind: "ask" });
-
-      // Best-effort: upload the file so Gerry reads its real contents. Some
-      // file types aren't text-extractable (images, spreadsheets) — if the
-      // upload is rejected we still open the conversation with the text prompt.
-      if (file) {
-        try {
-          const f = new File([file.blob], file.filename, {
-            type: file.blob.type || "application/octet-stream",
-          });
-          await uploadAttachment(conv.id, f);
-        } catch {
-          /* attachment is optional — continue with the text prompt only */
-        }
-      }
+      const seed = file ? await attachOrExplain(conv.id, file, prompt) : prompt;
 
       await qc.invalidateQueries({ queryKey: ["conversations"] });
-      setPending(prompt);
+      setPending(seed);
       show(conv.id, false);
     },
     [qc, show, setPending, projectConversationId, here?.source],
   );
+}
+
+/**
+ * Upload the file into the conversation. If the server refuses it, the seed
+ * message says so — otherwise Gerry is told "I've attached it" about a file
+ * that never arrived and goes looking for it.
+ */
+async function attachOrExplain(
+  conversationId: string,
+  file: AskGerryFile,
+  prompt: string,
+): Promise<string> {
+  try {
+    const f = new File([file.blob], file.filename, {
+      type: file.blob.type || "application/octet-stream",
+    });
+    await uploadAttachment(conversationId, f);
+    return prompt;
+  } catch (err) {
+    const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data
+      ?.detail;
+    const reason = typeof detail === "string" ? detail : "the upload failed";
+    return (
+      `${prompt}\n\n(Note from the app: the file "${file.filename}" could not be attached ` +
+      `to this conversation — ${reason} Tell me that plainly rather than guessing at its contents.)`
+    );
+  }
 }

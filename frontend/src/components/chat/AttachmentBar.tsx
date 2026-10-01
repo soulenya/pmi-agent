@@ -10,7 +10,7 @@ import { ExtractDataModal } from "@/components/ExtractDataModal";
 import type { ChatAttachment } from "@/types/chat";
 import { cn } from "@/lib/utils";
 
-const ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.csv,.png,.jpg,.jpeg,.gif,.webp";
+const ACCEPT = ".pdf,.docx,.xlsx,.xlsm,.pptx,.txt,.md,.markdown,.csv,.png,.jpg,.jpeg,.gif,.webp";
 
 /** Extensions accepted as chat reference files (kept in sync with ACCEPT). */
 export const CHAT_ATTACHMENT_EXTS = ACCEPT.split(",");

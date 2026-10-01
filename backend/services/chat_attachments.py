@@ -38,6 +38,9 @@ TOTAL_CONTEXT_CHARS = 150_000
 _EXT_MIME = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xlsm": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ".txt": "text/plain",
     ".md": "text/markdown",
     ".markdown": "text/markdown",
@@ -114,8 +117,8 @@ def resolve_mime_type(file_name: str, content_type: str | None) -> str:
     if guessed and guessed in ATTACHMENT_MIME_TYPES:
         return guessed
     raise UnsupportedAttachmentError(
-        "Unsupported file type. Attach a PDF, Word (.docx), text, Markdown, CSV, "
-        "or image (PNG/JPEG/GIF/WEBP) file."
+        "Unsupported file type. Attach a PDF, Word (.docx), Excel (.xlsx), "
+        "PowerPoint (.pptx), text, Markdown, CSV, or image (PNG/JPEG/GIF/WEBP) file."
     )
 
 

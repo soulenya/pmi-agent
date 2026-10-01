@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 288;
+export const BUILD_NUMBER = 289;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 289,
+    date: "2026-09-30",
+    title: "Gerry reads Excel and PowerPoint files",
+    changes: [
+      "Excel (.xlsx) and PowerPoint (.pptx) files can now be attached to a chat, added to the Knowledge Base, or read straight from an email. Every sheet and slide is read, speaker notes included; tables inside Word files are read too.",
+      "If Ask Gerry cannot attach a file, the opening message now says why instead of telling Gerry the file was attached.",
+    ],
+  },
   {
     build: 288,
     date: "2026-09-29",

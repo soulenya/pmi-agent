@@ -5,7 +5,8 @@ Responsibilities:
   1. Accept raw file bytes + metadata
   2. Verify SHA-256 checksum (dedup)
   3. Encrypt file bytes with Fernet before persisting to disk
-  4. Extract plain text (PDF via PyMuPDF, DOCX via python-docx, .txt/.md direct)
+  4. Extract plain text (PDF via PyMuPDF, DOCX via python-docx, XLSX via openpyxl,
+     PPTX via python-pptx, .txt/.md/.csv direct)
   5. Chunk text (fixed ~512 tokens with 64-token overlap)
   6. Embed each chunk via Ollama nomic-embed-text (768-dim)
   7. Persist Document + DocumentChunk rows in one transaction
@@ -41,9 +42,15 @@ CHUNK_TOKENS = 512        # target tokens per chunk
 CHUNK_OVERLAP = 64        # token overlap between consecutive chunks
 WORDS_PER_TOKEN = 0.75    # rough approximation for splitting by words
 
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
 SUPPORTED_MIME_TYPES = {
     "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    DOCX_MIME,
+    XLSX_MIME,
+    PPTX_MIME,
     "text/plain",
     "text/markdown",
     "text/csv",
@@ -76,23 +83,108 @@ def _extract_text_pdf(raw: bytes) -> str:
 
 
 def _extract_text_docx(raw: bytes) -> str:
-    """Extract text from DOCX bytes using python-docx."""
+    """Extract text from DOCX bytes using python-docx, tables included."""
     try:
         import io
 
         import docx
 
         doc = docx.Document(io.BytesIO(raw))
-        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        parts = [p.text for p in doc.paragraphs if p.text.strip()]
+        for table in doc.tables:
+            rows = []
+            for row in table.rows:
+                cells = [c.text.strip().replace("\n", " ") for c in row.cells]
+                if any(cells):
+                    rows.append(" | ".join(cells))
+            if rows:
+                parts.append("\n".join(rows))
+        return "\n".join(parts)
     except ImportError as exc:
         raise RuntimeError("python-docx is not installed") from exc
+
+
+def _cell_text(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    if hasattr(value, "isoformat"):
+        text = value.isoformat()
+        return text[:-9] if text.endswith("T00:00:00") else text
+    return str(value)
+
+
+MAX_XLSX_ROWS_PER_SHEET = 5_000
+
+
+def _extract_text_xlsx(raw: bytes) -> str:
+    """One block per sheet, one line per row, cells separated by ' | '.
+    Formula cells yield their last calculated value."""
+    try:
+        import io
+
+        import openpyxl
+    except ImportError as exc:
+        raise RuntimeError("openpyxl is not installed") from exc
+    wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+    blocks: list[str] = []
+    try:
+        for ws in wb.worksheets:
+            lines: list[str] = []
+            for n, row in enumerate(ws.iter_rows(values_only=True)):
+                if n >= MAX_XLSX_ROWS_PER_SHEET:
+                    lines.append(f"[... {ws.max_row - n} more rows not shown ...]")
+                    break
+                cells = [_cell_text(v) for v in row]
+                while cells and not cells[-1]:
+                    cells.pop()
+                if cells:
+                    lines.append(" | ".join(cells))
+            if lines:
+                blocks.append(f"## Sheet: {ws.title}\n" + "\n".join(lines))
+    finally:
+        wb.close()
+    return "\n\n".join(blocks)
+
+
+def _extract_text_pptx(raw: bytes) -> str:
+    try:
+        import io
+
+        from pptx import Presentation
+    except ImportError as exc:
+        raise RuntimeError("python-pptx is not installed") from exc
+    prs = Presentation(io.BytesIO(raw))
+    blocks: list[str] = []
+    for n, slide in enumerate(prs.slides, start=1):
+        lines: list[str] = []
+        for shape in slide.shapes:
+            if getattr(shape, "has_text_frame", False) and shape.text_frame.text.strip():
+                lines.append(shape.text_frame.text.strip())
+            if getattr(shape, "has_table", False):
+                for row in shape.table.rows:
+                    cells = [c.text.strip() for c in row.cells]
+                    if any(cells):
+                        lines.append(" | ".join(cells))
+        if slide.has_notes_slide and slide.notes_slide.notes_text_frame is not None:
+            notes = slide.notes_slide.notes_text_frame.text.strip()
+            if notes:
+                lines.append(f"Notes: {notes}")
+        if lines:
+            blocks.append(f"## Slide {n}\n" + "\n".join(lines))
+    return "\n\n".join(blocks)
 
 
 def _extract_text(raw: bytes, mime_type: str) -> str:
     if mime_type == "application/pdf":
         return _extract_text_pdf(raw)
-    if mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    if mime_type == DOCX_MIME:
         return _extract_text_docx(raw)
+    if mime_type == XLSX_MIME:
+        return _extract_text_xlsx(raw)
+    if mime_type == PPTX_MIME:
+        return _extract_text_pptx(raw)
     # Plain text / markdown / csv
     return raw.decode("utf-8", errors="replace")
 
@@ -236,14 +328,17 @@ class DocumentIngestionService:
         # 1. Detect MIME type
         mime_type, _ = mimetypes.guess_type(filename)
         if mime_type not in SUPPORTED_MIME_TYPES:
-            # Fallback: treat as plain text if extension is .txt/.md
             ext = Path(filename).suffix.lower()
             if ext in (".txt", ".md", ".csv", ".json"):
                 mime_type = "text/plain"
+            elif ext in (".xlsx", ".xlsm"):
+                mime_type = XLSX_MIME
+            elif ext == ".pptx":
+                mime_type = PPTX_MIME
             else:
                 raise ValueError(
                     f"Unsupported file type: {mime_type or 'unknown'}. "
-                    f"Supported: PDF, DOCX, TXT, MD, CSV"
+                    f"Supported: PDF, DOCX, XLSX, PPTX, TXT, MD, CSV"
                 )
 
         # 2. Checksum
