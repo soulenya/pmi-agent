@@ -386,6 +386,7 @@ class MeetingMonitor:
                 live.recipients = info.get("recipients", [])
             live.nda_hint = info["nda_hint"]
             live.vocabulary = info.get("vocabulary", [])
+            live.facts = info.get("facts", {}) or {}
         except Exception:  # noqa: BLE001
             logger.debug("Live precheck failed", exc_info=True)
     def _pending_dir(self) -> Path:
@@ -394,13 +395,15 @@ class MeetingMonitor:
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    def _write_pending(self, wav: bytes, platform: str, recorded_at: str) -> str:
+    def _write_pending(
+        self, wav: bytes, platform: str, recorded_at: str, facts: dict | None = None
+    ) -> str:
         """Persist a recording (+ metadata) to disk so a crash can resume it."""
         pid = uuid.uuid4().hex
         d = self._pending_dir()
         (d / f"{pid}.wav").write_bytes(wav)
         (d / f"{pid}.json").write_text(
-            json.dumps({"platform": platform, "recorded_at": recorded_at}),
+            json.dumps({"platform": platform, "recorded_at": recorded_at, "facts": facts or {}}),
             encoding="utf-8",
         )
         return pid
@@ -479,14 +482,17 @@ class MeetingMonitor:
         # Persist the audio to disk *before* transcribing so an app restart or
         # crash mid-transcription can resume it on next startup (recover_pending).
         pid: str | None = None
+        facts = dict(live.facts) if live is not None else {}
         try:
             pid = await asyncio.to_thread(
-                self._write_pending, wav, platform, recorded_at.isoformat()
+                self._write_pending, wav, platform, recorded_at.isoformat(), facts
             )
         except Exception:                       # noqa: BLE001
             logger.exception("Could not persist pending recording to disk")
 
-        await self._transcribe_and_save(wav, platform, recorded_at, pid, live=live)
+        await self._transcribe_and_save(
+            wav, platform, recorded_at, pid, live=live, facts=facts
+        )
 
     async def _transcribe_and_save(
         self,
@@ -496,6 +502,7 @@ class MeetingMonitor:
         pid: str | None,
         cancel_event: "asyncio.Event | None" = None,
         live: "LiveMeetingSession | None" = None,
+        facts: dict | None = None,
     ) -> bool:
         """Transcribe *wav* and persist a MeetingNote. On success, drop the
         on-disk pending copy. Returns True when a note was created."""
@@ -541,19 +548,24 @@ class MeetingMonitor:
                     break
 
                 manual = platform == "Manual"
-                stamp = recorded_at.astimezone().strftime("%b %d, %Y %I:%M %p")
-                title = (
-                    f"Recorded meeting — {stamp}"
-                    if manual
-                    else f"{platform} meeting — {stamp}"
+                from services.meetings.naming import MeetingFacts, build_meeting_title
+
+                known = MeetingFacts.from_json(facts)
+                title = await build_meeting_title(
+                    db,
+                    transcript=transcript,
+                    platform=platform,
+                    recorded_at=recorded_at,
+                    facts=known,
                 )
                 tags = ["manual-recording"] if manual else ["auto-captured", platform.lower()]
+                attendees = [*known.external_emails, *known.internal_emails]
                 meeting = MeetingNote(
                     id=uuid.uuid4(),
                     title=title,
                     raw_transcript=transcript,
                     meeting_date=recorded_at,
-                    attendees=[],
+                    attendees=attendees,
                     tags=tags,
                     generated_task_ids=[],
                     created_by=user.id,
@@ -766,6 +778,7 @@ class MeetingMonitor:
             pid = wav_path.stem
             platform = "Meeting"
             recorded_at = datetime.now(timezone.utc)
+            facts: dict = {}
             meta_path = wav_path.with_suffix(".json")
             try:
                 if meta_path.is_file():
@@ -773,6 +786,7 @@ class MeetingMonitor:
                     platform = meta.get("platform") or platform
                     if meta.get("recorded_at"):
                         recorded_at = datetime.fromisoformat(meta["recorded_at"])
+                    facts = meta.get("facts") or {}
             except Exception:                   # noqa: BLE001
                 logger.debug("Bad pending metadata for %s", pid, exc_info=True)
             try:
@@ -781,7 +795,7 @@ class MeetingMonitor:
                 continue
             self._update(state="processing", platform=f"{platform} (recovering)")
             if await self._transcribe_and_save(
-                wav, platform, recorded_at, pid, cancel_event=self._recovery_cancel
+                wav, platform, recorded_at, pid, cancel_event=self._recovery_cancel, facts=facts
             ):
                 recovered += 1
 

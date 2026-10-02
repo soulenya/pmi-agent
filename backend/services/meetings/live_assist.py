@@ -104,6 +104,8 @@ class LiveMeetingSession:
         self.recipients_manual: bool = False
         self.vocabulary: list[str] = []  # trusted names/companies for STT hints + reconciliation
         self.nda_hint: str = ""
+        # Calendar facts the note's title is built from (see meetings/naming.py).
+        self.facts: dict = {}
         self.segments: list[dict] = []       # {seq, at, text}
         self.cards: list[dict] = []          # {seq, kind, title, body, at, route?}
         self.chunk_dir: Path | None = None
@@ -483,7 +485,10 @@ async def precheck(get_db, own_email: str = "") -> dict:
     ours = _company_domains(own_email)
     recipients: list[dict] = []
     externals: list[str] = []
+    internals: list[str] = []
     vocabulary: list[str] = []
+    event_title = ""
+    from_calendar = False
     try:
         from services import google_service as gs
 
@@ -501,6 +506,8 @@ async def precheck(get_db, own_email: str = "") -> dict:
                 if delta <= 45 * 60 and e.get("attendees") and (best_delta is None or delta < best_delta):
                     best, best_delta = e, delta
             if best is not None:
+                from_calendar = True
+                event_title = str(best.get("title") or "").strip()
                 attendees = [a for a in best["attendees"] if isinstance(a, str) and "@" in a]
                 externals = [
                     a for a in attendees
@@ -576,6 +583,12 @@ async def precheck(get_db, own_email: str = "") -> dict:
         "recipients": recipients,
         "nda_hint": hint,
         "vocabulary": vocabulary,
+        "facts": {
+            "event_title": event_title,
+            "external_emails": externals,
+            "internal_emails": internals,
+            "from_calendar": from_calendar,
+        },
     }
 
 

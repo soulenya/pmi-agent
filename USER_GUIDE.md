@@ -1000,6 +1000,7 @@ When enabled, Little Gerry watches for video-call apps (Zoom, Teams, Google Meet
 - Turn auto-recording on or off in **Settings**.
 - Audio capture works on **Windows** (system-audio loopback). On other platforms Little Gerry can detect the meeting but can't capture system audio without a virtual audio device.
 - A recorder indicator shows when a recording is in progress; you can recover or discard pending recordings from there.
+- The note is named after the meeting, not the app that hosted it: **PMI/Hatch High Level Review (External) — Oct 2, 2026** or **PMI Weekly Ops Sync (Internal) — Oct 2, 2026**. The other party comes from the calendar invite's attendees (anyone outside your company domains), the topic from the invite's title; when the invite says only "Meeting" or "Call", or there is no invite, Gerry reads the recording for the topic and the other party, and falls back to "Microsoft Teams meeting — date time" when it cannot tell. The invite's attendees are stored on the note.
 
 ### Live meeting assist
 
