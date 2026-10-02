@@ -25,6 +25,44 @@ export async function getDefaultCanvas(
   return resp.data;
 }
 
+export async function listCanvases(
+  projectId: string,
+  source: Source = "local",
+): Promise<Canvas[]> {
+  const resp = await apiClient.get<Canvas[]>(at(source, `/projects/${projectId}/canvas`));
+  return resp.data;
+}
+
+export async function getCanvas(
+  projectId: string,
+  canvasId: string,
+  source: Source = "local",
+): Promise<CanvasFull> {
+  const resp = await apiClient.get<CanvasFull>(
+    at(source, `/projects/${projectId}/canvas/${canvasId}`),
+  );
+  return resp.data;
+}
+
+export async function createCanvas(
+  projectId: string,
+  name: string,
+  source: Source = "local",
+): Promise<Canvas> {
+  const resp = await apiClient.post<Canvas>(at(source, `/projects/${projectId}/canvas`), {
+    name,
+  });
+  return resp.data;
+}
+
+export async function deleteCanvas(
+  projectId: string,
+  canvasId: string,
+  source: Source = "local",
+): Promise<void> {
+  await apiClient.delete(at(source, `/projects/${projectId}/canvas/${canvasId}`));
+}
+
 export async function updateCanvas(
   projectId: string,
   canvasId: string,

@@ -649,6 +649,8 @@ A viewer sees the room and cannot change it.
 
 An endless whiteboard for thinking a project through. Pick a tool from the bar in the top-left, then click the board to place something.
 
+**More than one canvas.** A project starts with one canvas. The strip above the board lists them; **+ Canvas** adds another (you name it), double-click a name to rename it, and the bin beside the open canvas deletes it — only when the project has at least two, and only after you confirm. Deleting a canvas removes the notes, shapes, pictures and arrows on it; the tasks, documents and budgets its cards pointed at are untouched. The canvas you had open is remembered per project. Gerry works the same way: `read_canvas` names the other canvases when there are several, and every canvas tool takes a canvas name ("put a sticky on the Risk map canvas").
+
 - **Sticky note**, **Text**, **Shape** and **Frame** for your own material. Pick a colour from the same bar, or change it afterwards — see below.
 - **Draw** for freehand pen, pressure-sensitive if your device reports it. **Erase** removes whatever you click.
 - **Images** — paste one with Ctrl+V or drop the file onto the board, on your own projects and on hub projects alike. Pictures are encrypted on your machine like every other document; on a hub project they are stored on the hub for everyone in the project.

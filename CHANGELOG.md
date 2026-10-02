@@ -4,6 +4,33 @@
 
 ## Changelog
 
+### v5.17.0 · build 291 — 2026-10-02
+**A project can have several canvases**
+
+- Morgan: "build in an option to have multiple canvases for a project".
+- The REST side already had list/create/rename/delete (`routers/canvas.py`);
+  only the UI (`getDefaultCanvas`) and Gerry's tools (`_default_canvas`,
+  first row by `created_at`) assumed one.
+- `CanvasTab` now fetches `GET /projects/{id}/canvas` and shows a strip above
+  the board: click to switch, **+ Canvas** (prompt for a name), double-click to
+  rename, bin on the open canvas when ≥2 (confirm). The board remounts per
+  canvas (`ReactFlowProvider key`), so undo history, selection and the paste
+  sink never bleed between canvases. Last-open canvas remembered in
+  `localStorage` per source+project; a remembered id that no longer exists
+  falls back to the first. Query key is now
+  `["project-canvas", source, projectId, canvasId|"default"]` — existing
+  prefix invalidations still hit. Works identically on hub projects through
+  the proxy. `api/canvas.ts`: `listCanvases`, `getCanvas`, `createCanvas`,
+  `deleteCanvas`.
+- Gerry: `read_canvas`, `create_canvas_node`, `update_canvas_node`,
+  `link_canvas_nodes` take an optional `canvas` (name, exact then substring;
+  ambiguous or unknown → error listing the names; nothing is created). With
+  no name the first canvas is used and the reply names the others. Local via
+  `_pick_canvas`, hub via `_hub_pick_canvas` (list → get by id; empty list
+  → `/canvas/default`). Verified in-process on a throwaway project: list →
+  default made → create "Risk map" → rename → tools by name / substring /
+  unknown → note on the wrong canvas not found → delete 204 → project deleted.
+
 ### v5.16.5 · build 290 — 2026-10-01
 **Spreadsheet highlights reach Gerry**
 
