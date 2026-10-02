@@ -214,6 +214,9 @@ class Settings(BaseSettings):
     # a colleague (CC'd, never the target of an outbound thank-you); everyone
     # else in a meeting is the other party.
     company_domains: list[str] = ["pmi-llc.com", "precisianmedical.com"]
+    # How the company is written in generated names, e.g. meeting notes
+    # "PMI/Hatch High Level Review (External)".
+    company_short_name: str = "PMI"
     # Link emailed to invitees so they can download and install Little Gerry.
     installer_download_url: str = "https://github.com/soulenya/pmi-agent/releases/latest"
 

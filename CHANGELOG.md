@@ -5,8 +5,29 @@
 ## Changelog
 
 ### v5.17.0 · build 291 — 2026-10-02
-**A project can have several canvases**
+**A project can have several canvases; meeting notes are named after who they were with**
 
+- Morgan: recorded meetings should be saved as e.g. "PMI/Hatch High Level
+  Review (External)" with the date, finding the other party on the calendar
+  "or wherever". Notes were titled `"{platform} meeting — {timestamp}"`.
+- New `services/meetings/naming.py`. The precheck that already matches the
+  nearest calendar event (±45 min) now also returns `facts` = event title +
+  attendees split by `company_domains`; they ride on the live session and in
+  the pending-recording JSON, so a recording recovered after a restart is
+  named the same way. `build_meeting_title`: other party = distinct external
+  organisations from attendee domains (`hatch.co` → Hatch,
+  `precisian-medical-instruments.com` → Precisian Medical Instruments, a
+  personal address → the person's name); a party prefix already in the
+  calendar title ("Hatch x PMI: Design Review") is stripped so it is not
+  doubled. Generic calendar titles ("Meeting", "Call", "Sync", …) or no
+  calendar match → one extraction over the transcript (task=meetings) for
+  {topic, other_party, external}, told to answer null rather than guess.
+  Shapes: `PMI/Hatch High Level Review (External) — Oct 2, 2026`,
+  `PMI Weekly Ops Sync (Internal) — Oct 2, 2026`; nothing to go on → the old
+  platform+timestamp title. New setting `company_short_name` ("PMI").
+  `MeetingNote.attendees` is now filled from the calendar. Verified with a
+  faked LLM across calendar / generic-title / no-calendar / unsure / garbage
+  paths; no LLM call when the calendar already answers.
 - Morgan: "build in an option to have multiple canvases for a project".
 - The REST side already had list/create/rename/delete (`routers/canvas.py`);
   only the UI (`getDefaultCanvas`) and Gerry's tools (`_default_canvas`,
