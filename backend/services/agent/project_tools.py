@@ -910,18 +910,48 @@ async def _create_tasks_on_hub(
     return _batch_report(name, titles, rows, "the shared project ", adopted)
 
 
-async def _default_canvas(
-    db: AsyncSession, project: Project, user_id: uuid.UUID
-) -> ProjectCanvas:
-    canvas = (
-        await db.execute(
-            select(ProjectCanvas)
-            .where(ProjectCanvas.project_id == project.id)
-            .order_by(ProjectCanvas.created_at)
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-    if canvas is None:
+def _pick_by_name(names: list[str], hint: str) -> tuple[int | None, str]:
+    """Index of the canvas *hint* names, or an error listing the choices."""
+    wanted = str(hint or "").strip().lower()
+    listed = ", ".join(f'"{n}"' for n in names)
+    if not wanted:
+        return 0, ""
+    exact = [i for i, n in enumerate(names) if n.lower() == wanted]
+    hits = exact or [i for i, n in enumerate(names) if wanted in n.lower()]
+    if len(hits) == 1:
+        return hits[0], ""
+    if hits:
+        return None, f"Error: more than one canvas matches '{hint}'. Canvases: {listed}."
+    return None, f"Error: no canvas called '{hint}'. Canvases: {listed}."
+
+
+def _others_note(names: list[str], chosen: int) -> str:
+    rest = [n for i, n in enumerate(names) if i != chosen]
+    if not rest:
+        return ""
+    return (
+        " (This project has other canvases: "
+        + ", ".join(f'"{n}"' for n in rest)
+        + ' — pass canvas="<name>" to work on one of those.)'
+    )
+
+
+async def _pick_canvas(
+    db: AsyncSession, project: Project, user_id: uuid.UUID, hint: str = ""
+) -> tuple[ProjectCanvas | None, str, str]:
+    """(canvas, problem, note). No hint = the first canvas, created if none exist."""
+    canvases = list(
+        (
+            await db.execute(
+                select(ProjectCanvas)
+                .where(ProjectCanvas.project_id == project.id)
+                .order_by(ProjectCanvas.created_at)
+            )
+        ).scalars().all()
+    )
+    if not canvases:
+        if str(hint or "").strip():
+            return None, "Error: this project has no canvases yet.", ""
         canvas = ProjectCanvas(
             project_id=project.id,
             name="Canvas",
@@ -931,7 +961,12 @@ async def _default_canvas(
         db.add(canvas)
         await db.flush()
         await db.refresh(canvas)
-    return canvas
+        return canvas, "", ""
+    names = [c.name for c in canvases]
+    index, problem = _pick_by_name(names, hint)
+    if index is None:
+        return None, problem, ""
+    return canvases[index], "", _others_note(names, index)
 
 
 async def execute_create_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
@@ -956,9 +991,11 @@ async def execute_create_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
         content = label
 
     if shared is not None:
-        return await _hub_canvas_node(ctx, shared, kind, label, content)
+        return await _hub_canvas_node(ctx, shared, kind, label, content, args.get("canvas", ""))
 
-    canvas = await _default_canvas(ctx.db, project, ctx.user_id)
+    canvas, problem, note = await _pick_canvas(ctx.db, project, ctx.user_id, args.get("canvas", ""))
+    if canvas is None:
+        return problem
     placed = (
         await ctx.db.execute(
             select(CanvasNode.id).where(CanvasNode.canvas_id == canvas.id)
@@ -982,29 +1019,43 @@ async def execute_create_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
     await ctx.db.flush()
     await ctx.db.refresh(node)
     return (
-        f'Added a {kind} to the canvas for "{project.name}": '
-        f'"{label or (str(content)[:60])}" [id={node.id}]'
+        f'Added a {kind} to the canvas "{canvas.name}" of "{project.name}": '
+        f'"{label or (str(content)[:60])}" [id={node.id}]' + note
     )
 
 
-async def _hub_default_canvas(
-    ctx: Any, shared: dict[str, Any]
-) -> tuple[dict[str, Any] | None, str]:
-    """The shared project's first canvas, nodes and edges included."""
+async def _hub_pick_canvas(
+    ctx: Any, shared: dict[str, Any], hint: str = ""
+) -> tuple[dict[str, Any] | None, str, str]:
+    """(canvas with nodes+edges, problem, note) for a shared project."""
+    pid = shared.get("id")
+    listed, problem = await _hub_get(ctx.db, ctx.user_id, f"/projects/{pid}/canvas")
+    if listed is None:
+        return None, problem, ""
+    canvases = list(listed or [])
+    if not canvases:
+        if str(hint or "").strip():
+            return None, "Error: this project has no canvases yet.", ""
+        payload, problem = await _hub_get(ctx.db, ctx.user_id, f"/projects/{pid}/canvas/default")
+        return (payload, "", "") if payload is not None else (None, problem, "")
+    names = [str(c.get("name") or "Canvas") for c in canvases]
+    index, problem = _pick_by_name(names, hint)
+    if index is None:
+        return None, problem, ""
     payload, problem = await _hub_get(
-        ctx.db, ctx.user_id, f"/projects/{shared.get('id')}/canvas/default"
+        ctx.db, ctx.user_id, f"/projects/{pid}/canvas/{canvases[index].get('id')}"
     )
     if payload is None:
-        return None, problem
-    return payload, ""
+        return None, problem, ""
+    return payload, "", _others_note(names, index)
 
 
 async def _hub_canvas_node(
-    ctx: Any, shared: dict[str, Any], kind: str, label: str, content: Any
+    ctx: Any, shared: dict[str, Any], kind: str, label: str, content: Any, hint: str = ""
 ) -> str:
     from services.hub import client as hub
 
-    canvas, problem = await _hub_default_canvas(ctx, shared)
+    canvas, problem, note = await _hub_pick_canvas(ctx, shared, hint)
     if canvas is None:
         return problem
     index = len(canvas.get("nodes") or [])
@@ -1045,7 +1096,9 @@ async def execute_link_canvas_nodes(ctx: Any, args: dict[str, Any]) -> str:
     if shared is not None:
         return await _hub_link_canvas(ctx, shared, args)
 
-    canvas = await _default_canvas(ctx.db, project, ctx.user_id)
+    canvas, problem, _note = await _pick_canvas(ctx.db, project, ctx.user_id, args.get("canvas", ""))
+    if canvas is None:
+        return problem
     nodes = list(
         (
             await ctx.db.execute(
@@ -1114,7 +1167,7 @@ async def execute_link_canvas_nodes(ctx: Any, args: dict[str, Any]) -> str:
     await ctx.db.flush()
     src = source.label or source.kind
     dst = target.label or target.kind
-    return f'Linked "{src}" to "{dst}" on the canvas for "{project.name}".'
+    return f'Linked "{src}" to "{dst}" on the canvas "{canvas.name}" of "{project.name}".'
 
 
 def _find_hub_node(
@@ -1137,7 +1190,7 @@ def _find_hub_node(
 async def _hub_link_canvas(ctx: Any, shared: dict[str, Any], args: dict[str, Any]) -> str:
     from services.hub import client as hub
 
-    canvas, problem = await _hub_default_canvas(ctx, shared)
+    canvas, problem, _note = await _hub_pick_canvas(ctx, shared, args.get("canvas", ""))
     if canvas is None:
         return problem
     nodes = list(canvas.get("nodes") or [])
@@ -1229,10 +1282,11 @@ def _note_title(n: dict[str, Any]) -> str:
     return (n.get("label") or body[:60] or n.get("kind") or "note")[:60]
 
 
-def _render_canvas(name: str, nodes: list[dict[str, Any]], where: str = "") -> str:
+def _render_canvas(name: str, nodes: list[dict[str, Any]], where: str = "", canvas_name: str = "") -> str:
     notes = [n for n in nodes if n.get("kind") in _NOTE_KINDS]
     cards = [n for n in nodes if n.get("kind") not in _NOTE_KINDS and n.get("kind") not in ("image", "ink")]
-    lines = [f'Canvas of "{name}"{where}: {len(notes)} note(s), {len(cards)} card(s).']
+    which = f' "{canvas_name}"' if canvas_name else ""
+    lines = [f'Canvas{which} of "{name}"{where}: {len(notes)} note(s), {len(cards)} card(s).']
     for n in notes:
         body = (n.get("content") or "").strip()
         snippet = body[:300] + ("…" if len(body) > 300 else "")
@@ -1254,13 +1308,18 @@ async def execute_read_canvas(ctx: Any, args: dict[str, Any]) -> str:
     if project is None and shared is None:
         return problem
     if shared is not None:
-        canvas, problem = await _hub_default_canvas(ctx, shared)
+        canvas, problem, note = await _hub_pick_canvas(ctx, shared, args.get("canvas", ""))
         if canvas is None:
             return problem
-        return _render_canvas(str(shared.get("name")), list(canvas.get("nodes") or []), " (shared, on the hub)")
-    canvas = await _default_canvas(ctx.db, project, ctx.user_id)
+        return _render_canvas(
+            str(shared.get("name")), list(canvas.get("nodes") or []), " (shared, on the hub)",
+            str(canvas.get("name") or ""),
+        ) + note
+    canvas, problem, note = await _pick_canvas(ctx.db, project, ctx.user_id, args.get("canvas", ""))
+    if canvas is None:
+        return problem
     rows = (await ctx.db.execute(select(CanvasNode).where(CanvasNode.canvas_id == canvas.id))).scalars().all()
-    return _render_canvas(project.name, [_node_dict(n) for n in rows])
+    return _render_canvas(project.name, [_node_dict(n) for n in rows], "", canvas.name) + note
 
 
 async def execute_update_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
@@ -1294,7 +1353,7 @@ async def execute_update_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
     if shared is not None:
         from services.hub import client as hub
 
-        canvas, problem = await _hub_default_canvas(ctx, shared)
+        canvas, problem, _note = await _hub_pick_canvas(ctx, shared, args.get("canvas", ""))
         if canvas is None:
             return problem
         nodes = [n for n in (canvas.get("nodes") or []) if n.get("kind") in _NOTE_KINDS]
@@ -1314,7 +1373,9 @@ async def execute_update_canvas_node(ctx: Any, args: dict[str, Any]) -> str:
             return f"Error: the hub refused the change ({resp.status_code})."
         return f'Updated the {note["kind"]} "{_note_title(note)}" on the shared canvas ({", ".join(done)}).'
 
-    canvas = await _default_canvas(ctx.db, project, ctx.user_id)
+    canvas, problem, _note = await _pick_canvas(ctx.db, project, ctx.user_id, args.get("canvas", ""))
+    if canvas is None:
+        return problem
     rows = [
         n for n in (await ctx.db.execute(select(CanvasNode).where(CanvasNode.canvas_id == canvas.id))).scalars().all()
         if n.kind in _NOTE_KINDS
@@ -1534,12 +1595,14 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "description": (
                 "Put a note on a project's canvas — the shared whiteboard. Use when "
                 "asked to sketch out, lay out or capture ideas on the board. Makes the "
-                "canvas if the project has none yet."
+                "canvas if the project has none yet. A project can have several "
+                "canvases; name one with `canvas`, else the first is used."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "project": {"type": "string", "description": "Project name or id."},
+                    "canvas": {"type": "string", "description": "Canvas name, when the project has more than one."},
                     "kind": {
                         "type": "string",
                         "enum": ["sticky", "text", "frame", "shape"],
@@ -1565,6 +1628,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 "type": "object",
                 "properties": {
                     "project": {"type": "string", "description": "Project name or id."},
+                    "canvas": {"type": "string", "description": "Canvas name, when the project has more than one."},
                     "from_node": {
                         "type": "string",
                         "description": "Label or id of the note the arrow leaves.",
@@ -1586,12 +1650,14 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "description": (
                 "List what is on a project's canvas: every sticky, text, shape and frame "
                 "note with its id and text, and the task/reference cards. Call this "
-                "before editing a note so you can name it exactly."
+                "before editing a note so you can name it exactly. If the project has "
+                "several canvases the reply names the others; pass `canvas` to read one."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "project": {"type": "string", "description": "Project name or id."},
+                    "canvas": {"type": "string", "description": "Canvas name, when the project has more than one."},
                 },
                 "required": ["project"],
             },
@@ -1611,6 +1677,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 "type": "object",
                 "properties": {
                     "project": {"type": "string", "description": "Project name or id."},
+                    "canvas": {"type": "string", "description": "Canvas name, when the project has more than one."},
                     "node": {
                         "type": "string",
                         "description": "The note's id, its label, or distinctive words from its text.",
@@ -1699,19 +1766,22 @@ TOOL_DOCS = {
     ),
     "create_canvas_node": (
         "Add a sticky, text, frame or shape note to a project's canvas (whiteboard). "
-        "Creates the canvas on first use. Auto-approved."
+        "Creates the canvas on first use. A project may have several canvases: "
+        "JSON {\"project\": str, \"canvas\"?: name, \"kind\", \"label\", \"content\"}. Auto-approved."
     ),
     "link_canvas_nodes": (
         "Draw an arrow between two existing canvas notes, found by label or id. "
+        "JSON: {\"project\": str, \"canvas\"?: name, \"from_node\", \"to_node\", \"label\"?}. "
         "Use add_task_dependency for task-to-task scheduling links."
     ),
     "read_canvas": (
         "List every note (sticky/text/shape/frame, with id and text) and card on a "
-        "project's canvas, here or on the hub. JSON: {\"project\": str}. Call before "
+        "project's canvas, here or on the hub. JSON: {\"project\": str, \"canvas\"?: name}. "
+        "Without a canvas name the first is read and the others are listed. Call before "
         "update_canvas_node."
     ),
     "update_canvas_node": (
-        "Edit an existing canvas note. JSON: {\"project\": str, \"node\": id | label | "
+        "Edit an existing canvas note. JSON: {\"project\": str, \"canvas\"?: name, \"node\": id | label | "
         "words from its text, \"content\": str (replaces the text), \"append\": str "
         "(adds a line), \"label\": str}. Works on shared hub projects too. Cards "
         "(tasks, documents) are not edited here."

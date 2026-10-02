@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 290;
+export const BUILD_NUMBER = 291;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 291,
+    date: "2026-10-02",
+    title: "Several canvases per project",
+    changes: [
+      "A project can now have more than one canvas. The strip above the board lists them: + Canvas adds one, double-click renames, the bin deletes (when there are at least two). The canvas you had open is remembered.",
+      "Gerry can read and write a named canvas (\"put this on the Risk map canvas\") and tells you when a project has others.",
+    ],
+  },
   {
     build: 290,
     date: "2026-10-01",

@@ -58,9 +58,11 @@ import {
   PanelRightClose,
   PanelRightOpen,
   PenLine,
+  Plus,
   Redo2,
   Square,
   StickyNote,
+  Trash2,
   Type,
   Undo2,
 } from "lucide-react";
@@ -72,16 +74,22 @@ import { listProjectBudgets } from "@/api/budgets";
 import { getWorkroom, type WorkroomItemKind } from "@/api/workrooms";
 import { useCanvasSinkStore, type TextDropKind } from "@/stores/canvasSinkStore";
 import {
+  createCanvas,
   createEdge,
   createNode,
+  deleteCanvas,
   deleteEdge,
   deleteNode,
+  getCanvas,
   getDefaultCanvas,
+  listCanvases,
   resolveNodes,
   saveNodes,
+  updateCanvas,
   uploadCanvasImage,
 } from "@/api/canvas";
 import type {
+  Canvas,
   CanvasEdge as ApiEdge,
   CanvasFull,
   CanvasNode as ApiNode,
@@ -176,7 +184,18 @@ interface Props {
   canEdit: boolean;
 }
 
-function Board({ projectId, source = "local", canEdit }: Props) {
+function getError(err: unknown): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data
+    ?.detail;
+  return typeof detail === "string" ? detail : "Something went wrong.";
+}
+
+interface BoardProps extends Props {
+  /** Which of the project's canvases to show; undefined = the first one (made on demand). */
+  canvasId?: string;
+}
+
+function Board({ projectId, source = "local", canEdit, canvasId: wantedId }: BoardProps) {
   const queryClient = useQueryClient();
   const flow = useReactFlow();
   const navigate = useNavigate();
@@ -197,10 +216,11 @@ function Board({ projectId, source = "local", canEdit }: Props) {
   const [poolOpen, setPoolOpen] = useState(true);
   const drawing = useRef(false);
 
-  const key = ["project-canvas", source, projectId] as const;
+  const key = ["project-canvas", source, projectId, wantedId ?? "default"] as const;
   const { data, isLoading } = useQuery<CanvasFull>({
     queryKey: key,
-    queryFn: () => getDefaultCanvas(projectId, source),
+    queryFn: () =>
+      wantedId ? getCanvas(projectId, wantedId, source) : getDefaultCanvas(projectId, source),
   });
   const canvasId = data?.id ?? "";
   const editable = canEdit && Boolean(canvasId) && canvasId !== ZERO_UUID;
@@ -2008,9 +2028,167 @@ function Board({ projectId, source = "local", canEdit }: Props) {
 }
 
 export function CanvasTab(props: Props) {
+  const { projectId, source = "local", canEdit } = props;
+  const queryClient = useQueryClient();
+  const listKey = ["project-canvases", source, projectId] as const;
+  const { data: canvases } = useQuery<Canvas[]>({
+    queryKey: listKey,
+    queryFn: () => listCanvases(projectId, source),
+  });
+  const storageKey = `lg.canvas.active.${source}.${projectId}`;
+  const [activeId, setActiveId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(storageKey);
+    } catch {
+      return null;
+    }
+  });
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const list = canvases ?? [];
+  // A remembered canvas that no longer exists (deleted elsewhere) falls back to the first.
+  const current = list.find((c) => c.id === activeId) ?? list[0] ?? null;
+
+  const choose = useCallback(
+    (id: string | null) => {
+      setActiveId(id);
+      try {
+        if (id) localStorage.setItem(storageKey, id);
+        else localStorage.removeItem(storageKey);
+      } catch {
+        /* storage unavailable */
+      }
+    },
+    [storageKey],
+  );
+
+  const refreshList = () => queryClient.invalidateQueries({ queryKey: listKey });
+
+  const addCanvas = useMutation({
+    mutationFn: (name: string) => createCanvas(projectId, name, source),
+    onSuccess: (made) => {
+      refreshList();
+      choose(made.id);
+    },
+    onError: (e) => setError(getError(e)),
+  });
+  const renameCanvas = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      updateCanvas(projectId, id, { name }, source),
+    onSuccess: () => {
+      refreshList();
+      setRenaming(null);
+    },
+    onError: (e) => setError(getError(e)),
+  });
+  const removeCanvas = useMutation({
+    mutationFn: (id: string) => deleteCanvas(projectId, id, source),
+    onSuccess: (_d, id) => {
+      queryClient.removeQueries({ queryKey: ["project-canvas", source, projectId, id] });
+      refreshList();
+      if (activeId === id) choose(null);
+    },
+    onError: (e) => setError(getError(e)),
+  });
+
+  const onAdd = () => {
+    const name = window.prompt("Name for the new canvas", `Canvas ${list.length + 1}`);
+    if (name && name.trim()) addCanvas.mutate(name.trim().slice(0, 120));
+  };
+  const onDelete = (c: Canvas) => {
+    if (list.length < 2) return;
+    if (
+      window.confirm(
+        `Delete the canvas "${c.name}" and everything on it? Tasks and documents it points at are not deleted.`,
+      )
+    ) {
+      removeCanvas.mutate(c.id);
+    }
+  };
+
   return (
-    <ReactFlowProvider>
-      <Board {...props} />
-    </ReactFlowProvider>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-1">
+        {list.map((c) => {
+          const active = current?.id === c.id;
+          if (renaming?.id === c.id) {
+            return (
+              <form
+                key={c.id}
+                className="flex items-center gap-1"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const name = renaming.name.trim();
+                  if (name) renameCanvas.mutate({ id: c.id, name: name.slice(0, 120) });
+                  else setRenaming(null);
+                }}
+              >
+                <input
+                  autoFocus
+                  value={renaming.name}
+                  onChange={(e) => setRenaming({ id: c.id, name: e.target.value })}
+                  onBlur={() => setRenaming(null)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setRenaming(null);
+                  }}
+                  className="h-7 w-40 rounded-md border border-border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </form>
+            );
+          }
+          return (
+            <div key={c.id} className="group flex items-center">
+              <button
+                type="button"
+                onClick={() => choose(c.id)}
+                onDoubleClick={() => canEdit && setRenaming({ id: c.id, name: c.name })}
+                title={canEdit ? "Double-click to rename" : c.name}
+                className={`h-7 rounded-md px-2.5 text-sm transition-colors ${
+                  active
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                {c.name}
+              </button>
+              {canEdit && active && list.length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => onDelete(c)}
+                  title="Delete this canvas"
+                  className="ml-0.5 hidden h-7 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:flex"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={onAdd}
+            disabled={addCanvas.isPending}
+            title="Add another canvas to this project"
+            className="flex h-7 items-center gap-1 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {list.length === 0 ? "" : "Canvas"}
+          </button>
+        ) : null}
+        {error ? (
+          <span className="ml-2 text-xs text-destructive">
+            {error}{" "}
+            <button type="button" className="underline" onClick={() => setError(null)}>
+              dismiss
+            </button>
+          </span>
+        ) : null}
+      </div>
+      <ReactFlowProvider key={current?.id ?? "default"}>
+        <Board {...props} canvasId={current?.id} />
+      </ReactFlowProvider>
+    </div>
   );
 }
