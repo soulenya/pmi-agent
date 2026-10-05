@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 292;
+export const BUILD_NUMBER = 293;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 293,
+    date: "2026-10-05",
+    title: "Cc recipients no longer dropped",
+    changes: [
+      "Mail from Outlook/Exchange senders lost its Cc list on the way in, so group threads looked like one-to-one mail and Reply all reached nobody. Fixed; the open message now shows its cc line too.",
+    ],
+  },
   {
     build: 292,
     date: "2026-10-05",

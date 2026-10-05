@@ -107,7 +107,9 @@ def _describe_sync(message_id: str) -> dict | None:
         )
     except Exception:  # noqa: BLE001 — deleted between tick and read
         return None
-    headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
+    from services.google_service import _headers_of
+
+    headers = _headers_of(msg.get("payload", {}))
     return {
         "message_id": message_id,
         "thread_id": msg.get("threadId", ""),
