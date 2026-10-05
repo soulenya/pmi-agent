@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 293;
+export const BUILD_NUMBER = 294;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 294,
+    date: "2026-10-05",
+    title: "Leave the room — Gerry keeps working and the screen catches up",
+    changes: [
+      "Switching rooms, panels or pages never stopped Gerry, but coming back showed nothing until you refreshed. Now the conversation picks up exactly where she is — what she has written so far, which tool she is on — and keeps streaming.",
+      "Text you typed but did not send stays in the box when you return to that conversation, even after a restart.",
+    ],
+  },
   {
     build: 293,
     date: "2026-10-05",
