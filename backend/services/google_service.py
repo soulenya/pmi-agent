@@ -54,6 +54,33 @@ _auth_status: str = "disconnected"
 _auth_lock = threading.Lock()
 
 
+class _Headers(dict):
+    """Message headers keyed case-insensitively. Gmail hands back header names
+    as the sender wrote them — Exchange writes "CC", some clients "cc" — and a
+    plain dict lookup for "Cc" silently lost every recipient on those mails."""
+
+    def __init__(self, raw: list[dict] | None):
+        super().__init__()
+        for h in raw or []:
+            name = str(h.get("name", "")).lower()
+            # Keep the first occurrence; duplicates are rare and the first is canonical.
+            if name and name not in self:
+                self[name] = h.get("value", "")
+
+    def get(self, key, default=""):  # type: ignore[override]
+        return super().get(str(key).lower(), default)
+
+    def __getitem__(self, key):
+        return super().__getitem__(str(key).lower())
+
+    def __contains__(self, key):  # type: ignore[override]
+        return super().__contains__(str(key).lower())
+
+
+def _headers_of(payload: dict) -> _Headers:
+    return _Headers((payload or {}).get("headers", []))
+
+
 # ── credential helpers ────────────────────────────────────────────────────
 
 def _log_refresh_failure(exc: Exception) -> None:
@@ -303,14 +330,15 @@ def gmail_search(query: str, max_results: int = 10) -> list[dict]:
     for m in msgs:
         detail = svc.users().messages().get(
             userId="me", id=m["id"], format="metadata",
-            metadataHeaders=["From", "To", "Subject", "Date"],
+            metadataHeaders=["From", "To", "Cc", "Subject", "Date"],
         ).execute()
-        headers = {h["name"]: h["value"] for h in detail.get("payload", {}).get("headers", [])}
+        headers = _headers_of(detail.get("payload", {}))
         out.append({
             "id": m["id"],
             "thread_id": detail.get("threadId", "") or m.get("threadId", ""),
             "from": headers.get("From", ""),
             "to": headers.get("To", ""),
+            "cc": headers.get("Cc", ""),
             "subject": headers.get("Subject", ""),
             "date": headers.get("Date", ""),
             "snippet": detail.get("snippet", ""),
@@ -321,7 +349,7 @@ def gmail_search(query: str, max_results: int = 10) -> list[dict]:
 def gmail_get_message(message_id: str) -> dict:
     svc = _build("gmail", "v1")
     m = svc.users().messages().get(userId="me", id=message_id, format="full").execute()
-    headers = {h["name"]: h["value"] for h in m.get("payload", {}).get("headers", [])}
+    headers = _headers_of(m.get("payload", {}))
     payload = m.get("payload", {})
     return {
         "id": message_id,
@@ -352,7 +380,7 @@ def gmail_list_drafts(max_results: int = 20) -> list[dict]:
                 userId="me", id=msg_id, format="metadata",
                 metadataHeaders=["To", "Subject", "Date"],
             ).execute()
-            headers = {h["name"]: h["value"] for h in detail.get("payload", {}).get("headers", [])}
+            headers = _headers_of(detail.get("payload", {}))
             item.update(
                 to=headers.get("To", ""),
                 subject=headers.get("Subject", ""),
@@ -368,7 +396,7 @@ def gmail_get_draft(draft_id: str) -> dict:
     svc = _build("gmail", "v1")
     d = svc.users().drafts().get(userId="me", id=draft_id, format="full").execute()
     m = d.get("message", {}) or {}
-    headers = {h["name"]: h["value"] for h in m.get("payload", {}).get("headers", [])}
+    headers = _headers_of(m.get("payload", {}))
     return {
         "draft_id": d.get("id", draft_id),
         "message_id": m.get("id", ""),
@@ -576,8 +604,8 @@ def gmail_list_threads(query: str = "in:inbox", max_results: int = 25) -> list[d
 
         first = msgs[0] if msgs else {}
         last = max(msgs, key=_ms) if msgs else {}
-        first_h = {h["name"]: h["value"] for h in first.get("payload", {}).get("headers", [])}
-        last_h = {h["name"]: h["value"] for h in last.get("payload", {}).get("headers", [])}
+        first_h = _headers_of(first.get("payload", {}))
+        last_h = _headers_of(last.get("payload", {}))
         labels: set[str] = set()
         for m in msgs:
             labels.update(m.get("labelIds", []) or [])
@@ -609,7 +637,7 @@ def gmail_get_thread(thread_id: str) -> dict:
     subject = ""
     for m in thread.get("messages", []):
         payload = m.get("payload", {})
-        headers = {h["name"]: h["value"] for h in payload.get("headers", [])}
+        headers = _headers_of(payload)
         if not subject:
             subject = headers.get("Subject", "")
         text, html = _extract_bodies(payload)
@@ -728,7 +756,7 @@ def gmail_forward(
         userId="me", id=message_id, format="full"
     ).execute()
     payload = original.get("payload", {})
-    headers = {h["name"]: h["value"] for h in payload.get("headers", [])}
+    headers = _headers_of(payload)
     subject = headers.get("Subject", "") or "(no subject)"
     if not subject.lower().startswith("fwd:"):
         subject = f"Fwd: {subject}"

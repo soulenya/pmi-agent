@@ -4,6 +4,25 @@
 
 ## Changelog
 
+### v5.17.2 · build 293 — 2026-10-05
+**Cc recipients from Outlook/Exchange senders were being dropped**
+
+- Morgan: a group message from Theo Thomas showed in Little Gerry as from
+  Theo only; "the rest of the recipients either on cc or to are cut off".
+- Read-only check of the real message: Gmail returns header names as the
+  sender wrote them, and Exchange writes `CC`. Every header lookup in
+  `services/google_service.py` was a plain dict keyed on `"Cc"`, so the Cc
+  line of any mail from an Exchange/Outlook sender came back empty — in the
+  thread reader, in Reply all, in the 5.17.1 reply/reply-all prompt, in
+  Gerry's `read_gmail_message`, and in Forward's quoted header. RFC 5322
+  header names are case-insensitive.
+- Fix: `_Headers` (case-insensitive dict) + `_headers_of(payload)` used at
+  all eight header sites (search, message, thread, drafts list/get, inbox
+  list, forward) and in `gmail_watch`. Search results now include `cc`.
+  The thread reader shows a **cc** line under **to** (both wrap instead of
+  running off). Verified on the real CRADA thread: Cc of 6 now present and
+  `reply_recipients` lists all seven others.
+
 ### v5.17.1 · build 292 — 2026-10-05
 **Gerry asks "reply, or reply all?" on a group thread; chat replies now thread**
 

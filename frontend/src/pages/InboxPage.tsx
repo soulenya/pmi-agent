@@ -2334,7 +2334,11 @@ function ThreadReader({
                   </p>
                   <p className="text-xs text-zinc-500 shrink-0">{fmtDate(m.date)}</p>
                 </div>
-                <p className="text-xs text-zinc-500 mb-3">to {m.to}</p>
+                <p className="text-xs text-zinc-500 break-words">to {m.to}</p>
+                {m.cc ? (
+                  <p className="text-xs text-zinc-500 break-words">cc {m.cc}</p>
+                ) : null}
+                <div className="mb-3" />
               </button>
               <MessageBody message={m} />
               <Attachments message={m} />
