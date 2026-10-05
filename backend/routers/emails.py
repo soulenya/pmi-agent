@@ -33,6 +33,8 @@ class EmailDraftCreate(BaseModel):
     recipient_email: str | None = None
     cc: str | None = Field(default=None, max_length=500)
     bcc: str | None = Field(default=None, max_length=500)
+    thread_id: str | None = Field(default=None, max_length=255)
+    reply_to_message_id: str | None = Field(default=None, max_length=255)
     purpose: str = Field(..., min_length=10, max_length=2000)
     tone: str = Field(default="professional")
     key_points: str | None = None
@@ -46,6 +48,8 @@ class EmailDraftOut(BaseModel):
     recipient_email: str | None
     cc: str | None = None
     bcc: str | None = None
+    thread_id: str | None = None
+    reply_to_message_id: str | None = None
     purpose: str
     tone: str
     key_points: str | None
@@ -172,6 +176,8 @@ async def create_and_draft(
         recipient_email=body.recipient_email,
         cc=body.cc,
         bcc=body.bcc,
+        thread_id=body.thread_id,
+        reply_to_message_id=body.reply_to_message_id,
         purpose=body.purpose,
         tone=body.tone,
         key_points=body.key_points,
@@ -356,7 +362,8 @@ async def submit_for_approval(
         intent_title=f"Send email: {draft.subject}",
         intent_description=(
             f"To: {draft.recipient_name or draft.recipient_email or 'Unknown'}\n"
-            f"Purpose: {draft.purpose}"
+            + (f"Cc: {draft.cc}\n" if draft.cc else "")
+            + f"Purpose: {draft.purpose}"
             + (
                 "\nAttachments: "
                 + ", ".join(a.get("display_name", a.get("filename", "?")) for a in draft.attachments)
@@ -373,6 +380,8 @@ async def submit_for_approval(
             "bcc": draft.bcc,
             "draft_body": draft.draft_body,
             "attachments": draft.attachments or [],
+            "thread_id": draft.thread_id,
+            "reply_to_message_id": draft.reply_to_message_id,
         },
         risk_level=RiskLevel.MEDIUM,
     )

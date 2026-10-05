@@ -25,6 +25,9 @@ class EmailDraft(Base):
     # Comma-separated additional recipients (passed straight to gmail_send)
     cc: Mapped[str | None] = mapped_column(String(500), nullable=True)
     bcc: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Gmail threading for a reply: set, the approved send lands in that thread.
+    thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reply_to_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     purpose: Mapped[str] = mapped_column(Text, nullable=False)  # what the email should accomplish
     tone: Mapped[str] = mapped_column(String(50), nullable=False, default="professional")
     key_points: Mapped[str | None] = mapped_column(Text, nullable=True)  # user notes/bullet points

@@ -282,6 +282,12 @@ TOOL_DEFINITIONS: list[dict] = [
                 "SCHEDULING: if the email proposes, confirms or declines a meeting time, call "
                 "get_calendar_events for the relevant days FIRST and offer only free slots — never "
                 "a placeholder time with a note that you could not check the calendar. "
+                "REPLYING TO AN EMAIL: pass reply_to_message_id (the Message ID from "
+                "read_gmail_message) so the reply lands in the same thread. read_gmail_message "
+                "shows a REPLY-ALL line listing everyone else on that message; when it is not "
+                "empty and the user has not said which, ASK 'reply to the sender only, or reply "
+                "all?' before drafting. For reply-all pass reply_all=true (the tool fills To "
+                "and Cc from the message) — do not type the addresses yourself. "
                 "Only use request_approval(intent_type='send_email') instead when the user explicitly "
                 "asks you to SEND an email right now."
             ),
@@ -302,6 +308,15 @@ TOOL_DEFINITIONS: list[dict] = [
                     "recipient_email": {"type": "string", "description": "Recipient's email address, if known."},
                     "cc": {"type": "string", "description": "CC recipients — comma-separated email addresses."},
                     "bcc": {"type": "string", "description": "BCC recipients — comma-separated email addresses."},
+                    "reply_to_message_id": {
+                        "type": "string",
+                        "description": "When this is a reply: the Gmail Message ID being answered (from read_gmail_message / search_gmail). The reply is threaded under it.",
+                    },
+                    "reply_all": {
+                        "type": "boolean",
+                        "description": "With reply_to_message_id: address the sender and copy everyone else on that message (the user's own addresses excluded). Ask the user before choosing when the message had other recipients.",
+                        "default": False,
+                    },
                     "purpose": {"type": "string", "description": "One line on what the email accomplishes (optional)."},
                     "tone": {
                         "type": "string",
@@ -3105,6 +3120,38 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
     bcc = str(args.get("bcc", "")).strip()[:500] or None
     resolved_note = ""
 
+    # A reply: thread it, and under reply-all take To/Cc from the message itself.
+    reply_to_message_id = str(args.get("reply_to_message_id") or "").strip() or None
+    reply_all = bool(args.get("reply_all"))
+    thread_id: str | None = None
+    if reply_to_message_id:
+        import asyncio
+
+        from services.google_service import get_credentials, gmail_get_message, reply_recipients
+
+        if not get_credentials():
+            return _google_not_connected()
+        try:
+            msg = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: gmail_get_message(reply_to_message_id)
+            )
+        except Exception as exc:  # noqa: BLE001
+            return f"Could not read message {reply_to_message_id} to reply to it: {exc}. No draft was filed."
+        thread_id = msg.get("thread_id") or None
+        who = await asyncio.get_event_loop().run_in_executor(None, lambda: reply_recipients(msg))
+        if reply_all:
+            recipient_email = who["reply_all_to"] or recipient_email
+            cc = who["reply_all_cc"] or None
+            resolved_note = " (reply-all: recipients taken from the message)"
+        elif not recipient_email:
+            recipient_email = who["to"] or who["reply_all_to"] or None
+        if recipient_email and not recipient_name:
+            sender = str(msg.get("from", ""))
+            if recipient_email.lower() in sender.lower():
+                recipient_name = sender.split("<")[0].strip().strip('"') or None
+        if not subject.lower().startswith("re:") and msg.get("subject"):
+            subject = f"Re: {str(msg['subject']).strip()}"[:500]
+
     # The user's configured signature (Settings → Inbox → Signature: gmail /
     # custom / none) is appended to every Gerry draft.
     try:
@@ -3221,6 +3268,8 @@ async def execute_create_email_draft(ctx: ToolContext, args: dict[str, Any]) -> 
         recipient_email=recipient_email,
         cc=cc,
         bcc=bcc,
+        thread_id=thread_id,
+        reply_to_message_id=reply_to_message_id,
         purpose=purpose,
         tone=tone,
         key_points=None,
@@ -3805,11 +3854,25 @@ async def execute_read_gmail_message(ctx: ToolContext, args: dict[str, Any]) -> 
         )
     if not atts:
         att_lines.append("ATTACHMENTS: none.")
+    try:
+        from services.google_service import reply_recipients
+
+        who = await asyncio.get_event_loop().run_in_executor(None, lambda: reply_recipients(msg))
+        others = who.get("others") or []
+        reply_line = (
+            "REPLY-ALL would also copy: " + ", ".join(others)
+            + " — ask the user 'reply to the sender only, or reply all?' before drafting a reply."
+            if others else "REPLY-ALL: nobody else is on this message; a plain reply reaches everyone."
+        )
+    except Exception:  # noqa: BLE001
+        reply_line = ""
     return (
         f"From: {msg['from']}\nTo: {msg['to']}\n"
-        f"Subject: {msg['subject']}\nDate: {msg['date']}\n"
+        + (f"Cc: {msg['cc']}\n" if msg.get("cc") else "")
+        + f"Subject: {msg['subject']}\nDate: {msg['date']}\n"
         f"Message ID: {message_id}\n"
         + "\n".join(att_lines)
+        + (f"\n{reply_line}" if reply_line else "")
         + f"\n\n{msg['body'][:6000]}"
     )
 

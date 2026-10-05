@@ -487,7 +487,7 @@ Tasks Gerry creates for you remember where they came from, so you never hit a de
 
 - **Open …** jumps straight to the thing the task is about — the email thread in your Inbox, the document in the Knowledge Base, the regulatory file, the meeting, the room, or the chat where it came up.
 - **Ask Gerry** opens a conversation about that specific task, with the context already loaded.
-- **Gerry draft** appears on email follow-ups. One click and Gerry writes the reply for that thread; it lands in **Approvals** for you to read and send — nothing goes out on its own.
+- **Gerry draft** appears on email follow-ups. One click and Gerry writes the reply for that thread; when the thread has other people on it you are asked whether to reply to everyone or the sender only. It lands in **Approvals** for you to read and send — nothing goes out on its own.
 
 These buttons show on the task list, on Kanban cards, and in the task detail panel. Tasks on the Dashboard open the matching task directly.
 
@@ -965,7 +965,7 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 
 - **Reply** or **Reply all** (Reply all pre-fills the other recipients as Cc) directly from a thread. Your own addresses are never included — including any **send-as alias** on your account, so mail sent to an alias doesn't Cc you back into your own reply.
 - **Forward** sends the newest message in the thread on to someone else. Add a note of your own at the top; the original is quoted underneath and its **attachments are carried across** (untick the box if you'd rather send just the text).
-- You can also ask Little Gerry to draft a reply — the draft appears **right in the thread** for you to approve, edit, or reject before anything is sent. If the reply is about setting up a meeting, she reads the next two weeks of your calendar first and proposes specific free times; the same goes for new emails and drafts written in chat.
+- You can also ask Little Gerry to draft a reply — the draft appears **right in the thread** for you to approve, edit, or reject before anything is sent. **On a group thread she asks first:** if the message went to other people too, **Let Gerry Draft** offers *Sender only* or *Reply all* (and lists who Reply all would copy) before writing anything. Open the box with **Reply all** and she follows that without asking. The same question appears on a task's **Gerry draft** button. If the reply is about setting up a meeting, she reads the next two weeks of your calendar first and proposes specific free times; the same goes for new emails and drafts written in chat.
 
 ### Other actions
 

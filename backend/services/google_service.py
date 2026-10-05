@@ -328,6 +328,7 @@ def gmail_get_message(message_id: str) -> dict:
         "thread_id": m.get("threadId", ""),
         "from": headers.get("From", ""),
         "to": headers.get("To", ""),
+        "cc": headers.get("Cc", ""),
         "subject": headers.get("Subject", ""),
         "date": headers.get("Date", ""),
         "body": _extract_body(payload),
@@ -637,6 +638,43 @@ def gmail_get_thread(thread_id: str) -> dict:
         "me": me,
         "me_addresses": own,
         "messages": messages,
+    }
+
+
+def _split_addresses(header: str) -> list[str]:
+    """Bare lowercase emails from a To/Cc header (names and brackets dropped)."""
+    import re
+
+    out: list[str] = []
+    for part in re.split(r"[,;]", header or ""):
+        part = part.strip()
+        if not part:
+            continue
+        m = re.search(r"<([^>]+)>", part)
+        addr = (m.group(1) if m else part).strip().lower()
+        if "@" in addr:
+            out.append(addr)
+    return out
+
+
+def reply_recipients(message: dict, own_addresses: list[str] | None = None) -> dict:
+    """Who a reply and a reply-all to *message* go to, with the account's own
+    addresses removed. ``{"to": str, "reply_all_to": str, "reply_all_cc": str,
+    "others": [str]}`` — ``others`` is everyone a reply-all would add beyond the
+    plain reply, which is what the UI uses to decide whether to ask."""
+    own = {a.lower() for a in (own_addresses if own_addresses is not None else gmail_own_addresses())}
+    sender = (_split_addresses(message.get("from", "")) or [""])[0]
+    pool: list[str] = []
+    for addr in _split_addresses(message.get("to", "")) + _split_addresses(message.get("cc", "")):
+        if addr not in own and addr != sender and addr not in pool:
+            pool.append(addr)
+    # Replying to something you sent: address its recipients instead of yourself.
+    recipients = pool if (sender in own or not sender) else [sender, *pool]
+    return {
+        "to": "" if sender in own else sender,
+        "reply_all_to": recipients[0] if recipients else "",
+        "reply_all_cc": ", ".join(recipients[1:]),
+        "others": recipients[1:] if sender not in own else recipients,
     }
 
 
