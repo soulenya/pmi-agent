@@ -4,6 +4,35 @@
 
 ## Changelog
 
+### v5.17.3 · build 294 — 2026-10-05
+**Leave the room; Gerry keeps working and the screen catches up; drafts survive**
+
+- Morgan: does Gerry keep working if I switch rooms or panels? And unsent text
+  in the chat box is gone on return.
+- Already true: since the detached runner, a turn runs to completion in its
+  own task and session even with no socket listening. Not true: on return
+  the new socket knew nothing about it — no indicator, no stream, the
+  answer appeared only after a manual refresh; the hub sync after the turn
+  lived in the socket handler and was skipped when the socket died; and the
+  typed draft was component state, lost on unmount.
+- `stream_runner`: each run is a `_Run` holding every frame so far and a
+  set of subscriber queues; `attach(conversation_id)` returns a queue
+  pre-loaded with `{"type":"resumed"}` + the buffered frames, then live
+  ones until the `None` sentinel; `detach` on socket close. `ws_chat`
+  attaches on connect when a run is in flight before entering the receive
+  loop. `conv_sync.after_turn` moved into the run (its own session), so the
+  hub gets the answer whether or not anyone is watching.
+- Frontend: `ChatPage` and `ConversationPane` handle `resumed` (reset
+  buffers, mark busy; the pane shows "Gerry kept working while you were away
+  — catching up…" until frames arrive; Resend is suppressed while
+  re-attached). New `stores/chatDraftStore.ts` (persist `lg-chat-drafts`,
+  50 keys): `ChatInput` takes `draftKey` (restore on mount, save on input,
+  clear on send); the pane's controlled textarea does the same per
+  conversation.
+- Verified in-process with a faked executor: first socket reads 2 frames and
+  detaches; late attach receives `resumed` + all 6 tokens + `done`; run
+  cleared; after_turn called once.
+
 ### v5.17.2 · build 293 — 2026-10-05
 **Cc recipients from Outlook/Exchange senders were being dropped**
 

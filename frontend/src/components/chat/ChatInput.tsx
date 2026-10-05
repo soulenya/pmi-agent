@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { transcribeAudio } from "@/api/voice";
 import { useResizableTextarea } from "@/hooks/useResizableTextarea";
 import { useChatInputSizeStore } from "@/stores/chatInputSizeStore";
+import { useChatDraftStore } from "@/stores/chatDraftStore";
 
 interface Props {
   onSend: (content: string) => void;
@@ -11,13 +12,23 @@ interface Props {
   placeholder?: string;
   /** Show the microphone button (Google voice key configured). */
   voiceEnabled?: boolean;
+  /** Remember unsent text under this key (usually the conversation id). */
+  draftKey?: string;
 }
 
-export function ChatInput({ onSend, disabled = false, placeholder, voiceEnabled = false }: Props) {
+export function ChatInput({
+  onSend,
+  disabled = false,
+  placeholder,
+  voiceEnabled = false,
+  draftKey,
+}: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const setDraft = useChatDraftStore((s) => s.setDraft);
+  const clearDraft = useChatDraftStore((s) => s.clearDraft);
 
   const mainHeight = useChatInputSizeStore((s) => s.mainHeight);
   const setMainHeight = useChatInputSizeStore((s) => s.setMainHeight);
@@ -39,6 +50,21 @@ export function ChatInput({ onSend, disabled = false, placeholder, voiceEnabled 
     };
   }, []);
 
+  // Bring back what was typed here last time; the textarea is uncontrolled.
+  useEffect(() => {
+    if (!draftKey || !ref.current) return;
+    const saved = useChatDraftStore.getState().drafts[draftKey] ?? "";
+    if (saved && !ref.current.value) {
+      ref.current.value = saved;
+      applyHeight();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  function rememberDraft() {
+    if (draftKey) setDraft(draftKey, ref.current?.value ?? "");
+  }
+
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -50,6 +76,7 @@ export function ChatInput({ onSend, disabled = false, placeholder, voiceEnabled 
     const value = ref.current?.value.trim();
     if (!value || disabled) return;
     onSend(value);
+    if (draftKey) clearDraft(draftKey);
     if (ref.current) {
       ref.current.value = "";
       applyHeight();
@@ -130,7 +157,10 @@ export function ChatInput({ onSend, disabled = false, placeholder, voiceEnabled 
               : placeholder ?? "Message Little Gerry… (Shift+Enter for new line)"
           }
           onKeyDown={handleKeyDown}
-          onInput={applyHeight}
+          onInput={() => {
+            applyHeight();
+            rememberDraft();
+          }}
           className={cn(
             "flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground",
             disabled && "opacity-50 cursor-not-allowed",

@@ -497,7 +497,7 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string) as {
-          type: "token" | "done" | "error" | "tool_status" | "confirm_delete" | "confirm_drive_edit" | "artifact_link";
+          type: "token" | "done" | "error" | "tool_status" | "confirm_delete" | "confirm_drive_edit" | "artifact_link" | "resumed";
           content?: string;
           tool_name?: string;
           status?: string;
@@ -506,7 +506,15 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
           title?: string;
         };
 
-        if (msg.type === "token" && msg.content) {
+        if (msg.type === "resumed") {
+          // Gerry was still working on this conversation while we were away:
+          // the frames so far follow, then the live ones.
+          setBusySince((prev) => prev ?? Date.now());
+          setStreamingContent(null);
+          streamBufferRef.current = "";
+          setToolActivities([]);
+          setTurnArtifacts([]);
+        } else if (msg.type === "token" && msg.content) {
           setStreamingContent((prev) => (prev ?? "") + msg.content);
           streamBufferRef.current += msg.content;
           // Clear tool activity once the LLM starts responding
@@ -1125,6 +1133,7 @@ export function ChatPage({ source = "local" }: { source?: Source } = {}) {
           onSend={handleSend}
           disabled={!conversationId && createConvMutation.isPending}
           voiceEnabled={voiceEnabled}
+          draftKey={conversationId ?? "new"}
           placeholder={
             conversationId
               ? "Message Little Gerry…"

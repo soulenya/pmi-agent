@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AudioLines, RotateCcw, Send, Square, Wrench } from "lucide-react";
+import { AudioLines, Loader2, RotateCcw, Send, Square, Wrench } from "lucide-react";
 
 import { listMessages, stopTurn } from "@/api/chat";
 import { grantDriveEdit } from "@/api/google";
@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useCanvasSinkStore, type TextDropKind } from "@/stores/canvasSinkStore";
 import { useChatInputSizeStore } from "@/stores/chatInputSizeStore";
+import { useChatDraftStore } from "@/stores/chatDraftStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useVoiceAssistantStore } from "@/stores/voiceAssistantStore";
 import type { Message, WSToolStatusFrame } from "@/types/chat";
@@ -166,7 +167,22 @@ export function ConversationPane({
   const onHub = source === "hub";
 
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState("");
+  const [inputText, setInputTextState] = useState(
+    () => (conversationId ? useChatDraftStore.getState().drafts[conversationId] ?? "" : ""),
+  );
+  const setInputText = useCallback(
+    (text: string) => {
+      setInputTextState(text);
+      if (conversationId) useChatDraftStore.getState().setDraft(conversationId, text);
+    },
+    [conversationId],
+  );
+  // Switching conversations in the same pane: bring that conversation's draft back.
+  useEffect(() => {
+    setInputTextState(conversationId ? useChatDraftStore.getState().drafts[conversationId] ?? "" : "");
+  }, [conversationId]);
+  // Gerry was mid-turn when this pane opened (we came back to the room).
+  const [resumedAt, setResumedAt] = useState<number | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [toolActivities, setToolActivities] = useState<ToolActivity[]>([]);
@@ -220,6 +236,7 @@ export function ConversationPane({
 
   const turnRunning =
     streamingContent !== null ||
+    resumedAt !== null ||
     (messages.length > 0 && messages[messages.length - 1].role === "user");
 
   const handleStop = useCallback(async () => {
@@ -241,15 +258,17 @@ export function ConversationPane({
       streamingContent === null;
     // A tool still running on a live socket (a long vision read, a Drive scan)
     // is not a lost turn; offering Resend there starts the same work twice.
+    // Neither is a turn we re-attached to after coming back.
     const working =
-      wsReadyConvId === conversationId && toolActivities.some((a) => a.status === "running");
+      resumedAt !== null ||
+      (wsReadyConvId === conversationId && toolActivities.some((a) => a.status === "running"));
     if (!waiting || working) {
       setTurnStuck(false);
       return;
     }
     const t = window.setTimeout(() => setTurnStuck(true), 45_000);
     return () => window.clearTimeout(t);
-  }, [messages, streamingContent, toolActivities, wsReadyConvId, conversationId]);
+  }, [messages, streamingContent, toolActivities, wsReadyConvId, conversationId, resumedAt]);
 
   const sidebarHeight = useChatInputSizeStore((s) => s.sidebarHeight);
   const setSidebarHeight = useChatInputSizeStore((s) => s.setSidebarHeight);
@@ -405,6 +424,14 @@ export function ConversationPane({
     ws.onmessage = (ev) => {
       try {
         const frame = JSON.parse(ev.data);
+        if (frame.type === "resumed") {
+          setResumedAt(Date.now());
+          setStreamingContent(null);
+          streamBufferRef.current = "";
+          setToolActivities([]);
+          setTurnArtifacts([]);
+          return;
+        }
         if (frame.type === "token" && frame.content) {
           setStreamingContent((prev) => (prev ?? "") + frame.content);
           streamBufferRef.current += frame.content;
@@ -456,6 +483,7 @@ export function ConversationPane({
           setStreamingContent(null);
           setToolActivities([]);
           setTurnArtifacts([]);
+          setResumedAt(null);
           const finalText = streamBufferRef.current;
           streamBufferRef.current = "";
           voice.onDone(finalText);
@@ -595,6 +623,12 @@ export function ConversationPane({
             <span className="truncate">{a.label}</span>
           </div>
         ))}
+        {resumedAt !== null && streamingContent === null && toolActivities.length === 0 && (
+          <p className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin text-primary" />
+            Gerry kept working while you were away — catching up…
+          </p>
+        )}
         {turnRunning && (
           <button
             onClick={handleStop}

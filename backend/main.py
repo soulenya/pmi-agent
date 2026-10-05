@@ -860,7 +860,24 @@ def create_app() -> FastAPI:
                 await websocket.close()
                 return
 
+            from services.agent.stream_runner import attach, detach, spawn_agent_run
+
+            async def _forward(q: "asyncio.Queue[str | None]") -> None:
+                while True:
+                    frame = await q.get()
+                    if frame is None:
+                        return
+                    await websocket.send_text(frame)
+
             try:
+                # Came back mid-turn? Catch the screen up and keep streaming.
+                resumed = attach(conv_uuid)
+                if resumed is not None:
+                    try:
+                        await _forward(resumed)
+                    finally:
+                        detach(conv_uuid, resumed)
+
                 while True:
                     raw = await websocket.receive_text()
                     try:
@@ -902,9 +919,8 @@ def create_app() -> FastAPI:
                     # Run the agent in a DETACHED background task with its own DB
                     # session, forwarding frames via a queue. If the client
                     # disconnects (e.g. navigates away), the run keeps going to
-                    # completion and persists its answer — it is not cancelled.
-                    from services.agent.stream_runner import spawn_agent_run
-
+                    # completion, persists its answer and syncs it to the hub —
+                    # it is not cancelled, and a returning socket re-attaches.
                     frame_queue: asyncio.Queue[str | None] = asyncio.Queue()
                     spawn_agent_run(
                         user.id,
@@ -915,26 +931,13 @@ def create_app() -> FastAPI:
                         voice=incoming.voice,
                         phone=incoming.phone,
                     )
-                    while True:
-                        frame = await frame_queue.get()
-                        if frame is None:
-                            break
-                        await websocket.send_text(frame)
-
-                    if not settings.hub_mode:
-                        # End this session's transaction first, or the rows the
-                        # detached run committed are outside our snapshot. Then
-                        # offer the turn to the hub, so the chat can be picked up
-                        # from a phone or another desk.
-                        await db.commit()
-                        from services.hub import conv_sync
-
-                        try:
-                            await conv_sync.after_turn(db, user.id, conv_uuid)
-                            await db.commit()
-                        except Exception:  # noqa: BLE001 — never costs the answer
-                            logger.exception("Hub sync after turn failed")
-                            await db.rollback()
+                    try:
+                        await _forward(frame_queue)
+                    finally:
+                        detach(conv_uuid, frame_queue)
+                    # The detached run committed in its own session; end ours
+                    # so the next turn's reads see those rows.
+                    await db.commit()
 
             except WebSocketDisconnect:
                 logger.info("WebSocket disconnected: user=%s conversation=%s", user.id, conversation_id)
