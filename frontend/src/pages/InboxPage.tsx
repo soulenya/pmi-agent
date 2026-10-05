@@ -1741,6 +1741,9 @@ function ThreadReader({
   const [replyTo, setReplyTo] = useState("");
   const [replyCc, setReplyCc] = useState("");
   const [showCc, setShowCc] = useState(false);
+  // How the reply box was opened; Gerry's draft follows it without asking again.
+  const [replyMode, setReplyMode] = useState<"reply" | "reply_all">("reply");
+  const [draftChoice, setDraftChoice] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const [instruction, setInstruction] = useState("");
   const [showTags, setShowTags] = useState(false);
@@ -1826,6 +1829,8 @@ function ThreadReader({
     setReplyTo(emailOf(last?.from || ""));
     setReplyCc("");
     setShowCc(false);
+    setReplyMode("reply");
+    setDraftChoice(false);
     setReplyBody(signature ? `\n\n${signature}` : "");
     setInstruction("");
     setShowReply(true);
@@ -1834,8 +1839,8 @@ function ThreadReader({
     setNotice(null);
   }
 
-  /** Reply to the sender and everyone else on the last message (minus yourself). */
-  function openReplyAll() {
+  /** Everyone a reply-all to the last message reaches, minus the account's own addresses. */
+  function replyAllRecipients(): { to: string; cc: string[]; others: string[] } {
     // Every address the account owns, not just the primary one — mail sent to
     // a send-as alias was Cc'ing the user back into their own reply.
     const mine = new Set(
@@ -1856,10 +1861,17 @@ function ThreadReader({
     const unique = Array.from(new Set(others));
     // Replying to a message you sent yourself: address the recipients instead.
     const recipients = mine.has(sender.toLowerCase()) ? unique : [sender, ...unique];
-    const uniqueCc = recipients.slice(1);
-    setReplyTo(recipients[0] ?? "");
-    setReplyCc(uniqueCc.join(", "));
-    setShowCc(uniqueCc.length > 0);
+    return { to: recipients[0] ?? "", cc: recipients.slice(1), others: unique };
+  }
+
+  /** Reply to the sender and everyone else on the last message (minus yourself). */
+  function openReplyAll() {
+    const { to, cc } = replyAllRecipients();
+    setReplyTo(to);
+    setReplyCc(cc.join(", "));
+    setShowCc(cc.length > 0);
+    setReplyMode("reply_all");
+    setDraftChoice(false);
     setReplyBody(signature ? `\n\n${signature}` : "");
     setInstruction("");
     setShowReply(true);
@@ -1918,29 +1930,64 @@ function ThreadReader({
   });
 
   const gerryDraft = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts: { replyAll: boolean; to: string; cc: string }) => {
       const res = await apiClient.post(
         `${GOOGLE_PREFIX}/gmail/draft-reply`,
         {
           thread_id: detail.thread_id,
           message_id: last?.id,
           instruction: instruction.trim() || null,
-          cc: replyCc.trim() || null,
+          reply_all: opts.replyAll,
+          to: opts.to.trim() || null,
+          cc: opts.cc.trim(),
         },
         { timeout: 2 * 60 * 1000 },
       );
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, opts) => {
       setNotice({
         kind: "ok",
-        text: "Gerry drafted a reply — review and approve it right below.",
+        text: opts.replyAll
+          ? "Gerry drafted a reply to everyone on the thread — review and approve it right below."
+          : "Gerry drafted a reply to the sender — review and approve it right below.",
       });
       setShowReply(false);
+      setDraftChoice(false);
       qc.invalidateQueries({ queryKey: ["approvals"] });
     },
     onError: (e) => setNotice({ kind: "error", text: getError(e) }),
   });
+
+  /** "Let Gerry Draft": follow the box when it was opened as Reply all; otherwise
+   *  ask when the message had other people on it, so a group thread is never
+   *  answered to one person by accident. */
+  function startGerryDraft() {
+    if (replyMode === "reply_all") {
+      gerryDraft.mutate({ replyAll: true, to: replyTo, cc: replyCc });
+      return;
+    }
+    const { others } = replyAllRecipients();
+    if (others.length === 0) {
+      gerryDraft.mutate({ replyAll: false, to: replyTo, cc: replyCc });
+      return;
+    }
+    setDraftChoice(true);
+  }
+
+  function chooseGerryDraft(replyAll: boolean) {
+    setDraftChoice(false);
+    if (replyAll) {
+      const { to, cc } = replyAllRecipients();
+      setReplyTo(to);
+      setReplyCc(cc.join(", "));
+      setShowCc(cc.length > 0);
+      setReplyMode("reply_all");
+      gerryDraft.mutate({ replyAll: true, to, cc: cc.join(", ") });
+    } else {
+      gerryDraft.mutate({ replyAll: false, to: replyTo, cc: replyCc });
+    }
+  }
 
   const importThread = async (meta: KbMeta) => {
     const res = await apiClient.post(
@@ -2125,7 +2172,7 @@ function ThreadReader({
             </button>
             <span className="text-xs text-zinc-600">— or —</span>
             <button
-              onClick={() => gerryDraft.mutate()}
+              onClick={startGerryDraft}
               disabled={gerryDraft.isPending}
               className="text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 disabled:opacity-50 transition-colors flex items-center gap-1.5"
             >
@@ -2133,6 +2180,39 @@ function ThreadReader({
               {gerryDraft.isPending ? "Drafting…" : "Let Gerry Draft"}
             </button>
           </div>
+          {draftChoice ? (
+            <div className="rounded-md border border-amber-800/60 bg-amber-950/20 p-3 space-y-2">
+              <p className="text-xs text-amber-200">
+                This message went to other people too. Who should Gerry reply to?
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => chooseGerryDraft(false)}
+                  className="text-xs px-3 py-1.5 rounded border border-amber-700 text-amber-300 hover:bg-amber-950/40 transition-colors flex items-center gap-1.5"
+                >
+                  <Reply className="w-3.5 h-3.5" />
+                  Sender only ({emailOf(last?.from || "") || "sender"})
+                </button>
+                <button
+                  onClick={() => chooseGerryDraft(true)}
+                  className="text-xs px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-500 text-white transition-colors flex items-center gap-1.5"
+                >
+                  <ReplyAll className="w-3.5 h-3.5" />
+                  Reply all ({replyAllRecipients().others.length} other
+                  {replyAllRecipients().others.length === 1 ? "" : "s"})
+                </button>
+                <button
+                  onClick={() => setDraftChoice(false)}
+                  className="text-xs text-zinc-500 hover:text-zinc-300"
+                >
+                  Cancel
+                </button>
+              </div>
+              <p className="text-[11px] text-zinc-500 break-words">
+                Reply all copies: {replyAllRecipients().others.join(", ")}
+              </p>
+            </div>
+          ) : null}
           <div>
             <input
               value={instruction}

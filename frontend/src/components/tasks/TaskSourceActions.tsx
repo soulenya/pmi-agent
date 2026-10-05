@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { ExternalLink, Loader2, Mail, MessageSquare, FileText, CalendarDays, LayoutGrid, Link2, PenLine } from "lucide-react";
-import { draftGmailReply } from "@/api/google";
+import { draftGmailReply, getReplyRecipients } from "@/api/google";
 import { useToastStore } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 import type { Task, TaskSourceKind, TaskSourceRef } from "@/types/tasks";
@@ -79,12 +79,28 @@ export function TaskSourceActions({
   const [drafting, setDrafting] = useState(false);
 
   const draftReply = useMutation({
-    mutationFn: () =>
-      draftGmailReply(
-        ref?.id ?? "",
+    mutationFn: async () => {
+      const threadId = ref?.id ?? "";
+      // A group thread is never answered to one person by accident: ask first.
+      let replyAll = false;
+      try {
+        const who = await getReplyRecipients(threadId);
+        if (who.others.length > 0) {
+          replyAll = window.confirm(
+            `This thread has ${who.others.length} other ${who.others.length === 1 ? "person" : "people"} on it ` +
+              `(${who.others.join(", ")}).\n\nOK = Gerry replies to everyone.\nCancel = Gerry replies to the sender only.`,
+          );
+        }
+      } catch {
+        /* fall back to a plain reply */
+      }
+      return draftGmailReply(
+        threadId,
         `This reply needs to handle the follow-up: ${task.title}` +
           (task.description ? `\n\nContext:\n${task.description}` : ""),
-      ),
+        replyAll,
+      );
+    },
     onMutate: () => setDrafting(true),
     onSettled: () => setDrafting(false),
     onSuccess: () =>

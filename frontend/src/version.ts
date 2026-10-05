@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 291;
+export const BUILD_NUMBER = 292;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 292,
+    date: "2026-10-05",
+    title: "Reply or reply all — Gerry asks on group threads",
+    changes: [
+      "Let Gerry Draft on a message that went to other people now asks: sender only, or reply all? It shows who reply all would copy. Opened with Reply all, Gerry follows that without asking. Your own addresses are never included.",
+      "Replies Gerry drafts in chat now land in the original email thread (they used to go out as a new conversation), and she asks reply vs reply all there too.",
+    ],
+  },
   {
     build: 291,
     date: "2026-10-02",

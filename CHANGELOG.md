@@ -4,6 +4,31 @@
 
 ## Changelog
 
+### v5.17.1 · build 292 — 2026-10-05
+**Gerry asks "reply, or reply all?" on a group thread; chat replies now thread**
+
+- Morgan: the email generator only answered the sender on a group thread;
+  wanted a reply / reply-all prompt when generating.
+- Inbox: `POST /gmail/draft-reply` takes `reply_all`, `to`, `cc`.
+  `_build_gerry_reply` resolves recipients with new
+  `google_service.reply_recipients(message, own)` (sender → To, everyone else
+  on To/Cc → Cc, the account's own addresses and send-as aliases removed; a
+  message you sent yourself → its recipients). Draft row and approval carry
+  Cc; the approval description shows it. **Let Gerry Draft**: opened via
+  Reply all → follows it; opened via Reply with other people on the message
+  → inline chooser *Sender only (x)* / *Reply all (n others)* listing who is
+  copied; nobody else → drafts straight away. Task **Gerry draft** button:
+  `GET /gmail/thread/{id}/reply-recipients`, confirm dialog when others exist.
+- Chat: `create_email_draft` gains `reply_to_message_id` + `reply_all`
+  (`read_gmail_message` now prints Cc and a REPLY-ALL line naming the other
+  people and telling Gerry to ask). A chat-drafted reply is now **threaded**:
+  migration 049 adds `email_drafts.thread_id` / `reply_to_message_id`, carried
+  into the send payload by submit-for-approval — before this an approved
+  chat "reply" went out as a new conversation.
+- Verified with faked Google/LLM: group / solo / self-sent threads, reply vs
+  reply-all vs edited Cc vs older message vs explicit To; header splitting
+  with quoted names and semicolons. Migration 049 applied locally.
+
 ### v5.17.0 · build 291 — 2026-10-02
 **A project can have several canvases; meeting notes are named after who they were with**
 

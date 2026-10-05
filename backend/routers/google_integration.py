@@ -523,6 +523,10 @@ class GmailDraftReplyRequest(BaseModel):
     thread_id: str
     message_id: str | None = None
     instruction: str | None = None
+    # Reply-all: the sender goes in To and everyone else on the message in Cc.
+    reply_all: bool = False
+    # Explicit recipients win over the computed ones (the user edited the box).
+    to: str | None = None
     cc: str | None = None
 
 
@@ -687,6 +691,8 @@ async def _build_gerry_reply(
     user: User,
     reply_to_message_id: str | None = None,
     cc: str | None = None,
+    reply_all: bool = False,
+    to: str | None = None,
 ) -> dict:
     """Draft a Gerry reply for a thread and persist an EmailDraft + ApprovalIntent.
 
@@ -701,9 +707,21 @@ async def _build_gerry_reply(
     if not messages:
         raise ValueError("Thread has no messages.")
     last = messages[-1]
+    if reply_to_message_id:
+        last = next((m for m in messages if m.get("id") == reply_to_message_id), last)
+    who = gs.reply_recipients(last, thread.get("me_addresses"))
+    if reply_all:
+        recipient_email = who["reply_all_to"]
+        cc = cc if cc is not None else who["reply_all_cc"]
+    else:
+        recipient_email = who["to"] or who["reply_all_to"]
+    if to and to.strip():
+        recipient_email = _extract_email(to) or to.strip()
     cc = _strip_own_addresses(cc)
-    recipient_email = _extract_email(last.get("from", ""))
-    recipient_name = (last.get("from", "").split("<")[0]).strip().strip('"') or recipient_email
+    sender_name = (last.get("from", "").split("<")[0]).strip().strip('"')
+    recipient_name = (
+        sender_name if recipient_email and recipient_email == _extract_email(last.get("from", "")) else ""
+    ) or recipient_email
     subject = _reply_subject(thread.get("subject", ""))
     thread_id = thread.get("thread_id", "")
     reply_target = reply_to_message_id or last.get("id")
@@ -721,7 +739,8 @@ async def _build_gerry_reply(
         subject=subject,
         recipient_name=recipient_name,
         recipient_email=recipient_email,
-        purpose=f"Reply to thread: {thread.get('subject', '')}",
+        cc=cc or None,
+        purpose=f"Reply{' all' if reply_all else ''} to thread: {thread.get('subject', '')}",
         tone="professional",
         key_points=instruction,
         draft_body=draft_body,
@@ -736,7 +755,7 @@ async def _build_gerry_reply(
         user_id=user.id,
         intent_type=IntentType.SEND_EMAIL,
         intent_title=f"Send reply: {subject}",
-        intent_description=f"To: {recipient_name or recipient_email}",
+        intent_description=f"To: {recipient_name or recipient_email}" + (f"\nCc: {cc}" if cc else ""),
         intent_payload={
             "draft_id": str(draft.id),
             "to": recipient_email,
@@ -756,6 +775,7 @@ async def _build_gerry_reply(
         "draft_id": str(draft.id),
         "approval_intent_id": str(intent.id),
         "to": recipient_email,
+        "cc": cc or "",
         "subject": subject,
         "draft_body": draft_body,
         "status": "pending_approval",
@@ -851,6 +871,23 @@ async def _build_gerry_compose(
     }
 
 
+@router.get("/gmail/thread/{thread_id}/reply-recipients")
+async def gmail_reply_recipients(thread_id: str) -> dict:
+    """Who a reply / reply-all to the thread's newest message would go to.
+    Lets a button decide whether to ask "sender only, or everyone?"."""
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+    try:
+        thread = gs.gmail_get_thread(thread_id)
+    except RuntimeError as e:
+        raise HTTPException(401, str(e))
+    messages = thread.get("messages", [])
+    if not messages:
+        raise HTTPException(404, "Thread has no messages.")
+    who = gs.reply_recipients(messages[-1], thread.get("me_addresses"))
+    return {"message_id": messages[-1].get("id"), **who}
+
+
 @router.post("/gmail/draft-reply")
 async def gmail_draft_reply(
     req: GmailDraftReplyRequest,
@@ -877,7 +914,10 @@ async def gmail_draft_reply(
             db=db,
             user=current_user,
             reply_to_message_id=req.message_id,
-            cc=(req.cc or "").strip() or None,
+            # None = "compute it"; an explicit string (even empty) is the user's edit.
+            cc=req.cc.strip() if req.cc is not None else None,
+            reply_all=req.reply_all,
+            to=(req.to or "").strip() or None,
         )
     except ValueError as exc:
         raise HTTPException(404, str(exc))
