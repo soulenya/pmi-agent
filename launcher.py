@@ -111,6 +111,7 @@ _icon_ref    = None          # set to pystray.Icon once created
 _skip_close_confirm = False  # set True by tray "Stop" to skip second dialog
 _browser_win = None          # second window used by the in-app research browser
 _browser_lock = threading.Lock()
+_browser_owned = [False]           # research window parented to the main window (Windows)
 _browser_actions: list[str] = []   # button presses from the in-page floating bar
 _browser_following = [False]       # so an injected bar renders the right label
 
@@ -954,6 +955,8 @@ class _JsApi:
                     )
                     _browser_win.events.closed += _closed
                     _browser_win.events.loaded += self._inject_toolbar
+                    _browser_win.events.loaded += self._adopt_browser_window
+                    _browser_owned[0] = False
                     return {"ok": True, "url": target, "title": ""}
                 _browser_win.load_url(target)
                 _browser_win.show()
@@ -961,6 +964,36 @@ class _JsApi:
         except Exception:
             _log_error()
             return {"ok": False, "error": "Could not open the research browser."}
+
+    def _adopt_browser_window(self, *_args) -> None:
+        """Make the research window OWNED by the main window.
+
+        Two independent top-level windows fight for the front: a click in the
+        chat panel focused the main window and the browser dropped behind it,
+        so nobody could type to Gerry and read the page at once. An owned
+        WinForms window always stays above its owner (and only its owner),
+        minimises with it, and takes no separate taskbar slot. Owner must be
+        set on the UI thread.
+        """
+        if not IS_WINDOWS or _browser_owned[0]:
+            return
+        try:
+            if _browser_win is None or _win_ref is None:
+                return
+            child = getattr(_browser_win, "native", None)
+            parent = getattr(_win_ref, "native", None)
+            if child is None or parent is None:
+                return
+            from System import Action
+
+            def apply() -> None:
+                child.Owner = parent
+                child.ShowInTaskbar = False
+
+            child.Invoke(Action(apply))
+            _browser_owned[0] = True
+        except Exception:
+            _log_error()
 
     def _inject_toolbar(self) -> None:
         try:

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 294;
+export const BUILD_NUMBER = 295;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 295,
+    date: "2026-10-06",
+    title: "Research browser stays in front",
+    changes: [
+      "Clicking into Little Gerry — the Gerry side panel, the address bar — no longer sends the research browser behind the app. It now belongs to the app window: it stays in view, minimises with the app, and has no taskbar button of its own. Takes effect after a full quit and relaunch.",
+    ],
+  },
   {
     build: 294,
     date: "2026-10-05",

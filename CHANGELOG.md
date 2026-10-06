@@ -4,6 +4,28 @@
 
 ## Changelog
 
+### v5.17.4 · build 295 — 2026-10-06
+**The research browser stays in front when you click into Little Gerry**
+
+- Morgan: on the Research page, clicking the Gerry side panel's text box
+  sent the browser window behind the app (or out of view), so he could not
+  type and read the site at once.
+- Cause: the research browser is a second top-level window parked over a
+  rectangle of the main window (`browser_fit`). Two independent top-level
+  windows take turns at the front; focusing the main window (any click in
+  it) put it over the browser.
+- Fix (`launcher.py`): on the research window's first `loaded`, set the
+  WinForms `Owner` of its native form to the main window's form on the UI
+  thread (`Invoke`), plus `ShowInTaskbar = False`. An owned window always
+  stays above its owner (and only its owner — not globally topmost, so no
+  `on_top`/`TopMost` and none of that deadlock), minimises with it, and
+  has no separate taskbar slot. Main-window dialogs that would sit under
+  the browser rectangle (KB dialog, pin/canvas pickers) already hide the
+  browser first. Windows only; macOS unchanged. Verified with two
+  throwaway pywebview windows: Owner set, OwnedForms 1, TopMost False,
+  child still visible after the parent is activated.
+- Launcher change: takes effect after a full quit and relaunch.
+
 ### v5.17.3 · build 294 — 2026-10-05
 **Leave the room; Gerry keeps working and the screen catches up; drafts survive**
 
