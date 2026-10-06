@@ -441,7 +441,7 @@ Navigate to **Research** → **New Research Report**.
 
 A browser that lives inside Little Gerry, so anything you find on the web is one click away from being something Gerry can read.
 
-Navigate to **Research Browser** and press **Open browser**. A separate browser window opens next to Little Gerry. You drive it from the app: type in the address bar, use back, forward and reload, open tabs, and star pages to bookmark them.
+Navigate to **Research Browser** and press **Open browser**. A separate browser window opens next to Little Gerry. You drive it from the app: type in the address bar, use back, forward and reload, open tabs, and star pages to bookmark them. The browser window belongs to the app window: click into the Gerry side panel, the address bar or anywhere else in Little Gerry and the page stays in view, so you can type to Gerry and read the site at the same time. It minimises with the app and has no taskbar button of its own.
 
 **You stay signed in.** Log in to a supplier portal, a standards library or a journal once and it remembers you next time you start Little Gerry.
 
