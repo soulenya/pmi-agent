@@ -636,10 +636,21 @@ class MeetingMonitor:
         To: rather than guessing — the notification says so.
         """
         from models.db.email_draft import EmailDraft
+        from services.meetings.live_assist import _first_name
 
         greeting_names = live.party
         topic_sentence = ""
         closer = "Looking forward to the next time we talk."
+        # Who must never be greeted as "the other party": the user and anyone
+        # from the company (calendar internals + Cc list).
+        own_first = (user.display_name or user.email or "").split()[0].strip().lower() if user else ""
+        internal_firsts = {
+            _first_name(e).lower()
+            for e in [*(live.facts.get("internal_emails") or []), *[
+                p.strip() for p in (live.cc_emails or "").split(",") if p.strip()
+            ]]
+        } | ({own_first} if own_first else set())
+        us = settings.company_short_name or "our company"
         try:
             from services.llm.router import get_llm_client
 
@@ -652,7 +663,10 @@ class MeetingMonitor:
                         "content": (
                             "You extract facts for a short post-meeting thank-you "
                             "email. NEVER invent names, companies, or topics — "
-                            "use null when unsure."
+                            "use null when unsure. The email is written BY "
+                            f"{user.display_name or 'the user'} of {us}; they and their "
+                            f"colleagues ({', '.join(sorted(n.title() for n in internal_firsts)) or 'none named'}) "
+                            "are NEVER the other party."
                         ),
                     },
                     {
@@ -680,8 +694,11 @@ class MeetingMonitor:
             s, e = raw.find("{"), raw.rfind("}")
             data = _json.loads(raw[s : e + 1]) if s != -1 and e > s else {}
             if not greeting_names and isinstance(data.get("first_names"), list):
-                names = [str(n).strip() for n in data["first_names"] if str(n).strip()]
-                greeting_names = "/".join(names[:4])
+                names = [
+                    str(n).strip() for n in data["first_names"]
+                    if str(n).strip() and str(n).strip().lower() not in internal_firsts
+                ]
+                greeting_names = "/".join(dict.fromkeys(names[:4]))
             if isinstance(data.get("topic_sentence"), str):
                 topic_sentence = data["topic_sentence"].strip()
             if isinstance(data.get("closer"), str) and data["closer"].strip():
@@ -705,6 +722,13 @@ class MeetingMonitor:
                 _sentence(closer),
             ) if part
         )
+        # The user's configured signature, like every other Gerry draft.
+        try:
+            from services.email_signature import apply_signature, resolve_signature
+
+            body = apply_signature(body, await resolve_signature(db))
+        except Exception:  # noqa: BLE001 — signature is best-effort
+            logger.info("Thank-you signature failed", exc_info=True)
         draft = EmailDraft(
             subject="Thank you for your time today",
             recipient_name=greeting_names or None,

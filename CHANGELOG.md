@@ -4,6 +4,30 @@
 
 ## Changelog
 
+### v5.17.5 · build 296 — 2026-10-07
+**Thank-you draft greets the people you typed, never you; signature added**
+
+- Morgan: after a live-assisted meeting with addresses typed into the
+  consent card, the thank-you draft read "To: Morgan … Morgan, thanks for
+  your time today" and carried no signature block.
+- Two causes in `services/meetings`. (1) `LiveMeetingSession.accept()` set
+  `party = ""` for typed recipients ("names come from the meeting notes"),
+  so the greeting came from the LLM extraction over the transcript, which
+  does not know who the user is and returned his own name; `recipient_name`
+  then showed "Morgan" on the card. (2) `_create_thankyou_draft` never
+  called `apply_signature` — every other Gerry draft does.
+- Now: typed recipients greet by the names their addresses carry
+  (`jane.doe@` → Jane; role mailboxes like `info@` contribute no name) and
+  `recipients` carry those names for the consent card. The transcript
+  extraction is told who is writing and which colleagues are present, and
+  its names are filtered against the user's first name, Cc'd colleagues and
+  calendar internals before use — only when no name is known yet. The
+  configured signature is appended. Verified with a faked LLM that returned
+  ["Morgan","Lindsey","Jane"]: typed case → To = the three addresses,
+  greeting "Jane/Pat,", signature present; no-recipient case → "Jane,".
+- The draft from today's meeting predates this; edit its To/greeting on the
+  Email Drafts page.
+
 ### v5.17.4 · build 295 — 2026-10-06
 **The research browser stays in front when you click into Little Gerry**
 

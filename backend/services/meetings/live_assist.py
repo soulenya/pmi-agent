@@ -184,10 +184,15 @@ class LiveMeetingSession:
                 if e not in seen:
                     seen.append(e)
             self.party_email = ", ".join(seen)
-            self.recipients = [{"name": "", "email": e} for e in seen]
+            self.recipients = [{"name": _first_name(e) if _name_like(e) else "", "email": e} for e in seen]
             self.recipients_manual = True
-            # Names come from the meeting notes, not from the calendar guess.
-            self.party = ""
+            # Greet the people typed in, by the names their addresses carry
+            # (jane.doe@ → Jane). Role mailboxes (info@, sales@) give no name,
+            # and a missing name must not be filled from the transcript — that
+            # is how a draft once greeted the user by his own name.
+            names = [_first_name(e) for e in seen if _name_like(e)]
+            self.party = "/".join(dict.fromkeys(n for n in names if n))[:80]
+            self.facts = {**self.facts, "external_emails": seen}
         d = Path(settings.storage_root).expanduser().parent / "live_chunks" / uuid.uuid4().hex
         d.mkdir(parents=True, exist_ok=True)
         self.chunk_dir = d
@@ -447,6 +452,18 @@ def _extract_cards(text: str) -> list[dict]:
 def _first_name(email: str) -> str:
     local = email.split("@")[0]
     return local.replace(".", " ").replace("_", " ").split()[0].title() if local else ""
+
+
+_ROLE_MAILBOXES = {
+    "info", "sales", "hello", "contact", "admin", "office", "support", "team", "hr",
+    "billing", "accounts", "noreply", "no-reply", "mail", "enquiries", "inquiries",
+}
+
+
+def _name_like(email: str) -> bool:
+    """True when the address's first token reads as a person's name."""
+    first = _first_name(email)
+    return bool(first) and first.isalpha() and len(first) >= 2 and first.lower() not in _ROLE_MAILBOXES
 
 
 def _domain(email: str) -> str:
