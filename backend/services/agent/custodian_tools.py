@@ -415,6 +415,7 @@ async def _update_task_on_hub(ctx: "ToolContext", task_id: uuid.UUID, args: dict
 
 async def execute_list_scheduled_tasks(ctx: "ToolContext", args: dict[str, Any]) -> str:
     from models.db.scheduled_task import ScheduledTask
+    from services.scheduler.runner import run_links
 
     tasks = (
         (
@@ -429,6 +430,29 @@ async def execute_list_scheduled_tasks(ctx: "ToolContext", args: dict[str, Any])
     )
     if not tasks:
         return "No scheduled tasks."
+
+    # One task in full: its last run's complete output and links.
+    wanted = str(args.get("task") or "").strip().lower()
+    if wanted:
+        hits = [t for t in tasks if str(t.id) == wanted or t.title.lower() == wanted] or [
+            t for t in tasks if wanted in t.title.lower()
+        ]
+        if len(hits) != 1:
+            names = "; ".join(f'"{t.title}"' for t in tasks)
+            return f"Error: {'no' if not hits else 'more than one'} scheduled task matches '{args.get('task')}'. Tasks: {names}."
+        t = hits[0]
+        when = f"{t.last_run_at:%Y-%m-%d %H:%M}" if t.last_run_at else "never"
+        files = [f"/api/files/{f}" for f in (t.last_run_files or [])]
+        links = run_links(t.last_run_output)
+        parts = [
+            f'Scheduled task "{t.title}" [id={t.id}] — last run {when}, status {t.last_run_status or "never"}, {t.run_count} runs.',
+            f"Standing instruction: {t.prompt[:1500]}",
+        ]
+        if links or files:
+            parts.append("Links from the last run: " + ", ".join(links + files))
+        parts.append("Last run output:\n" + (t.last_run_output or "(none)"))
+        return "\n\n".join(parts)
+
     days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     lines = []
     for t in tasks:
@@ -440,12 +464,23 @@ async def execute_list_scheduled_tasks(ctx: "ToolContext", args: dict[str, Any])
             when = t.frequency
         when += f" at {t.hour:02d}:{t.minute:02d}"
         next_run = f", next run {t.next_run_at:%Y-%m-%d %H:%M}" if t.next_run_at else ""
+        last = f"{t.last_run_at:%Y-%m-%d %H:%M}" if t.last_run_at else "never"
         lines.append(
             f"- {t.id} | {t.title} | {when} | "
             f"{'enabled' if t.enabled else 'DISABLED'} | "
-            f"last run: {t.last_run_status or 'never'} ({t.run_count} runs){next_run}"
+            f"last run {last}: {t.last_run_status or 'never'} ({t.run_count} runs){next_run}"
         )
-    return f"{len(tasks)} scheduled tasks:\n" + "\n".join(lines)
+        links = run_links(t.last_run_output) + [f"/api/files/{f}" for f in (t.last_run_files or [])]
+        if links:
+            lines.append("    produced: " + ", ".join(links[:4]))
+        if t.last_run_output:
+            head = " ".join(t.last_run_output.split())[:220]
+            lines.append(f"    last output: {head}{'…' if len(t.last_run_output) > 220 else ''}")
+    return (
+        f"{len(tasks)} scheduled tasks (these are the user's standing routines — a "
+        f"'weekly update' or 'monthly report' on Drive usually comes from one of them; "
+        f"pass task=<title> to read a run in full):\n" + "\n".join(lines)
+    )
 
 
 async def execute_manage_scheduled_task(ctx: "ToolContext", args: dict[str, Any]) -> str:

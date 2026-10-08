@@ -4,6 +4,37 @@
 
 ## Changelog
 
+### v5.17.6 · build 297 — 2026-10-08
+**"Invalid Cc header" fixed; routines on Today; Gerry reads what a routine produced**
+
+- Morgan: approving a reply failed with Gmail `400 Invalid Cc header`; a
+  weekly scheduled task Gerry "can't see"; scheduled-task results (file
+  links) wanted on Today.
+- **Cc.** The draft's Cc read
+  `"Hoefer, matthew.h.hoefer.mil@army.mil, "Kendrick, chonna…` — the Inbox
+  reply-all split the Cc header on commas, and military/Exchange display
+  names contain commas (`"Hoefer, Matthew …" <m@army.mil>`), so each name
+  became two fragments and Gmail refused the header. `splitAddresses`
+  (InboxPage) is now quote-aware; `google_service._split_addresses` and
+  `_strip_own_addresses` use `email.utils.getaddresses`; new
+  `clean_address_list` normalises To/Cc/Bcc **at send time** in
+  `gmail_send`, recovering bare addresses from an already-broken string, so
+  the stuck draft sends as is. Verified on the exact stored Cc: four
+  addresses recovered, header valid.
+- **Routines.** The task existed ("PMI Weekly report", 22 runs, success
+  today) — Gerry's `list_scheduled_tasks` showed schedule and status only,
+  never what a run produced, so she looked in Generated Files and concluded
+  the Drive file came from outside. The list now shows each task's last run
+  time, the links it produced (Drive, web, generated files) and the first
+  220 chars of output; `task=<title>` reads one run in full (standing
+  instruction + complete output); the description tells her a "weekly
+  update" on Drive is almost always one of these. New `runner.run_links`.
+- **Today.** New card **From your routines** (`components/dashboard/
+  RoutineRunsCard.tsx`): every routine that ran in the last 8 days, newest
+  first, with chips for each Drive/web link (`Google Doc`, `Google Sheet`,
+  hostname) and generated file; expand a row for the full output. Hidden
+  when nothing ran.
+
 ### v5.17.5 · build 296 — 2026-10-07
 **Thank-you draft greets the people you typed, never you; signature added**
 

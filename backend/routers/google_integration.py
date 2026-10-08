@@ -437,15 +437,18 @@ def _strip_own_addresses(cc: str | None) -> str | None:
     """Drop the user's own addresses (incl. send-as aliases) from a Cc list."""
     if not cc:
         return cc
-    from services.google_service import gmail_own_addresses
+    from email.utils import getaddresses
 
-    mine = set(gmail_own_addresses())
+    from services.google_service import clean_address_list, gmail_own_addresses
+
+    mine = {a.lower() for a in gmail_own_addresses()}
+    cleaned = clean_address_list(cc)
     kept = [
-        part.strip()
-        for part in cc.split(",")
-        if part.strip() and _extract_email(part).lower() not in mine
+        (name, addr) for name, addr in getaddresses([cleaned]) if addr and addr.lower() not in mine
     ]
-    return ", ".join(kept) or None
+    from email.utils import formataddr
+
+    return ", ".join(formataddr(p) if p[0] else p[1] for p in kept) or None
 
 
 class GmailSendRequest(BaseModel):
