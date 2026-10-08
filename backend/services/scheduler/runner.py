@@ -38,6 +38,21 @@ VALID_FREQUENCIES = ("daily", "weekly", "monthly")
 # Matches the /api/files/<name> links every real generated file carries
 # (same shape MessageBubble's file cards parse).
 _API_FILE_RE = re.compile(r"/api/files/((?:[^\s)\]\"'`]| (?! ))+?\.[a-z0-9]{2,6})", re.IGNORECASE)
+_URL_RE = re.compile(r"https?://[^\s<>()\[\]\"']+")
+
+
+def run_links(output: str | None) -> list[str]:
+    """External links a run produced (Drive docs, sheets, web), in order, deduped.
+    A run that uploads straight to Drive leaves nothing in Generated Files, so
+    these are how the Today page and Gerry reach the result."""
+    out: list[str] = []
+    for m in _URL_RE.finditer(output or ""):
+        url = m.group(0).rstrip(".,;:*_")
+        if "/api/files/" in url:
+            continue
+        if url not in out:
+            out.append(url)
+    return out
 
 
 def _split_file_links(output: str) -> tuple[list[str], list[str]]:

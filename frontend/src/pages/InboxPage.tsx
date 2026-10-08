@@ -114,13 +114,24 @@ function emailOf(from: string): string {
   return (m ? m[1] : from).trim();
 }
 
-/** Split a comma-separated address header into individual address strings. */
+/** Split a comma-separated address header into individual address strings.
+ *  Quote-aware: `"Hoefer, Matthew" <m@x.mil>` is one address, not two. */
 function splitAddresses(raw: string): string[] {
   if (!raw) return [];
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const out: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (const ch of raw) {
+    if (ch === '"') quoted = !quoted;
+    if ((ch === "," || ch === ";") && !quoted) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.filter((s) => s.includes("@"));
 }
 
 function replySubject(subject: string): string {

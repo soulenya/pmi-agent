@@ -2574,9 +2574,22 @@ TOOL_DEFINITIONS: list[dict] = [
             "description": (
                 "List the user's recurring scheduled tasks (standing instructions "
                 "Little Gerry runs on a schedule), with ids, recurrence, next run, "
-                "and last outcome. Use before manage_scheduled_task."
+                "last outcome, what the last run produced (Drive links, files) and "
+                "the start of its output. When the user mentions a weekly update, "
+                "monthly report or a file that appeared on Drive on a schedule, call "
+                "this FIRST — it is almost always one of these runs. Pass `task` to "
+                "read one task's full last output. Use before manage_scheduled_task."
             ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "Title or id of one task to read in full (standing instruction, links, complete last output).",
+                    },
+                },
+                "required": [],
+            },
         },
     },
     {
@@ -7318,6 +7331,7 @@ _PRIMARY_ARG = {
     "read_google_sheet": "spreadsheet_id",
     "update_task": "task_id",
     "manage_scheduled_task": "action",
+    "list_scheduled_tasks": "task",
 }
 
 _PRIMARY_ARG.update(_project_tools.PRIMARY_ARGS)

@@ -36,6 +36,7 @@ import { getGoogleStatus, listGoogleCalendarEvents, type GoogleCalendarEvent } f
 import type { MeetingNote } from "@/types/meetings";
 import { PhoneToday } from "@/components/mobile/PhoneToday";
 import { useIsPhone } from "@/hooks/useViewport";
+import { RoutineRunsCard } from "@/components/dashboard/RoutineRunsCard";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -311,6 +312,9 @@ export function DashboardPage() {
               )}
             </div>
           </div>
+
+          {/* What the scheduled routines produced lately (weekly update, monthly report) */}
+          <RoutineRunsCard />
 
           {/* Upcoming calendar events */}
           {upcomingEvents.length > 0 && (

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 296;
+export const BUILD_NUMBER = 297;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 297,
+    date: "2026-10-08",
+    title: "Routines on Today; Cc header fix",
+    changes: [
+      "Today has a new card, From your routines: what each scheduled task produced in the last week, with a chip for every Drive link or file and the full output a click away.",
+      "Gerry can now see what a routine produced — ask about the weekly update and she finds the run and its Drive link instead of guessing it came from outside.",
+      "Fixed Gmail refusing a reply with \"Invalid Cc header\": names containing commas (\"Hoefer, Matthew\") were being split in two. Drafts already affected send correctly now.",
+    ],
+  },
   {
     build: 296,
     date: "2026-10-07",

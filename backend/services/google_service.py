@@ -81,6 +81,40 @@ def _headers_of(payload: dict) -> _Headers:
     return _Headers((payload or {}).get("headers", []))
 
 
+def clean_address_list(raw: str | None) -> str:
+    """Normalise a To/Cc/Bcc string to ``Name <addr>, addr2`` with every
+    entry carrying a real address.
+
+    Display names may contain commas (``"Hoefer, Matthew" <m@x.mil>``), so a
+    naive split on commas produced fragments like ``"Hoefer`` that Gmail
+    rejected with "Invalid Cc header". ``email.utils.getaddresses`` is
+    quote-aware; anything left without an ``@`` is dropped.
+    """
+    from email.utils import formataddr, getaddresses
+
+    if not raw or not raw.strip():
+        return ""
+    out: list[str] = []
+    seen: set[str] = set()
+    for name, addr in getaddresses([raw.replace(";", ",")]):
+        addr = (addr or "").strip().strip('"').strip()
+        if "@" not in addr or addr.lower() in seen:
+            continue
+        seen.add(addr.lower())
+        name = (name or "").strip().strip('"').strip()
+        out.append(formataddr((name, addr)) if name else addr)
+    # Unbalanced quotes (the broken strings this exists for) make the RFC
+    # parser give up on whole stretches; recover any address it skipped, bare.
+    import re as _re
+
+    for m in _re.finditer(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", raw):
+        addr = m.group(0)
+        if addr.lower() not in seen:
+            seen.add(addr.lower())
+            out.append(addr)
+    return ", ".join(out)
+
+
 # ── credential helpers ────────────────────────────────────────────────────
 
 def _log_refresh_failure(exc: Exception) -> None:
@@ -494,8 +528,10 @@ def gmail_send(
         import email.mime.text as _mt
 
         msg = _mt.MIMEText(body)
-    msg["to"] = to
+    msg["to"] = clean_address_list(to) or to
     msg["subject"] = subject
+    cc = clean_address_list(cc)
+    bcc = clean_address_list(bcc)
     if cc:
         msg["cc"] = cc
     if bcc:
@@ -670,17 +706,14 @@ def gmail_get_thread(thread_id: str) -> dict:
 
 
 def _split_addresses(header: str) -> list[str]:
-    """Bare lowercase emails from a To/Cc header (names and brackets dropped)."""
-    import re
+    """Bare lowercase emails from a To/Cc header (names and brackets dropped).
+    Quote-aware: a display name may itself contain a comma."""
+    from email.utils import getaddresses
 
     out: list[str] = []
-    for part in re.split(r"[,;]", header or ""):
-        part = part.strip()
-        if not part:
-            continue
-        m = re.search(r"<([^>]+)>", part)
-        addr = (m.group(1) if m else part).strip().lower()
-        if "@" in addr:
+    for _name, addr in getaddresses([(header or "").replace(";", ",")]):
+        addr = (addr or "").strip().lower()
+        if "@" in addr and addr not in out:
             out.append(addr)
     return out
 

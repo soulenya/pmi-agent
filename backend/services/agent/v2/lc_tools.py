@@ -127,7 +127,7 @@ _TOOL_DOCS = {
         '"action": "delete" (optional, destructive), '
         '"confirm": bool (required true for delete, only after the user explicitly confirms)}.'
     ),
-    "list_scheduled_tasks": "List all recurring scheduled tasks with their schedules and run history. No arguments needed.",
+    "list_scheduled_tasks": 'List the user\'s recurring scheduled tasks (standing routines) with schedule, run history, what the last run produced (Drive links, files) and the start of its output. A "weekly update" or "monthly report" on Drive almost always comes from one of these — call this first. JSON: {"task"?: str (title or id — read that task\'s full last output)}.',
     "manage_scheduled_task": (
         'Create, update, enable, disable, or delete a recurring scheduled task. JSON fields: '
         '{"action": "create"|"update"|"enable"|"disable"|"delete", "task_id": str (UUID, for non-create), '
