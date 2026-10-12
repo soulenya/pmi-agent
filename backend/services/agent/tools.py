@@ -2414,16 +2414,25 @@ TOOL_DEFINITIONS: list[dict] = [
                 "user asks for a Word document, a formatted report, a memo, a weekly update, "
                 "meeting notes, or any deliverable that should be a .docx. "
                 "Before writing, call get_file_template with the document type and follow "
-                "the returned structure. When the template or style guide specifies page "
-                "headers/footers, fonts, or table colors, pass them via the optional "
-                "layout fields — they render as REAL Word headers/footers/styling. The "
+                "the returned STRUCTURE. STYLING: by default the document is set in the "
+                "Precisian Medical design system (Archivo + JetBrains Mono, embedded; "
+                "black/white with one red accent; hairline-ruled tables and numbered rows) "
+                "— this applies to weekly updates, briefings, tech specs, memos, reports, "
+                "meeting notes and every other ordinary deliverable, and in that mode the "
+                "'font' and 'accent_color' fields are ignored. Anything FDA, QMS, "
+                "risk-management or regulatory (SOPs, CAPAs, 510(k)/PMA material, DHF/DMR, "
+                "risk files, design controls, quality manuals, technical files, validation "
+                "protocols) keeps the plain controlled-document styling instead: pass "
+                "style='controlled' (it is also detected from the filename/title/banner), "
+                "and there the template's fonts, header/footer and accent colours are "
+                "honoured via the layout fields. Headers/footers and the cover banner work "
+                "in both modes. The "
                 "'content' field accepts lightweight Markdown: '# '/'## '/'### ' headings; "
                 "'- ' or '* ' bullets; '1. ' numbered items; '**bold**'; blank lines "
                 "separate paragraphs; and pipe tables ('| A | B |' rows). Put a "
-                "'| --- | --- |' separator after the first row to style it as a colored "
-                "header row with alternating shading; OMIT the separator for label/value "
-                "grids (metadata blocks) — their label columns (1st, 3rd) render "
-                "accent-filled with bold white text and thin borders. "
+                "'| --- | --- |' separator after the first row to style it as a column-"
+                "header row; OMIT the separator for label/value grids (metadata blocks) "
+                "— their label columns (1st, 3rd) render as labels. "
                 "Returns a download URL."
             ),
             "parameters": {
@@ -2432,6 +2441,11 @@ TOOL_DEFINITIONS: list[dict] = [
                     "filename": {
                         "type": "string",
                         "description": "Filename, e.g. 'Weekly Update.docx'. The .docx extension is added if missing.",
+                    },
+                    "style": {
+                        "type": "string",
+                        "enum": ["brand", "controlled"],
+                        "description": "'brand' (default) = Precisian Medical design system, for all ordinary deliverables. 'controlled' = plain controlled-document styling for FDA / QMS / risk-management / regulatory documents (the design system is NOT applied to those).",
                     },
                     "title": {
                         "type": "string",
@@ -2443,7 +2457,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "font": {
                         "type": "string",
-                        "description": "Optional base font name for body text, e.g. 'Calibri' or 'Arial'.",
+                        "description": "Base font name for body text, e.g. 'Calibri' or 'Arial'. Honoured only when style='controlled'.",
                     },
                     "font_size": {
                         "type": "number",
@@ -2463,7 +2477,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "accent_color": {
                         "type": "string",
-                        "description": "Optional hex color (no #) for banners, table header rows and label cells, e.g. '0A2F41' (PMI navy) or '064E44' (PMI teal).",
+                        "description": "Hex color (no #) for banners, table header rows and label cells, e.g. '0A2F41' (PMI navy) or '064E44' (PMI teal). Honoured only when style='controlled'.",
                     },
                     "banner_label": {
                         "type": "string",
@@ -6352,16 +6366,22 @@ def _add_markdown_runs(paragraph, text: str) -> None:
 async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     """Build a real Word (.docx) document from lightweight Markdown content.
 
-    Layout support (driven by company templates / style guide): base font and
-    size, real page headers/footers (with automatic 'Page X of Y' fields), and
-    pipe tables rendered as Word tables with a colored header row and
-    alternating row shading — so template rules like "navy header row" or
-    "footer: CONFIDENTIAL" actually appear in the file, not just in the text.
+    Two looks (see ``services.design_system``): ``brand`` — the Precisian
+    Medical design system (Archivo + JetBrains Mono embedded, black/white with
+    one red accent, hairline-ruled tables and numbered rows) for every ordinary
+    deliverable; ``controlled`` — the plain controlled-document styling (base
+    font, accent-coloured heading/table/banner fills) kept for FDA / QMS /
+    risk-management / regulatory documents. Both render real page
+    headers/footers with automatic 'Page X of Y' fields and pipe tables as
+    Word tables.
     """
     import docx
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
-    from docx.shared import Pt, RGBColor
+    from docx.shared import Inches, Pt, RGBColor
+
+    from services import design_system as ds
 
     filename = str(args.get("filename", "document.docx")).strip()
     title = str(args.get("title", "")).strip()
@@ -6379,6 +6399,18 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     banner_title = str(args.get("banner_title", "")).strip()
     banner_subtitle = str(args.get("banner_subtitle", "")).strip()
     cover_logo = bool(args.get("cover_logo"))
+
+    style = ds.resolve_doc_style(
+        str(args.get("style", "")),
+        filename, title, banner_label, banner_title, banner_subtitle, header_left, header_right,
+    )
+    brand = style == ds.BRAND
+    T = ds.TOKENS
+    if brand:
+        # The design system is the one source of truth: font and accent
+        # requests are not honoured here (size is — it is not a brand matter).
+        font_name = T.font_display
+        accent = T.black
     # Light tint of the accent for banner secondary lines (label/subtitle).
     _a = [int(accent[i : i + 2], 16) for i in (0, 2, 4)]
     tint = "".join(f"{c + int((255 - c) * 0.62):02X}" for c in _a)
@@ -6393,20 +6425,120 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
 
     document = docx.Document()
 
+    _PPR_AFTER_PBDR = (
+        "w:shd", "w:tabs", "w:suppressAutoHyphens", "w:kinsoku", "w:wordWrap",
+        "w:overflowPunct", "w:topLinePunct", "w:autoSpaceDE", "w:autoSpaceDN", "w:bidi",
+        "w:adjustRightInd", "w:snapToGrid", "w:spacing", "w:ind", "w:contextualSpacing",
+        "w:mirrorIndents", "w:suppressOverlap", "w:jc", "w:textDirection", "w:textAlignment",
+        "w:textboxTightWrap", "w:outlineLvl", "w:divId", "w:cnfStyle", "w:rPr", "w:sectPr",
+        "w:pPrChange",
+    )
+    _RPR_AFTER_SPACING = (
+        "w:w", "w:kern", "w:position", "w:sz", "w:szCs", "w:highlight", "w:u", "w:effect",
+        "w:bdr", "w:shd", "w:fitText", "w:vertAlign", "w:rtl", "w:cs", "w:em", "w:lang",
+        "w:eastAsianLayout", "w:specVanish", "w:oMath",
+    )
+
+    def _set_font(font, name: str) -> None:
+        """Name a font on every script slot and drop theme-font references,
+        which otherwise win over the explicit name in Word."""
+        font.name = name
+        rfonts = font._element.get_or_add_rPr().find(qn("w:rFonts"))
+        if rfonts is not None:
+            for attr in ("asciiTheme", "hAnsiTheme", "eastAsiaTheme", "cstheme"):
+                rfonts.attrib.pop(qn(f"w:{attr}"), None)
+            rfonts.set(qn("w:eastAsia"), name)
+            rfonts.set(qn("w:cs"), name)
+
+    def _run_spacing(run_or_style, twips: int) -> None:
+        rpr = run_or_style._element.get_or_add_rPr()
+        sp = rpr.find(qn("w:spacing"))
+        if sp is None:
+            sp = OxmlElement("w:spacing")
+            rpr.insert_element_before(sp, *_RPR_AFTER_SPACING)
+        sp.set(qn("w:val"), str(twips))
+
+    def _para_border(paragraph_or_style, edge: str, color: str | None, sz: int, space: int = 4) -> None:
+        """Paragraph border on one edge (replaces any existing border there);
+        ``color=None`` writes an explicit 'nil' border, which overrides a style."""
+        ppr = paragraph_or_style._element.get_or_add_pPr()
+        pbdr = ppr.find(qn("w:pBdr"))
+        if pbdr is None:
+            pbdr = OxmlElement("w:pBdr")
+            ppr.insert_element_before(pbdr, *_PPR_AFTER_PBDR)
+        for old in pbdr.findall(qn(f"w:{edge}")):
+            pbdr.remove(old)
+        el = OxmlElement(f"w:{edge}")
+        if color is None:
+            el.set(qn("w:val"), "nil")
+        else:
+            el.set(qn("w:val"), "single")
+            el.set(qn("w:sz"), str(sz))
+            el.set(qn("w:space"), str(space))
+            el.set(qn("w:color"), color)
+        pbdr.append(el)
+
+    def _mono(run, size: float, color: str, upper: bool = True, bold: bool = False) -> None:
+        """A mono label — the system's texture: small, tracked, uppercase.
+        Field runs (PAGE / NUMPAGES) carry no text and are left untouched."""
+        if upper and run.text:
+            run.text = run.text.upper()
+        _set_font(run.font, T.font_mono)
+        run.font.size = Pt(size)
+        run.font.color.rgb = RGBColor.from_string(color)
+        run.bold = bold
+        _run_spacing(run, T.mono_tracking_twips)
+
     # Base typography (applies to Normal; headings keep their theme fonts).
+    normal = document.styles["Normal"]
     if font_name:
-        document.styles["Normal"].font.name = font_name
+        _set_font(normal.font, font_name)
     if font_size > 0:
-        document.styles["Normal"].font.size = Pt(font_size)
-    # Brand the heading styles with the accent color (reference docs use the
-    # company navy/teal for headings rather than Word's default blue).
-    for h in ("Heading 1", "Heading 2", "Heading 3"):
+        normal.font.size = Pt(font_size)
+    elif brand:
+        normal.font.size = Pt(T.body_pt)
+    if brand:
+        normal.font.color.rgb = RGBColor.from_string(T.ink_500)
+        normal.paragraph_format.line_spacing = 1.3
+        normal.paragraph_format.space_after = Pt(6)
+        # Title: display bold, tight tracking, the headline's red accent line.
         try:
-            document.styles[h].font.color.rgb = RGBColor.from_string(accent)
-            if font_name:
-                document.styles[h].font.name = font_name
+            ts = document.styles["Title"]
+            _set_font(ts.font, T.font_display)
+            ts.font.size = Pt(T.title_pt)
+            ts.font.bold = True
+            ts.font.color.rgb = RGBColor.from_string(T.black)
+            _run_spacing(ts, T.display_tracking_twips)
+            _para_border(ts, "bottom", T.red, 16, space=8)
+            ts.paragraph_format.space_after = Pt(18)
         except Exception:  # noqa: BLE001 — style may be absent in exotic bases
             pass
+        for h, size, top_rule in (("Heading 1", T.h1_pt, True), ("Heading 2", T.h2_pt, False), ("Heading 3", T.h3_pt, False)):
+            try:
+                hs = document.styles[h]
+                _set_font(hs.font, T.font_display)
+                hs.font.size = Pt(size)
+                hs.font.bold = True
+                hs.font.italic = False
+                hs.font.color.rgb = RGBColor.from_string(T.black)
+                _run_spacing(hs, T.display_tracking_twips // 2)
+                hs.paragraph_format.space_before = Pt(18 if top_rule else 12)
+                hs.paragraph_format.space_after = Pt(6)
+                if top_rule:
+                    # Sections are separated by a hairline, never a box.
+                    _para_border(hs, "top", T.hairline, 4, space=10)
+            except Exception:  # noqa: BLE001
+                pass
+    else:
+        # Brand the heading styles with the accent color (reference docs use the
+        # company navy/teal for headings rather than Word's default blue).
+        for h in ("Heading 1", "Heading 2", "Heading 3"):
+            try:
+                document.styles[h].font.color.rgb = RGBColor.from_string(accent)
+                if font_name:
+                    document.styles[h].font.name = font_name
+            except Exception:  # noqa: BLE001 — style may be absent in exotic bases
+                pass
 
     def _page_field(paragraph, code: str) -> None:
         """Append a Word field (PAGE / NUMPAGES) to a paragraph."""
@@ -6423,14 +6555,18 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         run._r.append(end)
 
     # Page header/footer — the built-in Header/Footer styles carry centre +
-    # right tab stops, so "left\t\tright" lands text on both edges. Reference
-    # documents render these in small gray type: 9pt, #666666.
+    # right tab stops, so "left\t\tright" lands text on both edges. Controlled
+    # documents render these in small gray type: 9pt, #666666; brand documents
+    # as mono uppercase chrome.
     def _hf_style(paragraph) -> None:
         for r in paragraph.runs:
-            r.font.size = Pt(9)
-            r.font.color.rgb = RGBColor.from_string("666666")
-            if font_name:
-                r.font.name = font_name
+            if brand:
+                _mono(r, T.chrome_pt, T.ink_300)
+            else:
+                r.font.size = Pt(9)
+                r.font.color.rgb = RGBColor.from_string("666666")
+                if font_name:
+                    r.font.name = font_name
 
     section = document.sections[0]
     if header_left or header_right:
@@ -6441,6 +6577,8 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     if footer_left or content:
         fp = section.footer.paragraphs[0]
         fp.text = ""
+        if brand and not footer_left:
+            footer_left = "Precisian Medical Instruments"
         if footer_left:
             fp.add_run(f"{footer_left}\t\tPage ")
         else:
@@ -6457,6 +6595,26 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         shd.set(qn("w:fill"), fill)
         tc_pr.append(shd)
 
+    def _borders(parent_pr, tag: str, spec: dict[str, tuple[str, int, str] | None], *successors: str) -> None:
+        """Set tblBorders/tcBorders: edge -> (val, sz, color) or None for none."""
+        borders = parent_pr.find(qn(f"w:{tag}"))
+        if borders is None:
+            borders = OxmlElement(f"w:{tag}")
+            parent_pr.insert_element_before(borders, *successors)
+        for edge, value in spec.items():
+            for old in borders.findall(qn(f"w:{edge}")):
+                borders.remove(old)
+            el = OxmlElement(f"w:{edge}")
+            if value is None:
+                el.set(qn("w:val"), "nil")
+            else:
+                val, sz, color = value
+                el.set(qn("w:val"), val)
+                el.set(qn("w:sz"), str(sz))
+                el.set(qn("w:space"), "0")
+                el.set(qn("w:color"), color)
+            borders.append(el)
+
     def _thin_borders(table) -> None:
         """Thin single borders on every edge — the label/value grid look."""
         tbl_pr = table._tbl.tblPr
@@ -6469,12 +6627,35 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
             borders.append(el)
         tbl_pr.append(borders)
 
+    def _hairline_table(table) -> None:
+        """Brand tables: rows divided by hairlines, no verticals, no box."""
+        tbl_pr = table._tbl.tblPr
+        hair = ("single", 4, T.hairline)
+        _borders(tbl_pr, "tblBorders", {
+            "top": None, "left": None, "right": None, "insideV": None,
+            "insideH": hair, "bottom": hair,
+        }, "w:shd", "w:tblLayout", "w:tblCellMar", "w:tblLook")
+        mar = OxmlElement("w:tblCellMar")
+        for edge, val in (("top", "70"), ("left", "40"), ("bottom", "70"), ("right", "80")):
+            el = OxmlElement(f"w:{edge}")
+            el.set(qn("w:w"), val)
+            el.set(qn("w:type"), "dxa")
+            mar.append(el)
+        tbl_pr.insert_element_before(mar, "w:tblLook")
+
+    def _cell_margins(cell, twips: int) -> None:
+        tc_pr = cell._tc.get_or_add_tcPr()
+        mar = OxmlElement("w:tcMar")
+        for edge in ("top", "left", "bottom", "right"):
+            el = OxmlElement(f"w:{edge}")
+            el.set(qn("w:w"), str(twips))
+            el.set(qn("w:type"), "dxa")
+            mar.append(el)
+        tc_pr.append(mar)
+
     logo_note = ""
     if cover_logo:
         # Company mark ("Spaceman Black") centred at the top of the cover sheet.
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.shared import Inches
-
         logo_path = Path(__file__).resolve().parent.parent.parent / "assets" / "spaceman-black.png"
         if logo_path.is_file():
             lp = document.add_paragraph()
@@ -6485,45 +6666,79 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
             logo_note = " NOTE: cover logo asset missing on this install — logo NOT embedded."
 
     if banner_label or banner_title or banner_subtitle:
-        # Title-block banner: one full-width accent-filled cell with centred
-        # label (small, tinted) / title (large, white) / subtitle (small, tinted)
-        # — matches the company template's cover banner.
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-
+        # Title block. Controlled: one accent-filled cell, centred label /
+        # title / subtitle. Brand: the brand's black ground — red mono eyebrow,
+        # white display title, muted subtitle, set left.
         bt = document.add_table(rows=1, cols=1)
         bcell = bt.rows[0].cells[0]
         _shade(bcell, accent)
+        if brand:
+            _cell_margins(bcell, 280)
         first = True
-        for text, size, bold, color in (
-            (banner_label, 9, True, tint),
-            (banner_title, 22, True, "FFFFFF"),
-            (banner_subtitle, 10, False, tint),
-        ):
+        if brand:
+            rows = (
+                (banner_label, T.mono_pt, True, T.red, True),
+                (banner_title, 22, True, T.white, False),
+                (banner_subtitle, 10, False, T.ink_200, False),
+            )
+        else:
+            rows = (
+                (banner_label, 9, True, tint, False),
+                (banner_title, 22, True, "FFFFFF", False),
+                (banner_subtitle, 10, False, tint, False),
+            )
+        for text, size, bold, color, mono in rows:
             if not text:
                 continue
             bp = bcell.paragraphs[0] if first else bcell.add_paragraph()
             first = False
-            bp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            bp.alignment = WD_ALIGN_PARAGRAPH.LEFT if brand else WD_ALIGN_PARAGRAPH.CENTER
             br = bp.add_run(text)
             br.bold = bold
             br.font.size = Pt(size)
             br.font.color.rgb = RGBColor.from_string(color)
+            if mono:
+                _mono(br, size, color, bold=bold)
+                bp.paragraph_format.space_after = Pt(10)
+            elif brand and size == 22:
+                _run_spacing(br, T.display_tracking_twips)
         document.add_paragraph()
 
+    body_started = False  # anything emitted after the title yet?
+
     def _flush_table(rows: list[list[str]], has_header: bool) -> None:
+        nonlocal body_started
         if not rows:
             return
+        body_started = True
         cols = max(len(r) for r in rows)
         table = document.add_table(rows=len(rows), cols=cols)
-        if not has_header:
+        if brand:
+            _hairline_table(table)
+        elif not has_header:
             _thin_borders(table)
         for ri, row in enumerate(rows):
             for ci in range(cols):
                 cell = table.rows[ri].cells[ci]
                 text = row[ci] if ci < len(row) else ""
                 para = cell.paragraphs[0]
+                para.paragraph_format.space_after = Pt(0)
                 _add_markdown_runs(para, text)
-                if has_header and ri == 0:
+                if brand:
+                    if has_header and ri == 0:
+                        # Column labels in mono over a red rule — the active
+                        # state's "2px red rule" in place of the hairline.
+                        for r in para.runs:
+                            _mono(r, T.mono_pt, T.ink_300)
+                        _borders(cell._tc.get_or_add_tcPr(), "tcBorders",
+                                 {"bottom": ("single", 12, T.red)},
+                                 "w:shd", "w:noWrap", "w:tcMar", "w:textDirection",
+                                 "w:tcFitText", "w:vAlign", "w:hideMark")
+                    elif not has_header and ci % 2 == 0:
+                        # Label/value grid: label columns are mono labels.
+                        for r in para.runs:
+                            _mono(r, T.mono_pt, T.ink_300)
+                elif has_header and ri == 0:
                     _shade(cell, accent)
                     for r in para.runs:
                         r.bold = True
@@ -6537,12 +6752,29 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
                     for r in para.runs:
                         r.bold = True
                         r.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        if brand:
+            document.add_paragraph().paragraph_format.space_after = Pt(2)
+
+    def _numbered_row(index: int, text: str) -> None:
+        """Brand numbered item: zero-padded red mono index, hairline-ruled row."""
+        p = document.add_paragraph()
+        pf = p.paragraph_format
+        pf.left_indent = Inches(0.45)
+        pf.first_line_indent = Inches(-0.45)
+        pf.space_before = Pt(4)
+        pf.space_after = Pt(4)
+        pf.tab_stops.add_tab_stop(Inches(0.45))
+        _para_border(p, "bottom", T.hairline, 4, space=4)
+        idx = p.add_run(f"{index:02d}\t")
+        _mono(idx, T.mono_pt, T.red)
+        _add_markdown_runs(p, text)
 
     if title:
         document.add_heading(title, level=0)
 
     table_rows: list[list[str]] = []
     table_has_header = False
+    num_index = 0
     for raw_line in content.splitlines():
         line = raw_line.rstrip()
         stripped = line.strip()
@@ -6563,22 +6795,39 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         table_has_header = False
         if not stripped:
             continue
+        is_numbered = bool(re.match(r"^\d+\.\s+", stripped))
+        if not is_numbered:
+            num_index = 0
         if stripped.startswith("### "):
             document.add_heading(stripped[4:].strip(), level=3)
         elif stripped.startswith("## "):
             document.add_heading(stripped[3:].strip(), level=2)
         elif stripped.startswith("# "):
-            document.add_heading(stripped[2:].strip(), level=1)
+            h1 = document.add_heading(stripped[2:].strip(), level=1)
+            if brand and title and not body_started:
+                # The title's red rule already divides here; no second line.
+                _para_border(h1, "top", None, 0)
+                h1.paragraph_format.space_before = Pt(6)
         elif stripped.startswith(("- ", "* ")):
             p = document.add_paragraph(style="List Bullet")
             _add_markdown_runs(p, stripped[2:].strip())
-        elif re.match(r"^\d+\.\s+", stripped):
-            p = document.add_paragraph(style="List Number")
-            _add_markdown_runs(p, re.sub(r"^\d+\.\s+", "", stripped))
+        elif is_numbered:
+            num_index += 1
+            body = re.sub(r"^\d+\.\s+", "", stripped)
+            if brand:
+                _numbered_row(num_index, body)
+            else:
+                p = document.add_paragraph(style="List Number")
+                _add_markdown_runs(p, body)
         else:
             p = document.add_paragraph()
             _add_markdown_runs(p, stripped)
+        body_started = True
     _flush_table(table_rows, table_has_header)
+
+    embedded: list[str] = []
+    if brand:
+        embedded = ds.embed_fonts(document)
 
     _GENERATED_FILES_DIR.mkdir(exist_ok=True)
     uid_prefix = uuid.uuid4().hex[:8]
@@ -6597,9 +6846,16 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     from services.workroom_context import auto_pin_if_room, log_room_event
     await auto_pin_if_room(ctx.db, ctx.conversation_id, "generated_file", filename, safe_name)
     await log_room_event(ctx.db, ctx.conversation_id, f"Gerry created Word document: {filename}")
+    if brand:
+        style_note = " Styled: PMI design system" + (
+            f" (fonts embedded: {', '.join(embedded)})." if embedded
+            else " (font files missing on this install — Archivo/JetBrains Mono named but NOT embedded)."
+        )
+    else:
+        style_note = " Styled: controlled document (design system not applied)."
     return (
         f"Word document created and verified ({out_path.stat().st_size} bytes): "
-        f"/api/files/{safe_name}" + logo_note
+        f"/api/files/{safe_name}" + logo_note + style_note
     )
 
 

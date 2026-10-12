@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 297;
+export const BUILD_NUMBER = 298;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 298,
+    date: "2026-10-12",
+    title: "Word documents in the PMI design system",
+    changes: [
+      "Every Word document Gerry writes — weekly updates, briefings, tech specs, memos, reports, meeting notes — now comes out in the Precisian Medical design system: Archivo and JetBrains Mono, black and white with the one red accent, hairline-ruled tables and numbered rows.",
+      "The fonts are embedded in the file, so it looks the same on a computer that doesn't have them installed.",
+      "FDA, QMS, risk-management and regulatory documents (SOPs, CAPAs, 510(k) material, risk files, design controls, quality manuals, technical files) keep their plain controlled-document styling; Gerry recognises them from the title, and you can say so explicitly.",
+    ],
+  },
   {
     build: 297,
     date: "2026-10-08",
