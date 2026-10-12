@@ -252,7 +252,7 @@ When Google is connected, Little Gerry calls the appropriate tool immediately �
 - "Help me with this document" → Gerry lists your recently edited Google Docs, confirms which one, then **follows it live** — she re-reads your latest edits on every message, so ask anything ("how's the intro now?", "tighten section 3") while you write. Paste a Docs link for a one-time review instead, and say "stop following the doc" when you're done
 - "Add that Drive file to the knowledge base" → Gerry imports it on the spot (works for her generated files too), with duplicate detection — regulated imports stay manual
 - "Is the company Drive backed up?" → Gerry reads the nightly backup bucket (read-only), reports the last backup time with a CURRENT/STALE verdict, and lists which files changed since
-- "Write me a memo about…" → Gerry first checks the shared templates folder on Drive for that document type's required structure and follows it exactly — drop a new template doc in the folder and every teammate's formats update instantly. Add a doc named "Style Guide" and its rules are applied to **every** generated document — even types with no template — so everything looks uniform. The Regulatory page's document wizard follows the same templates folder too
+- "Write me a memo about…" → Gerry first checks the shared templates folder on Drive for that document type's required structure and follows it exactly — drop a new template doc in the folder and every teammate's formats update instantly. Add a doc named "Style Guide" and its rules are applied to **every** generated document — even types with no template — so everything looks uniform. The Regulatory page's document wizard follows the same templates folder too. The *look* of a Word document comes from the company design system — see [Word Documents](#word-documents)
 - "Build me a deck on…" → Gerry asks which security classification applies, then builds a real presentation in the company house style and puts it on your Drive as Google Slides — see [Slide Decks](#slide-decks)
 - "What do our VACTOR specs say about suction pressure?" → searches the Knowledge Base
 
@@ -1045,6 +1045,24 @@ Navigate to **Regulatory** to track your regulatory document portfolio:
 ### AI Drafting
 
 Hover over any document row → click **AI Draft**. Little Gerry pulls relevant context from the Knowledge Base and generates professional regulatory content. Always review AI-generated regulatory content before use.
+
+---
+
+## Word Documents
+
+Ask for a Word document in chat — a weekly update, a briefing, a tech spec, a memo, meeting notes, a report — and it lands on the Generated Files page (and on Drive if you ask).
+
+### The look
+
+Every ordinary document is set in the **Precisian Medical design system**: Archivo for headings and body, JetBrains Mono for labels, black and white with the one red accent. The title sits over a red rule; sections are divided by hairlines, not boxes; tables have mono column labels over a red rule and hairline rows with no fills; numbered lists are hairline-ruled rows with a red `01 02 03` index; the header and footer are small mono capitals, the footer reading `PRECISIAN MEDICAL INSTRUMENTS · PAGE X OF Y` unless the template says otherwise. A cover banner, when a template calls for one, is a black block with a red mono eyebrow and a white title.
+
+**The fonts travel with the file.** Archivo and JetBrains Mono are embedded in each document, so it renders the same in Word on a computer that has never had them installed, and in Google Docs. This adds about 400 KB to each file.
+
+In this mode the Drive **Style Guide** still governs *structure* and *wording* (sections, headers, footers, metadata fields) but not fonts or colours — the design system is the single source of truth for those, and a font or colour instruction in the guide is ignored for these documents.
+
+### What is exempt
+
+Anything **FDA, QMS, risk-management or regulatory** keeps the plain controlled-document styling it had before (Word's standard fonts, navy/teal accents from your QMS and Technical Files templates): SOPs, CAPAs, 510(k) and PMA material, DHF/DMR/DHR, FMEAs and risk files, design controls and verification/validation protocols, quality manuals, technical files, declarations of conformity, anything citing ISO 13485/14971, IEC 60601/62304 or 21 CFR. Gerry recognises these from the document's title, filename or banner — never from the body text, so a weekly update that mentions a risk is still a weekly update. You can also say it outright: "make this a controlled document" or "use the brand style". The Regulatory page's document wizard is unaffected.
 
 ---
 

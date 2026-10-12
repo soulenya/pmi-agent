@@ -4,6 +4,49 @@
 
 ## Changelog
 
+### v5.18.0 · build 298 — 2026-10-12
+**Word documents come out in the Precisian Medical design system; regulated documents don't**
+
+- Morgan: "reference the precisian medical design system … I want this design
+  system to replace any file output with the exception of anything fda, qms,
+  risk management, or regulatory related. This is for weekly updates,
+  presentations, tech specs, briefings, etc."
+- Source: the *Precisian Medical Instruments — Design System* folder
+  (readme, `tokens/colors.css`, `tokens/typography.css`): Archivo for display
+  and body, JetBrains Mono for anything machine-adjacent, black/white with the
+  one red `#FF0000`, rows divided by hairlines rather than boxes, mono
+  uppercase eyebrows and zero-padded `01 02` indices. Decks already used it
+  (`services/decks/theme.py`); Word output did not — `create_docx` defaulted
+  to Word's Calibri/Cambria with a navy `1F3864` accent.
+- New `services/design_system.py`: the tokens, a `brand`/`controlled`
+  resolver, and Word font embedding. `create_docx` gains `style`:
+  **brand** (default) — Archivo body 10.5 pt in `#333333`, bold black headings
+  with tight tracking, title over a 2 pt red rule, hairline between sections,
+  tables with mono column labels over a red rule and hairline rows (no fills,
+  no verticals), label/value grids with mono labels, numbered items as
+  hairline-ruled rows with a red mono index, mono uppercase header/footer
+  (footer defaults to `PRECISIAN MEDICAL INSTRUMENTS · PAGE X OF Y`), cover
+  banner on black with a red mono eyebrow. `font` and `accent_color` are
+  ignored in this mode — the system is the single source of truth.
+  **controlled** — the previous styling, unchanged, for FDA / QMS /
+  risk-management / regulatory documents. Gerry passes it explicitly, and it
+  is also detected from the filename/title/banner (SOP, CAPA, 510(k), PMA,
+  DHF/DMR, FMEA, risk management/analysis/file, design control/verification/
+  validation, quality manual/system, technical file, declaration of
+  conformity, ISO 13485/14971, IEC 60601/62304, 21 CFR, regulatory, …) —
+  never from the body text, where a weekly update legitimately says "risk".
+  The Regulatory page's wizard (`regulatory/docgen.py`) is untouched.
+- **Fonts travel with the file.** Archivo and JetBrains Mono (Regular + Bold,
+  OFL, in `backend/assets/fonts/`) are embedded in every brand document
+  (ECMA-376 obfuscated `.odttf` parts + `w:embedTrueTypeFonts`), so Word on
+  a machine without them still renders the real faces. Verified by opening
+  the generated file in Word and exporting to PDF: the PDF's fonts are Word's
+  embedded-subset names, not Calibri; the controlled SOP exported with
+  Cambria/Calibri as before. Adds ~410 KB per brand document.
+- Tool description, v2 agent tool text and this guide state the rule in
+  Morgan's words. Tests: `tests/test_design_system.py` (classifier, explicit
+  override, obfuscation round-trip, embedded parts/settings/content types).
+
 ### v5.17.6 · build 297 — 2026-10-08
 **"Invalid Cc header" fixed; routines on Today; Gerry reads what a routine produced**
 
