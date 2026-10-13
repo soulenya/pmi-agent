@@ -28,6 +28,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from brand import get_brand
 from models.db.settings import SystemSetting
 
 logger = logging.getLogger(__name__)
@@ -37,8 +38,8 @@ KEY_SA_PATH = "backup.sa_key_path"
 KEY_DRIVE_NAME = "backup.shared_drive_name"
 KEY_STALE_HOURS = "backup.stale_hours"
 
-DEFAULT_BUCKET = "pmi-drive-backup"
-DEFAULT_DRIVE_NAME = "PMI Share Drive"
+DEFAULT_BUCKET = str(get_brand().gcp.get("drive_backup_bucket") or "")
+DEFAULT_DRIVE_NAME = str(get_brand().drive.get("shared_drive_name") or "")
 DEFAULT_STALE_HOURS = 30  # nightly schedule + slack for DST/slow runs
 
 _GCS_READONLY_SCOPE = "https://www.googleapis.com/auth/devstorage.read_only"
@@ -55,7 +56,8 @@ def _default_key_paths() -> list[Path]:
     paths: list[Path] = []
     local_appdata = os.environ.get("LOCALAPPDATA")
     if local_appdata:
-        paths.append(Path(local_appdata) / "Little Gerry" / "gcs-backup-viewer.json")
+        install_dir = str((get_brand().raw.get("windows") or {}).get("install_dir_name") or get_brand().product_name)
+        paths.append(Path(local_appdata) / install_dir / "gcs-backup-viewer.json")
     # Dev/workspace fallback: backend directory.
     paths.append(Path(__file__).resolve().parent.parent / "gcs-backup-viewer.json")
     return paths

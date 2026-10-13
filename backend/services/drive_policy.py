@@ -33,8 +33,11 @@ logger = logging.getLogger(__name__)
 # withheld. The agent prompts drop the matching notes (guardrails.py).
 _ENABLED = get_brand().feature("drive_restrictions")
 
-# The QMS folder — everything under it is restricted.
-QMS_FOLDER_ID = "1c5mGaeldOIUXZyGVwUoTOsUTtGJ2LMp_"
+# Folders restricted by the brand file (PMI: the QMS folder) — everything under
+# them is restricted. Settings → Company adds to this list; it never removes.
+BRAND_RESTRICTED_IDS: frozenset[str] = frozenset(
+    str(v) for v in (get_brand().drive.get("restricted_folders") or []) if v
+)
 SETTING_RESTRICTED_IDS = "drive_policy.restricted_folder_ids"
 
 # "draft" in any variation, anywhere in the name (deliberately generous —
@@ -57,7 +60,7 @@ def is_draft_name(name: str) -> bool:
 
 
 async def _restricted_ids(db) -> set[str]:
-    ids = {QMS_FOLDER_ID}
+    ids = set(BRAND_RESTRICTED_IDS)
     if db is None:
         return ids
     try:

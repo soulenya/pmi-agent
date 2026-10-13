@@ -4,6 +4,48 @@
 
 ## Changelog
 
+### v5.20.0 · build 300 — 2026-10-13
+**White-label Phase 2: Company Setup — Drive locations become data; PMI unchanged**
+
+- `services/company_drive.py` is the one place that knows where the company
+  keeps its files. Ten *locations* (Company Truth, Templates, Budgets,
+  Invoices, Workrooms, Backups, app-clients, restricted folders, backed-up
+  shared drive name, Drive-backup bucket) each resolve SystemSetting →
+  `brand/brand.json` default → "not set". The five ids that were constants
+  (`BUDGET_FOLDER_ID`, `INVOICE_PARENT_FOLDER_ID`, `DEFAULT_DRIVE_FOLDER`,
+  `QMS_FOLDER_ID`, backup monitor bucket/drive name) now go through it; the
+  PMI brand probe is byte-identical to v5.19.0 and the setting keys are the
+  ones the existing overrides already used.
+- `create_layout(parent_id)` makes `Company Truth`, `Templates`, `Budgets`,
+  `Invoices`, `Workrooms`, `Backups`, `app-clients` under a shared drive or
+  folder (`drive_find_or_create_child_folder` — reuses by name, never
+  duplicates), seeds Company Truth with the eleven blank sections in
+  `backend/assets/starter/company-truth/` (same names as PMI's folder) and
+  Templates with `Style Guide.md`, `Deck Theme.md` and, optionally, a generic
+  `QMS SOP Template.md`, then stores the ids. `publish()` writes
+  `<slug>-company.json` into app-clients; `import_from_drive()` finds it by
+  exact name and adopts it; `import_once_at_startup()` does that on desktop
+  start for a brand whose file carries no Drive defaults (no-op for PMI).
+- New admin router `/company-setup`: `GET status`, `PUT locations`,
+  `GET shared-drives`, `POST drive/create`, `POST publish`, `POST import`.
+  `GET /auth/brand` (public) returns product/company names, domains and the
+  sign-in hint so the login page and wizard stop hard-coding PMI's.
+- Credentials: the OAuth-client and STT-key download URLs come from the
+  brand file; when a brand has none, `POST /auth/credentials/upload`
+  (pre-login, desktop only, refused once a file exists) and
+  `POST /meetings/stt/credentials/upload` accept the file from disk after
+  the same validation as the download path.
+- Frontend: `components/company/CompanySetupPanel.tsx` (create layout,
+  per-location edit, publish, import) shown in Settings → Company → *Company
+  Drive* (admins) and as a **Company Drive** wizard step that appears only on
+  an administrator's first run (`adminFirstRun`, no `ONBOARDING_VERSION`
+  bump, so no existing user sees the wizard again). Login page and wizard
+  copy use `/auth/brand`; SttCredentialsModal and the login page offer a file
+  picker when no download is configured.
+- Tests: `tests/test_company_drive.py` (resolver precedence, blank-brand
+  behaviour, layout creation and seeding with faked Drive, publish/import
+  round trip). 112 passed.
+
 ### v5.19.0 · build 299 — 2026-10-13
 **White-label Phase 1: the company moves into `brand/brand.json`; PMI unchanged**
 

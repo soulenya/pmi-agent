@@ -23,7 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-INVOICE_PARENT_FOLDER_ID = "10NQQeIETjEv_1fGCowSQSHGX37Cgn1eg"
 SETTING_PARENT_FOLDER_ID = "invoices.parent_folder_id_override"
 
 # Mirror the Apps Script's ALLOWED_MIMES: what its OCR pipeline can ingest.
@@ -53,16 +52,14 @@ async def _run(fn):
 
 
 async def get_parent_folder_id(db: AsyncSession) -> str:
-    from models.db.settings import SystemSetting
+    from services import company_drive
 
-    row = (
-        await db.execute(
-            select(SystemSetting).where(SystemSetting.key == SETTING_PARENT_FOLDER_ID)
+    folder_id = await company_drive.resolve(db, "invoices")
+    if not folder_id:
+        raise InvoiceError(
+            "No invoices folder is set — an administrator picks one in Settings → Company."
         )
-    ).scalar_one_or_none()
-    if row is not None and row.value:
-        return str(row.value)
-    return INVOICE_PARENT_FOLDER_ID
+    return folder_id
 
 
 def _is_invoice_file(att: dict) -> bool:
@@ -189,13 +186,15 @@ async def file_invoice_from_email(
         sender_domain = m.group(1).rsplit(".", 1)[0].split(".")[-1]
     folder, candidates = match_company_folder(folders, company, sender_name, sender_domain)
     if folder is None:
+        from brand import get_brand
+
         listing = "; ".join(_folder_display(f["name"]) for f in candidates[:25])
         raise InvoiceError(
             ("Several company folders match — " if candidates != folders else
              "Couldn't determine the company folder — ")
             + f"call again with company set to one of: {listing}. "
             "(If this is a NEW company, its folder AND sheet block must be "
-            "created from the invoice sheet's PMI Control Panel first.)"
+            f"created from the invoice sheet's {get_brand().company_short} Control Panel first.)"
         )
 
     # Dedup: same filename already in the folder → report, don't re-upload.

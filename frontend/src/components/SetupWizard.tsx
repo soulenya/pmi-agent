@@ -45,6 +45,9 @@ import {
   type RestoreResult,
 } from "@/api/dataTransfer";
 import { getGoogleStatus, startGoogleAuth } from "@/api/google";
+import { getBrand, type BrandInfo } from "@/api/auth";
+import { useAuthStore } from "@/stores/authStore";
+import { CompanySetupPanel } from "@/components/company/CompanySetupPanel";
 import {
   Sparkles,
   Database,
@@ -108,6 +111,7 @@ type StepId =
   | "voyage"
   | "google"
   | "you"
+  | "company-drive"
   | "company"
   | "writing-voice"
   | "voice"
@@ -124,6 +128,8 @@ interface StepDef {
   label: string;
   /** Wizard revision that introduced this step. */
   since: number;
+  /** Shown only to administrators, and only on a first run (never as an update step). */
+  adminFirstRun?: boolean;
 }
 
 const ALL_STEPS: StepDef[] = [
@@ -134,6 +140,7 @@ const ALL_STEPS: StepDef[] = [
   { id: "voyage", label: "Voyage", since: 1 },
   { id: "google", label: "Google", since: 1 },
   { id: "you", label: "You", since: 2 },
+  { id: "company-drive", label: "Company Drive", since: 1, adminFirstRun: true },
   { id: "company", label: "Company", since: 2 },
   { id: "writing-voice", label: "Your voice", since: 2 },
   { id: "voice", label: "Speech", since: 1 },
@@ -153,6 +160,7 @@ const CONTINUE_STEPS = new Set<StepId>([
   "voyage",
   "google",
   "you",
+  "company-drive",
   "company",
   "writing-voice",
   "voice",
@@ -164,16 +172,21 @@ const CONTINUE_STEPS = new Set<StepId>([
  * through an earlier revision gets only what is new to them, plus the closing
  * step so there is always a way out.
  */
-function visibleSteps(seenVersion: number): StepDef[] {
-  if (seenVersion <= 0) return ALL_STEPS;
-  const fresh = ALL_STEPS.filter((s) => s.since > seenVersion);
+function visibleSteps(seenVersion: number, isAdmin: boolean): StepDef[] {
+  if (seenVersion <= 0) return ALL_STEPS.filter((s) => !s.adminFirstRun || isAdmin);
+  const fresh = ALL_STEPS.filter((s) => s.since > seenVersion && !s.adminFirstRun);
   if (!fresh.length) return [ALL_STEPS[ALL_STEPS.length - 1]];
   return [...fresh, ALL_STEPS[ALL_STEPS.length - 1]];
 }
 
 export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
   const isUpdate = onboardingVersion > 0;
-  const [steps] = useState(() => visibleSteps(onboardingVersion));
+  const isAdmin = useAuthStore((s) => s.user?.role) === "admin";
+  const [steps] = useState(() => visibleSteps(onboardingVersion, isAdmin));
+  const [brand, setBrand] = useState<BrandInfo | null>(null);
+  useEffect(() => {
+    getBrand().then(setBrand).catch(() => {});
+  }, []);
   const [step, setStep] = useState(0);
   const lastStep = steps.length - 1;
   const stepId = steps[Math.min(step, lastStep)].id;
@@ -772,9 +785,8 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
 
               {googleConnecting && (
                 <p className="text-xs text-muted-foreground">
-                  A browser window has opened. Sign in with your{" "}
-                  <span className="font-medium">@pmi-llc.com</span> or{" "}
-                  <span className="font-medium">@precisianmedical.com</span> account, then return here.
+                  A browser window has opened. Sign in with{" "}
+                  <span className="font-medium">{brand?.sign_in_hint ?? "your company Google account"}</span>, then return here.
                 </p>
               )}
 
@@ -1061,6 +1073,28 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
             </div>
           )}
 
+          {/* ── Company Drive (first admin only) ──────────────────────────── */}
+          {stepId === "company-drive" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-blue-500/10 p-2.5">
+                  <HardDrive className="h-6 w-6 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">Where the company keeps its files</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    As an administrator you choose once where Company Truth, Templates, Budgets,
+                    Invoices, Workrooms and Backups live on Drive. Create the standard layout in a
+                    shared drive, then publish it so every teammate&apos;s install adopts the same
+                    folders. You can change any of this later in Settings → Company.
+                  </p>
+                </div>
+              </div>
+              <CompanySetupPanel compact />
+              <DefaultNote>Skip this if the locations are already built in or someone else has set them up.</DefaultNote>
+            </div>
+          )}
+
           {/* ── Company profile ───────────────────────────────────────────── */}
           {stepId === "company" && (
             <div className="space-y-4">
@@ -1085,7 +1119,7 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
                     type="text"
                     value={companyFolder}
                     onChange={(e) => { setCompanyFolder(e.target.value); setCompanyResult(null); }}
-                    placeholder="Leave blank to use the PMI default folder"
+                    placeholder={brand ? `Leave blank to use the ${brand.company_short} default folder` : "Google Drive folder ID"}
                     className="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
                   />
                   <button

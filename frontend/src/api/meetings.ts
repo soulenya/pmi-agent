@@ -116,6 +116,18 @@ export async function fetchSttCredentials(): Promise<{ ok: boolean; path: string
   return resp.data;
 }
 
+/** Install a transcription service-account key picked from disk (builds with no hosted key). */
+export async function uploadSttCredentials(file: File): Promise<{ ok: boolean; path: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const resp = await apiClient.post<{ ok: boolean; path: string }>(
+    "/meetings/stt/credentials/upload",
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } },
+  );
+  return resp.data;
+}
+
 // ── Live meeting assist ───────────────────────────────────────────────────────
 
 export interface LiveSegment {

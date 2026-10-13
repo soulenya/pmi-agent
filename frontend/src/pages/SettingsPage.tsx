@@ -19,6 +19,7 @@ import {
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
 import { useAuthStore } from "@/stores/authStore";
+import { CompanySetupPanel } from "@/components/company/CompanySetupPanel";
 import {
   getSettings,
   updateSettings,
@@ -1160,6 +1161,23 @@ function CompanyProfileSection() {
           </Field>
         </>
       )}
+    </Section>
+  );
+}
+
+// ── Company Drive section (admins) ──────────────────────────────────────
+
+function CompanyDriveSection() {
+  const user = useAuthStore((s) => s.user);
+  if (user?.role !== "admin") return null;
+  return (
+    <Section
+      id="company-drive"
+      icon={HardDrive}
+      title="Company Drive"
+      description="Where the company keeps its files — Company Truth, Templates, Budgets, Invoices, Workrooms, Backups. Create the layout once, publish it for every install."
+    >
+      <CompanySetupPanel />
     </Section>
   );
 }
@@ -2868,7 +2886,12 @@ export function SettingsPage() {
             </>
           )}
 
-          {tab === "company" && <CompanyProfileSection />}
+          {tab === "company" && (
+            <>
+              <CompanyProfileSection />
+              <CompanyDriveSection />
+            </>
+          )}
 
           {tab === "system" && (
             <>

@@ -14,7 +14,7 @@ import uuid as _uuid
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
@@ -51,12 +51,11 @@ _CREDS_FILE = Path(__file__).parent.parent / "google_credentials.json"
 
 # Company-hosted google_credentials.json, used by the "Download credentials"
 # button on the login page so teammates don't have to find the backend folder
-# or rename the file by hand. Set this to a Google Drive "Anyone with the link"
-# share URL (or a plain HTTPS URL) pointing at the OAuth client JSON. An
-# environment variable wins over the baked-in constant when both are present.
-#
-#   Example: "https://drive.google.com/file/d/1AbCxyz.../view?usp=sharing"
-GOOGLE_CREDENTIALS_DOWNLOAD_URL = "https://drive.google.com/file/d/1qfh3eQU0p10yOyfENBpuguRwDvNfOPel/view?usp=sharing"
+# or rename the file by hand. The brand file supplies a Google Drive "Anyone
+# with the link" share URL (or a plain HTTPS URL) pointing at the OAuth client
+# JSON; an environment variable wins when both are present. A brand with no
+# URL gets the upload button instead (POST /auth/credentials/upload).
+GOOGLE_CREDENTIALS_DOWNLOAD_URL = str(get_brand().drive.get("oauth_client_download_url") or "")
 
 
 def _credentials_download_url() -> str:
@@ -203,6 +202,22 @@ async def auth_mode() -> dict:
     return {"mode": "iap" if settings.hub_mode else "desktop"}
 
 
+@router.get("/brand")
+async def auth_brand() -> dict:
+    """Public brand facts the login page and wizard show before sign-in."""
+    b = get_brand()
+    return {
+        "slug": b.slug,
+        "product_name": b.product_name,
+        "assistant_name": b.assistant_name,
+        "company_name": b.company_name,
+        "company_short": b.company_short,
+        "domains": list(b.domains),
+        "sign_in_hint": b.sign_in_hint,
+        "support_email": b.support_email,
+    }
+
+
 @router.post("/google/initiate")
 async def google_initiate() -> dict:
     """
@@ -285,6 +300,41 @@ async def fetch_credentials() -> dict:
             detail={"code": "write_failed", "message": f"Couldn't save the credentials file: {exc}"},
         ) from exc
 
+    return {"ok": True, "path": str(_CREDS_FILE)}
+
+
+@router.post("/credentials/upload")
+async def upload_credentials(file: UploadFile = File(...)) -> dict:
+    """Place a google_credentials.json chosen by the user into backend/.
+
+    For installs whose brand has no hosted credentials file. Unauthenticated
+    because it runs before anyone can sign in, so it is deliberately narrow:
+    desktop only, refused once a file is already present (an administrator
+    replaces it on disk), validated as a real OAuth client, 2 MB cap.
+    """
+    if settings.hub_mode:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail={"code": "hub", "message": "The server signs you in; no file is needed."})
+    if _CREDS_FILE.exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "already_present",
+                    "message": "A credentials file is already installed. Remove it from the backend folder first."},
+        )
+    raw = await file.read(2 * 1024 * 1024 + 1)
+    if len(raw) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                            detail={"code": "too_large", "message": "That file is too large to be a credentials file."})
+    try:
+        _validate_oauth_client(raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail={"code": "invalid_credentials", "message": str(exc)}) from exc
+    try:
+        _CREDS_FILE.write_bytes(raw)
+    except OSError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail={"code": "write_failed", "message": f"Couldn't save the credentials file: {exc}"}) from exc
     return {"ok": True, "path": str(_CREDS_FILE)}
 
 

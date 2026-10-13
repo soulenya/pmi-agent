@@ -1376,6 +1376,44 @@ def drive_find_or_create_folder(name: str, parent_id: str | None = None) -> dict
     }
 
 
+def drive_find_or_create_child_folder(name: str, parent_id: str) -> dict:
+    """Find a folder named ``name`` directly inside ``parent_id`` or create it there.
+
+    Unlike :func:`drive_find_or_create_folder` this never adopts a same-named
+    folder elsewhere on Drive — the company layout must sit where the admin
+    pointed. ``parent_id`` may be a folder id or a shared drive's id (its root).
+    Returns ``{id, name, url, created}``.
+    """
+    svc = _build("drive", "v3")
+    safe = name.replace("\\", "\\\\").replace("'", "\\'")
+    resp = svc.files().list(
+        q=(
+            f"name = '{safe}' and '{parent_id}' in parents and "
+            "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        ),
+        pageSize=5,
+        fields="files(id,name,webViewLink)",
+        includeItemsFromAllDrives=True,
+        supportsAllDrives=True,
+        corpora="allDrives",
+    ).execute()
+    files = resp.get("files", [])
+    if files:
+        f = files[0]
+        return {"id": f["id"], "name": f["name"], "url": f.get("webViewLink", ""), "created": False}
+    created = svc.files().create(
+        body={"name": name, "mimeType": "application/vnd.google-apps.folder", "parents": [parent_id]},
+        fields="id,name,webViewLink",
+        supportsAllDrives=True,
+    ).execute()
+    return {
+        "id": created.get("id", ""),
+        "name": created.get("name", name),
+        "url": created.get("webViewLink", ""),
+        "created": True,
+    }
+
+
 def drive_update_bytes(file_id: str, data: bytes, mime_type: str | None = None) -> dict:
     """Overwrite an existing Drive file's content in place, keeping its id.
 

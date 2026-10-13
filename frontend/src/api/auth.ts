@@ -68,3 +68,30 @@ export async function fetchCredentials(): Promise<{ ok: boolean; path: string }>
   const resp = await apiClient.post<{ ok: boolean; path: string }>("/auth/credentials/fetch");
   return resp.data;
 }
+
+/** Install a google_credentials.json the user picked from disk (builds with no hosted file). */
+export async function uploadCredentials(file: File): Promise<{ ok: boolean; path: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const resp = await apiClient.post<{ ok: boolean; path: string }>("/auth/credentials/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return resp.data;
+}
+
+export interface BrandInfo {
+  slug: string;
+  product_name: string;
+  assistant_name: string;
+  company_name: string;
+  company_short: string;
+  domains: string[];
+  sign_in_hint: string;
+  support_email: string;
+}
+
+/** Public brand facts shown before sign-in (product and company names, sign-in hint). */
+export async function getBrand(): Promise<BrandInfo> {
+  const resp = await apiClient.get<BrandInfo>("/auth/brand");
+  return resp.data;
+}

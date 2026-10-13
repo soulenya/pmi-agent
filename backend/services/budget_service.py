@@ -37,9 +37,9 @@ from models.db.budget import Budget
 logger = logging.getLogger(__name__)
 
 # Company budgets folder (Morgan, 2026-07-22): EVERY user's budget sheets are
-# created here — baked in so all budgets live in one known place on Drive.
-# The SystemSetting below still wins when set (relocation without a release).
-BUDGET_FOLDER_ID = "1k-tBw0UomODw-nwJjjkNteHaQltuNs2D"
+# created here so all budgets live in one known place on Drive. The id comes
+# from Settings → Company (SystemSetting ``budgets.folder_id_override``) and
+# falls back to the brand file's default — see services/company_drive.py.
 SETTING_FOLDER_ID = "budgets.folder_id_override"
 LEDGER_COLUMNS = ("date", "description", "category", "amount", "source", "note", "status")
 LEDGER_WIDTH = len(LEDGER_COLUMNS)
@@ -148,22 +148,28 @@ async def _run(fn):
 
 
 async def _get_budget_folder_id(db: AsyncSession) -> str:
-    from models.db.settings import SystemSetting
-    from services import google_service as gs
+    from brand import get_brand
+    from services import company_drive, google_service as gs
 
-    row = (
-        await db.execute(select(SystemSetting).where(SystemSetting.key == SETTING_FOLDER_ID))
-    ).scalar_one_or_none()
-    if row is not None and row.value:
-        return str(row.value)
-    meta = await _run(lambda: gs.drive_get_metadata(BUDGET_FOLDER_ID))
+    folder_id = await company_drive.resolve(db, "budgets")
+    if not folder_id:
+        raise BudgetError(
+            "No company budgets folder is set — an administrator picks one in "
+            "Settings → Company (or runs Company Setup), then try again."
+        )
+    if await company_drive.source_of(db, "budgets") == "setting":
+        return folder_id
+    meta = await _run(lambda: gs.drive_get_metadata(folder_id))
     if meta is None or meta.get("trashed"):
+        if get_brand().slug == "littlegerry":
+            who, folder = "Morgan", "the 'Little Gerry Budgets' folder"
+        else:
+            who, folder = f"your administrator ({get_brand().support_email})", "the company budgets folder"
         raise BudgetError(
             "The company budgets folder on Drive isn't reachable from this "
-            "Google account — ask Morgan to share the 'Little Gerry Budgets' "
-            "folder with you (edit access), then try again."
+            f"Google account — ask {who} to share {folder} with you (edit access), then try again."
         )
-    return BUDGET_FOLDER_ID
+    return folder_id
 
 
 # ── creation / linking ────────────────────────────────────────────────────
