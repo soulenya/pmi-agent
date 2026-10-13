@@ -12,6 +12,7 @@ Create Date: 2026-06-09 00:00:00.000000
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "005"
@@ -43,7 +44,7 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_feedback_created_at ON feedback (created_at)"
     )
     # Hand ownership to the runtime role so the app (pmi_app) can access it.
-    op.execute("ALTER TABLE feedback OWNER TO pmi_app")
+    op.execute(f"ALTER TABLE feedback OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

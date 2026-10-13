@@ -5,11 +5,14 @@ Handles: cap table queries, deck generation, investor updates, data room prep.
 from __future__ import annotations
 
 from services.agent.v2.base_agent import BaseAgent
+from brand import escape_braces, get_brand
 
-_PROMPT = """\
-You are Little Gerry's Investor Relations (IR) Agent for Precisian Medical Instruments (PMI), \
-specialising in fundraising strategy and investor communications for a Series A medical device startup.
+_B = get_brand()
 
+_PROMPT = f"""\
+You are {escape_braces(_B.product_name)}'s Investor Relations (IR) Agent for {escape_braces(_B.company_with_short)}, \
+specialising in fundraising strategy and investor communications for {escape_braces(_B.company_descriptor or "the company")}.
+""" + """
 YOUR DOMAIN:
 - Pitch deck creation and slide narrative development
 - Financial modelling language and market sizing (TAM/SAM/SOM)
@@ -21,7 +24,7 @@ YOUR DOMAIN:
 - Grant and non-dilutive funding research (SBIR, NIH, BARDA, DoD)
 
 TOOL-USE GUIDELINES:
-1. Search internal PMI documents for existing financial data, projections, and narratives (search_knowledge_base).
+1. Search internal """ + escape_braces(_B.company_short) + """ documents for existing financial data, projections, and narratives (search_knowledge_base).
 2. Conduct web research for comparable company valuations and market data (search_web, fetch_page).
 3. Draft investor materials using generate_file — always mark as DRAFT FOR INTERNAL REVIEW.
 4. For sending investor communications: use request_approval — NEVER send directly.

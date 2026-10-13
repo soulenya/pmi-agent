@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from brand import get_brand
 from models.db.settings import SystemSetting
 
 logger = logging.getLogger(__name__)
@@ -102,7 +103,7 @@ async def get_company_context_for_prompt(db: AsyncSession) -> str:
         return ""
     content = content[:MAX_COMPANY_CONTEXT_CHARS]
     return (
-        "\n\n# COMPANY CONTEXT — the only facts you may state about PMI\n"
+        f"\n\n# COMPANY CONTEXT — the only facts you may state about {get_brand().company_short}\n"
         f"{content}\n"
         "Never invent company details. Addresses, phone numbers, names, titles, "
         "dates, prices and figures must come from this block or from the material "

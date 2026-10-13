@@ -25,7 +25,13 @@ from __future__ import annotations
 import logging
 import re
 
+from brand import get_brand
+
 logger = logging.getLogger(__name__)
+
+# A brand without the policy: every check answers "allowed" and nothing is
+# withheld. The agent prompts drop the matching notes (guardrails.py).
+_ENABLED = get_brand().feature("drive_restrictions")
 
 # The QMS folder — everything under it is restricted.
 QMS_FOLDER_ID = "1c5mGaeldOIUXZyGVwUoTOsUTtGJ2LMp_"
@@ -125,7 +131,7 @@ async def check_drive_target(
     the model is contractually required to have named the folder/file to the
     user first. An active edit grant for this exact file allows it too.
     """
-    if confirm:
+    if confirm or not _ENABLED:
         return None
     try:
         if file_id in await _granted_ids(db, user_id):
@@ -156,7 +162,7 @@ async def filter_drive_results(
 
     Items need ``id`` and ``name``. With ``confirm=True`` nothing is dropped.
     """
-    if confirm or not items:
+    if confirm or not items or not _ENABLED:
         return items, 0
     try:
         restricted = await _restricted_ids(db)

@@ -94,11 +94,13 @@ async def _llm_draft_email(
     """Call Ollama to write an email draft. Returns the draft body text."""
     from routers.google_integration import _calendar_block
     from services.company_context import get_company_context_for_prompt
+    from brand import get_brand
 
+    _brand = get_brand()
     recipient_line = f"Recipient: {recipient_name}" if recipient_name else "Recipient: (not specified)"
     points_section = f"\nKey points to include:\n{key_points}" if key_points else ""
     prompt = (
-        "You are an executive assistant at Precisian Medical Instruments (PMI), a medical device startup.\n"
+        f"You are an executive assistant at {_brand.company_with_short}, {_brand.company_descriptor}.\n"
         f"{await get_company_context_for_prompt(db)}"
         f"{await _calendar_block()}\n"
         f"Write a {tone} email with the following details:\n\n"

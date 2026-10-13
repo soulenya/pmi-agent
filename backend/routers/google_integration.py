@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from brand import get_brand as _brand
 from dependencies import get_current_user
 from models.db.user import User
 from services import email_contacts as ec
@@ -596,10 +597,10 @@ async def _llm_draft_reply(
             "or signature block after it — a signature is appended automatically."
         )
     else:
-        closing = "Sign off as 'PMI Team' unless a specific name is implied."
+        closing = f"Sign off as '{_brand().company_short} Team' unless a specific name is implied."
     prompt = (
-        "You are an executive assistant at Precisian Medical Instruments (PMI), a "
-        "medical device startup. Draft a reply to the most recent message in the "
+        f"You are an executive assistant at {_brand().company_with_short}, "
+        f"{_brand().company_descriptor}. Draft a reply to the most recent message in the "
         "email thread below. Write a professional, concise reply."
         f"{await get_company_context_for_prompt(db)}"
         f"{await _calendar_block()}\n\n"
@@ -649,10 +650,10 @@ async def _llm_draft_compose(
             "or signature block after it — a signature is appended automatically."
         )
     else:
-        closing = "Sign off as 'PMI Team' unless a specific name is implied."
+        closing = f"Sign off as '{_brand().company_short} Team' unless a specific name is implied."
     prompt = (
-        "You are an executive assistant at Precisian Medical Instruments (PMI), a "
-        f"medical device startup. Write a new {tone} email."
+        f"You are an executive assistant at {_brand().company_with_short}, "
+        f"{_brand().company_descriptor}. Write a new {tone} email."
         f"{await get_company_context_for_prompt(db)}"
         f"{await _calendar_block()}\n\n"
         f"Recipient: {recipient}\nWhat the email needs to say: {instruction}{kp}{voice}\n\n"
@@ -1104,8 +1105,8 @@ async def gmail_thread_summary(
         for m in messages[-12:]
     )
     prompt = (
-        "Summarise the email thread below for a busy executive at Precisian "
-        "Medical Instruments, a medical device startup.\n\n"
+        f"Summarise the email thread below for a busy executive at {_brand().company_name}, "
+        f"{_brand().company_descriptor}.\n\n"
         f"Subject: {thread.get('subject', '')}\n\n"
         f"THREAD (oldest to newest):\n{transcript}\n\n"
         "Write 2-4 short sentences covering what the thread is about, what was "
@@ -1246,8 +1247,8 @@ async def _llm_suggest_tags(*, thread: dict, db: AsyncSession) -> list[str]:
         parts.append(f"From: {m.get('from', '')}\n{body}")
     transcript = "\n\n---\n\n".join(parts)
     prompt = (
-        "You organize the email of Precisian Medical Instruments (PMI), a "
-        "medical device startup. Suggest 3 to 6 short topic/category tags for "
+        f"You organize the email of {_brand().company_with_short}, "
+        f"{_brand().company_descriptor}. Suggest 3 to 6 short topic/category tags for "
         "filing the email thread below. Each tag is 1-2 words, lowercase, no "
         "punctuation (e.g. 'supplier', 'regulatory', 'purchase order', "
         "'support', 'invoice'). Return ONLY a JSON array of strings.\n\n"

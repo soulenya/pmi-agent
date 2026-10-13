@@ -13,6 +13,7 @@ when instead of silently clearing a boolean.
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "035"
@@ -67,7 +68,7 @@ def upgrade() -> None:
         """
     )
 
-    op.execute("ALTER TABLE project_item_custody OWNER TO pmi_app")
+    op.execute(f"ALTER TABLE project_item_custody OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

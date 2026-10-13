@@ -16,6 +16,7 @@ Create Date: 2026-07-22 00:00:00.000000
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "022"
@@ -42,10 +43,10 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_budget_references_budget_id ON budget_references (budget_id)"
     )
     op.execute(
-        """
+        f"""
         DO $$ BEGIN
-            IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'pmi_app') THEN
-                ALTER TABLE budget_references OWNER TO pmi_app;
+            IF EXISTS (SELECT FROM pg_roles WHERE rolname = '{APP_ROLE}') THEN
+                ALTER TABLE budget_references OWNER TO {APP_ROLE};
             END IF;
         END $$;
         """

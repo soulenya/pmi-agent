@@ -11,6 +11,7 @@ overloading a field the rest of the app already reads.
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "037"
@@ -52,7 +53,7 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_task_dependencies_successor"
         " ON task_dependencies (successor_id)"
     )
-    op.execute("ALTER TABLE task_dependencies OWNER TO pmi_app")
+    op.execute(f"ALTER TABLE task_dependencies OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

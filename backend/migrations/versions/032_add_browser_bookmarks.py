@@ -8,6 +8,7 @@ Create Date: 2026-08-24 00:00:00.000000
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "032"
@@ -34,7 +35,7 @@ def upgrade() -> None:
     )
     # Migrations run as the superuser `pmi`; the API runs as `pmi_app`, which has
     # no CREATE rights and must own the table to be able to read or write it.
-    op.execute("ALTER TABLE browser_bookmarks OWNER TO pmi_app")
+    op.execute(f"ALTER TABLE browser_bookmarks OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

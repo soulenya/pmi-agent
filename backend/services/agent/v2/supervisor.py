@@ -24,10 +24,16 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from brand import get_brand
+
 logger = logging.getLogger(__name__)
 
-# Agent name → description used in supervisor routing prompt
-_AGENT_DESCRIPTIONS = {
+_B = get_brand()
+_PRODUCT = _B.product_name_short
+
+# Agent name → description used in supervisor routing prompt. Only agents on the
+# brand's roster are offered; a disabled specialist is never routed to.
+_ALL_AGENT_DESCRIPTIONS = {
     "executive_assistant": (
         "General queries, daily briefings, email triage, task management, "
         "scheduling, Google Workspace access, communications summaries, and anything "
@@ -39,7 +45,7 @@ _AGENT_DESCRIPTIONS = {
     ),
     "regulatory": (
         "FDA 510(k), Design History File (DHF), IFU, labeling compliance, ISO 13485, "
-        "ISO 14971, IEC 60601-1, regulatory strategy, and gap analysis for VACTOR."
+        f"ISO 14971, IEC 60601-1, regulatory strategy, and gap analysis for {_PRODUCT}."
     ),
     "qms": (
         "Quality Management System: CAPA, SOPs, non-conformances, internal audits, "
@@ -51,18 +57,21 @@ _AGENT_DESCRIPTIONS = {
     ),
     "engineering": (
         "Hardware, firmware, systems engineering, BOM review, test protocols, "
-        "design V&V, design FMEA, and technical documentation for VACTOR."
+        f"design V&V, design FMEA, and technical documentation for {_PRODUCT}."
     ),
     "operations": (
         "Procurement, supply chain, production scheduling, vendor management, "
         "Google Sheets BOM/budget data, and operational logistics."
     ),
 }
+_AGENT_DESCRIPTIONS = {
+    name: desc for name, desc in _ALL_AGENT_DESCRIPTIONS.items() if _B.agent_enabled(name)
+}
 
-_SUPERVISOR_PROMPT = """\
-You are the routing supervisor for Little Gerry, the AI Executive Assistant for \
-Precisian Medical Instruments (PMI).
-
+_SUPERVISOR_PROMPT = f"""\
+You are the routing supervisor for {_B.product_name}, the AI Executive Assistant for \
+{_B.company_with_short}.
+""" + """
 Your ONLY job is to decide which specialist agent should handle the user's message.
 
 Available agents:
@@ -190,6 +199,8 @@ class LangGraphSupervisor:
             "operations": OperationsAgent,
             "house_manager": HouseManagerAgent,
         }
+        if not _B.agent_enabled(agent_name):
+            agent_name = "executive_assistant"
         cls = _MAP.get(agent_name, ExecutiveAssistantAgent)
         return cls(llm=self.llm, ctx=ctx)
 

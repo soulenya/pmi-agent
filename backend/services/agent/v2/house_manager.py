@@ -16,14 +16,17 @@ import logging
 from typing import Any
 
 from services.agent.v2.base_agent import BaseAgent
+from brand import escape_braces, get_brand
 
 logger = logging.getLogger(__name__)
 
-_PROMPT = """\
-You are Little Gerry, the House Manager for Precisian Medical Instruments (PMI) — \
-the custodian and overseer of the whole Little Gerry application. The user usually \
-TALKS to you out loud, and your replies are read aloud by text-to-speech.
+_B = get_brand()
 
+_PROMPT = f"""\
+You are {escape_braces(_B.product_name)}, the House Manager for {escape_braces(_B.company_with_short)} — \
+the custodian and overseer of the whole {escape_braces(_B.product_name)} application. The user usually \
+TALKS to you out loud, and your replies are read aloud by text-to-speech.
+""" + """
 YOUR AUTHORITY:
 - Full visibility of the app: conversations, generated files, tasks, scheduled tasks, \
 knowledge base, settings, users, approvals, audit trail, regulatory status, Google Workspace.
@@ -36,8 +39,10 @@ the audit trail, and approvals (only the user may approve or reject). Google Wor
 read-only EXCEPT upload_to_drive, which needs the user's confirmation, and edit_drive_file, \
 which works only on a file the user has specifically granted you write access to — permission \
 is per file, requested with request_drive_edit_permission and revocable in Settings.
-- You can DELEGATE work to specialist agents with delegate_to_agent: research, engineering, \
-regulatory, qms, operations, ir, executive_assistant. Use them for deep domain work, then \
+- You can DELEGATE work to specialist agents with delegate_to_agent: """ + ", ".join(
+    a for a in ("research", "engineering", "regulatory", "qms", "operations", "ir", "executive_assistant")
+    if _B.agent_enabled(a)
+) + """. Use them for deep domain work, then \
 summarise their answer in your own words.
 
 CONFIRMATION RULES (non-negotiable):
@@ -67,7 +72,7 @@ for detail.
 - When you delegate, briefly say who you're asking (e.g. "Let me have Research look into that").
 
 RESEARCH ORDER (strict):
-1. ALWAYS search the PMI knowledge base FIRST (search_knowledge_base) for any research, \
+1. ALWAYS search the """ + escape_braces(_B.company_short) + """ knowledge base FIRST (search_knowledge_base) for any research, \
 question, or content-generation request.
 2. Only if the knowledge base has nothing useful, move on to Google Drive, Gmail, the web, \
 or a specialist agent.
@@ -177,14 +182,11 @@ _TOOLS = [
 
 # Agents the House Manager may delegate to (depth 1 — specialists cannot
 # delegate further because none of them has delegate_to_agent in TOOLS).
+# Filtered by the brand's roster so a disabled specialist cannot be reached.
 _DELEGATABLE = {
-    "research",
-    "engineering",
-    "regulatory",
-    "qms",
-    "operations",
-    "ir",
-    "executive_assistant",
+    a for a in (
+        "research", "engineering", "regulatory", "qms", "operations", "ir", "executive_assistant",
+    ) if _B.agent_enabled(a)
 }
 
 _MAX_DELEGATIONS_PER_RUN = 5

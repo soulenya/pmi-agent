@@ -12,6 +12,7 @@ Create Date: 2026-07-31 00:00:00.000000
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "029"
@@ -52,10 +53,10 @@ def upgrade() -> None:
     # Migrations may run as the privileged role; the runtime role needs the
     # table too (see migration 018 — the same omission broke three tables).
     op.execute(
-        """
+        f"""
         DO $$ BEGIN
-            IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'pmi_app') THEN
-                ALTER TABLE drive_edit_grants OWNER TO pmi_app;
+            IF EXISTS (SELECT FROM pg_roles WHERE rolname = '{APP_ROLE}') THEN
+                ALTER TABLE drive_edit_grants OWNER TO {APP_ROLE};
             END IF;
         END $$;
         """

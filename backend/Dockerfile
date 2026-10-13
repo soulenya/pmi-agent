@@ -29,6 +29,7 @@ COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY backend/ .
+COPY brand/ ./brand/
 COPY --from=frontend /build/dist ./static
 
 ENV PATH="/opt/venv/bin:$PATH" \

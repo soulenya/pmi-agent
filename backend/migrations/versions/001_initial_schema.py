@@ -11,6 +11,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from migrations._roles import APP_ROLE
 from sqlalchemy.dialects import postgresql
 
 revision: str = "001"
@@ -509,7 +510,7 @@ def upgrade() -> None:
 
     # ── DB role permissions ───────────────────────────────────────────────────
     # pmi_app: no DELETE or UPDATE on audit_events (enforced at DB level)
-    op.execute("REVOKE UPDATE, DELETE ON audit_events FROM pmi_app")
+    op.execute(f"REVOKE UPDATE, DELETE ON audit_events FROM {APP_ROLE}")
 
 
 def downgrade() -> None:

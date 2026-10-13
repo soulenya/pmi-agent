@@ -47,9 +47,9 @@ _DOCS_PREFIX = "documents/"
 _ATTACHMENTS_PREFIX = "chat-attachments/"
 _GENERATED_PREFIX = "generated-files/"
 
-_CONTAINER = "pmi_postgres"
-_DB_NAME = "pmi_dev"
-_DB_SUPERUSER = "pmi"
+_CONTAINER = settings.db_postgres_container
+_DB_NAME = settings.db_name
+_DB_SUPERUSER = settings.db_superuser
 
 # A restore replaces the whole database, so keep the outgoing one for a while.
 _PRE_RESTORE_KEEP = 3

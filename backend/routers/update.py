@@ -24,12 +24,13 @@ from pydantic import BaseModel
 
 from dependencies import require_admin
 from config import settings
+from brand import get_brand
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/update", tags=["update"])
 
-GITHUB_REPO         = "soulenya/pmi-agent"
+GITHUB_REPO         = get_brand().github_repo
 GITHUB_API          = f"https://api.github.com/repos/{GITHUB_REPO}/commits/master"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 

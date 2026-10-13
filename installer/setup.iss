@@ -16,7 +16,7 @@
 
 #define AppName       "Little Gerry"
 #define AppPublisher  "Precisian Medical Instruments"
-#define AppVersion    "5.18.0"
+#define AppVersion    "5.19.0"
 #define AppURL        "https://github.com/soulenya/pmi-agent"
 #define AppExeName    "Start Little Gerry.bat"
 #define AppDescription "AI Executive Assistant for the VACTOR Program"
@@ -100,6 +100,7 @@ Source: "..\.gitignore";                   DestDir: "{app}"; Flags: ignoreversio
 ; users add it after installing (see docs/INSTALL.md "Google OAuth credentials").
 ; hub_client.json is fetched from the firm's Drive on first run, not bundled.
 Source: "..\VERSION";                       DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\brand\*";                       DestDir: "{app}\brand"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\update_token.txt";              DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; Icon — used by installer .exe and all shortcuts

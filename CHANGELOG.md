@@ -4,6 +4,59 @@
 
 ## Changelog
 
+### v5.19.0 · build 299 — 2026-10-13
+**White-label Phase 1: the company moves into `brand/brand.json`; PMI unchanged**
+
+- First of seven white-label phases (WHITE-LABEL-PLAN.md rev 2). Every
+  company-specific value the backend knows — company name/short/descriptor,
+  product name and one-liner, sign-in domains, admin/support email, GitHub
+  repo, hub URL, data dir, keyring service, Drive ids, STT bucket, **database
+  and role names**, feature flags, agent roster — now comes from
+  `brand/brand.json` at the repo root, loaded by `backend/brand.py` (no
+  project imports; `config.py` takes its defaults from it, so an environment
+  variable still overrides anything). PMI's values are the file's contents
+  **and** the built-in defaults, so a missing file changes nothing.
+- Prompts: the v1 executor, the supervisor, all eight v2 agents, the
+  briefing, email draft/compose/summary/tag, meeting, research and regulatory
+  prompts, the regulatory generator's fallback, the sign-in refusal and the
+  invite email read the brand. The VACTOR sentence in the engineering agent
+  is `brand.product.engineering_context`. The duplicated sign-in allow-list
+  (`ALLOWED_DOMAINS` in `services/projects/access.py`) is now derived from
+  `company_domains` — one source instead of two that had to match.
+- Tool schemas: a pass at the end of `tools.py` (`brand_tool_text`) rewrites
+  PMI wording in every description and parameter (identity for PMI); the v2
+  `_TOOL_DOCS` go through the same pass and only offer tools the v1 executor
+  still has.
+- Feature flags: `features.regulatory` off → the four regulatory routers are
+  not mounted (404), `get_regulatory_status` is removed from v1 and v2, and
+  the regulatory agent leaves the roster; `qms_agent` / `investor_relations`
+  off → those agents leave the supervisor's routing table, the roster and
+  the House Manager's delegate list; `drive_restrictions` off →
+  `drive_policy` checks always allow, the RESTRICTED SOURCES and EDIT GRANT
+  prompt notes are empty, and the sentences/`confirm_restricted` parameter
+  about the policy are stripped from tool descriptions.
+- Database names: `migrations/_roles.py` exposes `APP_ROLE` (`DB_APP_ROLE`
+  env → brand → `pmi_app`); the 21 migrations that hand ownership to the
+  runtime role use it. `data_transfer.py` takes container/db/superuser names
+  from settings. `docker-compose`, `init_db.sql`, the launcher/bat scripts and
+  `hub-startup.sh` keep their literals until Phases 5/6, where they become
+  variables; the default dev password `pmi_dev_password` likewise.
+- `brand/` is shipped in the installer (`setup.iss`) and the hub image
+  (`Dockerfile`).
+- **Verified PMI is unchanged:** `alembic upgrade base:head --sql` for HEAD vs
+  this build is byte-identical (68,973 bytes); a probe that imports the
+  backend and dumps the v1 executor prompt, every setting, every guardrail,
+  all 86 tool schemas and executors shows them identical to HEAD. Three
+  strings differ, all wording-only and none on PMI's default path: the v2
+  Executive Assistant's one-liner says "designed for" (as the v1 prompt
+  always has), the IR agent drops the hard-coded "Series A" (a funding stage
+  belongs in Company Truth), and the regulatory wizard's offline fallback
+  company line uses the brand one-liner. Under a throwaway Noctu brand file
+  the same probe finds no PMI/VACTOR/domain/role string, 85 tools, five
+  agents, empty restriction notes, `/regulatory-templates` 404, health 200.
+- Tests: `tests/test_brand.py` (defaults, override + deep merge, product-less
+  company, brace escaping, invalid file). Suite 107 passed.
+
 ### v5.18.0 · build 298 — 2026-10-12
 **Word documents come out in the Precisian Medical design system; regulated documents don't**
 

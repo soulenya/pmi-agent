@@ -40,6 +40,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # ── Google SSO ────────────────────────────────────────────────────────────────
 
 from services.projects.access import ALLOWED_DOMAINS as _ALLOWED_DOMAINS
+from brand import get_brand
 
 _SSO_SCOPES = [
     "openid",
@@ -139,7 +140,7 @@ def _run_sso_flow(auth_id: str) -> None:
         if domain not in _ALLOWED_DOMAINS:
             raise ValueError(
                 f"The account '{email}' is not authorised. "
-                "Please sign in with a @pmi-llc.com or @precisianmedical.com account."
+                f"Please sign in with {get_brand().sign_in_hint}."
             )
 
         with _sso_lock:

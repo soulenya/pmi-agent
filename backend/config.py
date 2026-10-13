@@ -17,7 +17,10 @@ from cryptography.fernet import Fernet
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_KEYRING_SERVICE = "pmi-agent"
+from brand import get_brand
+
+_BRAND = get_brand()
+_KEYRING_SERVICE = _BRAND.keyring_service
 
 
 def _keyring_get(key: str) -> str | None:
@@ -39,7 +42,7 @@ def _keyring_set(key: str, value: str) -> bool:
 
 class Settings(BaseSettings):
     # ── Application ──────────────────────────────────────────────────────────
-    app_name: str = "PMI AI Assistant"
+    app_name: str = f"{_BRAND.company_short} AI Assistant"
     app_version: str = "0.1.0"
     debug: bool = False
 
@@ -74,26 +77,34 @@ class Settings(BaseSettings):
     # `py_vapid` writes them. Blank turns push off; subscriptions are refused.
     vapid_public_key: str = ""
     vapid_private_key: str = ""
-    vapid_subject: str = "mailto:morganjkeane@precisianmedical.com"
+    vapid_subject: str = _BRAND.vapid_subject
 
     # ── Reaching the hub from a desktop install ──────────────────────────────
     # Where the shared project spaces live. Blank turns the feature off.
-    hub_url: str = "https://hub.precisianmedical.com"
+    hub_url: str = _BRAND.hub_url if _BRAND.feature("hub") else ""
     # A desktop-type OAuth client that the hub's IAP allows through for
     # programmatic access. Not the same client as Google sign-in: IAP only
     # accepts tokens from clients on its allowlist. Normally left blank: the
     # app collects the client from the firm's Drive on first run.
     hub_desktop_client_id: str = ""
     # The Drive file holding that client. Blank means look it up by name.
-    hub_client_drive_file_id: str = "1BuvAGSyr7wi-VVTJmFE81dnfDTyQSCsd"
+    hub_client_drive_file_id: str = _BRAND.drive.get("hub_client_file", "")
 
-    # ── Database ─────────────────────────────────────────────────────────────
+    # Names of the database, its roles and containers. PMI installs keep the
+    # pmi_* names; a white-label brand sets generic ones. Migrations read
+    # DB_APP_ROLE from the environment with the brand value as the default.
+    db_name: str = _BRAND.db["name"]
+    db_superuser: str = _BRAND.db["superuser"]
+    db_app_role: str = _BRAND.db["app_role"]
+    db_audit_role: str = _BRAND.db["audit_role"]
+    db_api_container: str = _BRAND.db["api_container"]
+    db_postgres_container: str = _BRAND.db["postgres_container"]
     database_url: str = Field(
-        default="postgresql+asyncpg://pmi_app:pmi_dev_password@localhost:5432/pmi_dev"
+        default=f"postgresql+asyncpg://{_BRAND.db['app_role']}:pmi_dev_password@localhost:5432/{_BRAND.db['name']}"
     )
     # Sync URL is used by Alembic migrations only
     database_url_sync: str = Field(
-        default="postgresql://pmi_app:pmi_dev_password@localhost:5432/pmi_dev"
+        default=f"postgresql://{_BRAND.db['app_role']}:pmi_dev_password@localhost:5432/{_BRAND.db['name']}"
     )
 
     # ── JWT ───────────────────────────────────────────────────────────────────
@@ -112,17 +123,17 @@ class Settings(BaseSettings):
 
     # ── Company context ───────────────────────────────────────────────────────
     # Default shared Google Drive file ID for the company-context profile.
-    # Baked into the build so every install syncs the same file with zero
+    # Comes from brand.json so every install syncs the same file with zero
     # per-user setup; a SystemSetting ("company.profile_drive_file_id") set
     # via Settings → Company Profile overrides it on that machine.
-    company_context_drive_file_id: str = "1aqx08UZ6J1qWAK4o9RMQMeonGvV1yI1C"
+    company_context_drive_file_id: str = _BRAND.drive.get("company_context", "")
     # Shared Drive folder of document templates (see services/file_templates.py).
     # Every doc in it (and its subfolders) is a template.
-    file_templates_drive_folder_id: str = "1EFoPDRfAA1RaxRtWEEVj32eGfpeekV0F"
+    file_templates_drive_folder_id: str = _BRAND.drive.get("templates_folder", "")
     # Shared Drive folder where workroom manifests live (see
     # services/workroom_share.py); a SystemSetting
     # ("workrooms.share_folder_id_override") overrides it on that machine.
-    workrooms_share_folder_id: str = "1rk-Pg-Ly9cIrHF87Cr7Gnu7-VRUjamT7"
+    workrooms_share_folder_id: str = _BRAND.drive.get("workrooms_share_folder", "")
 
     # ── RAG ──────────────────────────────────────────────────────────────────
     chunk_size_tokens: int = 512
@@ -137,7 +148,7 @@ class Settings(BaseSettings):
 
     # ── Storage ──────────────────────────────────────────────────────────────
     # Root directory where encrypted document files are stored
-    storage_root: str = "~/.pmi-agent/documents"
+    storage_root: str = f"~/{_BRAND.data_dir_name}/documents"
 
     # ── Approval ─────────────────────────────────────────────────────────────
     approval_expiry_hours: int = 48
@@ -145,7 +156,7 @@ class Settings(BaseSettings):
     # ── Feedback ─────────────────────────────────────────────────────────────
     # User-submitted bug reports / feature requests are routed to this account's
     # notifications. Falls back to all admin users if the email isn't found.
-    feedback_recipient_email: str = "morganjkeane@pmi-llc.com"
+    feedback_recipient_email: str = _BRAND.support_email
 
     # ── Push notifications (APNs) ────────────────────────────────────────────
     # Token-based (.p8) auth for the iOS app. Leave blank to disable push — the
@@ -171,7 +182,7 @@ class Settings(BaseSettings):
     #   GCP_STT_MODEL             — recognition model (long, chirp_2, …)
     #   GCP_STT_LANGUAGE          — BCP-47 language code
     #   GCP_STT_DIARIZE           — tag speakers (model/region must support it)
-    gcp_stt_bucket: str = "little_gerry_stt"
+    gcp_stt_bucket: str = _BRAND.gcp.get("stt_bucket", "")
     gcp_service_account_file: str = ""
     gcp_project_id: str = ""
     # Multi-region (us/eu) is required for speaker diarization in batchRecognize;
@@ -209,16 +220,16 @@ class Settings(BaseSettings):
     # The single application owner. On first Google SSO sign-in this email is
     # provisioned as "admin"; every other allowed-domain account is provisioned
     # as a full-access "member". Each user runs their own local copy.
-    admin_email: str = "morganjkeane@pmi-llc.com"
+    admin_email: str = _BRAND.admin_email
     # Every domain that counts as "our own company". Anyone at one of these is
     # a colleague (CC'd, never the target of an outbound thank-you); everyone
-    # else in a meeting is the other party.
-    company_domains: list[str] = ["pmi-llc.com", "precisianmedical.com"]
+    # else in a meeting is the other party. Also the sign-in allow-list.
+    company_domains: list[str] = _BRAND.domains
     # How the company is written in generated names, e.g. meeting notes
     # "PMI/Hatch High Level Review (External)".
-    company_short_name: str = "PMI"
-    # Link emailed to invitees so they can download and install Little Gerry.
-    installer_download_url: str = "https://github.com/soulenya/pmi-agent/releases/latest"
+    company_short_name: str = _BRAND.company_short
+    # Link emailed to invitees so they can download and install the app.
+    installer_download_url: str = f"https://github.com/{_BRAND.github_repo}/releases/latest"
 
     model_config = SettingsConfigDict(
         env_file=".env",

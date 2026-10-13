@@ -11,6 +11,7 @@ sign-in replaces the first instead of quietly leaving two live tokens behind.
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "036"
@@ -35,7 +36,7 @@ def upgrade() -> None:
         )
         """
     )
-    op.execute("ALTER TABLE hub_links OWNER TO pmi_app")
+    op.execute(f"ALTER TABLE hub_links OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

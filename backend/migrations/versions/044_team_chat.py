@@ -13,6 +13,7 @@ kind, where each person's read marker lives.
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 revision = "044"
 down_revision = "043"
@@ -74,7 +75,7 @@ def upgrade() -> None:
         ON team_messages (channel_id, created_at)
     """)
     for table in ("team_channels", "team_channel_members", "team_messages"):
-        op.execute(f"ALTER TABLE {table} OWNER TO pmi_app")
+        op.execute(f"ALTER TABLE {table} OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

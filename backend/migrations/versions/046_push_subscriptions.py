@@ -11,6 +11,7 @@ deleted when the push service reports the subscription gone (404/410).
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "046"
@@ -39,10 +40,10 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_push_subscriptions_user_id ON push_subscriptions (user_id)"
     )
     op.execute(
-        """
+        f"""
         DO $$ BEGIN
-            IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'pmi_app') THEN
-                ALTER TABLE push_subscriptions OWNER TO pmi_app;
+            IF EXISTS (SELECT FROM pg_roles WHERE rolname = '{APP_ROLE}') THEN
+                ALTER TABLE push_subscriptions OWNER TO {APP_ROLE};
             END IF;
         END $$;
         """

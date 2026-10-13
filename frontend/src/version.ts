@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 298;
+export const BUILD_NUMBER = 299;
 export const BUILD_DATE = "2026-09-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 299,
+    date: "2026-10-13",
+    title: "Groundwork for other companies — nothing changes for PMI",
+    changes: [
+      "The company's name, domains, product and feature set now live in one file (brand/brand.json) instead of being written into the code. For PMI every value is the same as before and every prompt Gerry uses is unchanged.",
+      "This is the first of several steps that will let another company run Little Gerry under its own name; it has no visible effect in this release.",
+    ],
+  },
   {
     build: 298,
     date: "2026-10-12",

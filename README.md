@@ -575,6 +575,10 @@ Dates read the same everywhere — Today, Tomorrow, "Sun, Sep 13", "3 days overd
 
 ## Configuration Reference
 
+### Brand — `brand/brand.json`
+
+Everything that names the company lives in one file at the repo root: company name/short/descriptor, flagship product, sign-in domains, admin and support email, GitHub repository, hub URL, data directory and keyring service, Drive folder ids, STT bucket, database/role/container names, feature flags (`regulatory`, `qms_agent`, `drive_restrictions`, `investor_relations`, `budgets`, `invoices`, `erp`, `meetings`, `hub`) and the agent roster. `backend/brand.py` loads it once (`BRAND_FILE` overrides the path); `config.py` takes its defaults from it, so an environment variable still wins. PMI's values are both the file's contents and the built-in defaults — a missing file changes nothing. Migrations read the runtime role as `DB_APP_ROLE` → brand → `pmi_app`. A white-label fork edits this file (see WHITE-LABEL-PLAN.md).
+
 ### Backend — `backend/.env`
 
 ```env

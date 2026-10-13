@@ -14,8 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user
+from brand import get_brand
 
 router = APIRouter(prefix="/agents", tags=["agents"])
+
+_PRODUCT = get_brand().product_name_short
 
 
 class AgentInfo(BaseModel):
@@ -48,7 +51,7 @@ _DESCRIPTIONS: dict[str, tuple[str, str]] = {
     "regulatory": (
         "Regulatory",
         "FDA 510(k), Design History File, IFU, labeling compliance, ISO 13485, "
-        "ISO 14971, IEC 60601-1, regulatory strategy, and gap analysis for VACTOR.",
+        f"ISO 14971, IEC 60601-1, regulatory strategy, and gap analysis for {_PRODUCT}.",
     ),
     "qms": (
         "QMS",
@@ -63,7 +66,7 @@ _DESCRIPTIONS: dict[str, tuple[str, str]] = {
     "engineering": (
         "Engineering",
         "Hardware, firmware, systems engineering, BOM review, test protocols, "
-        "design V&V, design FMEA, and technical documentation for VACTOR.",
+        f"design V&V, design FMEA, and technical documentation for {_PRODUCT}.",
     ),
     "operations": (
         "Operations",
@@ -103,6 +106,7 @@ def _v2_agent_classes() -> dict[str, type]:
             OperationsAgent,
             HouseManagerAgent,
         )
+        if get_brand().agent_enabled(cls.AGENT_NAME)
     }
 
 
@@ -154,7 +158,7 @@ async def get_agent_roster(
     agents.append(
         AgentInfo(
             name="agent_executor",
-            display_name="Little Gerry (chat)",
+            display_name=f"{get_brand().product_name} (chat)",
             kind="legacy",
             description=(
                 "The original all-in-one agent that handles every typed chat "

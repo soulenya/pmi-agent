@@ -36,8 +36,10 @@ from models.db.task import Task
 from repositories.conversation_repo import ApprovalRepository
 from repositories.document_repo import DocumentChunkRepository, DocumentRepository
 from services.embeddings.service import EmbeddingService
+from brand import get_brand
 
 logger = logging.getLogger(__name__)
+_brand = get_brand()
 
 
 # ── Tool context ──────────────────────────────────────────────────────────────
@@ -3698,7 +3700,7 @@ async def execute_get_regulatory_status(ctx: ToolContext, _args: dict[str, Any])
     # Open CAPAs
     open_capas = [c for c in all_capas if c.status in ("open", "in_progress")]
 
-    lines = ["VACTOR Regulatory Compliance Status\n"]
+    lines = [f"{_brand.product_name_short} Regulatory Compliance Status\n"]
     lines.append(f"Total documents: {len(all_docs)}")
     for s, n in sorted(status_counts.items()):
         lines.append(f"  {s}: {n}")
@@ -6578,7 +6580,7 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         fp = section.footer.paragraphs[0]
         fp.text = ""
         if brand and not footer_left:
-            footer_left = "Precisian Medical Instruments"
+            footer_left = _brand.company_name
         if footer_left:
             fp.add_run(f"{footer_left}\t\tPage ")
         else:
@@ -7591,6 +7593,64 @@ _PRIMARY_ARG = {
 }
 
 _PRIMARY_ARG.update(_project_tools.PRIMARY_ARGS)
+
+
+# ── Brand + feature pass over the tool schemas ────────────────────────────────────
+# The descriptions above are written in PMI's words. For PMI every substitution
+# below is the identity and every feature is on, so nothing changes; a
+# white-label brand gets its own names and loses the tools it does not ship.
+
+_IS_PMI = _brand.company_name == "Precisian Medical Instruments"
+_BRAND_WORDS: tuple[tuple[str, str], ...] = (
+    ("Precisian Medical design system", "Precisian Medical design system" if _IS_PMI else f"{_brand.company_name} design system"),
+    ("Precisian Medical Instruments", _brand.company_name),
+    ("VACTOR", _brand.product_name_short),
+    ("PMI", _brand.company_short),
+    ("Little Gerry", _brand.product_name),
+)
+# Sentences that only make sense while the restricted-sources policy exists.
+_RESTRICTION_SENTENCE = re.compile(
+    r"\s*[^.]*\b(QMS[- ]folder|QMS folder|confirm_restricted|standing policy|restricted-sources|withheld)\b[^.]*\.",
+    re.IGNORECASE,
+)
+_FEATURE_TOOLS = {"regulatory": {"get_regulatory_status"}}
+
+
+def brand_tool_text(text: str) -> str:
+    """PMI wording → this brand's wording; restriction sentences dropped when off."""
+    for old, new in _BRAND_WORDS:
+        if old != new:
+            text = text.replace(old, new)
+    if not _brand.feature("drive_restrictions"):
+        text = _RESTRICTION_SENTENCE.sub("", text)
+    return text
+
+
+def _apply_brand(defs: list[dict]) -> list[dict]:
+    disabled = {t for feat, names in _FEATURE_TOOLS.items() if not _brand.feature(feat) for t in names}
+    out: list[dict] = []
+    for d in defs:
+        fn = d.get("function", {})
+        if fn.get("name") in disabled:
+            continue
+        if isinstance(fn.get("description"), str):
+            fn["description"] = brand_tool_text(fn["description"])
+        props = (fn.get("parameters") or {}).get("properties") or {}
+        if not _brand.feature("drive_restrictions"):
+            props.pop("confirm_restricted", None)
+        for p in props.values():
+            if isinstance(p, dict) and isinstance(p.get("description"), str):
+                p["description"] = brand_tool_text(p["description"])
+        out.append(d)
+    return out
+
+
+TOOL_DEFINITIONS[:] = _apply_brand(TOOL_DEFINITIONS)
+for _feat, _names in _FEATURE_TOOLS.items():
+    if not _brand.feature(_feat):
+        for _n in _names:
+            TOOL_EXECUTORS.pop(_n, None)
+            _PRIMARY_ARG.pop(_n, None)
 
 
 def _db_error_hint(exc: BaseException) -> str:
