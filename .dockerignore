@@ -21,6 +21,7 @@ backend/.env.*
 backend/logs/
 backend/generated_files/
 backend/assets/
+!backend/assets/starter/
 backend/tests/
 backend/*.log
 backend/.pytest_out.txt
