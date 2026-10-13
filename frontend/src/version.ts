@@ -17,10 +17,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     build: 299,
     date: "2026-10-13",
-    title: "Groundwork for other companies — nothing changes for PMI",
+    title: "Internal housekeeping",
     changes: [
-      "The company's name, domains, product and feature set now live in one file (brand/brand.json) instead of being written into the code. For PMI every value is the same as before and every prompt Gerry uses is unchanged.",
-      "This is the first of several steps that will let another company run Little Gerry under its own name; it has no visible effect in this release.",
+      "Company details that were written into the code (name, sign-in domains, product, feature set) now come from one configuration file. Every value is the same as before and nothing about how Gerry works has changed.",
     ],
   },
   {
