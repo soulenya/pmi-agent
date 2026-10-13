@@ -24,10 +24,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.project_member import PROJECT_ROLES, ProjectMember
 from models.db.task import Project
+from config import settings
 
 # Who may hold an account at all. Sign-in checks it and so does sharing, so it
-# lives here rather than in either caller.
-ALLOWED_DOMAINS = {"pmi-llc.com", "precisianmedical.com"}
+# lives here rather than in either caller. One source: the brand's domains
+# (config.company_domains), never a second copy.
+ALLOWED_DOMAINS = frozenset(
+    str(d).strip().lower().lstrip("@") for d in settings.company_domains if str(d).strip()
+)
 
 
 def role_at_least(role: str, minimum: str) -> bool:

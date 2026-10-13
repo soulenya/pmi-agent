@@ -12,6 +12,7 @@ anything pinnable is already placeable.
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "038"
@@ -85,7 +86,7 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_canvas_edges_canvas ON canvas_edges (canvas_id)"
     )
     for table in ("project_canvases", "canvas_nodes", "canvas_edges"):
-        op.execute(f"ALTER TABLE {table} OWNER TO pmi_app")
+        op.execute(f"ALTER TABLE {table} OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

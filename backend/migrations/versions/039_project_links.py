@@ -11,6 +11,7 @@ Only `gates` carries a condition, and that condition is a milestone task.
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 revision = "039"
 down_revision = "038"
@@ -44,7 +45,7 @@ def upgrade() -> None:
         CREATE INDEX IF NOT EXISTS ix_project_links_to
         ON project_links (to_project_id)
     """)
-    op.execute("ALTER TABLE project_links OWNER TO pmi_app")
+    op.execute(f"ALTER TABLE project_links OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

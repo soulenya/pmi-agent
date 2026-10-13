@@ -12,6 +12,7 @@ means "use the system default", so nothing needs backfilling.
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "034"
@@ -36,7 +37,7 @@ def upgrade() -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS ux_user_settings_user_key "
         "ON user_settings (user_id, key)"
     )
-    op.execute("ALTER TABLE user_settings OWNER TO pmi_app")
+    op.execute(f"ALTER TABLE user_settings OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

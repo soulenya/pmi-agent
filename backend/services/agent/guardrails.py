@@ -11,6 +11,8 @@ This single contract is appended to both the v1 system prompt
 (services/agent/v2/base_agent.py) so the rules stay in one place.
 """
 
+from brand import get_brand
+
 HONESTY_CONTRACT = """\
 
 HONESTY & VERIFICATION CONTRACT (overrides any instinct to please):
@@ -70,13 +72,19 @@ work. If you are unsure whether you hold a grant, call
 list_drive_edit_permissions rather than refusing.
 """
 
+# A brand without the restricted-sources policy gets neither note: the rule
+# does not exist there, so the model must not be told about it.
+if not get_brand().feature("drive_restrictions"):
+    RESTRICTED_SOURCES_NOTE = ""
+    EDIT_GRANT_NOTE = ""
+
 # Standing rule (Morgan, 2026-07-27, after a stale "PMI Snapshot" email went
 # out): status/snapshot emails must be fact-checked against current sources
 # BEFORE drafting, and the verification recorded on the draft.
-EMAIL_FACT_CHECK_NOTE = """\
+EMAIL_FACT_CHECK_NOTE = f"""\
 
 STATUS-EMAIL FACT CHECK (standing rule): before drafting any company status /
-snapshot / update email — or ANY email asserting facts about PMI's legal,
+snapshot / update email — or ANY email asserting facts about {get_brand().company_short}'s legal,
 corporate, IP, design, manufacturing, distribution, regulatory, funding, or
 team status:
 - Verify EVERY factual claim against the COMPANY CONTEXT block first, and use

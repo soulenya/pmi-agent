@@ -14,6 +14,7 @@ Create Date: 2026-07-17 00:00:00.000000
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "014"
@@ -70,9 +71,9 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_workroom_journal_workroom_id ON workroom_journal (workroom_id)"
     )
     # Hand ownership to the runtime role so the app (pmi_app) can access them.
-    op.execute("ALTER TABLE workrooms OWNER TO pmi_app")
-    op.execute("ALTER TABLE workroom_items OWNER TO pmi_app")
-    op.execute("ALTER TABLE workroom_journal OWNER TO pmi_app")
+    op.execute(f"ALTER TABLE workrooms OWNER TO {APP_ROLE}")
+    op.execute(f"ALTER TABLE workroom_items OWNER TO {APP_ROLE}")
+    op.execute(f"ALTER TABLE workroom_journal OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from brand import get_brand
 from dependencies import get_current_user
 from models.db.enums import ResearchStatus
 from models.db.user import User
@@ -39,7 +40,7 @@ async def _summarise(query: str, sources: list[dict], db: AsyncSession) -> tuple
     )
 
     prompt = (
-        f"You are a research assistant at a medical device company (PMI).\n"
+        f"You are a research assistant at {get_brand().company_with_short}, {get_brand().company_descriptor}.\n"
         f"The user queried: \"{query}\"\n\n"
         f"Here are the top web search results:\n\n{snippets}\n\n"
         f"Write a concise research summary (2-4 paragraphs) synthesising the key findings. "

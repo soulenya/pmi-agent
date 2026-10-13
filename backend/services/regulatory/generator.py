@@ -25,14 +25,20 @@ from repositories.document_repo import DocumentChunkRepository
 from services.embeddings.service import EmbeddingService
 from services.llm.router import get_llm_client
 from services.regulatory.templates import RegTemplate
+from brand import get_brand
 
 logger = logging.getLogger(__name__)
 
+_B = get_brand()
+
+# Fallback only; the live COMPANY CONTEXT from Drive replaces it when synced.
 COMPANY_CONTEXT = (
-    "Company: Precisian Medical Instruments (PMI), a medical device startup. "
-    "Product: VACTOR — a hyper-compact, battery-powered suction device for "
-    "emergency, military, and EMS applications."
-)
+    f"Company: {_B.company_with_short}, {_B.company_descriptor}. "
+    + (
+        f"Product: {_B.product['name']} — {_B.product.get('one_liner', '')}."
+        if _B.product.get("name") else ""
+    )
+).strip()
 
 
 async def _company_blocks(db: AsyncSession, template: RegTemplate) -> tuple[str, str]:
@@ -202,7 +208,7 @@ async def generate_markdown(
 
     if auto_populate:
         populate_rules = (
-            "Auto-populate the document with specifics about PMI and VACTOR from "
+            f"Auto-populate the document with specifics about {_B.company_short} and {_B.product_name_short} from "
             "the company context and knowledge-base excerpts above. Where a "
             "required fact is not available (names, dates, registration numbers, "
             "test results), insert an explicit placeholder like "
@@ -217,8 +223,7 @@ async def generate_markdown(
         )
 
     prompt = (
-        "You are a regulatory affairs specialist at Precisian Medical "
-        "Instruments (PMI).\n\n"
+        f"You are a regulatory affairs specialist at {_B.company_with_short}.\n\n"
         f"{company_ctx}\n\n"
         f"Draft a complete {template.label}.\n"
         f"Title: {title}\n"

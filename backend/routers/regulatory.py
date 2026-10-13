@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from brand import get_brand
 from dependencies import get_current_user
 from models.db.user import User
 from models.schemas.regulatory import (
@@ -142,10 +143,10 @@ async def ai_draft_content(
     standards_str = ", ".join(doc.related_standards) if doc.related_standards else "none specified"
     context_block = f"\n\nRelevant Knowledge Base Context:\n{kb_context}" if kb_context else ""
 
+    _b = get_brand()
     prompt = (
-        "You are a regulatory affairs specialist at Precisian Medical Instruments (PMI), "
-        "a medical device startup developing VACTOR — a hyper-compact, battery-powered suction device "
-        "for emergency, military, and EMS applications.\n\n"
+        f"You are a regulatory affairs specialist at {_b.company_with_short}, "
+        f"{_b.company_descriptor} developing {_b.product_name_short} — {_b.product.get('one_liner', '')}.\n\n"
         f"Document Type: {doc.doc_type}\n"
         f"Document Number: {doc.doc_number or 'TBD'}\n"
         f"Title: {doc.title}\n"
@@ -154,7 +155,7 @@ async def ai_draft_content(
         f"{context_block}\n\n"
         "Draft professional content for this regulatory document. "
         "Structure the content with clear sections using ## headings. "
-        "Be specific to VACTOR and PMI's regulatory context. "
+        f"Be specific to {_b.product_name_short} and {_b.company_short}'s regulatory context. "
         "Include scope, purpose, responsibilities, and relevant procedure steps where applicable. "
         "Output ONLY the document content — no meta-commentary."
     )

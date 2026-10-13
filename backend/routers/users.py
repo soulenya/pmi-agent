@@ -118,16 +118,19 @@ async def invite_user(
     greeting = f"Hi {body.display_name.strip()}," if body.display_name and body.display_name.strip() else "Hi,"
     personal = f"\n\n{body.message.strip()}\n" if body.message and body.message.strip() else ""
     download = settings.installer_download_url
+    from brand import get_brand
 
-    subject = "You're invited to Little Gerry"
+    brand = get_brand()
+
+    subject = f"You're invited to {brand.product_name}"
     text = (
         f"{greeting}"
         f"{personal}\n"
-        f"{admin.display_name} has invited you to use Little Gerry, the PMI AI assistant.\n\n"
+        f"{admin.display_name} has invited you to use {brand.product_name}, the {brand.company_short} AI assistant.\n\n"
         f"Getting started:\n"
         f"  1. Download and run the installer: {download}\n"
-        f"  2. Launch Little Gerry and click \"Sign in with Google\".\n"
-        f"  3. Use your @pmi-llc.com or @precisianmedical.com account — your access is\n"
+        f"  2. Launch {brand.product_name} and click \"Sign in with Google\".\n"
+        f"  3. Use {brand.sign_in_hint} — your access is\n"
         f"     set up automatically on first sign-in.\n\n"
         f"That's it. See you inside!\n"
     )

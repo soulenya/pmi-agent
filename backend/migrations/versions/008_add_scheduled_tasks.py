@@ -13,6 +13,7 @@ Create Date: 2026-06-09 00:00:00.000000
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "008"
@@ -59,7 +60,7 @@ def upgrade() -> None:
         "ON scheduled_tasks (next_run_at)"
     )
     # Hand ownership to the runtime role so the app (pmi_app) can access it.
-    op.execute("ALTER TABLE scheduled_tasks OWNER TO pmi_app")
+    op.execute(f"ALTER TABLE scheduled_tasks OWNER TO {APP_ROLE}")
 
 
 def downgrade() -> None:

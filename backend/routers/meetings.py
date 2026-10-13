@@ -13,6 +13,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
+from brand import get_brand
 from dependencies import get_current_user
 from models.db.meeting import MeetingNote
 from models.db.task import Task
@@ -112,7 +113,7 @@ async def _llm_summarize(title: str, transcript: str, db: AsyncSession) -> dict:
     Falls back to plain text if LLM unavailable.
     """
     prompt = (
-        "You are an executive assistant at Precisian Medical Instruments (PMI), a medical device startup.\n"
+        f"You are an executive assistant at {get_brand().company_with_short}, {get_brand().company_descriptor}.\n"
         f"Meeting title: {title}\n\n"
         f"Transcript / notes:\n{transcript[:6000]}\n\n"
         "Extract and structure the following sections. Use concise bullet points (- item):\n\n"
@@ -644,7 +645,7 @@ async def extract_actions(
 
     # Otherwise ask the LLM to extract from transcript
     prompt = (
-        "You are an executive assistant at Precisian Medical Instruments (PMI).\n"
+        f"You are an executive assistant at {get_brand().company_with_short}.\n"
         f"Meeting: {meeting.title}\n\n"
         f"Transcript:\n{meeting.raw_transcript[:5000]}\n\n"
         "List ONLY the action items from this meeting, one per line, each starting with '- '.\n"

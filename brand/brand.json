@@ -1,0 +1,67 @@
+{
+  "slug": "littlegerry",
+  "product_name": "Little Gerry",
+  "assistant_name": "Gerry",
+  "publisher": "Precisian Medical Instruments",
+  "company_name": "Precisian Medical Instruments",
+  "company_short": "PMI",
+  "company_descriptor": "a medical device startup",
+  "company_website": "https://www.precisianmedical.com",
+  "product": {
+    "name": "VACTOR",
+    "one_liner": "a compact, battery-powered suction device designed for emergency medicine, military, and tactical applications",
+    "engineering_context": "VACTOR DEVICE CONTEXT:\n- Compact, battery-powered portable suction device\n- Target: emergency medicine, military tactical, field surgical applications\n- Designed to meet IEC 60601-1 electrical safety, ISO 10079-1 (suction equipment)\n- Key performance: suction pressure, flow rate, battery life, IP rating, noise, weight"
+  },
+  "domains": ["pmi-llc.com", "precisianmedical.com"],
+  "admin_email": "morganjkeane@pmi-llc.com",
+  "support_email": "morganjkeane@pmi-llc.com",
+  "vapid_subject": "mailto:morganjkeane@precisianmedical.com",
+  "github_repo": "soulenya/pmi-agent",
+  "hub_url": "https://hub.precisianmedical.com",
+  "windows": {
+    "app_id": "{F4A2B7C1-3D8E-4F6A-92B5-1E7D3C9A0F28}",
+    "install_dir_name": "Little Gerry",
+    "setup_name": "LittleGerry_Setup",
+    "cert_cn": "Precisian Medical Instruments"
+  },
+  "macos": { "bundle_id": "com.precisian.littlegerry", "pkg_name": "LittleGerry" },
+  "data_dir_name": ".pmi-agent",
+  "keyring_service": "pmi-agent",
+  "db": {
+    "name": "pmi_dev",
+    "superuser": "pmi",
+    "app_role": "pmi_app",
+    "audit_role": "pmi_audit",
+    "api_container": "pmi_api",
+    "postgres_container": "pmi_postgres"
+  },
+  "drive": {
+    "company_context": "1aqx08UZ6J1qWAK4o9RMQMeonGvV1yI1C",
+    "templates_folder": "1EFoPDRfAA1RaxRtWEEVj32eGfpeekV0F",
+    "workrooms_share_folder": "1rk-Pg-Ly9cIrHF87Cr7Gnu7-VRUjamT7",
+    "hub_client_file": "1BuvAGSyr7wi-VVTJmFE81dnfDTyQSCsd"
+  },
+  "gcp": { "stt_bucket": "little_gerry_stt" },
+  "features": {
+    "regulatory": true,
+    "qms_agent": true,
+    "drive_restrictions": true,
+    "investor_relations": true,
+    "budgets": true,
+    "invoices": true,
+    "erp": true,
+    "meetings": true,
+    "hub": true
+  },
+  "erp": { "providers": ["odoo"], "default": "odoo" },
+  "agents": [
+    "executive_assistant",
+    "house_manager",
+    "research",
+    "operations",
+    "engineering",
+    "qms",
+    "regulatory",
+    "ir"
+  ]
+}

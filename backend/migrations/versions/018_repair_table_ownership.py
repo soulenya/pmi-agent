@@ -15,6 +15,7 @@ Create Date: 2026-07-20 00:00:00.000000
 from __future__ import annotations
 
 from alembic import op
+from migrations._roles import APP_ROLE
 
 # revision identifiers, used by Alembic.
 revision = "018"
@@ -30,10 +31,10 @@ def upgrade() -> None:
         op.execute(
             f"""
             DO $$ BEGIN
-                IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'pmi_app')
+                IF EXISTS (SELECT FROM pg_roles WHERE rolname = '{APP_ROLE}')
                    AND EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public'
                                AND tablename = '{table}') THEN
-                    ALTER TABLE {table} OWNER TO pmi_app;
+                    ALTER TABLE {table} OWNER TO {APP_ROLE};
                 END IF;
             END $$;
             """

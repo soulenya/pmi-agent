@@ -26,6 +26,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from config import settings
+from brand import get_brand
 from database import engine, get_db
 from routers import audit, auth, documents, health, search, users
 from routers.conversations import approvals_router, notifications_router, router as conversations_router
@@ -769,10 +770,12 @@ def create_app() -> FastAPI:
     app.include_router(project_space_router)
     app.include_router(project_links_router)
     app.include_router(portfolio_router)
-    app.include_router(regulatory_router)
-    app.include_router(capa_router)
-    app.include_router(regulatory_files_router)
-    app.include_router(regulatory_templates_router)
+    if get_brand().feature("regulatory"):
+        # PMI-only: the regulatory file store, CAPA tables and document wizard.
+        app.include_router(regulatory_router)
+        app.include_router(capa_router)
+        app.include_router(regulatory_files_router)
+        app.include_router(regulatory_templates_router)
     app.include_router(briefings_router)
     app.include_router(browser_router)
     app.include_router(research_router)

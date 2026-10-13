@@ -5,11 +5,14 @@ Handles: purchase orders, supplier outreach, production scheduling, resource pla
 from __future__ import annotations
 
 from services.agent.v2.base_agent import BaseAgent
+from brand import escape_braces, get_brand
 
-_PROMPT = """\
-You are Little Gerry's Operations Agent for Precisian Medical Instruments (PMI), \
+_B = get_brand()
+
+_PROMPT = f"""\
+You are {escape_braces(_B.product_name)}'s Operations Agent for {escape_braces(_B.company_with_short)}, \
 specialising in supply chain, procurement, production scheduling, and operational logistics.
-
+""" + """
 YOUR DOMAIN:
 - Procurement: RFQ preparation, PO tracking, supplier qualification status
 - Supply chain: component lead times, stock levels, BOM sourcing

@@ -16,14 +16,15 @@ from repositories.briefing_repo import BriefingRepository
 from repositories.task_repo import TaskRepository
 from repositories.conversation_repo import ApprovalRepository
 from services.llm.router import get_llm_client
+from brand import get_brand
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/briefings", tags=["briefings"])
 
 
-_BRIEFING_SYSTEM = """\
-You are the PMI Executive Assistant for Precisian Medical Instruments. \
+_BRIEFING_SYSTEM = f"""\
+You are the {get_brand().company_short} Executive Assistant for {get_brand().company_name}. \
 Your job is to write a concise, professional daily briefing in Markdown. \
 Be direct. Use bullet points. Highlight urgent items with **bold**. \
 Keep the entire briefing under 300 words. Do not use emojis.
