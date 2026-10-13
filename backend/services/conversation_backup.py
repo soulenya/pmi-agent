@@ -22,6 +22,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from brand import get_brand
 from config import settings
 from models.db.conversation import Conversation, Message
 from models.db.settings import SystemSetting
@@ -37,7 +38,8 @@ LAST_RUN_KEY = "backup.last_run"
 
 DEFAULT_ENABLED = False
 DEFAULT_HOUR = 2
-DEFAULT_DRIVE_FOLDER = "1I57fln_8vYkChX40vPV5pAjAu7Ue-hOG"
+# Brand default (PMI's folder for Little Gerry); Settings → Company overrides it.
+DEFAULT_DRIVE_FOLDER = str(get_brand().drive.get("backups_folder") or "")
 
 _GENESIS_HASH = "0" * 64
 _FORMAT_VERSION = 1

@@ -165,6 +165,17 @@ Little Gerry can load a small **company profile** — key people, products, part
 2. In **Settings → Company Profile**, paste the file's Drive link or ID and click **Save & sync**.
 3. Little Gerry re-loads the file on every launch; use **Refresh now** after editing it in Drive. Editing happens **only in Drive** — the app view is read-only so all machines stay consistent.
 
+### Administrators — Company Drive (where the company's files live)
+
+**Settings → Company → Company Drive** (administrators only) lists every Drive location the app depends on — Company Truth, Templates, Budgets, Invoices, Workrooms, Backups, the app-clients folder, restricted folders, the backed-up shared drive and its bucket — with where each value comes from: *set here*, *built-in default*, or *not set*. PMI installs show the built-in defaults; nothing moves unless you change it.
+
+- **Create the standard Drive layout** — pick a shared drive from the list (or paste a folder link) and click **Create layout**. The app creates the seven folders inside it, copies in the eleven blank Company Truth sections and the starter templates (Style Guide, Deck Theme and, if ticked, a generic QMS SOP template), and records the ids. Running it again reuses whatever already exists by name; nothing is duplicated.
+- **Save locations** — paste a Drive link or id into any row (one per line for restricted folders) and save. A blank value returns that row to the built-in default.
+- **Publish for other installs** — writes a small company file into the app-clients folder. Every teammate's install reads it on its next start and adopts the same locations, so nobody else has to type anything.
+- **Import from company file** — pulls that file in by hand (it only fills rows that are not already set here).
+
+The same panel appears as a **Company Drive** step in the first-run wizard for the first administrator, and nowhere else.
+
 ### Optional — Writing Voice (make drafts sound like you)
 
 Gerry can learn how *you* write, so the emails she drafts read like something you'd actually send instead of generic assistant prose.

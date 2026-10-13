@@ -77,9 +77,21 @@ _DEFAULTS: dict[str, Any] = {
         "company_context": "1aqx08UZ6J1qWAK4o9RMQMeonGvV1yI1C",
         "templates_folder": "1EFoPDRfAA1RaxRtWEEVj32eGfpeekV0F",
         "workrooms_share_folder": "1rk-Pg-Ly9cIrHF87Cr7Gnu7-VRUjamT7",
+        "budgets_folder": "1k-tBw0UomODw-nwJjjkNteHaQltuNs2D",
+        "invoices_folder": "10NQQeIETjEv_1fGCowSQSHGX37Cgn1eg",
+        "backups_folder": "1I57fln_8vYkChX40vPV5pAjAu7Ue-hOG",
+        "app_clients_folder": "",
+        "restricted_folders": ["1c5mGaeldOIUXZyGVwUoTOsUTtGJ2LMp_"],
+        "shared_drive_name": "PMI Share Drive",
         "hub_client_file": "1BuvAGSyr7wi-VVTJmFE81dnfDTyQSCsd",
+        "oauth_client_download_url": (
+            "https://drive.google.com/file/d/1qfh3eQU0p10yOyfENBpuguRwDvNfOPel/view?usp=sharing"
+        ),
+        "stt_key_download_url": (
+            "https://drive.google.com/file/d/1FyBDnxuf7dSS0pEE-j6Ho4w5BMeDPCmQ/view?usp=drive_link"
+        ),
     },
-    "gcp": {"stt_bucket": "little_gerry_stt"},
+    "gcp": {"stt_bucket": "little_gerry_stt", "drive_backup_bucket": "pmi-drive-backup"},
     "features": {
         "regulatory": True,
         "qms_agent": True,
@@ -169,7 +181,15 @@ class Brand:
     @property
     def db(self) -> dict[str, str]: return {k: str(v) for k, v in self.raw["db"].items()}
     @property
-    def drive(self) -> dict[str, str]: return {k: str(v or "") for k, v in (self.raw.get("drive") or {}).items()}
+    def drive(self) -> dict[str, Any]:
+        """Drive locations. Strings are ids/urls ("" when unset); ``restricted_folders`` is a list."""
+        out: dict[str, Any] = {}
+        for k, v in (self.raw.get("drive") or {}).items():
+            if isinstance(v, list):
+                out[k] = [str(x) for x in v if str(x).strip()]
+            else:
+                out[k] = str(v or "")
+        return out
     @property
     def gcp(self) -> dict[str, str]: return {k: str(v or "") for k, v in (self.raw.get("gcp") or {}).items()}
 

@@ -379,6 +379,31 @@ async def stt_credentials_fetch(
         ) from exc
     return SttCredentialsFetchOut(ok=True, path=str(path))
 
+
+@router.post("/stt/credentials/upload", response_model=SttCredentialsFetchOut)
+async def stt_credentials_upload(
+    file: UploadFile = File(...),
+    _user: User = Depends(get_current_user),
+) -> SttCredentialsFetchOut:
+    """Install a transcription service-account key the user picked from disk.
+
+    For builds whose brand has no hosted key. Any signed-in user may install
+    one on their own machine (the file only ever lives next to that backend).
+    """
+    raw = await file.read(64 * 1024 + 1)
+    if len(raw) > 64 * 1024:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                            detail={"code": "too_large", "message": "That file is too large to be a service-account key."})
+    try:
+        path = gcs_stt.install_key(raw)
+    except gcs_stt.SttError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "invalid_key", "message": str(exc)},
+        ) from exc
+    return SttCredentialsFetchOut(ok=True, path=str(path))
+
+
 async def transcribe_audio(
     file: UploadFile = File(...),
     _user: User = Depends(get_current_user),

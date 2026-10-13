@@ -43,11 +43,14 @@ _SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 # is used automatically, so end users need no .env or gcloud setup.
 _BUNDLED_KEY = Path(__file__).resolve().parent.parent.parent / "google_stt_sa.json"
 # Company-hosted service-account key, mirroring the google_credentials.json
-# "Download credentials" flow. Set this to a Google Drive "Anyone with the link"
-# share URL (or a plain HTTPS URL) pointing at the SA key JSON, or override with
-# the GOOGLE_STT_KEY_URL env var. When set, the key is fetched automatically on
-# first use so teammates install nothing and touch no files.
-GOOGLE_STT_KEY_DOWNLOAD_URL = "https://drive.google.com/file/d/1FyBDnxuf7dSS0pEE-j6Ho4w5BMeDPCmQ/view?usp=drive_link"
+# "Download credentials" flow. The brand file supplies a Google Drive "Anyone
+# with the link" share URL (or a plain HTTPS URL) pointing at the SA key JSON;
+# GOOGLE_STT_KEY_URL overrides it. When set, the key is fetched automatically
+# on first use so teammates install nothing and touch no files. A brand with
+# no URL uploads the key once via POST /meetings/stt/credentials/upload.
+from brand import get_brand as _get_brand
+
+GOOGLE_STT_KEY_DOWNLOAD_URL = str(_get_brand().drive.get("stt_key_download_url") or "")
 # Poll the long-running operation for up to ~15 min (audio is transcribed
 # faster than real time, so this comfortably covers multi-hour recordings).
 _POLL_INTERVAL_SECONDS = 5
@@ -163,6 +166,16 @@ def key_present() -> bool:
 def download_available() -> bool:
     """True when a company SA-key download URL is configured for this build."""
     return bool(_download_url())
+
+
+def install_key(raw: bytes) -> Path:
+    """Validate an uploaded service-account key and write it to the bundled path."""
+    _validate_sa_key(raw)
+    try:
+        _BUNDLED_KEY.write_bytes(raw)
+    except OSError as exc:
+        raise SttError(f"Couldn't save the transcription key: {exc}") from exc
+    return _BUNDLED_KEY
 
 
 def download_key() -> Path:

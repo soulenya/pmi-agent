@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 299;
-export const BUILD_DATE = "2026-09-18";
+export const BUILD_NUMBER = 300;
+export const BUILD_DATE = "2026-10-13";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 300,
+    date: "2026-10-13",
+    title: "Company Drive in Settings",
+    changes: [
+      "Settings → Company has a new Company Drive section for administrators: it shows where Company Truth, Templates, Budgets, Invoices, Workrooms and Backups live on Drive, lets you change any of them, and can create the whole layout in a shared drive in one go. Nothing moves unless you change it — every location is exactly where it was.",
+      "If a computer has no Google credentials file and none is available to download, the sign-in page and the transcription prompt now let you pick the file from disk instead of finding the backend folder by hand.",
+    ],
+  },
   {
     build: 299,
     date: "2026-10-13",

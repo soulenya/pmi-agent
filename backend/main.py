@@ -44,6 +44,7 @@ from routers.briefings import router as briefings_router
 from routers.browser import router as browser_router
 from routers.research import router as research_router
 from routers.settings import router as settings_router
+from routers.company_setup import router as company_setup_router
 from routers.meetings import router as meetings_router
 from routers.emails import router as emails_router
 from routers.update import router as update_router
@@ -622,6 +623,12 @@ async def _company_context_sync_once() -> None:
 
             await _as_google_user(reader.id, _sync())
         else:
+            # A brand with no Drive defaults learns its folders from the file
+            # the administrator published (no-op for a brand that has them).
+            from services import company_drive
+
+            async for db in get_db():
+                await company_drive.import_once_at_startup(db)
             async for db in get_db():
                 ok = await sync_company_context_from_drive(db)
         logger.info("Company context startup sync: %s", "ok" if ok else "skipped/failed")
@@ -780,6 +787,7 @@ def create_app() -> FastAPI:
     app.include_router(browser_router)
     app.include_router(research_router)
     app.include_router(settings_router)
+    app.include_router(company_setup_router)
     app.include_router(voice_router)
     app.include_router(writing_voice_router)
     app.include_router(meetings_router)

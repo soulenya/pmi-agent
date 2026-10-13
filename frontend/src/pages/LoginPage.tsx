@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { googleInitiate, googlePoll, getCredentialsStatus, fetchCredentials, getAuthMode, iapLogin } from "@/api/auth";
-import type { CredentialsStatus } from "@/api/auth";
+import { googleInitiate, googlePoll, getCredentialsStatus, fetchCredentials, uploadCredentials, getBrand, getAuthMode, iapLogin } from "@/api/auth";
+import type { BrandInfo, CredentialsStatus } from "@/api/auth";
 import type { User } from "@/types";
 import { useAuthStore } from "@/stores/authStore";
 import { SetupWizard, ONBOARDING_VERSION } from "@/components/SetupWizard";
 import { cn } from "@/lib/utils";
-import { Loader2, CheckCircle2, XCircle, Download } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Download, Upload } from "lucide-react";
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 
@@ -127,6 +127,33 @@ export function LoginPage() {
     return () => { cancelled = true; };
   }, [backendStatus, authMode]);
 
+  // Brand facts (product name, sign-in hint) — the page shows sensible text until they load.
+  const [brand, setBrand] = useState<BrandInfo | null>(null);
+  useEffect(() => {
+    if (backendStatus !== "ready") return;
+    let cancelled = false;
+    getBrand().then((b) => { if (!cancelled) setBrand(b); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [backendStatus]);
+  const productName = brand?.product_name ?? "Little Gerry";
+
+  const credFileRef = useRef<HTMLInputElement>(null);
+  async function handleUploadCreds(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setCredError(null);
+    setFetchingCreds(true);
+    try {
+      await uploadCredentials(file);
+      setCreds(await getCredentialsStatus());
+    } catch (err) {
+      setCredError(credErrorMessage(err));
+    } finally {
+      setFetchingCreds(false);
+    }
+  }
+
   async function handleDownloadCreds() {
     setCredError(null);
     setFetchingCreds(true);
@@ -215,7 +242,7 @@ export function LoginPage() {
       )}
       <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm rounded-lg border bg-card p-8 shadow-md">
-        <h1 className="mb-1 text-2xl font-bold">Little Gerry</h1>
+        <h1 className="mb-1 text-2xl font-bold">{productName}</h1>
         <p className="mb-6 text-sm text-muted-foreground">Sign in with your company account</p>
 
         {/* Backend status indicator */}
@@ -242,7 +269,7 @@ export function LoginPage() {
             {creds?.download_available ? (
               <>
                 <p className="mb-3 text-amber-700 dark:text-amber-400/90">
-                  Download them once to enable sign-in. Little Gerry places the file
+                  Download them once to enable sign-in. {productName} places the file
                   in the right folder for you — no manual move needed.
                 </p>
                 <button
@@ -266,20 +293,37 @@ export function LoginPage() {
               </>
             ) : (
               <div className="text-amber-700 dark:text-amber-400/90">
-                <p className="mb-1">
+                <p className="mb-2">
                   Ask your administrator for the company{" "}
-                  <span className="font-mono">google_credentials.json</span> file and place it here:
+                  <span className="font-mono">google_credentials.json</span> file (the Google
+                  OAuth client for this app), then choose it here — {productName} puts it in
+                  the right place.
                 </p>
-                <ul className="ml-4 list-disc space-y-0.5">
-                  <li>
-                    <span className="font-medium">Windows:</span>{" "}
-                    <span className="font-mono">%LOCALAPPDATA%\Little Gerry\backend</span>
-                  </li>
-                  <li>
-                    <span className="font-medium">macOS:</span>{" "}
-                    <span className="font-mono">~/Applications/Little Gerry/backend</span>
-                  </li>
-                </ul>
+                <input
+                  ref={credFileRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={handleUploadCreds}
+                />
+                <button
+                  onClick={() => credFileRef.current?.click()}
+                  disabled={fetchingCreds}
+                  className={cn(
+                    "flex w-full items-center justify-center gap-2 rounded-md border border-amber-400 bg-background px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm transition-opacity dark:text-amber-300",
+                    fetchingCreds ? "opacity-60 cursor-not-allowed" : "hover:bg-accent",
+                  )}
+                >
+                  {fetchingCreds ? (
+                    <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                  ) : (
+                    <Upload className="h-4 w-4 shrink-0" />
+                  )}
+                  {fetchingCreds ? "Installing…" : "Choose credentials file"}
+                </button>
+                {credError && (
+                  <p className="mt-2 text-destructive">{credError}</p>
+                )}
               </div>
             )}
           </div>
@@ -307,16 +351,15 @@ export function LoginPage() {
             : backendStatus === "down"
             ? "Backend not ready"
             : credentialsMissing
-            ? "Download credentials to continue"
+            ? (creds?.download_available ? "Download credentials to continue" : "Add credentials to continue")
             : "Sign in with Google"}
         </button>
 
         {/* Waiting hint */}
         {ssoState === "waiting" && (
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            A browser window has opened. Sign in with your{" "}
-            <span className="font-medium">@pmi-llc.com</span> or{" "}
-            <span className="font-medium">@precisianmedical.com</span> account.
+            A browser window has opened. Sign in with{" "}
+            <span className="font-medium">{brand?.sign_in_hint ?? "your company Google account"}</span>.
           </p>
         )}
 
