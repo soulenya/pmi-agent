@@ -91,8 +91,9 @@ if ($UpdateStartupScript) {
     if ($iapAud) { $meta += "iap-audience=$iapAud" }
     if ($vapidSubj) { $meta += "vapid-subject=$vapidSubj" }
     Write-Host "  setting metadata: $($meta -join ', ')"
-    & $gcloud compute instances add-metadata $vm --project $project --zone $zone `
-        --metadata=($meta -join ",") --metadata-from-file="startup-script=$startup"
+    $metaArg = "--metadata=" + ($meta -join ",")
+    $fileArg = "--metadata-from-file=startup-script=$startup"
+    & $gcloud compute instances add-metadata $vm --project $project --zone $zone $metaArg $fileArg
     if ($LASTEXITCODE -ne 0) { throw "add-metadata failed" }
     Write-Host "  startup script updated. It applies on the next boot (or: sudo google_metadata_script_runner startup)."
     return
