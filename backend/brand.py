@@ -103,7 +103,15 @@ _DEFAULTS: dict[str, Any] = {
         "meetings": True,
         "hub": True,
     },
-    "erp": {"providers": ["odoo"], "default": "odoo"},
+    "erp": {
+        "providers": ["odoo"],
+        "default": "odoo",
+        "odoo": {
+            "url": "https://precisian-medical-instruments.odoo.com",
+            "database": "precisian-medical-instruments",
+            "email_domain": "precisianmedical.com",
+        },
+    },
     "agents": [
         "executive_assistant", "house_manager", "research", "operations",
         "engineering", "qms", "regulatory", "ir",

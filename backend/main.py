@@ -52,7 +52,7 @@ from routers.update import router as update_router
 from routers.google_integration import router as google_router
 from routers.conversation_backup import router as backups_router
 from routers.data_transfer import router as data_transfer_router
-from routers.odoo_integration import router as odoo_router
+from routers.erp import router as erp_router, odoo_router
 from routers.files import router as files_router
 from routers.feedback import router as feedback_router
 from routers.workrooms import router as workrooms_router
@@ -806,6 +806,7 @@ def create_app() -> FastAPI:
     app.include_router(google_router)
     app.include_router(backups_router)
     app.include_router(data_transfer_router)
+    app.include_router(erp_router)
     app.include_router(odoo_router)
     app.include_router(files_router)
     app.include_router(feedback_router)

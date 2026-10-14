@@ -20,17 +20,18 @@ from typing import Any
 from cryptography.fernet import Fernet
 
 from config import settings
+from services.erp.errors import ErpAuthError, ErpError
 
 logger = logging.getLogger(__name__)
 
 
-# ── Errors ───────────────────────────────────────────────────────────────────
+# ── Errors ────────────────────────────────────────────────────────────────────────────
 
-class OdooError(RuntimeError):
+class OdooError(ErpError):
     """Base error for Odoo integration failures."""
 
 
-class OdooAuthError(OdooError):
+class OdooAuthError(OdooError, ErpAuthError):
     """Raised when authentication against Odoo fails."""
 
 

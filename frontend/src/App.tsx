@@ -30,7 +30,7 @@ const ContactsPage = lazy(() => import("@/pages/ContactsPage").then(m => ({ defa
 const AuditPage = lazy(() => import("@/pages/AuditPage").then(m => ({ default: m.AuditPage })));
 const UsersPage = lazy(() => import("@/pages/UsersPage").then(m => ({ default: m.UsersPage })));
 const CalendarPage = lazy(() => import("@/pages/CalendarPage").then(m => ({ default: m.CalendarPage })));
-const OdooIntegrationPage = lazy(() => import("@/pages/OdooIntegrationPage"));
+const ErpPage = lazy(() => import("@/pages/ErpPage"));
 const BudgetsPage = lazy(() => import("@/pages/BudgetsPage").then(m => ({ default: m.BudgetsPage })));
 
 const queryClient = new QueryClient({
@@ -127,7 +127,8 @@ function ThemedApp() {
             <Route path="users" element={<Page><UsersPage /></Page>} />
             <Route path="calendar" element={<Page><CalendarPage /></Page>} />
             <Route path="google" element={<Navigate to="/settings?tab=connections" replace />} />
-            <Route path="odoo" element={hasFeature("erp") ? <Page><OdooIntegrationPage /></Page> : <Navigate to="/budgets" replace />} />
+            <Route path="odoo" element={hasFeature("erp") ? <Page><ErpPage /></Page> : <Navigate to="/budgets" replace />} />
+            <Route path="erp" element={<Navigate to="/odoo" replace />} />
             <Route path="files" element={<Navigate to="/documents?tab=made-by-gerry" replace />} />
             <Route path="workrooms" element={<Navigate to="/projects?view=rooms" replace />} />
             <Route path="budgets" element={hasFeature("budgets") ? <Page><BudgetsPage /></Page> : <Navigate to="/today" replace />} />

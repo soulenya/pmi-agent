@@ -164,10 +164,10 @@ _TOOL_DOCS.update(_PROJECT_TOOL_DOCS)
 
 # Same brand/feature pass as the v1 schemas: PMI wording → this brand's, and
 # tools the brand does not ship are not offered to the v2 agents either.
-from services.agent.tools import TOOL_EXECUTORS as _V1_EXECUTORS, brand_tool_text as _brand_text  # noqa: E402
+from services.agent.tools import TOOL_EXECUTORS as _V1_EXECUTORS, brand_tool_text as _brand_text, erp_tool_name as _erp_name  # noqa: E402
 
 _TOOL_DOCS = {
-    name: _brand_text(doc)
+    _erp_name(name): _brand_text(doc)
     for name, doc in _TOOL_DOCS.items()
     if name in _V1_EXECUTORS or name == "delegate_to_agent"
 }

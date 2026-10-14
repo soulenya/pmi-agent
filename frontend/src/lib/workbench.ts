@@ -17,7 +17,10 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { hasFeature } from "@/lib/brand";
+import { BRAND, hasFeature } from "@/lib/brand";
+
+/** PMI's rail says "Odoo"; a brand whose ERP is something else (or none yet) says "ERP". */
+const ERP_LABEL = BRAND.erpDefault === "odoo" ? "Odoo" : "ERP";
 
 export interface RailPage {
   route: string;
@@ -131,7 +134,7 @@ const ALL_RAIL: RailItem[] = [
     route: "/budgets",
     pages: [
       { route: "/budgets", label: "Budgets" },
-      { route: "/odoo", label: "Odoo" },
+      { route: "/odoo", label: ERP_LABEL },
     ],
   },
 ];

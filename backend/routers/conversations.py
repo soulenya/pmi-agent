@@ -643,22 +643,17 @@ async def _execute_approved_action(
             await db.commit()
             return {"status": "executed", "action": "create_calendar_event", **result}
 
-        if itype == "odoo_write":
-            from sqlalchemy import select as _select
-            from models.db.odoo import OdooConnection
-            from services import odoo_service as _odoo
+        from services import erp as _erp
 
-            conn = (await db.execute(
-                _select(OdooConnection).where(OdooConnection.user_id == current_user.id)
-            )).scalar_one_or_none()
+        # "odoo_write" historically; "<provider>_write" for any provider.
+        if itype.endswith("_write") and itype[: -len("_write")] in _erp.PROVIDERS:
+            conn = await _erp.load_connection(db, current_user.id)
             if conn is None:
-                return {"status": "error", "detail": "No Odoo connection is configured."}
+                return {"status": "error", "detail": "No ERP connection is configured."}
+            provider = _erp.provider_for(conn)
             action = str(payload.get("action") or "")
             params = payload.get("params") or {}
-            api_key = _odoo.decrypt_secret(conn.api_key_encrypted)
-            result = await _odoo.execute_write(
-                conn.url, conn.database, conn.username, api_key, action, params
-            )
+            result = await provider.execute_write(conn, action, params)
             await audit.log(
                 "approval.action_executed",
                 actor_id=current_user.id,
@@ -667,7 +662,7 @@ async def _execute_approved_action(
                 payload={"intent_type": itype, "action": action, "result": result},
             )
             await db.commit()
-            return {"status": "executed", "action": f"odoo:{action}", **result}
+            return {"status": "executed", "action": f"{provider.key}:{action}", **result}
 
         # All other types: approved but no automated execution
         return {

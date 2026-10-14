@@ -3403,28 +3403,24 @@ async def execute_request_approval(ctx: ToolContext, args: dict[str, Any]) -> st
 
 
 async def execute_read_odoo(ctx: ToolContext, args: dict[str, Any]) -> str:
-    """Read-only Odoo ERP queries — curated datasets + bank balances."""
-    from sqlalchemy import select
+    """Read-only ERP queries — curated datasets + bank balances."""
+    from services import erp
 
-    from models.db.odoo import OdooConnection
-    from services import odoo_service as odoo
-
+    conn = await erp.load_connection(ctx.db, ctx.user_id)
+    provider = erp.provider_for(conn)
+    label = provider.label
     dataset = str(args.get("dataset", "")).strip().lower()
-    valid = ("bank_balances",) + tuple(odoo.MODEL_CONFIG)
-    if dataset not in valid:
+    valid = ("bank_balances",) + tuple(provider.dataset_keys())
+    if provider.key != "none" and dataset not in valid:
         return f"Error: dataset must be one of: {', '.join(valid)}."
-    conn = (await ctx.db.execute(
-        select(OdooConnection).where(OdooConnection.user_id == ctx.user_id)
-    )).scalar_one_or_none()
     if conn is None:
-        return "Error: Odoo is not connected. Ask the user to connect it on the Odoo page first."
+        return f"Error: {erp.not_connected_message()}"
     try:
-        api_key = odoo.decrypt_secret(conn.api_key_encrypted)
         if dataset == "bank_balances":
-            data = await odoo.bank_balances(conn.url, conn.database, conn.username, api_key)
+            data = await provider.bank_balances(conn)
             accounts = data.get("accounts", [])
             if not accounts:
-                return "No bank or cash journals found in Odoo."
+                return f"No bank or cash journals found in {label}."
             cur = data.get("currency", "")
             lines = [f"Bank & cash balances ({cur}):"]
             for a in accounts:
@@ -3436,9 +3432,7 @@ async def execute_read_odoo(ctx: ToolContext, args: dict[str, Any]) -> str:
             limit = max(1, min(int(args.get("limit", 20)), 100))
         except (TypeError, ValueError):
             limit = 20
-        result = await odoo.search_read(
-            conn.url, conn.database, conn.username, api_key, dataset, search, limit
-        )
+        result = await provider.search_read(conn, dataset, search, limit)
         rows = result.get("rows", [])
         if not rows:
             return (
@@ -3449,53 +3443,51 @@ async def execute_read_odoo(ctx: ToolContext, args: dict[str, Any]) -> str:
         lines = [f"{result['label']} — {len(rows)} row(s) ({' | '.join(result['fields'])}):"]
         for row in rows:
             rendered = " | ".join(
-                odoo._field_text(row.get(f)) or "—" for f in result["fields"]
+                provider.field_text(row.get(f)) or "—" for f in result["fields"]
             )
             lines.append(f"- {rendered}")
         return "\n".join(lines)
-    except odoo.OdooError as exc:
-        return f"Odoo error: {exc}"
+    except erp.ErpError as exc:
+        return f"{label} error: {exc}"
     except Exception as exc:  # noqa: BLE001 — surface honestly, never crash the turn
-        return f"Odoo read failed: {exc}"
+        return f"{label} read failed: {exc}"
 
 
 async def execute_propose_odoo_write(ctx: ToolContext, args: dict[str, Any]) -> str:
-    from sqlalchemy import select
-    from models.db.odoo import OdooConnection
-    from services import odoo_service as odoo
+    from services import erp
 
     action = str(args.get("action", "")).strip()
     params = args.get("params") or {}
     if not isinstance(params, dict):
         return "Error: 'params' must be an object."
 
-    conn = (await ctx.db.execute(
-        select(OdooConnection).where(OdooConnection.user_id == ctx.user_id)
-    )).scalar_one_or_none()
+    conn = await erp.load_connection(ctx.db, ctx.user_id)
     if conn is None:
-        return "Error: Odoo is not connected. Ask the user to connect it on the Odoo page first."
+        return f"Error: {erp.not_connected_message()}"
+    provider = erp.provider_for(conn)
 
     try:
-        odoo.validate_write(action, params)
-    except odoo.OdooError as exc:
+        provider.validate_write(action, params)
+    except erp.ErpError as exc:
         return f"Error: {exc}"
 
-    title, description = odoo.describe_write(action, params)
+    title, description = provider.describe_write(action, params)
     intent = await ApprovalRepository(ctx.db).create(
         user_id=ctx.user_id,
-        intent_type="odoo_write",
+        intent_type=f"{provider.key}_write",
         intent_title=title[:500],
         intent_description=description,
         intent_payload={
             "action": action,
             "params": params,
+            "provider": provider.key,
             "conversation_id": str(ctx.conversation_id),
         },
-        risk_level=odoo.default_risk(action),
+        risk_level=provider.default_risk(action),
         expires_at=datetime.now(timezone.utc) + timedelta(hours=72),
     )
     return (
-        f"Odoo action queued for approval: \"{title}\" "
+        f"{provider.label} action queued for approval: \"{title}\" "
         f"[risk={intent.risk_level}, id={intent.id}]. "
         "It will run only after the user approves it on the Approvals page."
     )
@@ -5958,11 +5950,8 @@ async def execute_file_invoice_from_email(ctx: ToolContext, args: dict[str, Any]
 
 
 async def execute_compare_budget_to_odoo(ctx: ToolContext, args: dict[str, Any]) -> str:
-    from sqlalchemy import select as _select
-
-    from models.db.odoo import OdooConnection
     from services import budget_service as bs
-    from services import odoo_service as odoo
+    from services import erp
 
     budget, err = await _resolve_budget(ctx, args)
     if err:
@@ -5970,13 +5959,11 @@ async def execute_compare_budget_to_odoo(ctx: ToolContext, args: dict[str, Any])
     dataset = str(args.get("dataset", "")).strip().lower() or "invoices"
     if dataset not in ("purchases", "invoices", "sales"):
         return "Error: dataset must be purchases, invoices, or sales."
-    conn = (
-        await ctx.db.execute(
-            _select(OdooConnection).where(OdooConnection.user_id == ctx.user_id)
-        )
-    ).scalar_one_or_none()
+    conn = await erp.load_connection(ctx.db, ctx.user_id)
     if conn is None:
-        return "Error: Odoo is not connected. Ask the user to connect it on the Odoo page first."
+        return f"Error: {erp.not_connected_message()}"
+    provider = erp.provider_for(conn)
+    label = provider.label
 
     try:
         await bs.refresh_budget(ctx.db, budget)
@@ -5985,20 +5972,17 @@ async def execute_compare_budget_to_odoo(ctx: ToolContext, args: dict[str, Any])
 
     search = str(args.get("search", "")).strip() or budget.title
     try:
-        api_key = odoo.decrypt_secret(conn.api_key_encrypted)
-        result = await odoo.search_read(
-            conn.url, conn.database, conn.username, api_key, dataset, search, 100
-        )
-    except odoo.OdooError as exc:
+        result = await provider.search_read(conn, dataset, search, 100)
+    except erp.ErpError as exc:
         if "doesn't exist" in str(exc):
             return (
-                f"Odoo doesn't have the {dataset} module installed on this "
+                f"{label} doesn't have the {dataset} module installed on this "
                 "instance. Try dataset='invoices' (accounting moves, which "
                 "include vendor bills) or 'sales'."
             )
-        return f"Odoo error: {exc}"
+        return f"{label} error: {exc}"
     except Exception as exc:  # noqa: BLE001
-        return f"Odoo read failed: {exc}"
+        return f"{label} read failed: {exc}"
     rows = result.get("rows", [])
     odoo_total = 0.0
     for row in rows:
@@ -6011,16 +5995,16 @@ async def execute_compare_budget_to_odoo(ctx: ToolContext, args: dict[str, Any])
     cur = budget.currency or "USD"
     tracked = float(s.get("total_spent") or 0)
     lines = [
-        f'Advisory cross-check — budget "{budget.title}" vs Odoo {result.get("label", dataset)} matching "{search}":',
+        f'Advisory cross-check — budget "{budget.title}" vs {label} {result.get("label", dataset)} matching "{search}":',
         f"- Personal budget tracking: {_fmt_money(tracked, cur)} ({s.get('entry_count', 0)} entries)",
-        f"- Odoo {result.get('label', dataset)}: {_fmt_money(odoo_total, cur)} ({len(rows)} record(s))",
+        f"- {label} {result.get('label', dataset)}: {_fmt_money(odoo_total, cur)} ({len(rows)} record(s))",
         f"- Difference: {_fmt_money(abs(tracked - odoo_total), cur)} "
-        + ("(budget tracks more)" if tracked > odoo_total else "(Odoo shows more)" if odoo_total > tracked else "(they agree)"),
+        + ("(budget tracks more)" if tracked > odoo_total else f"({label} shows more)" if odoo_total > tracked else "(they agree)"),
         "Advisory only: a personal ledger and ERP actuals track different things "
         "and may legitimately differ (timing, scope, untracked items).",
     ]
     if not rows:
-        lines.insert(3, f"  (No Odoo records matched \"{search}\" — try a different search term.)")
+        lines.insert(3, f"  (No {label} records matched \"{search}\" — try a different search term.)")
     return "\n".join(lines)
 
 
@@ -7635,7 +7619,35 @@ _RESTRICTION_SENTENCE = re.compile(
     r"\s*[^.]*\b(QMS[- ]folder|QMS folder|confirm_restricted|standing policy|restricted-sources|withheld)\b[^.]*\.",
     re.IGNORECASE,
 )
-_FEATURE_TOOLS = {"regulatory": {"get_regulatory_status"}}
+_FEATURE_TOOLS = {
+    "regulatory": {"get_regulatory_status"},
+    "erp": {"read_odoo", "propose_odoo_write", "compare_budget_to_odoo"},
+}
+# A brand whose ERP is not Odoo advertises the generic names; the Odoo names
+# stay dispatchable for old conversation histories. PMI keeps the Odoo names.
+_ERP_IS_ODOO = str((_brand.raw.get("erp") or {}).get("default") or "none") == "odoo"
+ERP_TOOL_NAMES: dict[str, str] = {} if _ERP_IS_ODOO else {
+    "read_odoo": "read_erp",
+    "propose_odoo_write": "propose_erp_write",
+    "compare_budget_to_odoo": "compare_budget_to_erp",
+}
+_ERP_WORDS: tuple[tuple[str, str], ...] = () if _ERP_IS_ODOO else (
+    ("propose_odoo_write", "propose_erp_write"),
+    ("compare_budget_to_odoo", "compare_budget_to_erp"),
+    ("read_odoo", "read_erp"),
+    ("the connected Odoo ERP", "the connected ERP"),
+    ("Odoo ERP", "ERP"),
+    ("Odoo CRM", "ERP CRM"),
+    ("in Odoo", "in the ERP"),
+    ("from Odoo", "from the ERP"),
+    ("to Odoo", "to the ERP"),
+    ("Odoo", "ERP"),
+)
+
+
+def erp_tool_name(name: str) -> str:
+    """The advertised name of a tool for this brand (identity for PMI)."""
+    return ERP_TOOL_NAMES.get(name, name)
 
 
 def brand_tool_text(text: str) -> str:
@@ -7643,6 +7655,8 @@ def brand_tool_text(text: str) -> str:
     for old, new in _BRAND_WORDS:
         if old != new:
             text = text.replace(old, new)
+    for old, new in _ERP_WORDS:
+        text = text.replace(old, new)
     if not _brand.feature("drive_restrictions"):
         text = _RESTRICTION_SENTENCE.sub("", text)
     return text
@@ -7655,6 +7669,8 @@ def _apply_brand(defs: list[dict]) -> list[dict]:
         fn = d.get("function", {})
         if fn.get("name") in disabled:
             continue
+        if fn.get("name") in ERP_TOOL_NAMES:
+            fn["name"] = ERP_TOOL_NAMES[fn["name"]]
         if isinstance(fn.get("description"), str):
             fn["description"] = brand_tool_text(fn["description"])
         props = (fn.get("parameters") or {}).get("properties") or {}
@@ -7673,6 +7689,11 @@ for _feat, _names in _FEATURE_TOOLS.items():
         for _n in _names:
             TOOL_EXECUTORS.pop(_n, None)
             _PRIMARY_ARG.pop(_n, None)
+for _old, _new in ERP_TOOL_NAMES.items():
+    if _old in TOOL_EXECUTORS:
+        TOOL_EXECUTORS[_new] = TOOL_EXECUTORS[_old]
+    if _old in _PRIMARY_ARG:
+        _PRIMARY_ARG[_new] = _PRIMARY_ARG[_old]
 
 
 def _db_error_hint(exc: BaseException) -> str:
@@ -7734,6 +7755,7 @@ _ARTIFACT_SPECS: dict[str, tuple[str, str, str]] = {
     "create_task": ("Task created", "/tasks", "View the task"),
     "request_approval": ("Approval request submitted", "/approvals", "Review the approval"),
     "propose_odoo_write": ("queued for approval", "/approvals", "Review the approval"),
+    "propose_erp_write": ("queued for approval", "/approvals", "Review the approval"),
     "create_workroom": ("created", "/workrooms", "Open the workroom"),
     "add_to_workroom": ("Pinned to workroom", "/workrooms", "Open the workroom"),
     "log_workroom_progress": ("Logged to", "/workrooms", "Open the workroom"),

@@ -19,6 +19,7 @@ from models.db.google import GoogleCredential, GoogleSyncState
 from models.db.hub_link import HubLink
 from models.db.meeting import MeetingNote
 from models.db.notification import Notification
+from models.db.erp import ErpConnection
 from models.db.odoo import OdooConnection
 from models.db.project_custody import ProjectItemCustody
 from models.db.project_link import ProjectLink
@@ -81,6 +82,7 @@ __all__ = [
     "AssistantSuggestion",
     "ScheduledTask",
     "OdooConnection",
+    "ErpConnection",
     "DeviceToken",
     "Workroom",
     "WorkroomItem",

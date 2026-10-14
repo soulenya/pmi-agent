@@ -48,10 +48,11 @@ class BaseAgent:
 
     def _build_tools(self) -> list:
         from services.agent.v2.lc_tools import make_lc_tools
+        from services.agent.tools import erp_tool_name
         all_tools = make_lc_tools(self.ctx)
         if not self.TOOLS:
             return all_tools
-        allowed = set(self.TOOLS)
+        allowed = {erp_tool_name(n) for n in self.TOOLS}
         return [t for t in all_tools if t.name in allowed]
 
     def _system_message(
