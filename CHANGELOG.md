@@ -56,6 +56,15 @@
   exists; `brand.json` and the trust batch are committed and pushed at the
   end. Organisation creation and billing-account creation stay console
   steps (GitHub and Google offer no CLI for them).
+- Post-release addition (same build): the bootstrap runs under PowerShell 7
+  on macOS/Linux as well — `gcloud` wrapper chosen per platform, portable
+  paths and temp dir, BSTR-safe secret prompts; `1-Create-Signing-
+  Certificate.ps1` makes the certificate with `openssl` off Windows
+  (`-OpenSsl` forces it): same subject, SHA-256, code-signing EKU, 5 years,
+  `.cer` + `.pfx` — verified importable and usable with
+  `Set-AuthenticodeSignature`. `3-Make-Trust-Bat.ps1` and
+  `brand-defines.ps1` use forward-slash paths. PMI's trust batch regenerated
+  under both interpreters: byte-identical.
 
 ### v5.23.0 · build 303 — 2026-10-14
 **White-label Phase 5: installers, launcher, updater, CI read the brand. PMI unchanged**
