@@ -281,6 +281,22 @@ Write-Step "Step 3 of 7 - Starting PostgreSQL (Docker Compose)"
 # ─────────────────────────────────────────────────────────────────────────────
 
 Set-Location $ProjectRoot
+# Database names from brand\brand.json (PMI's when absent). docker-compose.yml
+# and the Start/Stop scripts read them from the root .env.
+$brandFile = Join-Path $ProjectRoot "brand\brand.json"
+$db = @{ name = "pmi_dev"; superuser = "pmi"; app_role = "pmi_app"; audit_role = "pmi_audit"; postgres_container = "pmi_postgres" }
+if (Test-Path $brandFile) {
+    $bdb = (Get-Content $brandFile -Raw -Encoding UTF8 | ConvertFrom-Json).db
+    foreach ($k in @($db.Keys)) { if ($bdb.$k) { $db[$k] = $bdb.$k } }
+}
+@"
+# Written by scripts/install.ps1 from brand/brand.json - read by docker-compose.yml and the Start/Stop scripts.
+POSTGRES_CONTAINER=$($db.postgres_container)
+POSTGRES_USER=$($db.superuser)
+POSTGRES_DB=$($db.name)
+DB_APP_ROLE=$($db.app_role)
+DB_AUDIT_ROLE=$($db.audit_role)
+"@ | Set-Content (Join-Path $ProjectRoot ".env")
 & docker compose up -d 2>&1 | ForEach-Object { Write-Info $_ }
 if ($LASTEXITCODE -ne 0) {
     Write-Fail "docker compose up failed. Check Docker Desktop is running."
@@ -324,6 +340,14 @@ APPROVAL_EXPIRY_HOURS=48
 } else {
     Write-OK ".env already exists - skipping"
 }
+
+# The env file wins over the brand defaults inside the app, so it must carry
+# the brand's database names (PMI → the same values as before).
+$envText = Get-Content $envFile -Raw
+$envText = $envText -replace '(?m)^DATABASE_URL=.*$', "DATABASE_URL=postgresql+asyncpg://$($db.superuser):pmi_dev_password@localhost:5432/$($db.name)"
+$envText = $envText -replace '(?m)^DATABASE_URL_SYNC=.*$', "DATABASE_URL_SYNC=postgresql://$($db.superuser):pmi_dev_password@localhost:5432/$($db.name)"
+Set-Content $envFile $envText -NoNewline
+Write-OK "Database names: $($db.name) / $($db.superuser) / $($db.app_role) (container $($db.postgres_container))"
 
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Step "Step 5 of 7 - Installing Python backend dependencies"

@@ -26,7 +26,9 @@ echo  [2/5] Done.
 
 :: Stop PostgreSQL container
 echo  [3/4] Stopping PostgreSQL...
-docker stop pmi_postgres >nul 2>&1
+if exist "%~dp0.env" for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%~dp0.env") do set "%%a=%%b"
+if not defined POSTGRES_CONTAINER set "POSTGRES_CONTAINER=pmi_postgres"
+docker stop %POSTGRES_CONTAINER% >nul 2>&1
 docker compose stop >nul 2>&1
 echo  [3/4] Done.
 

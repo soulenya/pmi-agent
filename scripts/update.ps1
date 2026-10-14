@@ -74,13 +74,19 @@ for ($i = 0; $i -lt 15; $i++) {
 }
 if (-not $dockerReady) { Write-Fail "Docker did not start in time"; exit 1 }
 
-# Ensure pmi_postgres container is running
+# Ensure the postgres container is running (name from the root .env; PMI's when absent)
+$pgContainer = "pmi_postgres"
+$rootEnv = Join-Path $ProjectRoot ".env"
+if (Test-Path $rootEnv) {
+    $m = Select-String -Path $rootEnv -Pattern '^POSTGRES_CONTAINER=(.+)$' | Select-Object -First 1
+    if ($m) { $pgContainer = $m.Matches[0].Groups[1].Value.Trim() }
+}
 Write-Info "Ensuring PostgreSQL container is running..."
-$containerState = (& docker inspect --format "{{.State.Status}}" pmi_postgres 2>&1)
+$containerState = (& docker inspect --format "{{.State.Status}}" $pgContainer 2>&1)
 if ($containerState -eq "running") {
     Write-Info "PostgreSQL already running"
 } elseif ($containerState -eq "exited") {
-    & docker start pmi_postgres 2>&1 | Out-Null
+    & docker start $pgContainer 2>&1 | Out-Null
     Start-Sleep -Seconds 4
 } else {
     Set-Location $ProjectRoot

@@ -62,6 +62,17 @@ PG_USER      = str(BRAND["db"].get("superuser") or "pmi")
 PG_DB        = str(BRAND["db"].get("name") or "pmi_dev")
 DATA_DIR_NAME = str(BRAND.get("data_dir_name") or ".pmi-agent")
 
+# docker-compose.yml interpolates these (defaults are PMI's) — export them so
+# every `docker compose` call from the launcher names the brand's containers.
+for _k, _v in {
+    "POSTGRES_CONTAINER": PG_CONTAINER,
+    "POSTGRES_USER": PG_USER,
+    "POSTGRES_DB": PG_DB,
+    "DB_APP_ROLE": str(BRAND["db"].get("app_role") or "pmi_app"),
+    "DB_AUDIT_ROLE": str(BRAND["db"].get("audit_role") or "pmi_audit"),
+}.items():
+    os.environ.setdefault(_k, _v)
+
 # ── platform abstraction ─────────────────────────────────────────────────────
 IS_WINDOWS = (os.name == "nt")
 IS_MAC     = (sys.platform == "darwin")

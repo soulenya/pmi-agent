@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 303;
+export const BUILD_NUMBER = 304;
 export const BUILD_DATE = "2026-10-14";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 304,
+    date: "2026-10-14",
+    title: "Internal housekeeping",
+    changes: [
+      "Database container names and the shared server's setup now come from the company configuration file instead of being written into the start-up scripts. Nothing about your install changes.",
+    ],
+  },
   {
     build: 303,
     date: "2026-10-14",

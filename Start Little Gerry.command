@@ -53,12 +53,15 @@ start_database() {
     open -a Docker || true
     wait_for "docker info" 30 3 "Docker Desktop" || exit 1
   fi
-  # Self-heal: drop a stray pmi_postgres container this project doesn't own.
+  # Container/database names from the root .env (brand); PMI's when absent.
+  [ -f .env ] && set -a && . ./.env && set +a
+  local pg="${POSTGRES_CONTAINER:-pmi_postgres}" pu="${POSTGRES_USER:-pmi}" pd="${POSTGRES_DB:-pmi_dev}"
+  # Self-heal: drop a stray postgres container this project doesn't own.
   if [ -z "$(docker compose ps -q postgres 2>/dev/null)" ]; then
-    docker rm -f pmi_postgres >/dev/null 2>&1 || true
+    docker rm -f "$pg" >/dev/null 2>&1 || true
   fi
   docker compose up -d --remove-orphans
-  wait_for "docker exec pmi_postgres pg_isready -U pmi -d pmi_dev" 20 3 "PostgreSQL" || exit 1
+  wait_for "docker exec $pg pg_isready -U $pu -d $pd" 20 3 "PostgreSQL" || exit 1
 }
 
 # ── First-run setup (runs only if the venv is missing) ──────────────────────

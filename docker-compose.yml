@@ -4,19 +4,25 @@ services:
     # Windows and Apple Silicon Macs run the exact same image, natively.
     # This is the same digest the existing Windows installs already run.
     image: pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
-    container_name: pmi_postgres
+    # Names come from brand/brand.json via the launcher's environment or a
+    # root .env (scripts/install.* write one); the defaults are PMI's.
+    container_name: ${POSTGRES_CONTAINER:-pmi_postgres}
     restart: unless-stopped
     environment:
-      POSTGRES_USER: pmi
-      POSTGRES_PASSWORD: pmi_dev_password
-      POSTGRES_DB: pmi_dev
+      POSTGRES_USER: ${POSTGRES_USER:-pmi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pmi_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-pmi_dev}
+      DB_APP_ROLE: ${DB_APP_ROLE:-pmi_app}
+      DB_AUDIT_ROLE: ${DB_AUDIT_ROLE:-pmi_audit}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:-pmi_dev_password}
+      DB_AUDIT_PASSWORD: ${DB_AUDIT_PASSWORD:-pmi_audit_dev_password}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./scripts/init_db.sh:/docker-entrypoint-initdb.d/01_init.sh
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pmi -d pmi_dev"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pmi} -d ${POSTGRES_DB:-pmi_dev}"]
       interval: 5s
       timeout: 5s
       retries: 10
