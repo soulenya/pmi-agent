@@ -36,8 +36,12 @@ $root      = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $verFile   = Join-Path $root "VERSION"
 $issFile   = Join-Path $root "installer\setup.iss"
 $signPs1   = Join-Path $root "installer\cert\2-Sign-LittleGerry.ps1"
-$trustBat  = Join-Path $root "installer\cert\dist\Trust-Little-Gerry.bat"
-$exeOut    = Join-Path $root "installer\Output\LittleGerry_Setup.exe"
+$brandDefs = Join-Path $root "installer\brand-defines.ps1"
+$setupName = & $brandDefs -SetupNameOnly
+$issDefs   = @(& $brandDefs)
+$trustBat  = Get-ChildItem (Join-Path $root "installer\cert\dist\Trust-*.bat") -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+if (-not $trustBat) { $trustBat = Join-Path $root "installer\cert\dist\Trust-Little-Gerry.bat" }
+$exeOut    = Join-Path $root "installer\Output\$setupName.exe"
 $tag       = "v$Version"
 
 # Resolve external tools (PATH first, then common install locations).
@@ -80,7 +84,7 @@ Write-Host "  [1/5] Bumped VERSION and setup.iss" -ForegroundColor Green
 Write-Host "  [2/5] Committed and pushed version bump" -ForegroundColor Green
 
 # 3. Build the installer.
-& $iscc $issFile | Out-Null
+& $iscc @issDefs $issFile | Out-Null
 if (-not (Test-Path $exeOut)) { throw "Installer build failed - $exeOut not found." }
 Write-Host "  [3/5] Built installer" -ForegroundColor Green
 

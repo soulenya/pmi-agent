@@ -1,0 +1,121 @@
+name: Build Windows installer
+
+# Builds, signs and attaches the Windows installer on a GitHub-hosted Windows
+# runner, so a company forking this repository needs no build PC. Brand values
+# (publisher, AppId, output name, install dir) come from brand/brand.json via
+# installer/brand-defines.ps1.
+#
+# Triggers on a published release. A release that ALREADY carries the
+# installer (PMI's are built and signed locally) is left alone unless the
+# workflow is dispatched by hand with force=true.
+#
+# Secrets (all optional; without them the asset is still built, unsigned):
+#   WINDOWS_CERT_PFX_BASE64  base64 of the code-signing .pfx
+#   WINDOWS_CERT_PASSWORD    its password
+#   UPDATE_TOKEN             read-only PAT baked in as update_token.txt so the
+#                            installed copy can poll this repo's releases
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build for (e.g. v5.22.0)"
+        required: true
+      force:
+        description: "Replace an installer the release already has"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Resolve release tag
+        id: tag
+        shell: pwsh
+        run: |
+          $tag = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ github.event.inputs.tag }}' } else { '${{ github.event.release.tag_name }}' }
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout repo at the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - name: Decide whether to build
+        id: plan
+        shell: pwsh
+        run: |
+          $setup = & installer/brand-defines.ps1 -SetupNameOnly
+          "setup=$setup" >> $env:GITHUB_OUTPUT
+          $assets = gh release view "${{ steps.tag.outputs.tag }}" --json assets --jq '.assets[].name'
+          $has = $assets -contains "$setup.exe"
+          $force = '${{ github.event.inputs.force }}' -eq 'true'
+          if ($has -and -not $force) {
+            Write-Host "Release already has $setup.exe - nothing to do."
+            "build=false" >> $env:GITHUB_OUTPUT
+          } else {
+            "build=true" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Install Inno Setup
+        if: steps.plan.outputs.build == 'true'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe")) {
+            choco install innosetup --no-progress -y
+          }
+
+      - name: Bake the update token
+        if: steps.plan.outputs.build == 'true'
+        shell: pwsh
+        run: |
+          if ($env:UPDATE_TOKEN) {
+            [IO.File]::WriteAllText("update_token.txt", $env:UPDATE_TOKEN)
+            Write-Host "Wrote update_token.txt for the installed-copy auto-updater."
+          } else {
+            Write-Host "::warning::UPDATE_TOKEN secret is empty - the installer will NOT auto-update."
+          }
+
+      - name: Compile the installer
+        if: steps.plan.outputs.build == 'true'
+        shell: pwsh
+        run: |
+          $defs = & installer/brand-defines.ps1
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" /Q @defs installer\setup.iss
+          if ($LASTEXITCODE -ne 0) { throw "iscc failed ($LASTEXITCODE)" }
+          Get-ChildItem installer\Output
+
+      - name: Sign the installer and build the trust batch
+        if: steps.plan.outputs.build == 'true' && env.WINDOWS_CERT_PFX_BASE64 != ''
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $exe = "installer\Output\${{ steps.plan.outputs.setup }}.exe"
+          & installer/cert/2-Sign-LittleGerry.ps1 -ExePath $exe -PfxPath $pfx -PfxPassword $env:WINDOWS_CERT_PASSWORD
+          $sig = Get-AuthenticodeSignature $exe
+          if ($sig.Status -ne 'Valid') { throw "Signature status: $($sig.Status)" }
+          # Public certificate for the one-click trust batch, taken from the same key.
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfx, $env:WINDOWS_CERT_PASSWORD)
+          [IO.File]::WriteAllBytes("installer\cert\LittleGerry-PublicCert.cer", $cert.Export('Cert'))
+          & installer/cert/3-Make-Trust-Bat.ps1
+          Remove-Item $pfx -Force
+
+      - name: Upload to the release
+        if: steps.plan.outputs.build == 'true'
+        shell: pwsh
+        run: |
+          $files = @("installer\Output\${{ steps.plan.outputs.setup }}.exe")
+          $files += Get-ChildItem installer\cert\dist\Trust-*.bat -ErrorAction SilentlyContinue | ForEach-Object FullName
+          gh release upload "${{ steps.tag.outputs.tag }}" @files --clobber

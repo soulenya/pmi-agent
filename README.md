@@ -585,6 +585,8 @@ Everything that names the company lives in one file at the repo root: company na
 
 **ERP.** `erp.providers` / `erp.default` pick the provider(s) a build offers (`services/erp/`: `odoo`, `none`); `erp.odoo {url, database, email_domain}` prefills the connect form. The per-user connection row is `erp_connections` (`provider`, Odoo columns, `config` JSONB); the router is served at `/api/erp` and `/api/odoo`. A brand whose default is not Odoo advertises the agent tools as `read_erp` / `propose_erp_write` / `compare_budget_to_erp`; PMI keeps the Odoo names.
 
+**Installers and CI.** `installer/setup.iss` takes publisher, AppId, install folder, output name and data dir from `/D` defines (PMI defaults built in); `installer/brand-defines.ps1` derives them from `brand/brand.json` for `build-installer.bat`, `scripts/publish-release.ps1` and `.github/workflows/windows-release.yml` (build + sign + attach on release). `launcher.py`, `routers/update.py`, `scripts/build-macos.sh` and the cert scripts read the same file. `sync-upstream.yml` opens a PR merging the upstream repository into a fork.
+
 ### Backend — `backend/.env`
 
 ```env

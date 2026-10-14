@@ -41,8 +41,13 @@ if exist "%ProgramFiles(x86)%\Inno Setup 6\iscc.exe" (
 echo  Found Inno Setup: %ISCC%
 echo.
 
-:: Compile the installer script
-"%ISCC%" installer\setup.iss
+:: Compile the installer script with this brand's defines (brand\brand.json;
+:: PMI's values are the script's defaults, so a missing file changes nothing).
+set "DEFS="
+set "SETUPNAME=LittleGerry_Setup"
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -ExecutionPolicy Bypass -File installer\brand-defines.ps1 -Quoted`) do call set "DEFS=%%DEFS%% %%D"
+for /f "usebackq delims=" %%N in (`powershell -NoProfile -ExecutionPolicy Bypass -File installer\brand-defines.ps1 -SetupNameOnly`) do set "SETUPNAME=%%N"
+"%ISCC%" %DEFS% installer\setup.iss
 
 if %ERRORLEVEL% neq 0 (
     echo.
@@ -55,7 +60,7 @@ if %ERRORLEVEL% neq 0 (
 echo.
 echo  ====================================================
 echo   SUCCESS - Installer created:
-echo   installer\Output\LittleGerry_Setup.exe
+echo   installer\Output\%SETUPNAME%.exe
 echo.
 echo   Share this file to install Little Gerry on any
 echo   Windows 10/11 machine.

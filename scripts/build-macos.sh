@@ -25,9 +25,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
+# Brand (brand/brand.json; PMI's values when the file or a key is absent).
+brand() { python3 -c "import json,sys
+try: b=json.load(open('$ROOT/brand/brand.json'))
+except Exception: b={}
+v=b
+for k in sys.argv[1].split('.'): v=(v or {}).get(k) if isinstance(v,dict) else None
+print(v if v else sys.argv[2])" "$1" "$2"; }
+
 APP_NAME="Little Gerry"
-BUNDLE_ID="com.precisian.littlegerry"
-INSTALL_LOCATION="Applications/Little Gerry"   # relative to the user's home at install time
+BUNDLE_ID="$(brand macos.bundle_id com.precisian.littlegerry)"
+PKG_NAME="$(brand macos.pkg_name LittleGerry)"
+INSTALL_DIR_NAME="$(brand windows.install_dir_name "Little Gerry")"
+INSTALL_LOCATION="Applications/$INSTALL_DIR_NAME"   # relative to the user's home at install time
 VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION" 2>/dev/null || echo 0.0.0)"
 
 BUILD_DIR="$ROOT/installer/macos-build"
@@ -35,7 +45,7 @@ PAYLOAD="$BUILD_DIR/payload"
 APP_DIR="$PAYLOAD/$APP_NAME.app"
 OUTPUT_DIR="$ROOT/installer/Output"
 COMPONENT_PKG="$BUILD_DIR/component.pkg"
-FINAL_PKG="$OUTPUT_DIR/LittleGerry.pkg"
+FINAL_PKG="$OUTPUT_DIR/$PKG_NAME.pkg"
 
 info() { printf '  %s\n' "$1"; }
 
@@ -133,16 +143,16 @@ chmod +x "$PAYLOAD/Start Little Gerry.command" \
 # ── 4. Post-install script (set perms, clear quarantine) ────────────────────
 SCRIPTS_DIR="$BUILD_DIR/scripts"
 mkdir -p "$SCRIPTS_DIR"
-cat > "$SCRIPTS_DIR/postinstall" <<'POST'
+cat > "$SCRIPTS_DIR/postinstall" <<POST
 #!/bin/bash
 # Runs as the installing user (CurrentUserHomeDirectory target).
-APPROOT="$HOME/Applications/Little Gerry"
-chmod +x "$APPROOT/Start Little Gerry.command" \
-         "$APPROOT/Stop Little Gerry.command" \
-         "$APPROOT/scripts/"*.sh \
-         "$APPROOT/Little Gerry.app/Contents/MacOS/launch" 2>/dev/null || true
+APPROOT="\$HOME/$INSTALL_LOCATION"
+chmod +x "\$APPROOT/Start Little Gerry.command" \\
+         "\$APPROOT/Stop Little Gerry.command" \\
+         "\$APPROOT/scripts/"*.sh \\
+         "\$APPROOT/Little Gerry.app/Contents/MacOS/launch" 2>/dev/null || true
 # Clear the quarantine flag so Gatekeeper doesn't block the freshly-installed app.
-xattr -dr com.apple.quarantine "$APPROOT" 2>/dev/null || true
+xattr -dr com.apple.quarantine "\$APPROOT" 2>/dev/null || true
 exit 0
 POST
 chmod +x "$SCRIPTS_DIR/postinstall"

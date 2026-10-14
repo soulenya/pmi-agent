@@ -12,11 +12,25 @@
 #    powershell -NoProfile -ExecutionPolicy Bypass -File .\2-Sign-LittleGerry.ps1
 # ============================================================
 
+param(
+    # Installer to sign; defaults to this brand's installer\Output\<setup_name>.exe.
+    [string]$ExePath = "",
+    # Private key file; defaults to LittleGerry-Signing.pfx beside this script.
+    [string]$PfxPath = "",
+    # Password for unattended use (CI). Prompted when omitted.
+    [string]$PfxPassword = ""
+)
+
 $ErrorActionPreference = "Stop"
 $here    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root    = Resolve-Path (Join-Path $here "..\..")
-$pfxPath = Join-Path $here "LittleGerry-Signing.pfx"
-$exePath = Join-Path $root "installer\Output\LittleGerry_Setup.exe"
+if (-not $PfxPath) { $PfxPath = Join-Path $here "LittleGerry-Signing.pfx" }
+$pfxPath = $PfxPath
+if (-not $ExePath) {
+    $setupName = & (Join-Path $root "installer\brand-defines.ps1") -SetupNameOnly
+    $ExePath = Join-Path $root "installer\Output\$setupName.exe"
+}
+$exePath = $ExePath
 
 if (-not (Test-Path $pfxPath)) {
     Write-Host "  [ERROR] $pfxPath not found. Run 1-Create-Signing-Certificate.ps1 first." -ForegroundColor Red
@@ -27,7 +41,7 @@ if (-not (Test-Path $exePath)) {
     exit 1
 }
 
-$pfxPass = Read-Host -AsSecureString "  Enter the private key (.pfx) password"
+$pfxPass = if ($PfxPassword) { ConvertTo-SecureString $PfxPassword -AsPlainText -Force } else { Read-Host -AsSecureString "  Enter the private key (.pfx) password" }
 $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
     $pfxPath, $pfxPass,
     [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::DefaultKeySet)

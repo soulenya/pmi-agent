@@ -23,7 +23,10 @@ cd "$ROOT"
 
 VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
 TAG="v$VERSION"
-PKG="$ROOT/installer/Output/LittleGerry.pkg"
+PKG_NAME="$(python3 -c "import json
+try: print(json.load(open('$ROOT/brand/brand.json')).get('macos',{}).get('pkg_name') or 'LittleGerry')
+except Exception: print('LittleGerry')")"
+PKG="$ROOT/installer/Output/$PKG_NAME.pkg"
 
 command -v gh >/dev/null 2>&1 || { echo "[XX] GitHub CLI (gh) not found. Install with: brew install gh" >&2; exit 1; }
 
@@ -35,7 +38,7 @@ bash "$SCRIPT_DIR/build-macos.sh"
 
 # 2. Ensure the release exists, then upload the .pkg.
 if gh release view "$TAG" >/dev/null 2>&1; then
-  echo "  Uploading LittleGerry.pkg to existing release $TAG..."
+  echo "  Uploading $PKG_NAME.pkg to existing release $TAG..."
   gh release upload "$TAG" "$PKG" --clobber
 else
   echo "  Release $TAG not found — creating it (macOS-only release)."
@@ -45,4 +48,4 @@ else
 fi
 
 echo
-echo "== Done: attached LittleGerry.pkg to $TAG =="
+echo "== Done: attached $PKG_NAME.pkg to $TAG =="

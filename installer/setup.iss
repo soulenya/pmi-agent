@@ -14,16 +14,39 @@
 ;   - Registers an uninstaller
 ; ============================================================
 
-#define AppName       "Little Gerry"
-#define AppPublisher  "Precisian Medical Instruments"
-#define AppVersion    "5.22.0"
-#define AppURL        "https://github.com/soulenya/pmi-agent"
+; Brand values. Each can be overridden on the iscc command line (/DName=Value)
+; — build-installer.bat does that from brand\brand.json. The defaults below are
+; PMI's, so `iscc installer\setup.iss` alone still builds PMI's installer.
+#ifndef AppName
+  #define AppName       "Little Gerry"
+#endif
+#ifndef AppPublisher
+  #define AppPublisher  "Precisian Medical Instruments"
+#endif
+#define AppVersion    "5.23.0"
+#ifndef AppURL
+  #define AppURL        "https://github.com/soulenya/pmi-agent"
+#endif
 #define AppExeName    "Start Little Gerry.bat"
-#define AppDescription "AI Executive Assistant for the VACTOR Program"
+#ifndef AppDescription
+  #define AppDescription "AI Executive Assistant for the VACTOR Program"
+#endif
+#ifndef AppId
+  #define AppId         "{F4A2B7C1-3D8E-4F6A-92B5-1E7D3C9A0F28}"
+#endif
+#ifndef InstallDirName
+  #define InstallDirName "Little Gerry"
+#endif
+#ifndef SetupName
+  #define SetupName     "LittleGerry_Setup"
+#endif
+#ifndef DataDirName
+  #define DataDirName   ".pmi-agent"
+#endif
 
 [Setup]
 ; Metadata
-AppId={{F4A2B7C1-3D8E-4F6A-92B5-1E7D3C9A0F28}
+AppId={{#AppId}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
@@ -34,14 +57,14 @@ VersionInfoVersion={#AppVersion}
 VersionInfoDescription={#AppDescription}
 
 ; Install directory - user-writable so app can create .venv, node_modules, .env
-DefaultDirName={localappdata}\{#AppName}
+DefaultDirName={localappdata}\{#InstallDirName}
 DefaultGroupName={#AppName}
 AllowNoIcons=yes
 DisableProgramGroupPage=yes
 
 ; Output
 OutputDir=Output
-OutputBaseFilename=LittleGerry_Setup
+OutputBaseFilename={#SetupName}
 SetupIconFile=LittleGerry.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -281,7 +304,7 @@ begin
     then begin
       Exec('cmd.exe', '/c cd /d "' + ExpandConstant('{app}') + '" && docker compose down -v',
            '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      DataDir := ExpandConstant('{%USERPROFILE}') + '\.pmi-agent';
+      DataDir := ExpandConstant('{%USERPROFILE}') + '\{#DataDirName}';
       if DirExists(DataDir) then
         DelTree(DataDir, True, True, True);
     end;

@@ -1,0 +1,90 @@
+name: Sync from upstream
+
+# For a company fork: fetch the upstream Little Gerry repository, merge its
+# master into a branch here and open a pull request with the diff. Nothing
+# lands on master until someone merges that PR. Conflicts are, by design,
+# limited to brand/brand.json (which the fork owns) and the release docs.
+#
+# Set the UPSTREAM_REPO repository variable (Settings → Variables) to the
+# upstream "owner/name"; a private upstream also needs UPSTREAM_TOKEN (a
+# read-only PAT on the upstream) in secrets. PMI's own repository has no
+# upstream, so this workflow does nothing there.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Upstream ref to sync (branch or tag)"
+        default: master
+  schedule:
+    - cron: "17 6 * * 1"   # Mondays, 06:17 UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: vars.UPSTREAM_REPO != ''
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch upstream
+        env:
+          UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+        run: |
+          set -euo pipefail
+          REF="${{ github.event.inputs.ref || 'master' }}"
+          if [ -n "${UPSTREAM_TOKEN:-}" ]; then
+            URL="https://x-access-token:${UPSTREAM_TOKEN}@github.com/${{ vars.UPSTREAM_REPO }}.git"
+          else
+            URL="https://github.com/${{ vars.UPSTREAM_REPO }}.git"
+          fi
+          git remote add upstream "$URL"
+          git fetch upstream "$REF" --tags
+          echo "UPSTREAM_SHA=$(git rev-parse upstream/$REF 2>/dev/null || git rev-parse FETCH_HEAD)" >> "$GITHUB_ENV"
+          echo "UPSTREAM_REF=$REF" >> "$GITHUB_ENV"
+
+      - name: Merge into a sync branch
+        id: merge
+        run: |
+          set -euo pipefail
+          git config user.name "little-gerry-sync"
+          git config user.email "sync@users.noreply.github.com"
+          BRANCH="sync/upstream-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH"
+          if git merge --no-edit "$UPSTREAM_SHA"; then
+            echo "conflicts=false" >> "$GITHUB_OUTPUT"
+          else
+            # Keep the fork's brand file; everything else is left for the PR reviewer.
+            git checkout --ours brand/brand.json 2>/dev/null && git add brand/brand.json || true
+            git -c core.editor=true merge --continue || { echo "conflicts=true" >> "$GITHUB_OUTPUT"; git merge --abort; exit 0; }
+            echo "conflicts=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/${{ github.ref_name }})" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git push -u origin "$BRANCH"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open the pull request
+        if: steps.merge.outputs.changed == 'true'
+        run: |
+          gh pr create \
+            --base "${{ github.ref_name }}" \
+            --head "${{ steps.merge.outputs.branch }}" \
+            --title "Sync from upstream ${{ vars.UPSTREAM_REPO }}@${UPSTREAM_REF}" \
+            --body "Merges upstream \`${UPSTREAM_REF}\` (\`${UPSTREAM_SHA}\`). Review the diff, then merge and tag a release."
+
+      - name: Report conflicts
+        if: steps.merge.outputs.conflicts == 'true'
+        run: |
+          echo "::error::Upstream merge has conflicts outside brand/brand.json. Merge upstream/${UPSTREAM_REF} locally and resolve them."
+          exit 1
