@@ -45,6 +45,7 @@ from routers.browser import router as browser_router
 from routers.research import router as research_router
 from routers.settings import router as settings_router
 from routers.company_setup import router as company_setup_router
+from routers.design import router as design_router
 from routers.meetings import router as meetings_router
 from routers.emails import router as emails_router
 from routers.update import router as update_router
@@ -701,6 +702,14 @@ async def lifespan(app: FastAPI):
             logger.warning("DB not ready yet (attempt %d/10): %s — retrying in 3 s", _attempt + 1, exc)
             await asyncio.sleep(3)
     bg_task = asyncio.create_task(_notification_loop())
+    # Design tokens (Settings → Design) before the first document is made.
+    try:
+        from services import design_tokens
+
+        async for _db in get_db():
+            await design_tokens.refresh(_db)
+    except Exception:  # noqa: BLE001 — defaults apply
+        logger.exception("Design tokens startup load failed")
     drive_task = asyncio.create_task(_drive_sync_loop())
     assistant_task = asyncio.create_task(_assistant_scan_loop())
     scheduler_task = asyncio.create_task(_scheduled_tasks_loop())
@@ -788,6 +797,7 @@ def create_app() -> FastAPI:
     app.include_router(research_router)
     app.include_router(settings_router)
     app.include_router(company_setup_router)
+    app.include_router(design_router)
     app.include_router(voice_router)
     app.include_router(writing_voice_router)
     app.include_router(meetings_router)

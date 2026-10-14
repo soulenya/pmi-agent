@@ -28,6 +28,7 @@ import {
   type EntryStatus,
 } from "@/api/budgets";
 import { getOdooBankBalance, getOdooStatus } from "@/api/odoo";
+import { hasFeature } from "@/lib/brand";
 import type { Source } from "@/api/tasks";
 import { cn } from "@/lib/utils";
 import { useToastStore } from "@/stores/toastStore";
@@ -168,7 +169,7 @@ export function BudgetSummaryCards({ budget, bank = false }: { budget: LedgerBud
   const odoo = useQuery({
     queryKey: ["odoo-status"],
     queryFn: getOdooStatus,
-    enabled: bank,
+    enabled: bank && hasFeature("erp"),
     staleTime: 5 * 60_000,
     retry: false,
   });

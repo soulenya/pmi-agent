@@ -145,7 +145,7 @@ def _coerce(group: str, key: str, raw: str, default: Any) -> tuple[Any, str]:
 
 def parse_theme(body: str, base: DeckTheme | None = None) -> tuple[DeckTheme, list[str]]:
     """Apply `key: value` overrides from the Drive doc to the built-in theme."""
-    base = base or DEFAULT_THEME
+    base = base or _base_theme()
     overrides: dict[str, dict[str, Any]] = {g: {} for g in _GROUPS}
     labels: dict[str, str] = {}
     top: dict[str, Any] = {}
@@ -243,24 +243,32 @@ def extract_section(md: str) -> str:
     return "\n".join(lines).strip()
 
 
+def _base_theme() -> DeckTheme:
+    """The company's theme before the Drive doc: design tokens, PMI's by default."""
+    from services import design_tokens
+
+    return design_tokens.deck_theme()
+
+
 async def get_deck_theme(db: AsyncSession) -> tuple[DeckTheme, list[str]]:
     """The house deck theme: Drive when reachable, cache when not, built-in
     when neither. Never raises — a deck must still build if Drive is down."""
+    base = _base_theme()
     try:
         from services.file_templates import get_templates_markdown
 
         md = await get_templates_markdown(db)
     except Exception as exc:  # noqa: BLE001 — Drive/network errors expected
         logger.warning("Deck theme: templates folder unreadable (%s); using built-in.", exc)
-        return DEFAULT_THEME, []
+        return base, []
     body = extract_section(md or "")
     if not body:
-        return DEFAULT_THEME, []
+        return base, []
     try:
-        theme, problems = parse_theme(body)
+        theme, problems = parse_theme(body, base)
     except Exception as exc:  # noqa: BLE001 — a malformed doc must not break decks
         logger.warning("Deck theme: '%s' could not be parsed (%s); using built-in.", body[:60], exc)
-        return DEFAULT_THEME, []
+        return base, []
     for p in problems:
         logger.warning("Deck theme doc: %s", p)
     return theme, problems

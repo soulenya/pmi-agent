@@ -36,6 +36,7 @@ import {
 } from "@/api/workrooms";
 import { PinItemPicker, type PickedItem } from "@/components/workrooms/PinItemPicker";
 import { useProjectInvalidate } from "@/hooks/useProjectInvalidate";
+import { hasFeature } from "@/lib/brand";
 import { DRAG_MIME, type RailItem } from "./canvas/board";
 
 /** The order pins are grouped in — the kinds people reach for first, first. */
@@ -51,6 +52,11 @@ const KIND_ORDER: WorkroomItemKind[] = [
   "email_thread",
   "odoo_record",
 ];
+
+/** Kinds that can be pinned here — features a brand has switched off are not offered. */
+const PINNABLE_KINDS = KIND_ORDER.filter(
+  (k) => (k !== "regulatory_doc" || hasFeature("regulatory")) && (k !== "odoo_record" || hasFeature("erp")),
+);
 
 /**
  * Document and generated-file BYTES are encrypted under a key held in this
@@ -308,7 +314,7 @@ export function ProjectMaterialTab({
                 className="rounded-md border bg-background px-2 py-1 text-xs"
               >
                 <option value="">Pin something…</option>
-                {KIND_ORDER.map((k) => (
+                {PINNABLE_KINDS.map((k) => (
                   <option key={k} value={k}>
                     {ITEM_KIND_LABELS[k]}
                   </option>

@@ -19,7 +19,9 @@ import {
 import { setTheme, type ThemeValue } from "@/hooks/useTheme";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
 import { useAuthStore } from "@/stores/authStore";
+import { BRAND, hasFeature } from "@/lib/brand";
 import { CompanySetupPanel } from "@/components/company/CompanySetupPanel";
+import { DesignPanel } from "@/components/design/DesignPanel";
 import {
   getSettings,
   updateSettings,
@@ -967,11 +969,11 @@ function LLMSection({
 
 // ── Company Profile section (Drive-backed, read-only) ────────────────────────
 
-const COMPANY_PROFILE_TEMPLATE = `# PMI Company Context (always loaded — do not fabricate beyond this)
+const COMPANY_PROFILE_TEMPLATE = `# ${BRAND.companyShort} Company Context (always loaded — do not fabricate beyond this)
 
 ## Company
-Precisian Medical Instruments (PMI) — medical device startup.
-Flagship product: VACTOR, [one-line description].
+${BRAND.companyName} (${BRAND.companyShort}) — ${BRAND.companyDescriptor.replace(/^an? /, "")}.
+${BRAND.flagship ? `Flagship product: ${BRAND.flagship}, [one-line description].` : "Products / services: [one line each]."}
 
 ## Key People
 | Name | Role | Email |
@@ -980,10 +982,7 @@ Flagship product: VACTOR, [one-line description].
 
 ## Key Partners / Stakeholders
 - ...
-
-## Regulatory Context
-- FDA 510(k), CE Mark, EU MDR, ISO 13485, ISO 14971
-
+${hasFeature("regulatory") ? "\n## Regulatory Context\n- FDA 510(k), CE Mark, EU MDR, ISO 13485, ISO 14971\n" : ""}
 ## Glossary / Internal Shorthand
 - ...
 
@@ -1178,6 +1177,23 @@ function CompanyDriveSection() {
       description="Where the company keeps its files — Company Truth, Templates, Budgets, Invoices, Workrooms, Backups. Create the layout once, publish it for every install."
     >
       <CompanySetupPanel />
+    </Section>
+  );
+}
+
+// ── Design section (admins) ─────────────────────────────────────────────
+
+function DesignSection() {
+  const user = useAuthStore((s) => s.user);
+  if (user?.role !== "admin") return null;
+  return (
+    <Section
+      id="design"
+      icon={Palette}
+      title="Design"
+      description="Logos, fonts, colours and layout rules for the Word documents, decks and app chrome Gerry produces."
+    >
+      <DesignPanel />
     </Section>
   );
 }
@@ -2592,8 +2608,10 @@ function HubSection() {
           This is the hub. Your projects, tasks, budgets and chats, Team and Gerry are all
           here. Conversations from your own computer arrive as it carries them up; its
           knowledge base does not. To use Drive, Gmail and Calendar from the hub, connect your Google account
-          above; to see the bank balance, paste your Odoo API key on the Odoo page — the key
-          on your own computer does not travel.
+          above{hasFeature("erp") && (
+            <>; to see the bank balance, paste your Odoo API key on the Odoo page — the key
+          on your own computer does not travel</>
+          )}.
         </p>
       </Section>
     );
@@ -2890,6 +2908,7 @@ export function SettingsPage() {
             <>
               <CompanyProfileSection />
               <CompanyDriveSection />
+              <DesignSection />
             </>
           )}
 

@@ -6407,7 +6407,8 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         filename, title, banner_label, banner_title, banner_subtitle, header_left, header_right,
     )
     brand = style == ds.BRAND
-    T = ds.TOKENS
+    T = ds.tokens()
+    R = ds.rules()
     if brand:
         # The design system is the one source of truth: font and accent
         # requests are not honoured here (size is — it is not a brand matter).
@@ -6483,7 +6484,7 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     def _mono(run, size: float, color: str, upper: bool = True, bold: bool = False) -> None:
         """A mono label — the system's texture: small, tracked, uppercase.
         Field runs (PAGE / NUMPAGES) carry no text and are left untouched."""
-        if upper and run.text:
+        if upper and run.text and R.eyebrow_caps:
             run.text = run.text.upper()
         _set_font(run.font, T.font_mono)
         run.font.size = Pt(size)
@@ -6511,7 +6512,8 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
             ts.font.bold = True
             ts.font.color.rgb = RGBColor.from_string(T.black)
             _run_spacing(ts, T.display_tracking_twips)
-            _para_border(ts, "bottom", T.red, 16, space=8)
+            if R.title_rule:
+                _para_border(ts, "bottom", T.red, 16, space=8)
             ts.paragraph_format.space_after = Pt(18)
         except Exception:  # noqa: BLE001 — style may be absent in exotic bases
             pass
@@ -6526,7 +6528,7 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
                 _run_spacing(hs, T.display_tracking_twips // 2)
                 hs.paragraph_format.space_before = Pt(18 if top_rule else 12)
                 hs.paragraph_format.space_after = Pt(6)
-                if top_rule:
+                if top_rule and R.section_hairlines:
                     # Sections are separated by a hairline, never a box.
                     _para_border(hs, "top", T.hairline, 4, space=10)
             except Exception:  # noqa: BLE001
@@ -6580,7 +6582,7 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         fp = section.footer.paragraphs[0]
         fp.text = ""
         if brand and not footer_left:
-            footer_left = _brand.company_name
+            footer_left = R.footer_wording or _brand.company_name
         if footer_left:
             fp.add_run(f"{footer_left}\t\tPage ")
         else:
@@ -6657,27 +6659,47 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
 
     logo_note = ""
     if cover_logo:
-        # Company mark ("Spaceman Black") centred at the top of the cover sheet.
-        logo_path = Path(__file__).resolve().parent.parent.parent / "assets" / "spaceman-black.png"
-        if logo_path.is_file():
+        # Company mark centred at the top of the cover sheet (PMI: "Spaceman Black").
+        from services import design_tokens as _dt
+
+        logo_path = _dt.logo_path("light")
+        if logo_path is not None and logo_path.is_file():
             lp = document.add_paragraph()
             lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
             lp.add_run().add_picture(str(logo_path), width=Inches(2.2))
             document.add_paragraph()
         else:
-            logo_note = " NOTE: cover logo asset missing on this install — logo NOT embedded."
+            logo_note = " NOTE: no company logo is set (Settings → Design) — logo NOT embedded."
 
     if banner_label or banner_title or banner_subtitle:
         # Title block. Controlled: one accent-filled cell, centred label /
-        # title / subtitle. Brand: the brand's black ground — red mono eyebrow,
-        # white display title, muted subtitle, set left.
+        # title / subtitle. Brand: the brand's dark ground — accent mono eyebrow,
+        # light display title, muted subtitle, set left. The design tokens can
+        # swap the ground for the accent colour, or drop the fill altogether.
         bt = document.add_table(rows=1, cols=1)
         bcell = bt.rows[0].cells[0]
-        _shade(bcell, accent)
+        banner_style = R.banner_style if brand else "dark"
+        ground = accent
+        if brand and banner_style == "accent":
+            ground = T.red
+        if banner_style != "none":
+            _shade(bcell, ground)
         if brand:
             _cell_margins(bcell, 280)
         first = True
-        if brand:
+        if brand and banner_style == "accent":
+            rows = (
+                (banner_label, T.mono_pt, True, T.white, True),
+                (banner_title, 22, True, T.white, False),
+                (banner_subtitle, 10, False, T.white, False),
+            )
+        elif brand and banner_style == "none":
+            rows = (
+                (banner_label, T.mono_pt, True, T.red, True),
+                (banner_title, 22, True, T.black, False),
+                (banner_subtitle, 10, False, T.ink_300, False),
+            )
+        elif brand:
             rows = (
                 (banner_label, T.mono_pt, True, T.red, True),
                 (banner_title, 22, True, T.white, False),

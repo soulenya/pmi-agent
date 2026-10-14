@@ -8,6 +8,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
+import { hasFeature } from "@/lib/brand";
 
 // Login and Today are the first two screens anyone sees, so they stay in the
 // entry chunk. Everything else is fetched when its route is first opened.
@@ -97,14 +98,14 @@ function ThemedApp() {
             <Route path="chat/:conversationId" element={<Page><ChatPage /></Page>} />
             <Route path="hub/chat/:conversationId" element={<Page><ChatPage source="hub" /></Page>} />
             <Route path="waiting" element={<Page><WaitingPage /></Page>} />
-            <Route path="team" element={<Page><TeamPage /></Page>} />
+            <Route path="team" element={hasFeature("hub") ? <Page><TeamPage /></Page> : <Navigate to="/today" replace />} />
             <Route path="approvals" element={<Navigate to="/waiting?tab=approvals" replace />} />
             <Route path="assistant" element={<Page><AssistantPage /></Page>} />
             <Route path="documents" element={<Page><DocumentsPage /></Page>} />
             <Route path="search" element={<SearchRedirect />} />
             <Route path="tasks" element={<Page><TasksPage /></Page>} />
             <Route path="scheduled-tasks" element={<Navigate to="/tasks?tab=routines" replace />} />
-            <Route path="regulatory" element={<Page><RegulatoryPage /></Page>} />
+            <Route path="regulatory" element={hasFeature("regulatory") ? <Page><RegulatoryPage /></Page> : <Navigate to="/audit" replace />} />
             <Route path="notifications" element={<Navigate to="/waiting?tab=notifications" replace />} />
             <Route path="research" element={<Page><ResearchPage /></Page>} />
             <Route path="browser" element={<Page><ResearchBrowserPage /></Page>} />
@@ -117,7 +118,7 @@ function ThemedApp() {
             <Route path="hub/projects/:id/space" element={<Page><ProjectSpacePage source="hub" /></Page>} />
             <Route path="hub/projects/:id/space/:tab" element={<Page><ProjectSpacePage source="hub" /></Page>} />
             <Route path="settings" element={<Page><SettingsPage /></Page>} />
-            <Route path="meetings" element={<Page><MeetingsPage /></Page>} />
+            <Route path="meetings" element={hasFeature("meetings") ? <Page><MeetingsPage /></Page> : <Navigate to="/calendar" replace />} />
             <Route path="emails" element={<Navigate to="/inbox?view=drafts" replace />} />
             <Route path="inbox" element={<Page><InboxPage /></Page>} />
             <Route path="contacts" element={<Page><ContactsPage /></Page>} />
@@ -126,11 +127,11 @@ function ThemedApp() {
             <Route path="users" element={<Page><UsersPage /></Page>} />
             <Route path="calendar" element={<Page><CalendarPage /></Page>} />
             <Route path="google" element={<Navigate to="/settings?tab=connections" replace />} />
-            <Route path="odoo" element={<Page><OdooIntegrationPage /></Page>} />
+            <Route path="odoo" element={hasFeature("erp") ? <Page><OdooIntegrationPage /></Page> : <Navigate to="/budgets" replace />} />
             <Route path="files" element={<Navigate to="/documents?tab=made-by-gerry" replace />} />
             <Route path="workrooms" element={<Navigate to="/projects?view=rooms" replace />} />
-            <Route path="budgets" element={<Page><BudgetsPage /></Page>} />
-            <Route path="investor" element={<Navigate to="/regulatory" replace />} />
+            <Route path="budgets" element={hasFeature("budgets") ? <Page><BudgetsPage /></Page> : <Navigate to="/today" replace />} />
+            <Route path="investor" element={<Navigate to={hasFeature("regulatory") ? "/regulatory" : "/audit"} replace />} />
           </Route>
         </Route>
       </Routes>

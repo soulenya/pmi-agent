@@ -13,6 +13,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { exampleEmail, hasFeature } from "@/lib/brand";
 import { listUsers, inviteUser, updateUser } from "@/api/users";
 import type { User } from "@/types/users";
 
@@ -119,7 +120,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
                 autoFocus
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="jane@pmi-llc.com"
+                placeholder={exampleEmail("jane")}
                 className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
               />
               {emailError && <p className="text-xs text-destructive">{emailError}</p>}
@@ -262,6 +263,7 @@ function UserRow({ user }: { user: User }) {
       </td>
 
       {/* Regulatory write access */}
+      {hasFeature("regulatory") && (
       <td className="px-4 py-3">
         {user.role === "admin" ? (
           <span
@@ -296,6 +298,7 @@ function UserRow({ user }: { user: User }) {
           </button>
         )}
       </td>
+      )}
 
       {/* Joined */}
       <td className="hidden px-4 py-3 text-xs text-muted-foreground md:table-cell">
@@ -410,9 +413,11 @@ export function UsersPage() {
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
                   Status
                 </th>
+                {hasFeature("regulatory") && (
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">
                   Regulatory
                 </th>
+                )}
                 <th className="hidden px-4 py-2.5 text-left text-xs font-medium text-muted-foreground md:table-cell">
                   Joined
                 </th>

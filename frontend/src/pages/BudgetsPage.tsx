@@ -48,6 +48,7 @@ import { useHubRemote } from "@/hooks/useAllWork";
 import { useIsPhone } from "@/hooks/useViewport";
 import { useToastStore } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
+import { EXAMPLE_PROGRAM, hasFeature } from "@/lib/brand";
 
 export function BudgetsPage() {
   const phone = useIsPhone();
@@ -145,7 +146,7 @@ export function BudgetsPage() {
               autoFocus
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="Budget title (e.g. VACTOR Prototyping)"
+              placeholder={`Budget title (e.g. ${EXAMPLE_PROGRAM} Prototyping)`}
               className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
             />
             <input
@@ -431,11 +432,11 @@ function BudgetDetailView({
       )}
 
       {/* Finding invoices, and reviewing what turned up */}
-      {!readonly && <InvoiceIntake budget={budget} onChanged={onChanged} />}
+      {!readonly && hasFeature("invoices") && <InvoiceIntake budget={budget} onChanged={onChanged} />}
 
       {/* Cross-budget references + Odoo cross-check */}
       <ReferencesSection budget={budget} onChanged={onChanged} />
-      <OdooCompareSection budget={budget} />
+      {hasFeature("erp") && <OdooCompareSection budget={budget} />}
 
       {/* The plan before the money — a contract or R&D cost estimate */}
       <BudgetEstimate budget={budget} canEdit={!readonly} onChanged={onChanged} />
