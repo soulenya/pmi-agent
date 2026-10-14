@@ -13,14 +13,14 @@
 $ErrorActionPreference = "Stop"
 $here   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $cer    = Join-Path $here "LittleGerry-PublicCert.cer"
-$root   = Resolve-Path (Join-Path $here "..\..")
-$setupName = & (Join-Path $root "installer\brand-defines.ps1") -SetupNameOnly
+$root   = Resolve-Path (Join-Path $here "../..")
+$setupName = & (Join-Path $root "installer/brand-defines.ps1") -SetupNameOnly
 # PMI's bat keeps its historical name; another brand's is suffixed with its slug.
 $slug = "littlegerry"
-$brandFile = Join-Path $root "brand\brand.json"
+$brandFile = Join-Path $root "brand/brand.json"
 if (Test-Path $brandFile) { $slug = (Get-Content $brandFile -Raw -Encoding UTF8 | ConvertFrom-Json).slug }
 $batName = if ($slug -eq "littlegerry") { "Trust-Little-Gerry.bat" } else { "Trust-Little-Gerry-$slug.bat" }
-$outBat = Join-Path $here "dist\$batName"
+$outBat = Join-Path $here "dist/$batName"
 
 if (-not (Test-Path $cer)) {
     Write-Host "  [ERROR] LittleGerry-PublicCert.cer not found. Run step 1 first." -ForegroundColor Red

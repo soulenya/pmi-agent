@@ -13,6 +13,8 @@
 
     Run from the fork's checkout, signed in to gcloud (an account that can
     create projects under the company's billing account) and to gh (the fork).
+    Windows PowerShell 5+ or PowerShell 7 (pwsh) on macOS/Linux; the signing
+    certificate is made with the Windows certificate store or openssl.
 
 .PARAMETER Answers
     A JSON file with the answers (same keys the prompts ask for) to run
@@ -36,8 +38,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+$root = Resolve-Path (Join-Path $PSScriptRoot "../..")
 Set-Location $root
+$IsWin = ($env:OS -eq "Windows_NT")
+# On Windows PowerShell resolves `gcloud` to the SDK's .ps1 wrapper, which turns stderr into errors.
+$script:gcloud = if ($IsWin) { "gcloud.cmd" } else { "gcloud" }
+$tmpDir = [IO.Path]::GetTempPath()
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 $script:A = @{}
@@ -50,7 +56,7 @@ function Ask([string]$key, [string]$prompt, [string]$default = "", [switch]$Secr
     $suffix = if ($default) { " [$default]" } else { "" }
     if ($Secret) {
         $s = Read-Host -AsSecureString "  $prompt"
-        $v = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))
+        $v = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))
     } else {
         $v = Read-Host "  $prompt$suffix"
     }
@@ -69,6 +75,7 @@ function Run {
     $Cmd = @($args | ForEach-Object { $_ })
     if ($DryRun) { Write-Host "  > $($Cmd -join ' ')" -ForegroundColor DarkYellow; return "" }
     $exe, $rest = $Cmd
+    if ($exe -eq "gcloud") { $exe = $script:gcloud }
     $out = & $exe @rest 2>&1
     if ($LASTEXITCODE -ne 0) { throw "command failed ($LASTEXITCODE): $($Cmd -join ' ')`n$out" }
     return ($out -join "`n")
@@ -77,6 +84,7 @@ function Run {
 function Exists([string[]]$Cmd) {
     if ($DryRun) { return $false }
     $exe, $rest = $Cmd
+    if ($exe -eq "gcloud") { $exe = $script:gcloud }
     & $exe @rest *> $null
     return $LASTEXITCODE -eq 0
 }
@@ -95,6 +103,7 @@ function Rand([int]$bytes = 32) {
 foreach ($tool in @("gcloud", "gsutil", "gh", "git")) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool is not on PATH. Install it first: https://cli.github.com and https://cloud.google.com/sdk/docs/install" }
 }
+if (-not $IsWin -and -not (Get-Command openssl -ErrorAction SilentlyContinue)) { throw "openssl is not on PATH (needed to create the signing certificate)." }
 
 # ── 0. Sign-ins ─────────────────────────────────────────────────────────────
 Step "0. Sign-ins"
@@ -108,12 +117,12 @@ if (-not $DryRun) {
     }
     $ghUser = (& gh api user --jq .login 2>$null)
     Ok "GitHub: signed in as $ghUser"
-    $acct = (& gcloud.cmd auth list --filter=status:ACTIVE --format="value(account)" 2>$null)
+    $acct = (& $gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>$null)
     if (-not $acct) {
         Note "Signing in to Google Cloud (a browser window opens; use the Workspace account that administers the company)."
-        & gcloud.cmd auth login --brief
+        & $gcloud auth login --brief
         if ($LASTEXITCODE -ne 0) { throw "Google Cloud sign-in failed." }
-        $acct = (& gcloud.cmd auth list --filter=status:ACTIVE --format="value(account)" 2>$null)
+        $acct = (& $gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>$null)
     }
     Ok "Google Cloud: signed in as $acct"
 }
@@ -196,7 +205,7 @@ $brand = [ordered]@{
     erp = [ordered]@{ providers = @("odoo"); default = $erpDefault }
     agents = @("executive_assistant", "house_manager", "research", "operations", "engineering") + $(if ($features.qms_agent) { @("qms") } else { @() }) + $(if ($features.regulatory) { @("regulatory") } else { @() }) + $(if ($features.investor_relations) { @("ir") } else { @() })
 }
-$brandPath = Join-Path $root "brand\brand.json"
+$brandPath = Join-Path $root "brand/brand.json"
 $json = $brand | ConvertTo-Json -Depth 6
 if ($DryRun) { Write-Host $json -ForegroundColor DarkYellow } else {
     New-Item -ItemType Directory -Force -Path (Split-Path $brandPath) | Out-Null
@@ -210,14 +219,14 @@ if (-not (Exists @("gcloud", "projects", "describe", $project))) {
     # Billing: pick an open account, or create one in the console (payment method = web only).
     $billing = if ($script:A.ContainsKey("gcp_billing_account")) { "$($script:A.gcp_billing_account)" } else { "" }
     if (-not $billing -and -not $DryRun) {
-        $accounts = @(& gcloud.cmd billing accounts list --filter=open=true --format="value(name,displayName)" 2>$null)
+        $accounts = @(& $gcloud billing accounts list --filter=open=true --format="value(name,displayName)" 2>$null)
         while (-not $accounts) {
             Pause-ForConsole "Billing account" @(
                 "No open billing account is visible to $acct.",
                 "Create one (card or invoice) at https://console.cloud.google.com/billing/create",
                 "or ask the owner of an existing account to grant $acct the 'Billing Account User' role."
             )
-            $accounts = @(& gcloud.cmd billing accounts list --filter=open=true --format="value(name,displayName)" 2>$null)
+            $accounts = @(& $gcloud billing accounts list --filter=open=true --format="value(name,displayName)" 2>$null)
         }
         if ($accounts.Count -eq 1) {
             $billing = ($accounts[0] -split "`t")[0] -replace '^billingAccounts/', ''
@@ -265,13 +274,13 @@ if (-not (Exists @("gcloud", "iam", "service-accounts", "describe", $sttSa))) {
 }
 if (-not (Exists @("gsutil", "ls", "-b", "gs://$($brand.gcp.stt_bucket)"))) {
     Run gsutil mb -l us -b on "gs://$($brand.gcp.stt_bucket)"
-    $lc = Join-Path $env:TEMP "lg-stt-lifecycle.json"
+    $lc = Join-Path $tmpDir "lg-stt-lifecycle.json"
     '{"rule":[{"action":{"type":"Delete"},"condition":{"age":1}}]}' | Set-Content $lc
     Run gsutil lifecycle set $lc "gs://$($brand.gcp.stt_bucket)"
 }
 Run gcloud projects add-iam-policy-binding $project --member="serviceAccount:$sttSa" --role=roles/speech.client
 Run gsutil iam ch "serviceAccount:${sttSa}:objectAdmin" "gs://$($brand.gcp.stt_bucket)"
-$sttKey = Join-Path $root "backend\google_stt_sa.json"
+$sttKey = Join-Path $root "backend/google_stt_sa.json"
 if (-not (Test-Path $sttKey)) {
     Run gcloud iam service-accounts keys create $sttKey --iam-account=$sttSa
     Note "wrote backend/google_stt_sa.json (gitignored) — distribute via the app-clients Drive folder; users upload it in Meetings."
@@ -309,17 +318,17 @@ if ($hasToken) { Ok "UPDATE_TOKEN already set" } else {
 
 # ── 5. Windows code signing ─────────────────────────────────────────────────
 Step "5. Windows code signing"
-$pfx = Join-Path $root "installer\cert\LittleGerry-Signing.pfx"
+$pfx = Join-Path $root "installer/cert/LittleGerry-Signing.pfx"
 if (-not (Test-Path $pfx)) {
     Note "Creating a self-signed certificate (CN=$company). You will be asked for a password to protect the .pfx."
-    if (-not $DryRun) { & (Join-Path $root "installer\cert\1-Create-Signing-Certificate.ps1") }
+    if (-not $DryRun) { & (Join-Path $root "installer/cert/1-Create-Signing-Certificate.ps1") }
 } else { Ok "signing certificate exists" }
 if (Test-Path $pfx) {
     $pfxPass = Ask windows_cert_password "The .pfx password (stored as the Actions secret WINDOWS_CERT_PASSWORD)" -Secret
     if (-not $DryRun) {
         [Convert]::ToBase64String([IO.File]::ReadAllBytes($pfx)) | gh secret set WINDOWS_CERT_PFX_BASE64 --repo $repo
         $pfxPass | gh secret set WINDOWS_CERT_PASSWORD --repo $repo
-        & (Join-Path $root "installer\cert\3-Make-Trust-Bat.ps1")
+        & (Join-Path $root "installer/cert/3-Make-Trust-Bat.ps1")
     }
     Ok "signing secrets set; trust batch built"
 }
@@ -394,14 +403,15 @@ Run gsutil iam ch "serviceAccount:${vmSa}:objectCreator" "gs://$hbb"
 # VM + NAT
 $hubDomain = $hubUrl -replace '^https?://', ''
 $meta = "project=$project,region=$region,registry=$registry,image=$image,hub-domain=$hubDomain,backup-bucket=$hbb,db-name=$($brand.db.name),db-superuser=$($brand.db.superuser),db-app-role=$($brand.db.app_role),db-audit-role=$($brand.db.audit_role),api-container=$($brand.db.api_container),postgres-container=$($brand.db.postgres_container),vapid-subject=mailto:$adminMail"
+$startup = Join-Path $root "scripts/hub-startup.sh"
 if (-not (Exists @("gcloud", "compute", "instances", "describe", "hub", "--zone=$zone"))) {
     Run gcloud compute instances create hub --zone=$zone --machine-type=e2-standard-2 `
         --image-family=ubuntu-2404-lts-amd64 --image-project=ubuntu-os-cloud --boot-disk-size=50GB `
         --no-address --scopes=cloud-platform --metadata=$meta `
-        --metadata-from-file="startup-script=$root\scripts\hub-startup.sh"
+        --metadata-from-file="startup-script=$startup"
     Ok "VM created"
 } else {
-    Run gcloud compute instances add-metadata hub --zone=$zone --metadata=$meta --metadata-from-file="startup-script=$root\scripts\hub-startup.sh"
+    Run gcloud compute instances add-metadata hub --zone=$zone --metadata=$meta --metadata-from-file="startup-script=$startup"
     Ok "VM metadata updated"
 }
 if (-not (Exists @("gcloud", "compute", "routers", "describe", "nat-router", "--region=$region"))) {

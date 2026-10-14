@@ -24,7 +24,7 @@ param(
 if (-not $BrandFile) {
     # $PSScriptRoot is empty in a param default under Windows PowerShell 5.
     $here = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
-    $BrandFile = Join-Path (Split-Path -Parent $here) "brand\brand.json"
+    $BrandFile = Join-Path (Split-Path -Parent $here) "brand/brand.json"
 }
 
 $b = if (Test-Path $BrandFile) { Get-Content $BrandFile -Raw -Encoding UTF8 | ConvertFrom-Json } else { $null }
