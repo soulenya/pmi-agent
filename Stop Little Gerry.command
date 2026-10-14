@@ -24,7 +24,8 @@ echo "  [2/3] Stopping the launcher..."
 pkill -f "launcher.py" 2>/dev/null || true
 
 echo "  [3/3] Stopping PostgreSQL..."
-docker stop pmi_postgres >/dev/null 2>&1 || true
+[ -f .env ] && set -a && . ./.env && set +a
+docker stop "${POSTGRES_CONTAINER:-pmi_postgres}" >/dev/null 2>&1 || true
 docker compose stop >/dev/null 2>&1 || true
 
 echo

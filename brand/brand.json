@@ -49,7 +49,18 @@
     "oauth_client_download_url": "https://drive.google.com/file/d/1qfh3eQU0p10yOyfENBpuguRwDvNfOPel/view?usp=sharing",
     "stt_key_download_url": "https://drive.google.com/file/d/1FyBDnxuf7dSS0pEE-j6Ho4w5BMeDPCmQ/view?usp=drive_link"
   },
-  "gcp": { "stt_bucket": "little_gerry_stt", "drive_backup_bucket": "pmi-drive-backup" },
+  "gcp": {
+    "stt_bucket": "little_gerry_stt",
+    "drive_backup_bucket": "pmi-drive-backup",
+    "project": "pmi-littlegerry-hub",
+    "region": "us-central1",
+    "zone": "us-central1-a",
+    "hub_vm": "hub",
+    "registry": "us-central1-docker.pkg.dev",
+    "image_repo": "littlegerry",
+    "hub_backup_bucket": "pmi-littlegerry-hub-backup",
+    "iap_audience": "/projects/200809642986/global/backendServices/3249219135556043655"
+  },
   "features": {
     "regulatory": true,
     "qms_agent": true,

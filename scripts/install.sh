@@ -101,8 +101,25 @@ fi
 step "Step 3 of 7 - Starting PostgreSQL (Docker Compose)"
 # ────────────────────────────────────────────────────────────────────────────
 cd "$PROJECT_ROOT"
+# Database names from brand/brand.json (PMI's when absent): written to the root
+# .env for docker-compose and the Start/Stop scripts, and into backend/.env below.
+brand_db() { python3 -c "import json
+try: d=json.load(open('$PROJECT_ROOT/brand/brand.json')).get('db',{})
+except Exception: d={}
+print(d.get('$1') or '$2')"; }
+PG_NAME="$(brand_db name pmi_dev)"; PG_SUPER="$(brand_db superuser pmi)"
+PG_APP="$(brand_db app_role pmi_app)"; PG_AUDIT="$(brand_db audit_role pmi_audit)"
+PG_CONTAINER="$(brand_db postgres_container pmi_postgres)"
+cat > "$PROJECT_ROOT/.env" <<EOF
+# Written by scripts/install.sh from brand/brand.json - read by docker-compose.yml and the Start/Stop scripts.
+POSTGRES_CONTAINER=$PG_CONTAINER
+POSTGRES_USER=$PG_SUPER
+POSTGRES_DB=$PG_NAME
+DB_APP_ROLE=$PG_APP
+DB_AUDIT_ROLE=$PG_AUDIT
+EOF
 docker compose up -d
-wait_for "docker exec pmi_postgres pg_isready -U pmi -d pmi_dev" 20 3 "PostgreSQL" || exit 1
+wait_for "docker exec $PG_CONTAINER pg_isready -U $PG_SUPER -d $PG_NAME" 20 3 "PostgreSQL" || exit 1
 
 # ────────────────────────────────────────────────────────────────────────────
 step "Step 4 of 7 - Configuring backend environment"
@@ -130,6 +147,9 @@ EOF
 else
   ok ".env already exists - skipping"
 fi
+# The env file wins over the brand defaults inside the app, so it must carry the brand's names.
+sed -i.bak -E "s#^DATABASE_URL=.*#DATABASE_URL=postgresql+asyncpg://$PG_SUPER:pmi_dev_password@localhost:5432/$PG_NAME#; s#^DATABASE_URL_SYNC=.*#DATABASE_URL_SYNC=postgresql://$PG_SUPER:pmi_dev_password@localhost:5432/$PG_NAME#" "$BACKEND_DIR/.env" && rm -f "$BACKEND_DIR/.env.bak"
+ok "Database names: $PG_NAME / $PG_SUPER / $PG_APP (container $PG_CONTAINER)"
 
 # ────────────────────────────────────────────────────────────────────────────
 step "Step 5 of 7 - Installing Python backend dependencies"

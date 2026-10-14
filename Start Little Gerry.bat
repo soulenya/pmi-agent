@@ -114,10 +114,16 @@ if !DOCKER_READY! equ 0 (
 )
 
 cd /d "%~dp0"
-:: Self-heal: remove a leftover pmi_postgres container from another project
+:: Container and database names (brand/brand.json via the root .env that
+:: scripts\install.ps1 writes; PMI's values when there is none).
+if exist ".env" for /f "usebackq eol=# tokens=1,* delims==" %%a in (".env") do set "%%a=%%b"
+if not defined POSTGRES_CONTAINER set "POSTGRES_CONTAINER=pmi_postgres"
+if not defined POSTGRES_USER set "POSTGRES_USER=pmi"
+if not defined POSTGRES_DB set "POSTGRES_DB=pmi_dev"
+:: Self-heal: remove a leftover postgres container from another project
 :: (e.g. a dev checkout) that would otherwise cause a name conflict.
 for /f %%c in ('docker compose ps -q postgres 2^>nul') do set "PG_OWNED=%%c"
-if not defined PG_OWNED docker rm -f pmi_postgres >nul 2>&1
+if not defined PG_OWNED docker rm -f %POSTGRES_CONTAINER% >nul 2>&1
 set "PG_OWNED="
 docker compose up -d --remove-orphans
 if !ERRORLEVEL! neq 0 (
@@ -129,7 +135,7 @@ echo  Waiting for PostgreSQL to accept connections (up to 60s)...
 set PG_READY=0
 for /L %%i in (1,1,20) do (
     if !PG_READY! equ 0 (
-        docker exec pmi_postgres pg_isready -U pmi -d pmi_dev >nul 2>&1
+        docker exec %POSTGRES_CONTAINER% pg_isready -U %POSTGRES_USER% -d %POSTGRES_DB% >nul 2>&1
         if !ERRORLEVEL! equ 0 (
             set PG_READY=1
             echo  PostgreSQL is ready.

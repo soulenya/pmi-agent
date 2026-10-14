@@ -5,8 +5,29 @@ set -euo pipefail
 exec > >(tee -a /var/log/hub-startup.log) 2>&1
 echo "=== hub startup $(date -Is) ==="
 
-PROJECT=pmi-littlegerry-hub
-REGISTRY=us-central1-docker.pkg.dev
+# Instance metadata attribute, or the default (PMI's values) when unset.
+# Set with: gcloud compute instances add-metadata hub --metadata=key=value,...
+meta() {
+  local v
+  v=$(curl -sf -H "Metadata-Flavor: Google" \
+    "http://metadata.google.internal/computeMetadata/v1/instance/attributes/$1" 2>/dev/null || true)
+  printf '%s' "${v:-$2}"
+}
+
+PROJECT=$(meta project pmi-littlegerry-hub)
+REGION=$(meta region us-central1)
+REGISTRY=$(meta registry "${REGION}-docker.pkg.dev")
+IMAGE=$(meta image "${REGISTRY}/${PROJECT}/littlegerry/backend:latest")
+HUB_DOMAIN=$(meta hub-domain hub.precisianmedical.com)
+IAP_AUDIENCE=$(meta iap-audience /projects/200809642986/global/backendServices/3249219135556043655)
+BACKUP_BUCKET=$(meta backup-bucket pmi-littlegerry-hub-backup)
+DB_NAME=$(meta db-name pmi_dev)
+DB_SUPERUSER=$(meta db-superuser pmi)
+DB_APP_ROLE=$(meta db-app-role pmi_app)
+DB_AUDIT_ROLE=$(meta db-audit-role pmi_audit)
+API_CONTAINER=$(meta api-container pmi_api)
+PG_CONTAINER=$(meta postgres-container pmi_postgres)
+VAPID_SUBJECT=$(meta vapid-subject mailto:morganjkeane@precisianmedical.com)
 APP=/opt/littlegerry
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -41,84 +62,88 @@ echo "${TOKEN}" | docker login -u oauth2accesstoken --password-stdin "https://${
 mkdir -p "${APP}/scripts"
 cd "${APP}"
 
-cat > scripts/init_db.sql <<'SQLEOF'
+cat > scripts/init_db.sql <<SQLEOF
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "vector";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
-DO $$
+DO \$\$
 BEGIN
-    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'pmi_app') THEN
-        CREATE ROLE pmi_app LOGIN PASSWORD 'placeholder_replaced_at_init';
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_APP_ROLE}') THEN
+        CREATE ROLE ${DB_APP_ROLE} LOGIN PASSWORD 'placeholder_replaced_at_init';
     END IF;
 END
-$$;
+\$\$;
 
-DO $$
+DO \$\$
 BEGIN
-    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'pmi_audit') THEN
-        CREATE ROLE pmi_audit LOGIN PASSWORD 'placeholder_replaced_at_init';
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_AUDIT_ROLE}') THEN
+        CREATE ROLE ${DB_AUDIT_ROLE} LOGIN PASSWORD 'placeholder_replaced_at_init';
     END IF;
 END
-$$;
+\$\$;
 
-GRANT CONNECT ON DATABASE pmi_dev TO pmi_app;
-GRANT CONNECT ON DATABASE pmi_dev TO pmi_audit;
-GRANT USAGE ON SCHEMA public TO pmi_app;
-GRANT USAGE ON SCHEMA public TO pmi_audit;
+GRANT CONNECT ON DATABASE ${DB_NAME} TO ${DB_APP_ROLE};
+GRANT CONNECT ON DATABASE ${DB_NAME} TO ${DB_AUDIT_ROLE};
+GRANT USAGE ON SCHEMA public TO ${DB_APP_ROLE};
+GRANT USAGE ON SCHEMA public TO ${DB_AUDIT_ROLE};
 SQLEOF
 
-cat > scripts/init_db_hub.sh <<'SHEOF'
+cat > scripts/init_db_hub.sh <<SHEOF
 #!/bin/bash
 set -euo pipefail
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    ALTER ROLE pmi_app   WITH PASSWORD '${PMI_APP_PASSWORD}';
-    ALTER ROLE pmi_audit WITH PASSWORD '${PMI_AUDIT_PASSWORD}';
+psql -v ON_ERROR_STOP=1 --username "\$POSTGRES_USER" --dbname "\$POSTGRES_DB" <<-EOSQL
+    ALTER ROLE ${DB_APP_ROLE}   WITH PASSWORD '\${PMI_APP_PASSWORD}';
+    ALTER ROLE ${DB_AUDIT_ROLE} WITH PASSWORD '\${PMI_AUDIT_PASSWORD}';
 EOSQL
 SHEOF
 chmod +x scripts/init_db_hub.sh
 
-cat > docker-compose.yml <<'YMLEOF'
+cat > docker-compose.yml <<YMLEOF
 services:
   postgres:
     image: pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
-    container_name: pmi_postgres
+    container_name: ${PG_CONTAINER}
     restart: unless-stopped
     environment:
-      POSTGRES_USER: pmi
-      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?required}
-      POSTGRES_DB: pmi_dev
-      PMI_APP_PASSWORD: ${PMI_APP_PASSWORD:?required}
-      PMI_AUDIT_PASSWORD: ${PMI_AUDIT_PASSWORD:?required}
+      POSTGRES_USER: ${DB_SUPERUSER}
+      POSTGRES_PASSWORD: \${POSTGRES_SUPERUSER_PASSWORD:?required}
+      POSTGRES_DB: ${DB_NAME}
+      PMI_APP_PASSWORD: \${PMI_APP_PASSWORD:?required}
+      PMI_AUDIT_PASSWORD: \${PMI_AUDIT_PASSWORD:?required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
       - ./scripts/init_db_hub.sh:/docker-entrypoint-initdb.d/02_passwords.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pmi -d pmi_dev"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_SUPERUSER} -d ${DB_NAME}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   api:
-    image: ${API_IMAGE:-us-central1-docker.pkg.dev/pmi-littlegerry-hub/littlegerry/backend:latest}
-    container_name: pmi_api
+    image: \${API_IMAGE:-${IMAGE}}
+    container_name: ${API_CONTAINER}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://pmi_app:${PMI_APP_PASSWORD}@postgres:5432/pmi_dev
-      DATABASE_URL_SYNC: postgresql://pmi_app:${PMI_APP_PASSWORD}@postgres:5432/pmi_dev
-      JWT_SECRET: ${JWT_SECRET:?required}
-      FERNET_KEY: ${FERNET_KEY:?required}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
-      CORS_ORIGINS: ${CORS_ORIGINS:-["https://hub.precisianmedical.com"]}
+      DATABASE_URL: postgresql+asyncpg://${DB_APP_ROLE}:\${PMI_APP_PASSWORD}@postgres:5432/${DB_NAME}
+      DATABASE_URL_SYNC: postgresql://${DB_APP_ROLE}:\${PMI_APP_PASSWORD}@postgres:5432/${DB_NAME}
+      DB_APP_ROLE: ${DB_APP_ROLE}
+      JWT_SECRET: \${JWT_SECRET:?required}
+      FERNET_KEY: \${FERNET_KEY:?required}
+      ANTHROPIC_API_KEY: \${ANTHROPIC_API_KEY:-}
+      VOYAGE_API_KEY: \${VOYAGE_API_KEY:-}
+      GOOGLE_API_KEY: \${GOOGLE_API_KEY:-}
+      VAPID_PUBLIC_KEY: \${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: \${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: \${VAPID_SUBJECT:-}
+      CORS_ORIGINS: \${CORS_ORIGINS:-["https://${HUB_DOMAIN}"]}
       HUB_MODE: "true"
-      IAP_AUDIENCE: /projects/200809642986/global/backendServices/3249219135556043655
-      GOOGLE_WEB_CLIENT_JSON: ${GOOGLE_WEB_CLIENT_JSON:-}
+      IAP_AUDIENCE: ${IAP_AUDIENCE}
+      GOOGLE_WEB_CLIENT_JSON: \${GOOGLE_WEB_CLIENT_JSON:-}
       STORAGE_ROOT: /data/documents
       HOST: 0.0.0.0
       PORT: "8000"
@@ -148,8 +173,21 @@ umask 077
   echo "GOOGLE_API_KEY=$(secret google-api-key || true)"
   # One line, no quoting: compose reads .env values literally to end of line.
   echo "GOOGLE_WEB_CLIENT_JSON=$(secret google-oauth-client | tr -d '\n' || true)"
+  # Web push (optional secrets; the subject comes from metadata / the brand).
+  echo "VAPID_PUBLIC_KEY=$(secret vapid-public-key || true)"
+  echo "VAPID_PRIVATE_KEY=$(secret vapid-private-key || true)"
+  echo "VAPID_SUBJECT=${VAPID_SUBJECT}"
 } > .env
 chmod 600 .env
+
+# Values the helper scripts below need (they run from cron/systemd, not here).
+cat > scripts/hub.env <<ENVEOF
+BACKUP_BUCKET=${BACKUP_BUCKET}
+DB_NAME=${DB_NAME}
+DB_SUPERUSER=${DB_SUPERUSER}
+API_CONTAINER=${API_CONTAINER}
+PG_CONTAINER=${PG_CONTAINER}
+ENVEOF
 
 # ── Nightly backup ──────────────────────────────────────────────────────
 # Installed before the image pull so a registry hiccup can't skip it.
@@ -158,7 +196,8 @@ cat > scripts/backup.sh <<'BAKEOF'
 # Nightly hub backup: database dump + uploaded files to GCS.
 # Retention is a 30-day bucket lifecycle rule, not this script's job.
 set -euo pipefail
-BUCKET=pmi-littlegerry-hub-backup
+. /opt/littlegerry/scripts/hub.env
+BUCKET=${BACKUP_BUCKET}
 STAMP=$(date -u +%Y%m%d-%H%M%S)
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -181,13 +220,13 @@ set -a
 . /opt/littlegerry/.env
 set +a
 
-docker exec -e PGPASSWORD="${POSTGRES_SUPERUSER_PASSWORD}" pmi_postgres \
-  pg_dump -U pmi -d pmi_dev --no-owner --no-acl \
+docker exec -e PGPASSWORD="${POSTGRES_SUPERUSER_PASSWORD}" "${PG_CONTAINER}" \
+  pg_dump -U "${DB_SUPERUSER}" -d "${DB_NAME}" --no-owner --no-acl \
   | gzip -9 > "$TMP/db.sql.gz"
-upload "$TMP/db.sql.gz" "db/pmi_dev-${STAMP}.sql.gz"
+upload "$TMP/db.sql.gz" "db/${DB_NAME}-${STAMP}.sql.gz"
 
 # Documents, regulatory store and conversation backups all live under /data.
-VOL=$(docker inspect pmi_api -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')
+VOL=$(docker inspect "${API_CONTAINER}" -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')
 docker run --rm -v "${VOL}:/data:ro" -v "$TMP:/out" alpine \
   tar czf /out/data.tar.gz -C /data .
 upload "$TMP/data.tar.gz" "files/data-${STAMP}.tar.gz"
@@ -200,9 +239,10 @@ cat > scripts/restore.sh <<'RSTEOF'
 #!/bin/bash
 # Restore a database backup from GCS.
 #   restore.sh                        newest backup -> scratch DB (a drill)
-#   restore.sh db/pmi_dev-X.sql.gz pmi_dev   real restore, API stopped first
+#   restore.sh db/<db>-X.sql.gz <db>  real restore, API stopped first
 set -euo pipefail
-BUCKET=pmi-littlegerry-hub-backup
+. /opt/littlegerry/scripts/hub.env
+BUCKET=${BACKUP_BUCKET}
 OBJ=${1:-}
 TARGET=${2:-restore_test}
 
@@ -228,25 +268,25 @@ curl -sf -H "Authorization: Bearer $(token)" \
 set -a
 . /opt/littlegerry/.env
 set +a
-PG="docker exec -e PGPASSWORD=${POSTGRES_SUPERUSER_PASSWORD} pmi_postgres"
+PG="docker exec -e PGPASSWORD=${POSTGRES_SUPERUSER_PASSWORD} ${PG_CONTAINER}"
 
-if [[ "${TARGET}" == "pmi_dev" ]]; then
-  docker stop pmi_api
+if [[ "${TARGET}" == "${DB_NAME}" ]]; then
+  docker stop "${API_CONTAINER}"
 fi
 
-${PG} psql -U pmi -d postgres -v ON_ERROR_STOP=1 \
+${PG} psql -U "${DB_SUPERUSER}" -d postgres -v ON_ERROR_STOP=1 \
   -c "DROP DATABASE IF EXISTS \"${TARGET}\"" \
-  -c "CREATE DATABASE \"${TARGET}\" OWNER pmi" >/dev/null
+  -c "CREATE DATABASE \"${TARGET}\" OWNER ${DB_SUPERUSER}" >/dev/null
 gunzip -c "$TMP/db.sql.gz" \
-  | docker exec -i -e PGPASSWORD="${POSTGRES_SUPERUSER_PASSWORD}" pmi_postgres \
-      psql -U pmi -d "${TARGET}" -q -v ON_ERROR_STOP=1 >/dev/null
+  | docker exec -i -e PGPASSWORD="${POSTGRES_SUPERUSER_PASSWORD}" "${PG_CONTAINER}" \
+      psql -U "${DB_SUPERUSER}" -d "${TARGET}" -q -v ON_ERROR_STOP=1 >/dev/null
 
-TABLES=$(${PG} psql -U pmi -d "${TARGET}" -tAc \
+TABLES=$(${PG} psql -U "${DB_SUPERUSER}" -d "${TARGET}" -tAc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
 echo "restored ${OBJ} -> ${TARGET}: ${TABLES} tables"
 
-if [[ "${TARGET}" == "pmi_dev" ]]; then
-  docker start pmi_api
+if [[ "${TARGET}" == "${DB_NAME}" ]]; then
+  docker start "${API_CONTAINER}"
 fi
 RSTEOF
 chmod 700 scripts/restore.sh

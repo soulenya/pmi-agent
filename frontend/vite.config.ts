@@ -54,7 +54,14 @@ function brandPlugin(): Plugin {
   let outDir = path.resolve(__dirname, "dist");
   return {
     name: "little-gerry-brand",
-    config: () => ({ define: { __BRAND__: JSON.stringify(brand) } }),
+    config: (_cfg, env) => {
+      const define: Record<string, string> = { __BRAND__: JSON.stringify(brand) };
+      // The hub build is same-origin; its websocket base is the brand's hub URL.
+      if (env.mode === "hub" && brand.hub_url) {
+        define["import.meta.env.VITE_WS_BASE"] = JSON.stringify(brand.hub_url.replace(/^http/, "ws"));
+      }
+      return { define };
+    },
     configResolved(cfg) {
       outDir = path.resolve(cfg.root, cfg.build.outDir);
     },

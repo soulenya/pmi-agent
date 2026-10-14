@@ -4,6 +4,48 @@
 
 ## Changelog
 
+### v5.24.0 · build 304 — 2026-10-14
+**White-label Phase 6: hub parameterised, bootstrap and deploy scripts checked in. PMI unchanged**
+
+- `scripts/hub-startup.sh` reads instance metadata (`project`, `region`,
+  `registry`, `image`, `hub-domain`, `iap-audience`, `backup-bucket`,
+  `db-name`, `db-superuser`, `db-app-role`, `db-audit-role`,
+  `api-container`, `postgres-container`, `vapid-subject`) with PMI's values
+  as defaults; renders init SQL, compose, backup/restore and a
+  `scripts/hub.env` from them; folds the web-push keys in (optional secrets
+  `vapid-public-key` / `vapid-private-key`, subject from metadata) so a
+  rebooted VM no longer loses the hand-added VAPID lines. Rendered locally
+  with defaults: identical roles, names and compose env to PMI's VM plus
+  the three VAPID entries.
+- Desktop: `docker-compose.yml` interpolates `POSTGRES_CONTAINER` /
+  `POSTGRES_USER` / `POSTGRES_DB` / `DB_APP_ROLE` / `DB_AUDIT_ROLE` (PMI
+  defaults; `docker compose config` with no environment is unchanged);
+  `scripts/init_db.sh` replaces the static SQL; `launcher.py` exports the
+  brand's names before every compose call; `scripts/install.ps1` / `.sh`
+  write a root `.env` with them and rewrite `DATABASE_URL*` in
+  `backend/.env` from the brand; the Start/Stop/update scripts read that
+  root `.env`.
+- `scripts/hub/deploy-hub.ps1` and `.sh` (checked in): the release sequence
+  — backup → login → pull → optional `alembic upgrade head` as the DB
+  superuser (`-Migrate`) → recreate api → verify (image, alembic head,
+  health) — with coordinates from `brand.json` (`gcp.project`, `zone`,
+  `hub_vm`, `registry`, `image_repo`, `hub_backup_bucket`, `iap_audience`
+  added for PMI); `-UpdateStartupScript` pushes `hub-startup.sh` and the
+  metadata; `-VerifyOnly`. Verified against PMI's hub.
+- `scripts/new-company/bootstrap.ps1`: interactive, re-runnable, `-Answers`
+  file, `-DryRun`, `-SkipHub`; writes `brand/brand.json` (new AppId GUID,
+  generic db names, features by answer), creates/links the GCP project and
+  APIs, STT service account + bucket + key, Drive-backup bucket + viewer SA,
+  GitHub `UPDATE_TOKEN` secret and `UPSTREAM_REPO` variable, signing
+  certificate + Actions secrets + trust bat, Artifact Registry + image,
+  Secret Manager secrets (db/JWT/Fernet generated), hub bucket + VM SA
+  roles, VM with metadata + startup script, NAT; stops with filled-in
+  instructions at the three console-only steps (consent screen, OAuth
+  clients, load balancer + IAP) and sets `iap-audience` afterwards. Dry run
+  with a Noctu answers file completes end to end.
+- Frontend: the hub build's `VITE_WS_BASE` is derived from `brand.hub_url`
+  by the Vite brand plugin (`.env.hub` keeps PMI's as fallback).
+
 ### v5.23.0 · build 303 — 2026-10-14
 **White-label Phase 5: installers, launcher, updater, CI read the brand. PMI unchanged**
 

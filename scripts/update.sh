@@ -50,8 +50,9 @@ if ! docker info >/dev/null 2>&1; then
   for i in $(seq 1 15); do docker info >/dev/null 2>&1 && break; sleep 3; done
 fi
 ( cd "$PROJECT_ROOT" && docker compose up -d ) >/dev/null 2>&1 || true
+[ -f "$PROJECT_ROOT/.env" ] && set -a && . "$PROJECT_ROOT/.env" && set +a
 for i in $(seq 1 20); do
-  docker exec pmi_postgres pg_isready -U pmi -d pmi_dev >/dev/null 2>&1 && break
+  docker exec "${POSTGRES_CONTAINER:-pmi_postgres}" pg_isready -U "${POSTGRES_USER:-pmi}" -d "${POSTGRES_DB:-pmi_dev}" >/dev/null 2>&1 && break
   sleep 3
 done
 ( cd "$BACKEND_DIR" && uv run alembic upgrade head ) || { fail "migrations failed."; exit 1; }

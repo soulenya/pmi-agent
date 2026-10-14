@@ -587,6 +587,8 @@ Everything that names the company lives in one file at the repo root: company na
 
 **Installers and CI.** `installer/setup.iss` takes publisher, AppId, install folder, output name and data dir from `/D` defines (PMI defaults built in); `installer/brand-defines.ps1` derives them from `brand/brand.json` for `build-installer.bat`, `scripts/publish-release.ps1` and `.github/workflows/windows-release.yml` (build + sign + attach on release). `launcher.py`, `routers/update.py`, `scripts/build-macos.sh` and the cert scripts read the same file. `sync-upstream.yml` opens a PR merging the upstream repository into a fork.
 
+**Hub and operations.** `scripts/hub-startup.sh` takes its parameters from VM metadata (PMI defaults); `scripts/hub/deploy-hub.ps1|.sh` deploys a release (`-Migrate` for alembic, `-UpdateStartupScript`, `-VerifyOnly`); `scripts/new-company/bootstrap.ps1` sets up a new company end to end (`-DryRun`, `-Answers`). Desktop database names flow from `brand.json` through a root `.env` into `docker-compose.yml` and the Start/Stop scripts.
+
 ### Backend — `backend/.env`
 
 ```env
