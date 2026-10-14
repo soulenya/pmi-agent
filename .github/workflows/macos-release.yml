@@ -115,4 +115,7 @@ jobs:
       - name: Upload .pkg to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ steps.tag.outputs.tag }}" installer/Output/LittleGerry.pkg --clobber
+        run: |
+          # The pkg name follows brand/brand.json (macos.pkg_name; LittleGerry for PMI).
+          PKG=$(ls installer/Output/*.pkg | head -1)
+          gh release upload "${{ steps.tag.outputs.tag }}" "$PKG" --clobber

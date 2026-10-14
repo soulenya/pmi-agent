@@ -17,7 +17,14 @@
 $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-$subject = "CN=Precisian Medical Instruments, O=Precisian Medical Instruments, OU=Little Gerry"
+# Subject from brand\brand.json (windows.cert_cn, publisher); PMI's when absent.
+$brandFile = Join-Path $here "..\..\brand\brand.json"
+$cn = "Precisian Medical Instruments"
+if (Test-Path $brandFile) {
+    $b = Get-Content $brandFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($b.windows.cert_cn) { $cn = $b.windows.cert_cn } elseif ($b.publisher) { $cn = $b.publisher }
+}
+$subject = "CN=$cn, O=$cn, OU=Little Gerry"
 $cerPath = Join-Path $here "LittleGerry-PublicCert.cer"
 $pfxPath = Join-Path $here "LittleGerry-Signing.pfx"
 

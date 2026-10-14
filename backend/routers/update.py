@@ -213,13 +213,16 @@ async def _apply_release() -> UpdateResult:
     """Installed-copy apply: download the signed installer and hand off to the
     platform's apply-update script (apply_update.ps1 on Windows, apply_update.sh
     on macOS)."""
+    _b = get_brand().raw
+    setup_name = str((_b.get("windows") or {}).get("setup_name") or "LittleGerry_Setup")
+    pkg_name = str((_b.get("macos") or {}).get("pkg_name") or "LittleGerry")
     if sys.platform == "win32":
-        asset_name  = "LittleGerry_Setup.exe"
-        target_name = "LittleGerry_Setup_update.exe"
+        asset_name  = f"{setup_name}.exe"
+        target_name = f"{setup_name}_update.exe"
         apply_script = _PROJECT_ROOT / "scripts" / "apply_update.ps1"
     elif sys.platform == "darwin":
-        asset_name  = "LittleGerry.pkg"
-        target_name = "LittleGerry_update.pkg"
+        asset_name  = f"{pkg_name}.pkg"
+        target_name = f"{pkg_name}_update.pkg"
         apply_script = _PROJECT_ROOT / "scripts" / "apply_update.sh"
     else:
         raise HTTPException(status_code=500, detail="Installed updates are only supported on Windows and macOS")

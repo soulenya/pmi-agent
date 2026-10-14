@@ -27,6 +27,41 @@ BACKEND_DIR  = ROOT / "backend"
 FRONTEND_DIR = ROOT / "frontend"
 LOGO_PATH    = ROOT / "Spaceman on Black BG.png"
 
+
+def _load_brand() -> dict:
+    """brand/brand.json (same file the backend reads); PMI's values when absent."""
+    defaults = {
+        "slug": "littlegerry",
+        "product_name": "Little Gerry",
+        "company_name": "Precisian Medical Instruments",
+        "company_short": "PMI",
+        "github_repo": "soulenya/pmi-agent",
+        "data_dir_name": ".pmi-agent",
+        "windows": {"setup_name": "LittleGerry_Setup", "install_dir_name": "Little Gerry"},
+        "macos": {"pkg_name": "LittleGerry"},
+        "db": {"name": "pmi_dev", "superuser": "pmi", "postgres_container": "pmi_postgres"},
+    }
+    try:
+        raw = json.loads((ROOT / "brand" / "brand.json").read_text(encoding="utf-8"))
+    except Exception:
+        return defaults
+    out = dict(defaults)
+    for k, v in raw.items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = {**out[k], **v}
+        else:
+            out[k] = v
+    return out
+
+
+BRAND = _load_brand()
+SETUP_NAME = str(BRAND["windows"].get("setup_name") or "LittleGerry_Setup")
+PKG_NAME   = str(BRAND["macos"].get("pkg_name") or "LittleGerry")
+PG_CONTAINER = str(BRAND["db"].get("postgres_container") or "pmi_postgres")
+PG_USER      = str(BRAND["db"].get("superuser") or "pmi")
+PG_DB        = str(BRAND["db"].get("name") or "pmi_dev")
+DATA_DIR_NAME = str(BRAND.get("data_dir_name") or ".pmi-agent")
+
 # ── platform abstraction ─────────────────────────────────────────────────────
 IS_WINDOWS = (os.name == "nt")
 IS_MAC     = (sys.platform == "darwin")
@@ -39,16 +74,16 @@ else:
 # Per-platform release asset + apply-update script used by the installed-copy
 # auto-updater (see _auto_update_release / _launch_updater).
 if IS_WINDOWS:
-    UPDATE_ASSET_NAME  = "LittleGerry_Setup.exe"
-    UPDATE_TARGET_NAME = "LittleGerry_Setup_update.exe"
+    UPDATE_ASSET_NAME  = f"{SETUP_NAME}.exe"
+    UPDATE_TARGET_NAME = f"{SETUP_NAME}_update.exe"
     APPLY_SCRIPT       = ROOT / "scripts" / "apply_update.ps1"
 elif IS_MAC:
-    UPDATE_ASSET_NAME  = "LittleGerry.pkg"
-    UPDATE_TARGET_NAME = "LittleGerry_update.pkg"
+    UPDATE_ASSET_NAME  = f"{PKG_NAME}.pkg"
+    UPDATE_TARGET_NAME = f"{PKG_NAME}_update.pkg"
     APPLY_SCRIPT       = ROOT / "scripts" / "apply_update.sh"
 else:
     UPDATE_ASSET_NAME  = ""
-    UPDATE_TARGET_NAME = "LittleGerry_update.bin"
+    UPDATE_TARGET_NAME = f"{PKG_NAME}_update.bin"
     APPLY_SCRIPT       = ROOT / "scripts" / "apply_update.sh"
 
 HEALTH_URL    = "http://127.0.0.1:8000/health"
@@ -97,7 +132,7 @@ def _no_window_kwargs() -> dict:
 
 # Auto-update (installed copies pull signed installers from the private repo's
 # Releases using a read-only token baked in at build time).
-GITHUB_RELEASES_API = "https://api.github.com/repos/soulenya/pmi-agent/releases/latest"
+GITHUB_RELEASES_API = f"https://api.github.com/repos/{BRAND['github_repo']}/releases/latest"
 VERSION_FILE        = ROOT / "VERSION"
 UPDATE_TOKEN_FILE   = ROOT / "update_token.txt"
 _DEPS_TIMEOUT       = 300    # seconds, per dependency command
@@ -563,15 +598,15 @@ def _start_services() -> None:
 
         # 2. PostgreSQL — always use compose so the container is recreated if deleted
         _set_status("Starting PostgreSQL...", 2)
-        # Self-heal: a leftover `pmi_postgres` container from another project (e.g. a
+        # Self-heal: a leftover postgres container from another project (e.g. a
         # dev checkout) would block compose with a name conflict. If this project
         # doesn't already own the container, remove any stray one before bringing ours up.
         if not _run("docker compose ps -q postgres", cwd=str(ROOT)).stdout.strip():
-            _run("docker rm -f pmi_postgres", cwd=str(ROOT))
+            _run(f"docker rm -f {PG_CONTAINER}", cwd=str(ROOT))
         _run("docker compose up -d", cwd=str(ROOT))
         # Wait up to 30 s for postgres to accept connections
         for _ in range(10):
-            chk = _run("docker exec pmi_postgres pg_isready -U pmi -d pmi_dev")
+            chk = _run(f"docker exec {PG_CONTAINER} pg_isready -U {PG_USER} -d {PG_DB}")
             if chk.returncode == 0:
                 break
             time.sleep(3)
@@ -654,7 +689,7 @@ def _stop_all() -> None:
     _kill_port(5173)
     # Bounded so a slow/unresponsive Docker can't hang shutdown. ``-t 3`` gives
     # Postgres a 3 s grace period; the outer timeout caps the whole call.
-    _run("docker stop -t 3 pmi_postgres", timeout=15)
+    _run(f"docker stop -t 3 {PG_CONTAINER}", timeout=15)
 
 
 
@@ -715,7 +750,7 @@ def _restart_services() -> None:
     _procs.clear()
     _kill_port(8000)
     _kill_port(5173)
-    _run("docker stop pmi_postgres")
+    _run(f"docker stop {PG_CONTAINER}")
     time.sleep(1)
     _start_services()
 
@@ -1256,13 +1291,13 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
   <div class="logo">{logo_tag}</div>
   <div class="text">
     <h1>Little Gerry</h1>
-    <div class="sub">PMI Agent</div>
+    <div class="sub">{BRAND['company_short']} Agent</div>
     <div class="div"></div>
     <div id="s">Initializing...</div>
     <div class="bar"><div id="f"></div></div>
   </div>
 </div>
-<div class="copy">&copy; Precisian Medical Instruments</div>
+<div class="copy">&copy; {BRAND['company_name']}</div>
 </body></html>"""
 
     # Restore the window size/position from the last run (centered 1440x900 default).
@@ -1420,7 +1455,7 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
     # On macOS pywebview uses its native Cocoa/WebKit backend automatically.
     # private_mode=False keeps cookies on disk so a site the user signs into in
     # the research browser is still signed in next launch.
-    store = Path.home() / ".pmi-agent" / "webview"
+    store = Path.home() / DATA_DIR_NAME / "webview"
     try:
         store.mkdir(parents=True, exist_ok=True)
     except Exception:

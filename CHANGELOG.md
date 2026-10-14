@@ -4,6 +4,38 @@
 
 ## Changelog
 
+### v5.23.0 · build 303 — 2026-10-14
+**White-label Phase 5: installers, launcher, updater, CI read the brand. PMI unchanged**
+
+- `installer/setup.iss`: `AppPublisher`, `AppURL`, `AppId`, `InstallDirName`,
+  `SetupName`, `DataDirName`, `AppDescription` are `#ifndef` defines with
+  PMI's values, so `iscc installer\setup.iss` alone still builds PMI's
+  installer (verified: same output name, publisher and description).
+  `installer/brand-defines.ps1` turns `brand/brand.json` into `/D` arguments
+  (`-Quoted` for cmd, `-SetupNameOnly`); `build-installer.bat` and
+  `scripts/publish-release.ps1` pass them. A Noctu test brand compiles to
+  `LittleGerry_Noctu_Setup.exe` with its own publisher, AppId and install dir.
+- `launcher.py`: reads `brand/brand.json` (PMI defaults when absent) for the
+  releases repo, installer/pkg asset names, postgres container/user/db,
+  data-dir name and the splash company line. `routers/update.py` asset names
+  from `windows.setup_name` / `macos.pkg_name`.
+- macOS: `scripts/build-macos.sh` takes `macos.bundle_id`, `macos.pkg_name`
+  and the install folder from the brand (python3 reader, PMI defaults);
+  `publish-macos.sh` and the macOS workflow upload whatever `.pkg` was built.
+- Signing: `1-Create-Signing-Certificate.ps1` subject from
+  `windows.cert_cn`; `2-Sign-LittleGerry.ps1` takes `-ExePath -PfxPath
+  -PfxPassword` (CI) and defaults to the brand's installer;
+  `3-Make-Trust-Bat.ps1` writes `Trust-Little-Gerry.bat` for PMI and
+  `Trust-Little-Gerry-<slug>.bat` for another brand, naming the brand's
+  installer in its text.
+- CI: `.github/workflows/windows-release.yml` builds, signs (PFX from
+  `WINDOWS_CERT_PFX_BASE64` / `WINDOWS_CERT_PASSWORD`, trust bat from the
+  same key) and attaches the installer on release publish or dispatch; a
+  release that already carries the installer (PMI's, built locally) is left
+  alone unless dispatched with `force`. `sync-upstream.yml` (fork only;
+  needs the `UPSTREAM_REPO` variable) merges upstream into a `sync/` branch
+  and opens a PR, keeping the fork's `brand.json` on conflict.
+
 ### v5.22.0 · build 302 — 2026-10-14
 **White-label Phase 4: ERP provider abstraction. PMI unchanged**
 

@@ -13,7 +13,14 @@
 $ErrorActionPreference = "Stop"
 $here   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $cer    = Join-Path $here "LittleGerry-PublicCert.cer"
-$outBat = Join-Path $here "dist\Trust-Little-Gerry.bat"
+$root   = Resolve-Path (Join-Path $here "..\..")
+$setupName = & (Join-Path $root "installer\brand-defines.ps1") -SetupNameOnly
+# PMI's bat keeps its historical name; another brand's is suffixed with its slug.
+$slug = "littlegerry"
+$brandFile = Join-Path $root "brand\brand.json"
+if (Test-Path $brandFile) { $slug = (Get-Content $brandFile -Raw -Encoding UTF8 | ConvertFrom-Json).slug }
+$batName = if ($slug -eq "littlegerry") { "Trust-Little-Gerry.bat" } else { "Trust-Little-Gerry-$slug.bat" }
+$outBat = Join-Path $here "dist\$batName"
 
 if (-not (Test-Path $cer)) {
     Write-Host "  [ERROR] LittleGerry-PublicCert.cer not found. Run step 1 first." -ForegroundColor Red
@@ -28,7 +35,7 @@ $bat = @"
 @echo off
 :: ============================================================
 ::  Trust Little Gerry  (one-click, self-contained)
-::  Double-click this BEFORE downloading LittleGerry_Setup.exe.
+::  Double-click this BEFORE downloading $setupName.exe.
 ::  Approve the admin prompt once. That's it.
 :: ============================================================
 title Trust Little Gerry
@@ -53,7 +60,7 @@ del "%CER%" >nul 2>&1
 
 echo.
 echo  Done. Little Gerry is now a trusted publisher on this PC.
-echo  You can now download and run LittleGerry_Setup.exe normally.
+echo  You can now download and run $setupName.exe normally.
 echo.
 pause
 "@
