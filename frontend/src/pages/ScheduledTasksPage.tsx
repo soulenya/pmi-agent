@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { listWorkrooms } from "@/api/workrooms";
+import { EXAMPLE_PROGRAM } from "@/lib/brand";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, Loader2, Play, Plus, Power, Trash2, CalendarClock } from "lucide-react";
 import { FileActionCard, extractFileLinks } from "@/components/chat/MessageBubble";
@@ -159,7 +160,7 @@ export function ScheduledTasksPage() {
             <textarea
               value={form.prompt}
               onChange={(e) => setForm({ ...form, prompt: e.target.value })}
-              placeholder="Create a Word document summarising the previous week's emails, meetings, and task progress for the VACTOR program, then save it to Generated Files."
+              placeholder={`Create a Word document summarising the previous week's emails, meetings, and task progress for the ${EXAMPLE_PROGRAM} program, then save it to Generated Files.`}
               rows={4}
               className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             />

@@ -4,6 +4,7 @@ import { getGoogleStatus } from "@/api/google";
 import { getHubStatus } from "@/api/hub";
 import { getSettingsHealth } from "@/api/settings";
 import { getOdooStatus } from "@/api/odoo";
+import { hasFeature } from "@/lib/brand";
 import { getSttCredentialsStatus } from "@/api/meetings";
 import { cn } from "@/lib/utils";
 import { useHubReachStore } from "@/stores/hubReachStore";
@@ -56,10 +57,11 @@ export function ServiceStatusBar() {
     queryFn: getSettingsHealth,
     ...POLL,
   });
-  const { data: odoo } = useQuery({ queryKey: ["odoo-status"], queryFn: getOdooStatus, ...POLL });
+  const { data: odoo } = useQuery({ queryKey: ["odoo-status"], queryFn: getOdooStatus, enabled: hasFeature("erp"), ...POLL });
   const { data: stt } = useQuery({
     queryKey: ["stt-credentials-status"],
     queryFn: getSttCredentialsStatus,
+    enabled: hasFeature("meetings"),
     ...POLL,
   });
 

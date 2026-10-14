@@ -45,9 +45,10 @@ import {
   type RestoreResult,
 } from "@/api/dataTransfer";
 import { getGoogleStatus, startGoogleAuth } from "@/api/google";
-import { getBrand, type BrandInfo } from "@/api/auth";
+import { BRAND, hasFeature } from "@/lib/brand";
 import { useAuthStore } from "@/stores/authStore";
 import { CompanySetupPanel } from "@/components/company/CompanySetupPanel";
+import { DesignPanel } from "@/components/design/DesignPanel";
 import {
   Sparkles,
   Database,
@@ -112,6 +113,7 @@ type StepId =
   | "google"
   | "you"
   | "company-drive"
+  | "design"
   | "company"
   | "writing-voice"
   | "voice"
@@ -141,6 +143,7 @@ const ALL_STEPS: StepDef[] = [
   { id: "google", label: "Google", since: 1 },
   { id: "you", label: "You", since: 2 },
   { id: "company-drive", label: "Company Drive", since: 1, adminFirstRun: true },
+  { id: "design", label: "Design", since: 1, adminFirstRun: true },
   { id: "company", label: "Company", since: 2 },
   { id: "writing-voice", label: "Your voice", since: 2 },
   { id: "voice", label: "Speech", since: 1 },
@@ -161,6 +164,7 @@ const CONTINUE_STEPS = new Set<StepId>([
   "google",
   "you",
   "company-drive",
+  "design",
   "company",
   "writing-voice",
   "voice",
@@ -183,10 +187,6 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
   const isUpdate = onboardingVersion > 0;
   const isAdmin = useAuthStore((s) => s.user?.role) === "admin";
   const [steps] = useState(() => visibleSteps(onboardingVersion, isAdmin));
-  const [brand, setBrand] = useState<BrandInfo | null>(null);
-  useEffect(() => {
-    getBrand().then(setBrand).catch(() => {});
-  }, []);
   const [step, setStep] = useState(0);
   const lastStep = steps.length - 1;
   const stepId = steps[Math.min(step, lastStep)].id;
@@ -594,7 +594,7 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
                   <Sparkles className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-base font-semibold">Your private AI assistant for PMI</p>
+                  <p className="text-base font-semibold">Your private AI assistant for {BRAND.companyShort}</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Little Gerry chats with your knowledge base, drafts and summarizes documents,
                     tracks tasks, and connects to your Google Workspace — all running locally on
@@ -650,7 +650,7 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
                   <p className="text-base font-semibold">Connect Claude (Anthropic)</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Claude is the default chat model — it powers conversations, summaries, and drafting.
-                    Your team already has access through the PMI Anthropic project; just paste your key.
+                    Your team already has access through the {BRAND.companyShort} Anthropic project; just paste your key.
                   </p>
                 </div>
               </div>
@@ -707,7 +707,7 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
                   <p className="mt-1 text-sm text-muted-foreground">
                     Voyage turns your documents into a searchable index so Little Gerry can find the
                     right information when you ask. It&apos;s Anthropic&apos;s embedding partner and the
-                    default here. Your team already has access through the PMI Voyage project.
+                    default here. Your team already has access through the {BRAND.companyShort} Voyage project.
                   </p>
                 </div>
               </div>
@@ -786,7 +786,7 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
               {googleConnecting && (
                 <p className="text-xs text-muted-foreground">
                   A browser window has opened. Sign in with{" "}
-                  <span className="font-medium">{brand?.sign_in_hint ?? "your company Google account"}</span>, then return here.
+                  <span className="font-medium">{BRAND.signInHint}</span>, then return here.
                 </p>
               )}
 
@@ -815,7 +815,7 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
               <div className="rounded-lg border bg-muted/40 p-4 text-sm space-y-1.5">
                 <p className="font-medium">Where to get the key</p>
                 <p className="text-muted-foreground">
-                  PMI already has this key in the company&apos;s Google Cloud project — ask your admin
+                  {BRAND.companyShort} already has this key in the company&apos;s Google Cloud project — ask your admin
                   for the <span className="font-medium">Google Cloud API key</span>. If you need to
                   create one: open the Google Cloud Console → <span className="font-medium">APIs &amp;
                   Services → Credentials → Create credentials → API key</span>, and make sure the{" "}
@@ -880,14 +880,24 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
                       its sources. With voice set up, use the microphone button to dictate and have replies
                       read aloud."
               />
-              <InfoRow
-                icon={<FileText className="h-5 w-5 text-amber-500" />}
-                title="Edit & generate regulatory documents"
-                desc="Browse, create, and edit files in the Regulatory file explorer, or use the Generate
-                      Document wizard to draft FDA and ISO documents (510(k) outlines, SOPs, Quality
-                      Manuals, and more) from curated templates — each draft comes with a recommended
-                      human review."
-              />
+              {hasFeature("regulatory") ? (
+                <InfoRow
+                  icon={<FileText className="h-5 w-5 text-amber-500" />}
+                  title="Edit & generate regulatory documents"
+                  desc="Browse, create, and edit files in the Regulatory file explorer, or use the Generate
+                        Document wizard to draft FDA and ISO documents (510(k) outlines, SOPs, Quality
+                        Manuals, and more) from curated templates — each draft comes with a recommended
+                        human review."
+                />
+              ) : (
+                <InfoRow
+                  icon={<FileText className="h-5 w-5 text-amber-500" />}
+                  title="Generate documents"
+                  desc="Ask for a Word document, a deck or a spreadsheet in chat — weekly updates, memos,
+                        specs, meeting notes — and it is written in the company's design system from the
+                        templates in your Drive, then saved to Generated Files."
+                />
+              )}
               <InfoRow
                 icon={<Sparkles className="h-5 w-5 text-primary" />}
                 title="Start the day on the Dashboard"
@@ -898,9 +908,9 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
               <InfoRow
                 icon={<Boxes className="h-5 w-5 text-orange-500" />}
                 title="Tune your AI models"
-                desc="Settings → Models per Task lets each kind of work (chat, briefings, regulatory drafting,
-                      research…) use its own model — fast and cheap for daily scans, most capable for
-                      regulatory writing. Recommendations are marked with a ★."
+                desc={hasFeature("regulatory")
+                  ? "Settings → Models per Task lets each kind of work (chat, briefings, regulatory drafting, research…) use its own model — fast and cheap for daily scans, most capable for regulatory writing. Recommendations are marked with a ★."
+                  : "Settings → Models per Task lets each kind of work (chat, briefings, document drafting, research…) use its own model — fast and cheap for daily scans, most capable for long-form writing. Recommendations are marked with a ★."}
               />
               <InfoRow
                 icon={<MessageSquarePlus className="h-5 w-5 text-violet-500" />}
@@ -920,21 +930,25 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
               <InfoRow
                 icon={<Shield className="h-5 w-5 text-primary" />}
                 title="Admin"
-                desc="Full access: manage users, change settings, and read/write every section — including
-                      Regulatory."
+                desc={hasFeature("regulatory")
+                  ? "Full access: manage users, change settings, and read/write every section — including Regulatory."
+                  : "Full access: manage users, change settings, and read/write every section."}
               />
               <InfoRow
                 icon={<Users className="h-5 w-5 text-blue-500" />}
                 title="Member"
-                desc="Can read and write every section except Regulatory, which is read-only unless granted
-                      write access."
+                desc={hasFeature("regulatory")
+                  ? "Can read and write every section except Regulatory, which is read-only unless granted write access."
+                  : "Can read and write every section; cannot manage users or change company settings."}
               />
-              <InfoRow
-                icon={<ShieldCheck className="h-5 w-5 text-emerald-500" />}
-                title="Regulatory write (per-user)"
-                desc="A permission an admin grants to specific people so they can edit the Regulatory file
-                      store. Admins always have it."
-              />
+              {hasFeature("regulatory") && (
+                <InfoRow
+                  icon={<ShieldCheck className="h-5 w-5 text-emerald-500" />}
+                  title="Regulatory write (per-user)"
+                  desc="A permission an admin grants to specific people so they can edit the Regulatory file
+                        store. Admins always have it."
+                />
+              )}
             </div>
           )}
 
@@ -1054,7 +1068,7 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
                     type="text"
                     value={displayName}
                     onChange={(e) => { setDisplayName(e.target.value); setNameResult(null); }}
-                    placeholder="Morgan Keane"
+                    placeholder="Your full name"
                     className="flex-1 rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
                     autoFocus
                   />
@@ -1095,6 +1109,26 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
             </div>
           )}
 
+          {/* ── Design (first admin only) ─────────────────────────────────── */}
+          {stepId === "design" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-rose-500/10 p-2.5">
+                  <Sparkles className="h-6 w-6 text-rose-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">How {BRAND.companyShort}&apos;s documents look</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Logos, fonts, colours and a few layout rules. Every Word document and deck Little
+                    Gerry writes follows them, and the app takes the accent colour. Leave it as is to
+                    keep the built-in design system; change it any time in Settings → Company → Design.
+                  </p>
+                </div>
+              </div>
+              <DesignPanel compact />
+            </div>
+          )}
+
           {/* ── Company profile ───────────────────────────────────────────── */}
           {stepId === "company" && (
             <div className="space-y-4">
@@ -1119,7 +1153,7 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
                     type="text"
                     value={companyFolder}
                     onChange={(e) => { setCompanyFolder(e.target.value); setCompanyResult(null); }}
-                    placeholder={brand ? `Leave blank to use the ${brand.company_short} default folder` : "Google Drive folder ID"}
+                    placeholder={`Leave blank to use the ${BRAND.companyShort} default folder`}
                     className="flex-1 rounded-md border bg-background px-3 py-2 font-mono text-xs outline-none focus:ring-2 focus:ring-ring"
                   />
                   <button

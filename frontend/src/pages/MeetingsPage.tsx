@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EXAMPLE_PROGRAM } from "@/lib/brand";
 import { SaveToKnowledgeBaseDialog } from "@/components/SaveToKnowledgeBaseDialog";
 import {
   listMeetings,
@@ -349,7 +350,7 @@ function NewMeetingForm({ onClose }: { onClose: () => void }) {
         <input
           value={tagsRaw}
           onChange={(e) => setTagsRaw(e.target.value)}
-          placeholder="engineering, q2, vactor"
+          placeholder={`engineering, q2, ${EXAMPLE_PROGRAM.toLowerCase()}`}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
         />
       </div>

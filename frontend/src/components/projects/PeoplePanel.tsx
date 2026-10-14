@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, UserPlus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { exampleEmail } from "@/lib/brand";
 import {
   addProjectMember,
   removeProjectMember,
@@ -168,7 +169,7 @@ export function ProjectPeoplePanel({
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="name@pmi-llc.com"
+              placeholder={exampleEmail()}
               className="min-w-0 flex-1 rounded-md border bg-background px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
             <select

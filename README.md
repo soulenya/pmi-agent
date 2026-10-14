@@ -581,6 +581,8 @@ Everything that names the company lives in one file at the repo root: company na
 
 **Drive locations** (`drive.*` and `gcp.drive_backup_bucket`) are brand *defaults* only. At runtime `backend/services/company_drive.py` resolves each location as SystemSetting → brand default → not set, and the admin-only `/company-setup` router (Settings → Company → Company Drive, or the first administrator's wizard step) can create the standard layout in a shared drive, seed it from `backend/assets/starter/`, publish `<slug>-company.json` into the app-clients folder, and import it on other installs. A brand whose file carries no Drive ids learns them from that published file on first start. The OAuth-client and STT-key download links (`drive.oauth_client_download_url`, `drive.stt_key_download_url`) are optional; without them the login page and transcription prompt accept the file from disk.
 
+**Frontend.** `frontend/vite.config.ts` reads the same file at build time (`BRAND_FILE` overrides the path) and injects it as `__BRAND__`; `src/lib/brand.ts` exposes `BRAND` and `hasFeature()`. Rail items, routes and copy follow `features`; the built `manifest.webmanifest` is stamped with the company. **Design tokens** (`backend/services/design_tokens.py`, Settings → Company → Design, router `/design`) override the shipped design system for Word documents, decks and the app accent when an administrator saves them; defaults are PMI's 5.18.0 values.
+
 ### Backend — `backend/.env`
 
 ```env

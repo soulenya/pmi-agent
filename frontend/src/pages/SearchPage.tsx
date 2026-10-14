@@ -5,6 +5,7 @@ import type { SearchResult } from "@/types/documents";
 import { Search, Loader2, FileText, Clock, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { BRAND, EXAMPLE_PROGRAM } from "@/lib/brand";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -172,7 +173,7 @@ export function SearchPage({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            placeholder="e.g. suction pressure requirements for VACTOR"
+            placeholder={BRAND.isPmi ? "e.g. suction pressure requirements for VACTOR" : `e.g. requirements for ${EXAMPLE_PROGRAM}`}
             className="w-full rounded-md border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-ring"
           />
         </div>

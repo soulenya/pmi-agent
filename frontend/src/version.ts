@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 300;
+export const BUILD_NUMBER = 301;
 export const BUILD_DATE = "2026-10-13";
 
 export interface ChangelogEntry {
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 301,
+    date: "2026-10-13",
+    title: "Design in Settings",
+    changes: [
+      "Settings → Company has a new Design section for administrators: logos, fonts, colours and layout rules for the Word documents and decks Gerry writes, with a live preview and contrast checks. Nothing changes until you save — the built-in design system stays exactly as it is, and one click returns to it.",
+      "Fonts can be chosen from the bundled faces or uploaded (Regular + Bold); a company mark can be set for document covers and the sign-in page.",
+    ],
+  },
   {
     build: 300,
     date: "2026-10-13",

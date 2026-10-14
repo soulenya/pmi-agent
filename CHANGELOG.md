@@ -4,6 +4,55 @@
 
 ## Changelog
 
+### v5.21.0 · build 301 — 2026-10-13
+**White-label Phase 3: the frontend reads the brand; feature gating; design tokens as Settings. PMI unchanged**
+
+- `frontend/vite.config.ts` gains a brand plugin: it reads `brand/brand.json`
+  (or `BRAND_FILE`) at build time, injects `__BRAND__`, and stamps the
+  company into the built `manifest.webmanifest`. `src/lib/brand.ts` exports
+  `BRAND` (product/company names, domains, `signInHint`, `flagship`,
+  `features`, `erpProviders`, `isPmi`), `hasFeature()`, `exampleEmail()`,
+  `EXAMPLE_PROGRAM`. The login page and wizard take their copy from it (the
+  `/auth/brand` fetch added in 5.20.0 is no longer used by the frontend).
+- Company wording moved to the brand: wizard welcome/Claude/Voyage/voice
+  copy, Settings company-profile template, feature guide lines, input
+  placeholders (`name@<domain>`, flagship product). `git grep -i
+  "precisian\|pmi-llc" frontend/src` now hits only `version.ts` history
+  and `index.css`'s palette comment; a Noctu test build carries no PMI
+  string outside the changelog.
+- Feature gating from `BRAND.features`: rail pages (`/regulatory`, `/odoo`,
+  `/budgets`, `/meetings`, `/team`) and their routes, feature-guide entries,
+  the Users page's Regulatory column, the Odoo cross-check and invoice intake
+  on a budget, the Odoo/transcription status-bar polls, the regulatory /
+  Odoo pin kinds, the roles and "using it" wizard copy. A Compliance item
+  without Regulatory becomes "Audit". PMI's flags are all on — identical.
+- `services/design_tokens.py`: `DesignTokens` (display/mono font, paper and
+  dark palettes, app accent, title rule, section hairlines, banner style
+  dark|accent|none, eyebrow caps, footer wording, controlled-document
+  exemption, logos, deck cover name) stored as SystemSetting
+  `design.tokens`; `refresh()` at startup, `current()` from the document
+  builders. Defaults are 5.18.0's values, so `design_system.tokens()`
+  returns the same `TOKENS` object and `deck_theme()` equals
+  `DEFAULT_THEME` until an administrator saves something. `embed_fonts()`
+  takes bundled or uploaded faces (`<data dir>/brand/fonts/`);
+  `create_docx` honours the rules and takes the cover logo from the tokens
+  (PMI's Spaceman Black when none is uploaded); the Drive Deck Theme doc
+  still overrides on top. Proven by generating the same brand docx under
+  HEAD and the working tree: every styling part hashes identical.
+- New router `/design`: public `GET /design` and `GET /design/logo/{kind}`
+  (login page), admin `GET/PUT /design/tokens`, `POST /design/reset`,
+  `POST/DELETE /design/logo/{kind}`, `POST /design/fonts`,
+  `GET /design/font/{family}/{face}`.
+- Frontend: `components/design/DesignPanel.tsx` (preview of a page and a
+  slide, fonts incl. upload, colour pickers with contrast badges, logos,
+  patterns, save/discard/reset) in Settings → Company → *Design* (admins)
+  and as an admin-first-run **Design** wizard step. `lib/designTokens.ts`
+  applies the stored app accent to `--primary`/`--ring` at startup (no-op
+  on defaults); the login page shows the dark-ground mark when one is set.
+- Tests: `tests/test_design_tokens.py` (defaults = shipped system; stored
+  tokens reach Word and decks; bad values fall back; contrast/fonts). 116
+  passed.
+
 ### v5.20.0 · build 300 — 2026-10-13
 **White-label Phase 2: Company Setup — Drive locations become data; PMI unchanged**
 

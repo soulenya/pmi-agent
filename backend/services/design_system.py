@@ -67,6 +67,33 @@ class Tokens:
 TOKENS = Tokens()
 
 
+def tokens() -> Tokens:
+    """The active document tokens — PMI's unless an administrator stored others
+    (services.design_tokens). Call per document; the cache behind it may change."""
+    from services import design_tokens as dt
+
+    t = dt.current()
+    if t == dt.DEFAULTS:
+        return TOKENS
+    return Tokens(
+        font_display=t.font_display,
+        font_mono=t.font_mono,
+        black=t.ink,
+        white=t.dark_text,
+        red=t.accent,
+        ink_500=t.body,
+        ink_300=t.muted,
+        hairline=t.hairline,
+    )
+
+
+def rules():
+    """Layout switches (title rule, hairlines, banner style, caps, footer)."""
+    from services import design_tokens as dt
+
+    return dt.current()
+
+
 # Vocabulary of controlled documents. Matched against filename, title and
 # banner text — never against the body, where a weekly update legitimately
 # says "regulatory" or "risk".
@@ -101,20 +128,21 @@ def is_controlled(*texts: str) -> bool:
 
 
 def resolve_doc_style(requested: str | None, *texts: str) -> str:
-    """Explicit ``brand``/``controlled`` wins; otherwise detect from the names."""
+    """Explicit ``brand``/``controlled`` wins; otherwise detect from the names.
+    A company that has switched the controlled-document exemption off gets the
+    brand style for everything unless it asks for ``controlled`` by name."""
     want = (requested or "").strip().lower()
     if want in DOC_STYLES:
         return want
+    from services import design_tokens as dt
+
+    if not dt.current().controlled_exempt:
+        return BRAND
     return CONTROLLED if is_controlled(*texts) else BRAND
 
 
 # ── Font embedding ──────────────────────────────────────────────────────────
 
-_FONT_FILES: dict[str, dict[str, str]] = {
-    "Archivo": {"Regular": "Archivo-Regular.ttf", "Bold": "Archivo-Bold.ttf"},
-    "JetBrains Mono": {"Regular": "JetBrainsMono-Regular.ttf", "Bold": "JetBrainsMono-Bold.ttf"},
-}
-_FONT_FAMILY_CLASS = {"Archivo": ("swiss", "variable"), "JetBrains Mono": ("modern", "fixed")}
 
 _W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -131,19 +159,26 @@ def _obfuscate(data: bytes, font_key: str) -> bytes:
     return bytes(out)
 
 
-def embed_fonts(document, families: tuple[str, ...] = ("Archivo", "JetBrains Mono")) -> list[str]:
+def embed_fonts(document, families: tuple[str, ...] | None = None) -> list[str]:
     """Embed the given families (Regular + Bold) into a python-docx Document.
 
-    Returns the families actually embedded; a family whose files are missing
-    on this install is skipped so the document is still produced (Word then
-    substitutes). Idempotent per document: fonts already present in the font
-    table are not added twice.
+    Defaults to the active display and mono faces. Returns the families
+    actually embedded; a family whose files are missing on this install is
+    skipped so the document is still produced (Word then substitutes).
+    Idempotent per document: fonts already present in the font table are not
+    added twice.
     """
     from docx.opc.constants import RELATIONSHIP_TYPE as RT
     from docx.opc.packuri import PackURI
     from docx.opc.part import Part
     from docx.oxml.ns import qn
     from lxml import etree
+
+    from services import design_tokens as dt
+
+    if families is None:
+        t = tokens()
+        families = tuple(dict.fromkeys((t.font_display, t.font_mono)))
 
     font_table = document.part.part_related_by(RT.FONT_TABLE)
     root = etree.fromstring(font_table.blob)
@@ -152,11 +187,8 @@ def embed_fonts(document, families: tuple[str, ...] = ("Archivo", "JetBrains Mon
     embedded: list[str] = []
     counter = sum(1 for _ in font_table.rels) + 1
     for family in families:
-        files = _FONT_FILES.get(family)
-        if not files:
-            continue
-        paths = {face: FONTS_DIR / name for face, name in files.items()}
-        if not all(p.is_file() for p in paths.values()):
+        paths = dt.font_files(family)
+        if not paths:
             continue
         if family in existing:
             font_el = next(
@@ -168,7 +200,7 @@ def embed_fonts(document, families: tuple[str, ...] = ("Archivo", "JetBrains Mon
         else:
             font_el = etree.SubElement(root, f"{{{_W}}}font")
             font_el.set(f"{{{_W}}}name", family)
-            fam, pitch = _FONT_FAMILY_CLASS.get(family, ("auto", "variable"))
+            fam, pitch = dt.font_class(family)
             etree.SubElement(font_el, f"{{{_W}}}family").set(f"{{{_W}}}val", fam)
             etree.SubElement(font_el, f"{{{_W}}}pitch").set(f"{{{_W}}}val", pitch)
         for face in ("Regular", "Bold"):

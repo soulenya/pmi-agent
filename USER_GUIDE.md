@@ -176,6 +176,17 @@ Little Gerry can load a small **company profile** — key people, products, part
 
 The same panel appears as a **Company Drive** step in the first-run wizard for the first administrator, and nowhere else.
 
+### Administrators — Design (how documents and decks look)
+
+**Settings → Company → Design** (administrators only) holds the design tokens behind every Word document and deck Gerry writes, and the app's accent colour. Until you save something, the built-in design system applies and nothing changes.
+
+- **Preview** — a document page and a slide drawn from the current values, with contrast badges (anything under 4.5:1 is flagged).
+- **Type** — display/body and mono faces from the bundled list, or **Upload a font** (Regular + Bold, `.ttf`/`.otf`) and pick it.
+- **Colours** — accent, ink, body, muted, hairline for paper; ground, card, text, body for slides; the app accent for buttons and focus rings.
+- **Logos** — a PNG mark for light ground (document covers) and one for dark ground (sign-in page, slides).
+- **Patterns** — accent rule under the title, hairline above sections, uppercase labels, banner style (dark / accent / no fill), footer wording, deck cover name, and whether FDA/QMS/risk/regulatory documents keep their plain controlled-document styling.
+- **Save design** applies to every document made from then on; **Use built-in design** returns to the shipped system. The Drive *Deck Theme* document still overrides deck values on top of these.
+
 ### Optional — Writing Voice (make drafts sound like you)
 
 Gerry can learn how *you* write, so the emails she drafts read like something you'd actually send instead of generic assistant prose.

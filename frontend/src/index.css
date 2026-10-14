@@ -4,7 +4,8 @@
 
 @layer base {
   /*
-   * PMI (Precisian Medical Instruments) brand palette
+   * Default app palette (PMI's brand colours; a company's design tokens
+   * override the accent at runtime — see lib/designTokens).
    *
    * Primary red  #E8000D  →  357 100% 45%
    * Near-black   #0D0D0D  →  0 0% 5%

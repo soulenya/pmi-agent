@@ -17,6 +17,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
+import { hasFeature } from "@/lib/brand";
 
 export interface RailPage {
   route: string;
@@ -36,7 +37,7 @@ export interface RailItem {
   also?: string[];
 }
 
-export const RAIL: RailItem[] = [
+const ALL_RAIL: RailItem[] = [
   {
     id: "today",
     label: "Today",
@@ -134,6 +135,26 @@ export const RAIL: RailItem[] = [
     ],
   },
 ];
+
+export const RAIL: RailItem[] = ALL_RAIL.map(applyFeatures).filter(
+  (item): item is RailItem => item !== null,
+);
+
+/** Drop the pages a brand has switched off; an item with no pages left goes too. */
+function applyFeatures(item: RailItem): RailItem | null {
+  const gate: Record<string, Parameters<typeof hasFeature>[0]> = {
+    "/regulatory": "regulatory",
+    "/odoo": "erp",
+    "/budgets": "budgets",
+    "/meetings": "meetings",
+    "/team": "hub",
+  };
+  const pages = item.pages.filter((p) => !gate[p.route] || hasFeature(gate[p.route]));
+  if (!pages.length) return null;
+  if (pages.length === item.pages.length) return item;
+  const label = item.id === "compliance" && !hasFeature("regulatory") ? "Audit" : item.label;
+  return { ...item, label, pages, route: pages[0].route };
+}
 
 /** Where a planet of the old shell lands in this one. */
 export const PLANET_TO_RAIL: Record<string, string> = {

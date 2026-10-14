@@ -58,8 +58,11 @@ import { useFileDrop } from "@/hooks/useFileDrop";
 import { useToastStore } from "@/stores/toastStore";
 import { openExternal } from "@/lib/externalLinks";
 import { cn } from "@/lib/utils";
+import { hasFeature } from "@/lib/brand";
 
-const KIND_OPTIONS = Object.entries(ITEM_KIND_LABELS) as [WorkroomItemKind, string][];
+const KIND_OPTIONS = (Object.entries(ITEM_KIND_LABELS) as [WorkroomItemKind, string][]).filter(
+  ([k]) => (k !== "regulatory_doc" || hasFeature("regulatory")) && (k !== "odoo_record" || hasFeature("erp")),
+);
 
 const GUIDE_SEEN_KEY = "workrooms-guide-seen";
 

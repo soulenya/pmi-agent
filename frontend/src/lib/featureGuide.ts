@@ -29,6 +29,12 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
+import { BRAND, hasFeature } from "@/lib/brand";
+
+/** Lines that only apply when a feature is on are tagged and dropped otherwise. */
+const only = (feature: Parameters<typeof hasFeature>[0], line: string): string | null =>
+  hasFeature(feature) ? line : null;
+const lines = (...items: (string | null)[]): string[] => items.filter((s): s is string => s !== null);
 
 export interface FeatureGuideEntry {
   tagline: string;
@@ -46,7 +52,9 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     tagline: "Your AI chief of staff — chat or talk out loud.",
     capabilities: [
       "Ask about your projects, documents, email and calendar in plain language",
-      "Knows PMI's people, products and regulatory picture — and who you are",
+      hasFeature("regulatory")
+        ? `Knows ${BRAND.companyShort}'s people, products and regulatory picture — and who you are`
+        : `Knows ${BRAND.companyShort}'s people, products and partners — and who you are`,
       "Drafts email, creates tasks, researches topics and writes documents",
       "Anything that reaches the outside world waits for your approval",
       "Click the microphone beside Send to talk out loud in the same conversation; click \"Ask Gerry\" on any item to chat about it",
@@ -196,16 +204,16 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   },
   budgets: {
     tagline: "Your personal budgets — one ledger, two surfaces.",
-    capabilities: [
+    capabilities: lines(
       "A budget lives as a Google Sheet in the shared folder — edit it here or in Sheets",
       "Set an allotment and watch spending against it",
       "Mark lines Spent, Allocated, Collected or Expected, so commitments count before they are paid — and tick an allocated line as spent the day it is paid",
-      "See the company's live bank balance from Odoo beside every budget's figures",
-      "Collect invoices from watched Drive folders, from the inbox, by dropping files onto the panel, or by pasting a Drive link — everything found waits for you to accept it",
-      "A category read off an invoice that the sheet does not have yet is added to it",
+      only("erp", "See the company's live bank balance from your ERP beside every budget's figures"),
+      only("invoices", "Collect invoices from watched Drive folders, from the inbox, by dropping files onto the panel, or by pasting a Drive link — everything found waits for you to accept it"),
+      only("invoices", "A category read off an invoice that the sheet does not have yet is added to it"),
       "Gerry can add entries when you allow it, and warn you at 80% and 100%",
       "A personal financial-management aid — not the company's official books",
-    ],
+    ),
   },
 
   // ── Compliance ──────────────────────────────────────────────────────────
@@ -215,7 +223,7 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
     capabilities: [
       "Track regulatory requirements, standards and submission status",
       "Ask Gerry compliance questions — answers cite your regulated documents",
-      "Gerry knows PMI's regulatory context (510(k), ISO 13485, key standards) from the company profile",
+      `Gerry knows ${BRAND.companyShort}'s regulatory context (510(k), ISO 13485, key standards) from the company profile`,
     ],
   },
   waiting: {
@@ -251,19 +259,23 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   // ── You ──────────────────────────────────────────────────────────────────────────────
   users: {
     tagline: "Manage who gets in.",
-    capabilities: [
+    capabilities: lines(
       "Add and manage people who can access Little Gerry",
-      "Control their roles and permissions — including regulated-document access",
-    ],
+      hasFeature("regulatory")
+        ? "Control their roles and permissions — including regulated-document access"
+        : "Control their roles and permissions",
+    ),
   },
   settings: {
     tagline: "Control how Gerry looks and behaves.",
-    capabilities: [
+    capabilities: lines(
       "Five tabs: Profile, AI, Connections, Company, System",
       "Set up API keys, AI models, theme, timezone and voice; tune the specialist agents per task",
-      "Connect Google Workspace, Odoo and the hub; view the always-loaded Company Profile",
+      hasFeature("erp")
+        ? "Connect Google Workspace, your ERP and the hub; view the always-loaded Company Profile"
+        : "Connect Google Workspace and the hub; view the always-loaded Company Profile",
       "Check system health, keep conversation backups, and install updates in-app",
-    ],
+    ),
   },
 };
 
@@ -294,7 +306,14 @@ const ROUTE_GUIDES: { prefix: string; id: string; title: string; icon: LucideIco
   { prefix: "/audit", id: "audit", title: "Audit trail", icon: ScrollText },
   { prefix: "/users", id: "users", title: "Users", icon: Users },
   { prefix: "/settings", id: "settings", title: "Settings", icon: Settings },
-];
+].filter((r) => {
+  if (r.id === "odoo") return hasFeature("erp");
+  if (r.id === "regulatory") return hasFeature("regulatory");
+  if (r.id === "budgets") return hasFeature("budgets");
+  if (r.id === "meetings") return hasFeature("meetings");
+  if (r.id === "team") return hasFeature("hub");
+  return true;
+});
 
 /** The feature-guide entry for a router pathname, or null for an unknown route. */
 export function resolveGuide(pathname: string): ResolvedGuide | null {

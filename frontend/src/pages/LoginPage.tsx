@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { googleInitiate, googlePoll, getCredentialsStatus, fetchCredentials, uploadCredentials, getBrand, getAuthMode, iapLogin } from "@/api/auth";
-import type { BrandInfo, CredentialsStatus } from "@/api/auth";
+import { googleInitiate, googlePoll, getCredentialsStatus, fetchCredentials, uploadCredentials, getAuthMode, iapLogin } from "@/api/auth";
+import type { CredentialsStatus } from "@/api/auth";
+import { BRAND } from "@/lib/brand";
+import { loadDesign } from "@/lib/designTokens";
+import { logoUrl } from "@/api/design";
 import type { User } from "@/types";
 import { useAuthStore } from "@/stores/authStore";
 import { SetupWizard, ONBOARDING_VERSION } from "@/components/SetupWizard";
@@ -127,15 +130,16 @@ export function LoginPage() {
     return () => { cancelled = true; };
   }, [backendStatus, authMode]);
 
-  // Brand facts (product name, sign-in hint) — the page shows sensible text until they load.
-  const [brand, setBrand] = useState<BrandInfo | null>(null);
+  const productName = BRAND.productName;
+
+  // The company's mark and accent, once the backend answers.
+  const [logoDark, setLogoDark] = useState(false);
   useEffect(() => {
     if (backendStatus !== "ready") return;
     let cancelled = false;
-    getBrand().then((b) => { if (!cancelled) setBrand(b); }).catch(() => {});
+    loadDesign().then((d) => { if (!cancelled && d) setLogoDark(d.logo_dark); });
     return () => { cancelled = true; };
   }, [backendStatus]);
-  const productName = brand?.product_name ?? "Little Gerry";
 
   const credFileRef = useRef<HTMLInputElement>(null);
   async function handleUploadCreds(e: React.ChangeEvent<HTMLInputElement>) {
@@ -242,6 +246,12 @@ export function LoginPage() {
       )}
       <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm rounded-lg border bg-card p-8 shadow-md">
+        {logoDark && (
+          <img src={logoUrl("dark")} alt={BRAND.companyName} className="mb-4 h-10 object-contain dark:block hidden" />
+        )}
+        {logoDark && (
+          <img src={logoUrl("dark")} alt={BRAND.companyName} className="mb-4 h-10 object-contain" />
+        )}
         <h1 className="mb-1 text-2xl font-bold">{productName}</h1>
         <p className="mb-6 text-sm text-muted-foreground">Sign in with your company account</p>
 
@@ -359,7 +369,7 @@ export function LoginPage() {
         {ssoState === "waiting" && (
           <p className="mt-3 text-center text-xs text-muted-foreground">
             A browser window has opened. Sign in with{" "}
-            <span className="font-medium">{brand?.sign_in_hint ?? "your company Google account"}</span>.
+            <span className="font-medium">{BRAND.signInHint}</span>.
           </p>
         )}
 
