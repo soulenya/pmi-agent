@@ -45,6 +45,17 @@
   with a Noctu answers file completes end to end.
 - Frontend: the hub build's `VITE_WS_BASE` is derived from `brand.hub_url`
   by the Vite brand plugin (`.env.hub` keeps PMI's as fallback).
+- Post-release addition (same build): the bootstrap now also handles the
+  accounts — step 0 signs in to `gh` and `gcloud` when needed; step 1
+  creates the company's private GitHub repository from the current checkout
+  (`gh repo create` + push to a `company` remote, `upstream` remote added,
+  `UPSTREAM_REPO` variable and optional `UPSTREAM_TOKEN` secret set); the
+  GCP step lists open billing accounts and lets you pick one, or waits with
+  the console link when there is none; the `UPDATE_TOKEN` step prints the
+  exact fine-grained-token settings and checks whether the secret already
+  exists; `brand.json` and the trust batch are committed and pushed at the
+  end. Organisation creation and billing-account creation stay console
+  steps (GitHub and Google offer no CLI for them).
 
 ### v5.23.0 · build 303 — 2026-10-14
 **White-label Phase 5: installers, launcher, updater, CI read the brand. PMI unchanged**
