@@ -93,11 +93,67 @@ function Rand([int]$bytes = 32) {
 }
 
 foreach ($tool in @("gcloud", "gsutil", "gh", "git")) {
-    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool is not on PATH. Install it and sign in first." }
+    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool is not on PATH. Install it first: https://cli.github.com and https://cloud.google.com/sdk/docs/install" }
 }
 
-# ── 1. Brand ────────────────────────────────────────────────────────────────
-Step "1. The company (brand/brand.json)"
+# ── 0. Sign-ins ─────────────────────────────────────────────────────────────
+Step "0. Sign-ins"
+$ghUser = "<gh-user>"; $acct = "<gcloud-account>"
+if (-not $DryRun) {
+    & gh auth status *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Note "Signing in to GitHub (a browser window opens; use the account that will own the company's repository)."
+        & gh auth login --web --git-protocol https --scopes "repo,workflow"
+        if ($LASTEXITCODE -ne 0) { throw "GitHub sign-in failed." }
+    }
+    $ghUser = (& gh api user --jq .login 2>$null)
+    Ok "GitHub: signed in as $ghUser"
+    $acct = (& gcloud.cmd auth list --filter=status:ACTIVE --format="value(account)" 2>$null)
+    if (-not $acct) {
+        Note "Signing in to Google Cloud (a browser window opens; use the Workspace account that administers the company)."
+        & gcloud.cmd auth login --brief
+        if ($LASTEXITCODE -ne 0) { throw "Google Cloud sign-in failed." }
+        $acct = (& gcloud.cmd auth list --filter=status:ACTIVE --format="value(account)" 2>$null)
+    }
+    Ok "Google Cloud: signed in as $acct"
+}
+
+# ── 1. GitHub repository ────────────────────────────────────────────────────
+Step "1. The company's GitHub repository"
+Note "The code lives in a private repository the company owns. An organisation is optional;"
+Note "create one first at https://github.com/organizations/plan if you want one, or use the personal account."
+$owner    = Ask github_owner "Repository owner (organisation or user)" $ghUser
+$repoName = Ask github_repo_name "Repository name" "little-gerry"
+$repo     = "$owner/$repoName"
+if (Exists @("gh", "repo", "view", $repo)) {
+    Ok "repository $repo exists"
+} else {
+    Note "Creating private repository $repo from this checkout and pushing master."
+    Run gh repo create $repo --private --description "Little Gerry - $owner" --disable-wiki
+    if (-not $DryRun) {
+        & git remote get-url company *> $null
+        if ($LASTEXITCODE -ne 0) { & git remote add company "https://github.com/$repo.git" }
+        & git push -u company HEAD:master
+        if ($LASTEXITCODE -ne 0) { throw "push to $repo failed" }
+    } else { Note "> git remote add company https://github.com/$repo.git; git push -u company HEAD:master" }
+    Ok "repository created and pushed (remote 'company')"
+}
+$upstream = "soulenya/pmi-agent"
+if (-not $DryRun) {
+    & git remote get-url upstream *> $null
+    if ($LASTEXITCODE -ne 0) { & git remote add upstream "https://github.com/$upstream.git" *> $null }
+}
+Run gh variable set UPSTREAM_REPO --repo $repo --body $upstream
+Ok "UPSTREAM_REPO = $upstream (the Sync upstream workflow pulls PMI's fixes into a pull request)"
+# The upstream is private: the sync workflow needs a read token on it.
+$hasUp = (-not $DryRun) -and ((& gh secret list --repo $repo 2>$null) -match '^UPSTREAM_TOKEN\b')
+if (-not $hasUp) {
+    $upTok = Ask upstream_token "Read-only token on $upstream for the Sync upstream workflow (ask PMI; blank to skip)" -Secret
+    if ($upTok) { if (-not $DryRun) { $upTok | gh secret set UPSTREAM_TOKEN --repo $repo } else { Note "> gh secret set UPSTREAM_TOKEN" }; Ok "UPSTREAM_TOKEN set" }
+}
+
+# ── 2. Brand ────────────────────────────────────────────────────────────────
+Step "2. The company (brand/brand.json)"
 $company   = Ask company "Company legal name"
 $short     = Ask company_short "Short name (used in prose, e.g. PMI)" ($company -split ' ')[0]
 $slug      = (Ask slug "Slug (lowercase, letters/digits/dashes; folder and asset names)" ($short.ToLower() -replace '[^a-z0-9-]', '')).ToLower()
@@ -105,7 +161,6 @@ $descr     = Ask company_descriptor "One-line descriptor, lowercase, starts with
 $website   = Ask company_website "Website (https://...)"
 $domains   = (Ask domains "Sign-in email domains, comma separated (e.g. acme.com,acme.co)") -split '\s*,\s*' | Where-Object { $_ }
 $adminMail = Ask admin_email "Administrator email (first admin; receives feedback)"
-$repo      = Ask github_repo "GitHub repository (owner/name) of this fork"
 $flagship  = Ask product_name "Flagship product or programme name (blank if none)" ""
 $hubUrl    = Ask hub_url "Hub URL (https://hub.<domain>; blank to skip the hub)" ""
 $erpDefault = Ask erp_default "ERP default provider (odoo | none)" "none"
@@ -149,13 +204,35 @@ if ($DryRun) { Write-Host $json -ForegroundColor DarkYellow } else {
     Ok "wrote brand/brand.json"
 }
 
-# ── 2. Google Cloud project ─────────────────────────────────────────────────
-Step "2. Google Cloud project $project"
+# ── 3. Google Cloud project ───────────────────────────────────────────────────────────────────
+Step "3. Google Cloud project $project"
 if (-not (Exists @("gcloud", "projects", "describe", $project))) {
-    $billing = Ask gcp_billing_account "Billing account id (XXXXXX-XXXXXX-XXXXXX)"
+    # Billing: pick an open account, or create one in the console (payment method = web only).
+    $billing = if ($script:A.ContainsKey("gcp_billing_account")) { "$($script:A.gcp_billing_account)" } else { "" }
+    if (-not $billing -and -not $DryRun) {
+        $accounts = @(& gcloud.cmd billing accounts list --filter=open=true --format="value(name,displayName)" 2>$null)
+        while (-not $accounts) {
+            Pause-ForConsole "Billing account" @(
+                "No open billing account is visible to $acct.",
+                "Create one (card or invoice) at https://console.cloud.google.com/billing/create",
+                "or ask the owner of an existing account to grant $acct the 'Billing Account User' role."
+            )
+            $accounts = @(& gcloud.cmd billing accounts list --filter=open=true --format="value(name,displayName)" 2>$null)
+        }
+        if ($accounts.Count -eq 1) {
+            $billing = ($accounts[0] -split "`t")[0] -replace '^billingAccounts/', ''
+            Note "Using billing account $($accounts[0] -replace "`t", ' - ')"
+        } else {
+            Write-Host "  Billing accounts:"
+            for ($i = 0; $i -lt $accounts.Count; $i++) { Write-Host "    [$($i+1)] $($accounts[$i] -replace "`t", ' - ')" }
+            $n = [int](Ask gcp_billing_choice "Choose one" "1")
+            $billing = ($accounts[$n - 1] -split "`t")[0] -replace '^billingAccounts/', ''
+        }
+    }
+    if (-not $billing) { $billing = Ask gcp_billing_account "Billing account id (XXXXXX-XXXXXX-XXXXXX)" }
     Run gcloud projects create $project --name="$company Assistant"
     Run gcloud billing projects link $project --billing-account=$billing
-    Ok "project created"
+    Ok "project created and linked to billing"
 } else { Ok "project exists" }
 Run gcloud config set project $project
 $apis = "drive.googleapis.com gmail.googleapis.com calendar-json.googleapis.com people.googleapis.com docs.googleapis.com sheets.googleapis.com slides.googleapis.com tasks.googleapis.com speech.googleapis.com texttospeech.googleapis.com storage.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com compute.googleapis.com iap.googleapis.com cloudresourcemanager.googleapis.com" -split ' '
@@ -214,15 +291,24 @@ if (-not (Exists @("gcloud", "iam", "service-accounts", "describe", $viewerSa)))
 Run gsutil iam ch "serviceAccount:${viewerSa}:objectViewer" "gs://$dbb"
 Ok "drive-backup bucket ready (set up the Drive→GCS transfer job in the console when wanted)"
 
-# ── 3. GitHub: update token + secrets ───────────────────────────────────────
-Step "3. GitHub ($repo)"
-$pat = Ask update_token "Fine-grained PAT for $repo (Contents: read) used by the installed app to poll releases" -Secret
-if ($pat) { if (-not $DryRun) { $pat | gh secret set UPDATE_TOKEN --repo $repo } else { Note "> gh secret set UPDATE_TOKEN" }; Ok "UPDATE_TOKEN set" }
-Run gh variable set UPSTREAM_REPO --repo $repo --body "soulenya/pmi-agent"
-Ok "UPSTREAM_REPO variable set (Sync upstream workflow)"
+# ── 4. GitHub: auto-update token ────────────────────────────────────────────
+Step "4. GitHub auto-update token ($repo)"
+$hasToken = (-not $DryRun) -and ((& gh secret list --repo $repo 2>$null) -match '^UPDATE_TOKEN\b')
+if ($hasToken) { Ok "UPDATE_TOKEN already set" } else {
+    Pause-ForConsole "Read-only token for the installed app" @(
+        "The installed app polls this repository's releases with a fine-grained token (GitHub cannot mint these from the CLI).",
+        "https://github.com/settings/personal-access-tokens/new",
+        "Token name: little-gerry-updates. Resource owner: $owner. Expiration: 1 year (set a reminder).",
+        "Repository access: Only select repositories -> $repoName.",
+        "Permissions -> Repository permissions -> Contents: Read-only. Nothing else.",
+        "Generate, copy it, and paste it at the next prompt."
+    )
+    $pat = Ask update_token "Paste the token (blank to skip; installs then cannot self-update)" -Secret
+    if ($pat) { if (-not $DryRun) { $pat | gh secret set UPDATE_TOKEN --repo $repo } else { Note "> gh secret set UPDATE_TOKEN" }; Ok "UPDATE_TOKEN set" }
+}
 
-# ── 4. Windows code signing ─────────────────────────────────────────────────
-Step "4. Windows code signing"
+# ── 5. Windows code signing ─────────────────────────────────────────────────
+Step "5. Windows code signing"
 $pfx = Join-Path $root "installer\cert\LittleGerry-Signing.pfx"
 if (-not (Test-Path $pfx)) {
     Note "Creating a self-signed certificate (CN=$company). You will be asked for a password to protect the .pfx."
@@ -238,10 +324,29 @@ if (Test-Path $pfx) {
     Ok "signing secrets set; trust batch built"
 }
 
-# ── 5. The hub ──────────────────────────────────────────────────────────────
-if ($SkipHub -or -not $hubUrl) { Step "Done (no hub)"; Note "Commit brand/brand.json and publish a release; the workflows build the installers."; return }
+function Commit-Brand {
+    # brand.json and the trust batch belong in the company's repository.
+    if ($DryRun) { Note "> git add brand/brand.json installer/cert/dist; git commit; git push company"; return }
+    & git add brand/brand.json installer/cert/dist 2>$null
+    & git diff --cached --quiet
+    if ($LASTEXITCODE -ne 0) {
+        & git commit -q -m "brand: $company"
+        & git push -q company HEAD:master 2>$null
+        if ($LASTEXITCODE -ne 0) { & git push -q origin HEAD:master }
+        Ok "brand/brand.json committed and pushed to $repo"
+    }
+}
 
-Step "5. The hub ($hubUrl)"
+# ── 6. The hub ──────────────────────────────────────────────────────────────────────────
+if ($SkipHub -or -not $hubUrl) {
+    Commit-Brand
+    Step "Done (no hub)"
+    Note "Publish a release: bump VERSION/setup.iss/version.ts, commit, then  gh release create vX.Y.Z --repo $repo --generate-notes"
+    Note "The Windows (and macOS, if signing secrets are set) workflows attach the installers."
+    return
+}
+
+Step "6. The hub ($hubUrl)"
 $registry = $brand.gcp.registry
 if (-not (Exists @("gcloud", "artifacts", "repositories", "describe", $slug, "--location=$region"))) {
     Run gcloud artifacts repositories create $slug --repository-format=docker --location=$region
@@ -326,6 +431,7 @@ if ($backendId) {
     Ok "IAP audience set; startup script re-run on the VM"
 }
 
+Commit-Brand
 Step "Done"
-Note "Next: git add brand/brand.json && git commit -m 'brand' && git push; then publish a release (gh release create vX.Y.Z --generate-notes)."
+Note "Publish a release: bump VERSION/setup.iss/version.ts, commit, then  gh release create vX.Y.Z --repo $repo --generate-notes"
 Note "Verify the hub: scripts/hub/deploy-hub.ps1 -VerifyOnly  and  https://$hubDomain/health/live"
