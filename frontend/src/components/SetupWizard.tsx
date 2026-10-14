@@ -49,6 +49,7 @@ import { BRAND, hasFeature } from "@/lib/brand";
 import { useAuthStore } from "@/stores/authStore";
 import { CompanySetupPanel } from "@/components/company/CompanySetupPanel";
 import { DesignPanel } from "@/components/design/DesignPanel";
+import { ErpConnectPanel } from "@/components/erp/ErpConnectPanel";
 import {
   Sparkles,
   Database,
@@ -114,6 +115,7 @@ type StepId =
   | "you"
   | "company-drive"
   | "design"
+  | "erp"
   | "company"
   | "writing-voice"
   | "voice"
@@ -132,6 +134,8 @@ interface StepDef {
   since: number;
   /** Shown only to administrators, and only on a first run (never as an update step). */
   adminFirstRun?: boolean;
+  /** Only when this brand feature is on. */
+  feature?: Parameters<typeof hasFeature>[0];
 }
 
 const ALL_STEPS: StepDef[] = [
@@ -144,6 +148,7 @@ const ALL_STEPS: StepDef[] = [
   { id: "you", label: "You", since: 2 },
   { id: "company-drive", label: "Company Drive", since: 1, adminFirstRun: true },
   { id: "design", label: "Design", since: 1, adminFirstRun: true },
+  { id: "erp", label: "ERP", since: 1, adminFirstRun: true, feature: "erp" },
   { id: "company", label: "Company", since: 2 },
   { id: "writing-voice", label: "Your voice", since: 2 },
   { id: "voice", label: "Speech", since: 1 },
@@ -165,6 +170,7 @@ const CONTINUE_STEPS = new Set<StepId>([
   "you",
   "company-drive",
   "design",
+  "erp",
   "company",
   "writing-voice",
   "voice",
@@ -177,8 +183,9 @@ const CONTINUE_STEPS = new Set<StepId>([
  * step so there is always a way out.
  */
 function visibleSteps(seenVersion: number, isAdmin: boolean): StepDef[] {
-  if (seenVersion <= 0) return ALL_STEPS.filter((s) => !s.adminFirstRun || isAdmin);
-  const fresh = ALL_STEPS.filter((s) => s.since > seenVersion && !s.adminFirstRun);
+  const on = (s: StepDef) => !s.feature || hasFeature(s.feature);
+  if (seenVersion <= 0) return ALL_STEPS.filter((s) => on(s) && (!s.adminFirstRun || isAdmin));
+  const fresh = ALL_STEPS.filter((s) => on(s) && s.since > seenVersion && !s.adminFirstRun);
   if (!fresh.length) return [ALL_STEPS[ALL_STEPS.length - 1]];
   return [...fresh, ALL_STEPS[ALL_STEPS.length - 1]];
 }
@@ -1126,6 +1133,28 @@ export function SetupWizard({ onComplete, onboardingVersion = 0 }: Props) {
                 </div>
               </div>
               <DesignPanel compact />
+            </div>
+          )}
+
+          {/* ── ERP (first admin only) ────────────────────────────────────── */}
+          {stepId === "erp" && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-orange-500/10 p-2.5">
+                  <Boxes className="h-6 w-6 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold">The company&apos;s ERP</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Pick the system that holds the books and connect it. Little Gerry reads from it
+                    (customers, orders, invoices, bank balances) and every write goes through your
+                    approval. Choose <span className="font-medium">No ERP</span> if there isn&apos;t
+                    one — the ERP tools then say so instead of guessing. Each person connects with
+                    their own key, so teammates repeat this step on their own computers.
+                  </p>
+                </div>
+              </div>
+              <ErpConnectPanel compact />
             </div>
           )}
 

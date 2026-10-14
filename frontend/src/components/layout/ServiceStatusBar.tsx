@@ -125,9 +125,9 @@ export function ServiceStatusBar() {
   if (odoo) {
     services.push({
       key: "odoo",
-      label: "Odoo",
+      label: odoo.label || "ERP",
       state: odoo.connected ? "ok" : "off",
-      detail: odoo.connected ? `connected to ${odoo.database ?? odoo.url ?? "Odoo"}` : "not connected",
+      detail: odoo.connected ? `connected to ${odoo.database ?? odoo.url ?? odoo.label}` : "not connected",
       to: "/odoo",
     });
   }

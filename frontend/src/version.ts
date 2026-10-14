@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 301;
-export const BUILD_DATE = "2026-10-13";
+export const BUILD_NUMBER = 302;
+export const BUILD_DATE = "2026-10-14";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 302,
+    date: "2026-10-14",
+    title: "Internal housekeeping",
+    changes: [
+      "The Odoo connection now sits behind a general ERP layer inside the app. Your connection, the Odoo page, bank balances, the budget cross-check and the approval flow all work exactly as before; the connect form is prefilled from the company configuration instead of being written into the code.",
+    ],
+  },
   {
     build: 301,
     date: "2026-10-13",

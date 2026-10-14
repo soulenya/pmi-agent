@@ -1199,6 +1199,7 @@ Open **Odoo ERP** from the home screen to connect your Odoo account.
 
 - The organization URL, database, and your login are pre-filled — you only paste your **Odoo API key**, which is stored **encrypted** on your machine.
 - Once connected, Little Gerry can read Odoo data and **propose** ERP actions. Like all write actions, anything that changes Odoo goes through the **Approvals** queue for your sign-off.
+- Behind the page is a general **ERP** layer: the company configuration names the providers a build offers and which one is preselected. PMI offers Odoo. A build whose company has no ERP shows a provider picker with **No ERP**; Gerry's ERP tools then say "No ERP is connected" instead of guessing. The first administrator also sees an **ERP** step in the setup wizard. Each person connects with their own key, so the step repeats per computer.
 
 ---
 

@@ -4,6 +4,49 @@
 
 ## Changelog
 
+### v5.22.0 · build 302 — 2026-10-14
+**White-label Phase 4: ERP provider abstraction. PMI unchanged**
+
+- `services/erp/`: `base.py` (`ErpProvider` protocol, `ConnectField`,
+  `ProviderInfo`), `errors.py` (`ErpError`, `ErpAuthError` —
+  `odoo_service.OdooError`/`OdooAuthError` now subclass them), `odoo.py`
+  (adapter over the unchanged `odoo_service`), `none.py` (every call
+  answers "No ERP is connected…"; alerts empty). `services.erp` exposes
+  `PROVIDERS`, `available()` (brand `erp.providers`, 'none' always last),
+  `default_key()` (brand `erp.default`), `load_connection(db, user_id)`,
+  `provider_for(conn)`, `not_connected_message()` (PMI's exact Odoo
+  sentence when the default is Odoo).
+- Migration 050: `odoo_connections` → `erp_connections` (constraint renamed
+  too), `provider varchar(32) NOT NULL DEFAULT 'odoo'` so every existing row
+  is Odoo, `config jsonb` for providers without url/database. Proven on a
+  scratch database: 049 → 050 with a seeded row, and the downgrade back.
+  Model `models/db/erp.py::ErpConnection`; `models.db.odoo.OdooConnection`
+  is an alias.
+- Router `routers/erp.py` (`build_router`) mounted at **both** `/api/erp`
+  and `/api/odoo` — same handlers, same shapes; status adds `provider`,
+  `label`, `details`; new `GET /providers` (fields + brand prefill);
+  `POST /connect` takes `{provider, values}` or the old flat Odoo body.
+  `routers/odoo_integration.py` removed. Approval intents are
+  `<provider>_write` (`odoo_write` as before); the approval executor
+  handles any provider's write.
+- Agent tools go through the provider. PMI keeps `read_odoo` /
+  `propose_odoo_write` / `compare_budget_to_odoo` and its exact result
+  wording (brand probe byte-identical). A brand whose `erp.default` is not
+  Odoo advertises `read_erp` / `propose_erp_write` / `compare_budget_to_erp`
+  (descriptions re-worded, Odoo names still dispatchable, v2 agent tool
+  lists mapped through `erp_tool_name`); `features.erp` off removes them.
+- Brand: `erp.odoo {url, database, email_domain}` carries PMI's instance
+  prefill (was three constants in `OdooIntegrationPage.tsx`).
+- Frontend: `pages/ErpPage.tsx` (renamed from OdooIntegrationPage; header
+  and connect flow from the provider), `components/erp/ErpConnectPanel.tsx`
+  (provider picker when the build offers a choice or defaults to none;
+  generic field form; prefills from the brand), admin-first-run **ERP**
+  wizard step (feature-gated), `/erp` route alias, rail/status-bar/feature
+  guide label "Odoo" for PMI and "ERP" otherwise. `api/odoo.ts` talks to
+  `/api/erp` and gains `getErpProviders` / `connectErp`.
+- Verified against PMI's live Odoo through the provider (read-only): bank
+  balances, customers, alerts. Tests: `tests/test_erp.py` (5). 121 passed.
+
 ### v5.21.0 · build 301 — 2026-10-13
 **White-label Phase 3: the frontend reads the brand; feature gating; design tokens as Settings. PMI unchanged**
 

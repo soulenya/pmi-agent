@@ -583,6 +583,8 @@ Everything that names the company lives in one file at the repo root: company na
 
 **Frontend.** `frontend/vite.config.ts` reads the same file at build time (`BRAND_FILE` overrides the path) and injects it as `__BRAND__`; `src/lib/brand.ts` exposes `BRAND` and `hasFeature()`. Rail items, routes and copy follow `features`; the built `manifest.webmanifest` is stamped with the company. **Design tokens** (`backend/services/design_tokens.py`, Settings → Company → Design, router `/design`) override the shipped design system for Word documents, decks and the app accent when an administrator saves them; defaults are PMI's 5.18.0 values.
 
+**ERP.** `erp.providers` / `erp.default` pick the provider(s) a build offers (`services/erp/`: `odoo`, `none`); `erp.odoo {url, database, email_domain}` prefills the connect form. The per-user connection row is `erp_connections` (`provider`, Odoo columns, `config` JSONB); the router is served at `/api/erp` and `/api/odoo`. A brand whose default is not Odoo advertises the agent tools as `read_erp` / `propose_erp_write` / `compare_budget_to_erp`; PMI keeps the Odoo names.
+
 ### Backend — `backend/.env`
 
 ```env

@@ -1,15 +1,49 @@
 import { apiClient } from "@/api/client";
 
-const PREFIX = "/api/odoo";
+// The same handlers are mounted at /api/odoo (historical) and /api/erp.
+const PREFIX = "/api/erp";
 
 export interface OdooStatus {
   connected: boolean;
+  provider: string;
+  label: string;
   url?: string | null;
   database?: string | null;
   username?: string | null;
   display_name?: string | null;
   server_version?: string | null;
   last_connected_at?: string | null;
+  details?: Record<string, unknown>;
+}
+
+export type ErpStatus = OdooStatus;
+
+export interface ErpConnectField {
+  name: string;
+  label: string;
+  kind: "text" | "password" | "url";
+  placeholder: string;
+  required: boolean;
+}
+
+export interface ErpProviderInfo {
+  key: string;
+  label: string;
+  description: string;
+  fields: ErpConnectField[];
+  defaults: Record<string, string>;
+  supports_writes: boolean;
+  supports_bank_balances: boolean;
+}
+
+export async function getErpProviders(): Promise<{ providers: ErpProviderInfo[]; default: string }> {
+  const res = await apiClient.get(`${PREFIX}/providers`);
+  return res.data;
+}
+
+export async function connectErp(provider: string, values: Record<string, string>): Promise<OdooStatus> {
+  const res = await apiClient.post(`${PREFIX}/connect`, { provider, values });
+  return res.data;
 }
 
 export interface OdooConnectRequest {

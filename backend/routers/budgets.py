@@ -908,21 +908,18 @@ async def odoo_compare(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Advisory side-by-side of this budget vs live Odoo data. Read-only;
+    """Advisory side-by-side of this budget vs live ERP data. Read-only;
     a cross-check, never a reconciliation — the two track different things."""
-    import asyncio
-
-    from models.db.odoo import OdooConnection
-    from services import odoo_service as odoo
+    from services import erp
 
     budget = await _get_owned(db, budget_id, current_user.id)
-    conn = (
-        await db.execute(
-            select(OdooConnection).where(OdooConnection.user_id == current_user.id)
-        )
-    ).scalar_one_or_none()
+    conn = await erp.load_connection(db, current_user.id)
     if conn is None:
-        raise HTTPException(400, "Odoo is not connected — connect it on the Odoo page first.")
+        if erp.default_key() == "odoo":
+            raise HTTPException(400, "Odoo is not connected — connect it on the Odoo page first.")
+        raise HTTPException(400, erp.NOT_CONNECTED)
+    provider = erp.provider_for(conn)
+    label = provider.label
     try:
         await budget_service.refresh_budget(db, budget)
         await db.commit()
@@ -945,9 +942,8 @@ async def odoo_compare(
         ),
     }
     try:
-        api_key = odoo.decrypt_secret(conn.api_key_encrypted)
         if body.dataset == "bank_balances":
-            data = await odoo.bank_balances(conn.url, conn.database, conn.username, api_key)
+            data = await provider.bank_balances(conn)
             result["odoo"] = {
                 "label": "Bank & cash balances",
                 "total": data.get("total", 0),
@@ -960,9 +956,7 @@ async def odoo_compare(
             }
         else:
             search = body.search.strip() or budget.title
-            data = await odoo.search_read(
-                conn.url, conn.database, conn.username, api_key, body.dataset, search, 100
-            )
+            data = await provider.search_read(conn, body.dataset, search, 100)
             rows = data.get("rows", [])
             total = 0.0
             has_amounts = "amount_total" in data.get("fields", [])
@@ -977,15 +971,17 @@ async def odoo_compare(
                 "total": round(total, 2) if has_amounts else None,
                 "count": len(rows),
                 "rows": [
-                    " | ".join(odoo._field_text(row.get(f)) or "—" for f in data.get("fields", []))
+                    " | ".join(provider.field_text(row.get(f)) or "—" for f in data.get("fields", []))
                     for row in rows[:10]
                 ],
             }
-    except odoo.OdooError as exc:
+        result["odoo"]["provider"] = provider.key
+        result["odoo"]["provider_label"] = label
+    except erp.ErpError as exc:
         msg = str(exc)
         if "doesn't exist" in msg:
-            raise HTTPException(400, f"Odoo doesn't have the {body.dataset} module installed — try another dataset.")
-        raise HTTPException(400, f"Odoo error: {msg[:200]}")
+            raise HTTPException(400, f"{label} doesn't have the {body.dataset} module installed — try another dataset.")
+        raise HTTPException(400, f"{label} error: {msg[:200]}")
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(400, f"Odoo read failed: {str(exc)[:200]}")
+        raise HTTPException(400, f"{label} read failed: {str(exc)[:200]}")
     return result

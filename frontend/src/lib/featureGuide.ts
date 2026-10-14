@@ -196,7 +196,9 @@ export const FEATURE_GUIDE: Record<string, FeatureGuideEntry> = {
   odoo: {
     tagline: "Your ERP, a question away.",
     capabilities: [
-      "Connect Odoo and ask about customers, sales, invoices, purchases, inventory and leads in plain language",
+      BRAND.erpDefault === "odoo"
+        ? "Connect Odoo and ask about customers, sales, invoices, purchases, inventory and leads in plain language"
+        : "Connect the company's ERP and ask about customers, sales, invoices, purchases, inventory and leads in plain language",
       "Check bank balances instantly — they also show on the home-screen briefing panel",
       "Import ERP datasets into the Knowledge Base so answers cite real business data",
       "Gerry can propose ERP changes — every write goes through your approval first",
@@ -300,7 +302,7 @@ const ROUTE_GUIDES: { prefix: string; id: string; title: string; icon: LucideIco
   { prefix: "/browser", id: "browser", title: "Research Browser", icon: Compass },
   { prefix: "/inbox", id: "inbox", title: "Mail", icon: Inbox },
   { prefix: "/contacts", id: "contacts", title: "Contacts", icon: Users },
-  { prefix: "/odoo", id: "odoo", title: "Odoo", icon: Boxes },
+  { prefix: "/odoo", id: "odoo", title: BRAND.erpDefault === "odoo" ? "Odoo" : "ERP", icon: Boxes },
   { prefix: "/budgets", id: "budgets", title: "Budgets", icon: Wallet },
   { prefix: "/regulatory", id: "regulatory", title: "Regulatory", icon: ShieldCheck },
   { prefix: "/audit", id: "audit", title: "Audit trail", icon: ScrollText },
