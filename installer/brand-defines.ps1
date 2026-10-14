@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Emit the iscc /D defines for the current brand (brand\brand.json).
 
