@@ -5,8 +5,9 @@ Responsibilities:
   1. Accept raw file bytes + metadata
   2. Verify SHA-256 checksum (dedup)
   3. Encrypt file bytes with Fernet before persisting to disk
-  4. Extract plain text (PDF via PyMuPDF, DOCX via python-docx, XLSX via openpyxl,
-     PPTX via python-pptx, .txt/.md/.csv direct)
+  4. Extract plain text (PDF via PyMuPDF with visual rows kept on one line,
+     DOCX via python-docx, XLSX via openpyxl, PPTX via python-pptx,
+     .txt/.md/.csv direct)
   5. Chunk text (fixed ~512 tokens with 64-token overlap)
   6. Embed each chunk via Ollama nomic-embed-text (768-dim)
   7. Persist Document + DocumentChunk rows in one transaction
@@ -69,17 +70,82 @@ class DuplicateDocumentError(Exception):
 
 # ── Text extraction helpers ───────────────────────────────────────────────────
 
+# Words whose bottoms are within this many points share a row.
+_PDF_ROW_TOLERANCE = 3.0
+# A horizontal gap wider than this many average character widths is a column break.
+_PDF_COLUMN_GAP_CHARS = 2.5
+_PDF_COLUMN_SEP = "   "
+
+
+def _pdf_page_rows(words: list) -> list[list]:
+    """Group PyMuPDF words (x0, y0, x1, y1, text, ...) into rows, left to right."""
+    rows: list[list] = []
+    bottoms: list[float] = []
+    for w in sorted(words, key=lambda w: (round(w[3]), w[0])):
+        if rows and abs(bottoms[-1] - w[3]) <= _PDF_ROW_TOLERANCE:
+            rows[-1].append(w)
+        else:
+            rows.append([w])
+            bottoms.append(w[3])
+    for row in rows:
+        row.sort(key=lambda w: w[0])
+    return rows
+
+
+def _pdf_row_segments(row: list) -> list[list]:
+    """Split a row into column segments at wide horizontal gaps."""
+    segments: list[list] = [[row[0]]]
+    for a, b in zip(row, row[1:]):
+        char_w = (a[2] - a[0]) / max(1, len(a[4]))
+        if (b[0] - a[2]) > _PDF_COLUMN_GAP_CHARS * char_w:
+            segments.append([b])
+        else:
+            segments[-1].append(b)
+    return segments
+
+
+def _pdf_row_text(row: list) -> str:
+    return _PDF_COLUMN_SEP.join(" ".join(w[4] for w in seg) for seg in _pdf_row_segments(row))
+
+
+def _pdf_rows_look_like_prose_columns(rows: list[list], page_width: float) -> bool:
+    """True when most long rows are exactly two wide runs of prose side by side
+    (a two-column article), where joining across the gutter would interleave
+    the columns. Table rows have more segments, or narrow ones."""
+    long_rows = split_rows = 0
+    min_w = 0.3 * page_width
+    for row in rows:
+        if len(row) < 10:
+            continue
+        long_rows += 1
+        segs = _pdf_row_segments(row)
+        if len(segs) == 2 and all(len(s) >= 6 and (s[-1][2] - s[0][0]) >= min_w for s in segs):
+            split_rows += 1
+    return long_rows >= 5 and split_rows / long_rows > 0.4
+
+
 def _extract_text_pdf(raw: bytes) -> str:
-    """Extract text from PDF bytes using PyMuPDF (fitz)."""
+    """Extract text from PDF bytes with PyMuPDF, keeping each visual row on one
+    line so tables (statements, invoices, price lists) read label-and-value
+    together. Two-column prose pages fall back to reading-order blocks."""
     try:
         import fitz  # PyMuPDF
-
-        doc = fitz.open(stream=raw, filetype="pdf")
-        pages = [page.get_text() for page in doc]
-        doc.close()
-        return "\n\n".join(pages)
     except ImportError as exc:
         raise RuntimeError("PyMuPDF (pymupdf) is not installed") from exc
+
+    doc = fitz.open(stream=raw, filetype="pdf")
+    pages: list[str] = []
+    for page in doc:
+        rows = _pdf_page_rows(page.get_text("words"))
+        if not rows:
+            pages.append("")
+        elif _pdf_rows_look_like_prose_columns(rows, page.rect.width):
+            # Block order keeps each column together (sort=True would interleave lines).
+            pages.append(page.get_text())
+        else:
+            pages.append("\n".join(_pdf_row_text(r) for r in rows))
+    doc.close()
+    return "\n\n".join(pages)
 
 
 def _extract_text_docx(raw: bytes) -> str:
@@ -280,26 +346,45 @@ def _extract_text(raw: bytes, mime_type: str) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
+def _normalize_whitespace(text: str) -> str:
+    """Collapse blank-line runs; leave in-line spacing (column gaps) alone."""
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
 # ── Chunking ──────────────────────────────────────────────────────────────────
 
 def _chunk_text(text: str) -> list[str]:
     """
     Split *text* into overlapping chunks of approximately CHUNK_TOKENS tokens.
-    Uses whitespace splitting as a token approximation.
+    Uses whitespace splitting as a token approximation; line breaks and column
+    gaps between words are kept so table rows survive inside a chunk.
     """
-    words = text.split()
-    if not words:
+    parts = re.split(r"(\s+)", text.strip())
+    words = parts[0::2]
+    if not words or words == [""]:
         return []
+    # seps[i] is the whitespace that preceded words[i] ("" for the first).
+    seps = [""] + [
+        "\n" if "\n" in s else (_PDF_COLUMN_SEP if len(s) >= 3 else " ") for s in parts[1::2]
+    ]
 
     words_per_chunk = int(CHUNK_TOKENS / WORDS_PER_TOKEN)
     overlap_words = int(CHUNK_OVERLAP / WORDS_PER_TOKEN)
     step = words_per_chunk - overlap_words
 
+    def _join(start: int, end: int) -> str:
+        out = [words[start]]
+        for i in range(start + 1, end):
+            out.append(seps[i])
+            out.append(words[i])
+        return "".join(out)
+
     chunks: list[str] = []
     start = 0
     while start < len(words):
         end = min(start + words_per_chunk, len(words))
-        chunks.append(" ".join(words[start:end]))
+        chunks.append(_join(start, end))
         if end == len(words):
             break
         start += step
@@ -466,7 +551,7 @@ class DocumentIngestionService:
 
             # 5. Extract text
             text = await self._extract_text_smart(raw_bytes, mime_type, filename)
-            text = re.sub(r"\s{3,}", "\n\n", text).strip()
+            text = _normalize_whitespace(text)
 
             # 6. Chunk
             chunks = _chunk_text(text)
@@ -547,7 +632,7 @@ class DocumentIngestionService:
         try:
             mime_type = doc.mime_type or "text/plain"
             text = await self._extract_text_smart(raw_bytes, mime_type, doc.file_name or "document.pdf")
-            text = re.sub(r"\s{3,}", "\n\n", text).strip()
+            text = _normalize_whitespace(text)
 
             chunks = _chunk_text(text)
             if not chunks:
@@ -627,7 +712,7 @@ class DocumentIngestionService:
             doc.source_uri = str(stored_path.relative_to(_get_storage_root()))
 
             text = await self._extract_text_smart(raw_bytes, mime_type, filename)
-            text = re.sub(r"\s{3,}", "\n\n", text).strip()
+            text = _normalize_whitespace(text)
 
             chunks = _chunk_text(text)
             if not chunks:
