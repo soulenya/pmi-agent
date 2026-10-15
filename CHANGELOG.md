@@ -4,6 +4,22 @@
 
 ## Changelog
 
+### Unreleased
+**PDF tables read as rows (bank statements, invoices, price lists)**
+
+- PDF text extraction (`services/documents/ingestion.py`, used by chat
+  attachments, the Knowledge Base and `read_document`) now rebuilds each
+  visual row from word positions, so a statement line reads
+  `Aug 24 Business Bill Pay   ESS TO Ovyl LLC BILL PMT   2,009.50-` instead
+  of dates, descriptions and amounts arriving as separate runs (PyMuPDF's
+  block order), which left the assistant unable to match amounts to
+  merchants and falling back to the slow vision transcription. Wide gaps
+  become a three-space column separator. Pages that are genuinely two
+  columns of prose keep block order (detected per page). Blank-line
+  normalisation and chunking no longer flatten line breaks or column gaps.
+  Verified on U.S. Bank checking and card statements; existing Knowledge
+  Base documents pick this up on re-index.
+
 ### v5.24.0 · build 304 — 2026-10-14
 **White-label Phase 6: hub parameterised, bootstrap and deploy scripts checked in. PMI unchanged**
 
