@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 304;
-export const BUILD_DATE = "2026-10-14";
+export const BUILD_NUMBER = 305;
+export const BUILD_DATE = "2026-10-15";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 305,
+    date: "2026-10-15",
+    title: "PDF tables read properly",
+    changes: [
+      "Attached PDFs with tables — bank statements, invoices, price lists — now come through one row per line, so dates, descriptions and amounts stay together. Gerry no longer has to re-read such files with the slow vision step. Knowledge Base documents added earlier pick this up on re-index.",
+    ],
+  },
   {
     build: 304,
     date: "2026-10-14",
