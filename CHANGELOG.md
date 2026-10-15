@@ -4,7 +4,7 @@
 
 ## Changelog
 
-### Unreleased
+### v5.25.0 · build 305 — 2026-10-15
 **PDF tables read as rows (bank statements, invoices, price lists)**
 
 - PDF text extraction (`services/documents/ingestion.py`, used by chat
