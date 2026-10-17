@@ -142,10 +142,19 @@ function Wait-TcpPort {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Company line for the banner (brand\brand.json; PMI's when absent).
+$brandLine = "Precisian Medical Instruments / VACTOR"
+$bannerBrand = Join-Path $ProjectRoot "brand\brand.json"
+if (Test-Path $bannerBrand) {
+    try {
+        $bb = Get-Content $bannerBrand -Raw -Encoding UTF8 | ConvertFrom-Json
+        $brandLine = "$($bb.company_name)" + $(if ($bb.product.name) { " / $($bb.product.name)" } else { "" })
+    } catch { }
+}
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Magenta
 Write-Host "  Little Gerry - AI Executive Assistant Installer" -ForegroundColor Magenta
-Write-Host "  Precisian Medical Instruments / VACTOR" -ForegroundColor Magenta
+Write-Host "  $brandLine" -ForegroundColor Magenta
 Write-Host "================================================" -ForegroundColor Magenta
 Write-Host ""
 Write-Info "Project root : $ProjectRoot"

@@ -51,18 +51,54 @@ if ($Answers -and (Test-Path $Answers)) {
     (Get-Content $Answers -Raw -Encoding UTF8 | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $script:A[$_.Name] = $_.Value }
 }
 
-function Ask([string]$key, [string]$prompt, [string]$default = "", [switch]$Secret) {
+function Ask([string]$key, [string]$prompt, [string]$default = "", [switch]$Secret, [string]$Pattern = "", [string]$Hint = "") {
     if ($script:A.ContainsKey($key)) { return "$($script:A[$key])" }
     $suffix = if ($default) { " [$default]" } else { "" }
-    if ($Secret) {
-        $s = Read-Host -AsSecureString "  $prompt"
-        $v = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))
-    } else {
-        $v = Read-Host "  $prompt$suffix"
+    $tries = 0
+    while ($true) {
+        if ([Console]::IsInputRedirected) {
+            # Unattended (stdin is a file or nul): take the default, never loop.
+            $v = $default; break
+        }
+        if ($Secret) {
+            $s = Read-Host -AsSecureString "  $prompt"
+            $v = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s))
+        } else {
+            $v = Read-Host "  $prompt$suffix"
+        }
+        $v = "$v".Trim()
+        if (-not $v) { $v = $default }
+        $tries++
+        # A multi-line paste (a sample curl command, a key with its label) would
+        # otherwise be spread over this and the following prompts.
+        if ($v -match '[\r\n]' -or ($Secret -and $v -match '\s')) {
+            if ($tries -ge 3) { $v = ""; break }
+            Write-Host "  That contains line breaks or spaces - paste only the value." -ForegroundColor Yellow; continue
+        }
+        if ($v -and $Pattern -and $v -notmatch $Pattern) {
+            if ($tries -ge 3) { $v = ""; break }
+            Write-Host "  Not the expected form$(if ($Hint) { " ($Hint)" }). Blank to skip." -ForegroundColor Yellow; continue
+        }
+        break
     }
-    if (-not $v) { $v = $default }
     $script:A[$key] = $v
     return $v
+}
+
+function Ask-Required([string]$key, [string]$prompt, [string]$default = "", [string]$Pattern = "", [string]$Hint = "") {
+    while ($true) {
+        $v = Ask $key $prompt $default -Pattern $Pattern -Hint $Hint
+        if ($v) { return $v }
+        if ([Console]::IsInputRedirected) { throw "answer '$key' is required (add it to the -Answers file)." }
+        $script:A.Remove($key); Write-Host "  Required." -ForegroundColor Yellow
+    }
+}
+
+function Retry([int]$times, [int]$waitSec, [scriptblock]$body) {
+    # IAM reads a new service account a few seconds after create returns.
+    for ($i = 1; $i -le $times; $i++) {
+        try { return (& $body) } catch { if ($i -eq $times) { throw }; Start-Sleep -Seconds ($waitSec * $i) }
+    }
 }
 
 function Step([string]$title) { Write-Host "`n== $title ==" -ForegroundColor Cyan }
@@ -100,8 +136,8 @@ function Rand([int]$bytes = 32) {
     $b = New-Object byte[] $bytes; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)
 }
 
-foreach ($tool in @("gcloud", "gsutil", "gh", "git")) {
-    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool is not on PATH. Install it first: https://cli.github.com and https://cloud.google.com/sdk/docs/install" }
+foreach ($tool in @("gcloud", "gsutil", "gh", "git", "docker")) {
+    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { throw "$tool is not on PATH. Install it first: https://cli.github.com , https://cloud.google.com/sdk/docs/install , https://www.docker.com/products/docker-desktop" }
 }
 if (-not $IsWin -and -not (Get-Command openssl -ErrorAction SilentlyContinue)) { throw "openssl is not on PATH (needed to create the signing certificate)." }
 
@@ -163,16 +199,16 @@ if (-not $hasUp) {
 
 # ── 2. Brand ────────────────────────────────────────────────────────────────
 Step "2. The company (brand/brand.json)"
-$company   = Ask company "Company legal name"
-$short     = Ask company_short "Short name (used in prose, e.g. PMI)" ($company -split ' ')[0]
-$slug      = (Ask slug "Slug (lowercase, letters/digits/dashes; folder and asset names)" ($short.ToLower() -replace '[^a-z0-9-]', '')).ToLower()
+$company   = Ask-Required company "Company legal name"
+$short     = Ask-Required company_short "Short name (used in prose, e.g. PMI)" ($company -split ' ')[0]
+$slug      = (Ask-Required slug "Slug (lowercase, letters/digits/dashes; folder and asset names)" ($short.ToLower() -replace '[^a-z0-9-]', '') -Pattern '^[a-z0-9][a-z0-9-]*$' -Hint "lowercase letters, digits, dashes").ToLower()
 $descr     = Ask company_descriptor "One-line descriptor, lowercase, starts with 'a' (e.g. a medical device startup)"
-$website   = Ask company_website "Website (https://...)"
-$domains   = (Ask domains "Sign-in email domains, comma separated (e.g. acme.com,acme.co)") -split '\s*,\s*' | Where-Object { $_ }
-$adminMail = Ask admin_email "Administrator email (first admin; receives feedback)"
+$website   = Ask company_website "Website (https://...)" -Pattern '^https?://\S+$' -Hint "https://..."
+$domains   = @((Ask-Required domains "Sign-in email domains, comma separated (e.g. acme.com,acme.co)" -Pattern '^[a-z0-9.-]+\.[a-z]{2,}(\s*,\s*[a-z0-9.-]+\.[a-z]{2,})*$' -Hint "acme.com,acme.co") -split '\s*,\s*' | Where-Object { $_ })
+$adminMail = Ask-Required admin_email "Administrator email (first admin; receives feedback)" -Pattern '^[^@\s]+@[^@\s]+\.[^@\s]+$' -Hint "name@$($domains[0])"
 $flagship  = Ask product_name "Flagship product or programme name (blank if none)" ""
-$hubUrl    = Ask hub_url "Hub URL (https://hub.<domain>; blank to skip the hub)" ""
-$erpDefault = Ask erp_default "ERP default provider (odoo | none)" "none"
+$hubUrl    = Ask hub_url "Hub URL (https://hub.<domain>; blank to skip the hub)" "" -Pattern '^https://[a-z0-9.-]+$' -Hint "https://hub.$($domains[0])"
+$erpDefault = Ask erp_default "ERP default provider (odoo | none)" "none" -Pattern '^(odoo|none)$' -Hint "odoo or none"
 $features = @{
     regulatory = $false; qms_agent = $false; drive_restrictions = $false; investor_relations = $false
     budgets = $true; invoices = $true; erp = $true; meetings = $true; hub = [bool]$hubUrl
@@ -180,11 +216,13 @@ $features = @{
 foreach ($f in @("regulatory", "qms_agent", "investor_relations")) {
     $features[$f] = ((Ask "feature_$f" "Enable $f? (y/n)" "n") -match '^y')
 }
-$appId = Ask windows_app_id "Windows AppId GUID (blank = generate)" ""
+$appId = Ask windows_app_id "Windows AppId GUID (blank = generate)" "" -Pattern '^\{?[0-9A-Fa-f-]{36}\}?$' -Hint "{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}"
 if (-not $appId) { $appId = "{" + ([guid]::NewGuid().ToString().ToUpper()) + "}" }
-$tld = ($domains[0] -split '\.')[-1]; $dom2 = ($domains[0] -split '\.')[0]
-$bundleId = Ask macos_bundle_id "macOS bundle id" "$tld.$dom2.littlegerry"
-$project  = Ask gcp_project "Google Cloud project id (new or existing)" "$slug-littlegerry"
+# Reverse-DNS of the first sign-in domain: acme.co -> co.acme.littlegerry
+$domParts = @($domains[0] -split '\.' | Where-Object { $_ }); [array]::Reverse($domParts)
+$revDomain = $domParts -join '.'
+$bundleId = Ask macos_bundle_id "macOS bundle id" "$revDomain.littlegerry" -Pattern '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$' -Hint "co.acme.littlegerry"
+$project  = Ask gcp_project "Google Cloud project id (new or existing)" "$slug-littlegerry" -Pattern '^[a-z][a-z0-9-]{4,28}[a-z0-9]$' -Hint "6-30 chars, lowercase letters, digits, dashes"
 $region   = Ask gcp_region "GCP region" "us-central1"
 $zone     = Ask gcp_zone "GCP zone" "$region-a"
 
@@ -278,12 +316,34 @@ if (-not (Exists @("gsutil", "ls", "-b", "gs://$($brand.gcp.stt_bucket)"))) {
     '{"rule":[{"action":{"type":"Delete"},"condition":{"age":1}}]}' | Set-Content $lc
     Run gsutil lifecycle set $lc "gs://$($brand.gcp.stt_bucket)"
 }
-Run gcloud projects add-iam-policy-binding $project --member="serviceAccount:$sttSa" --role=roles/speech.client
-Run gsutil iam ch "serviceAccount:${sttSa}:objectAdmin" "gs://$($brand.gcp.stt_bucket)"
+Retry 5 4 { Run gcloud projects add-iam-policy-binding $project --member="serviceAccount:$sttSa" --role=roles/speech.client }
+Retry 5 4 { Run gsutil iam ch "serviceAccount:${sttSa}:objectAdmin" "gs://$($brand.gcp.stt_bucket)" }
 $sttKey = Join-Path $root "backend/google_stt_sa.json"
 if (-not (Test-Path $sttKey)) {
-    Run gcloud iam service-accounts keys create $sttKey --iam-account=$sttSa
-    Note "wrote backend/google_stt_sa.json (gitignored) — distribute via the app-clients Drive folder; users upload it in Meetings."
+    try {
+        Retry 5 4 { Run gcloud iam service-accounts keys create $sttKey --iam-account=$sttSa }
+    } catch {
+        if ("$_" -notmatch 'disableServiceAccountKeyCreation') { throw }
+        # New organisations enforce this constraint by default; a super-admin is
+        # not automatically an Org Policy Administrator.
+        $orgId = if ($DryRun) { "<org-id>" } else { (& $gcloud projects get-ancestors $project --format="value(id,type)" 2>$null | Where-Object { $_ -match 'organization' } | ForEach-Object { ($_ -split "\s+")[0] } | Select-Object -First 1) }
+        Note "Your organisation blocks service-account keys (constraints/iam.disableServiceAccountKeyCreation)."
+        $lift = Ask lift_sa_key_policy "Allow key creation in project $project only? (y/n)" "y"
+        if ($lift -match '^y') {
+            if ($orgId) { & $gcloud organizations add-iam-policy-binding $orgId --member="user:$acct" --role=roles/orgpolicy.policyAdmin --condition=None *> $null }
+            Run gcloud resource-manager org-policies disable-enforce iam.disableServiceAccountKeyCreation --project=$project
+            Start-Sleep -Seconds 20
+            Retry 5 6 { Run gcloud iam service-accounts keys create $sttKey --iam-account=$sttSa }
+        } else {
+            Pause-ForConsole "Service-account key policy" @(
+                "Ask an Organization Policy Administrator to run:",
+                "gcloud resource-manager org-policies disable-enforce iam.disableServiceAccountKeyCreation --project=$project",
+                "then press Enter."
+            )
+            Retry 5 6 { Run gcloud iam service-accounts keys create $sttKey --iam-account=$sttSa }
+        }
+    }
+    Note "wrote backend/google_stt_sa.json (gitignored) - distribute via the app-clients Drive folder; users upload it in Meetings."
 }
 Ok "speech-to-text ready"
 
@@ -297,7 +357,7 @@ $viewerSa = "backup-viewer@$project.iam.gserviceaccount.com"
 if (-not (Exists @("gcloud", "iam", "service-accounts", "describe", $viewerSa))) {
     Run gcloud iam service-accounts create backup-viewer --display-name="Drive backup viewer"
 }
-Run gsutil iam ch "serviceAccount:${viewerSa}:objectViewer" "gs://$dbb"
+Retry 5 4 { Run gsutil iam ch "serviceAccount:${viewerSa}:objectViewer" "gs://$dbb" }
 Ok "drive-backup bucket ready (set up the Drive→GCS transfer job in the console when wanted)"
 
 # ── 4. GitHub: auto-update token ────────────────────────────────────────────
@@ -350,7 +410,7 @@ function Commit-Brand {
 if ($SkipHub -or -not $hubUrl) {
     Commit-Brand
     Step "Done (no hub)"
-    Note "Publish a release: bump VERSION/setup.iss/version.ts, commit, then  gh release create vX.Y.Z --repo $repo --generate-notes"
+    Note "Publish a release: gh release create v`$(cat VERSION) --repo $repo --generate-notes   (the tag is the VERSION file; bump its patch digit for your own changes)"
     Note "The Windows (and macOS, if signing secrets are set) workflows attach the installers."
     return
 }
@@ -362,10 +422,10 @@ if (-not (Exists @("gcloud", "artifacts", "repositories", "describe", $slug, "--
 }
 Run gcloud auth configure-docker $registry --quiet
 $image = "$registry/$project/$slug/backend:latest"
-Note "Building and pushing the backend image ($image) — a few minutes."
-Run docker build -f backend/Dockerfile -t $image .
-Run docker push $image
-Ok "image pushed"
+Note "Building and pushing the backend image ($image) - a few minutes."
+# The VM is amd64; a plain `docker build` on Apple Silicon would produce an arm64 image it cannot run.
+Run docker buildx build --platform linux/amd64 -f backend/Dockerfile -t $image --push .
+Ok "image pushed (linux/amd64)"
 
 # Secrets
 $secretNames = "db-superuser-password db-password db-audit-password jwt-secret fernet-key anthropic-api-key voyage-api-key google-api-key google-oauth-client vapid-public-key vapid-private-key" -split ' '
@@ -375,22 +435,39 @@ foreach ($s in $secretNames) {
 function AddVersion([string]$name, [string]$value) {
     if (-not $value) { return }
     if ($DryRun) { Note "> gcloud secrets versions add $name"; return }
-    $tmp = New-TemporaryFile; [IO.File]::WriteAllText($tmp, $value); & gcloud secrets versions add $name --data-file=$tmp *> $null; Remove-Item $tmp
+    $tmp = New-TemporaryFile; [IO.File]::WriteAllText($tmp, $value); & $gcloud secrets versions add $name --data-file=$tmp *> $null; Remove-Item $tmp
+    if ($LASTEXITCODE -ne 0) { throw "could not add a version to secret $name" }
 }
-if (-not (Exists @("gcloud", "secrets", "versions", "access", "latest", "--secret=jwt-secret"))) {
-    AddVersion "db-superuser-password" (Rand 32); AddVersion "db-password" (Rand 32); AddVersion "db-audit-password" (Rand 32)
-    AddVersion "jwt-secret" (Rand 48)
-    $fernet = if ($DryRun) { "" } else { (& python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())" 2>$null) }
-    if (-not $fernet) { $fernet = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 } | ForEach-Object { [byte]$_ })) -replace '\+', '-' -replace '/', '_' }
-    AddVersion "fernet-key" $fernet
-    Ok "database, JWT and Fernet secrets generated"
-} else { Ok "core secrets already have versions" }
-AddVersion "anthropic-api-key" (Ask anthropic_api_key "Anthropic API key for the hub (blank to skip)" -Secret)
-AddVersion "voyage-api-key" (Ask voyage_api_key "Voyage API key for the hub (blank to skip)" -Secret)
-AddVersion "google-api-key" (Ask google_api_key "Google API key (Speech/TTS) for the hub (blank to skip)" -Secret)
+function HasValue([string]$name) {
+    # A secret whose latest version is empty or destroyed counts as missing.
+    if ($DryRun) { return $false }
+    $v = & $gcloud secrets versions access latest --secret=$name 2>$null
+    return ($LASTEXITCODE -eq 0) -and ("$v".Trim().Length -gt 0)
+}
+function FernetKey {
+    # 32 random bytes, urlsafe-base64 - what cryptography.fernet.Fernet.generate_key() produces.
+    $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+    return ([Convert]::ToBase64String($b) -replace '\+', '-' -replace '/', '_')
+}
+# Each core secret is checked on its own: an earlier run that stopped part-way
+# must not leave one of them without a version.
+$generated = @()
+foreach ($pair in @(@("db-superuser-password", 32), @("db-password", 32), @("db-audit-password", 32), @("jwt-secret", 48))) {
+    if (-not (HasValue $pair[0])) { AddVersion $pair[0] (Rand $pair[1]); $generated += $pair[0] }
+}
+if (-not (HasValue "fernet-key")) { AddVersion "fernet-key" (FernetKey); $generated += "fernet-key" }
+if ($generated) { Ok "generated: $($generated -join ', ')" } else { Ok "core secrets already have values" }
+
+function AskKey([string]$key, [string]$prompt, [string]$pattern, [string]$hint) {
+    $v = Ask $key "$prompt (blank to skip)" -Secret -Pattern $pattern -Hint $hint
+    if ($v) { AddVersion $key.Replace('_', '-') $v; Ok "$($key.Replace('_', '-')) set" }
+}
+AskKey anthropic_api_key "Anthropic API key for the hub" '^sk-ant-[A-Za-z0-9_-]{20,}$' "starts with sk-ant-"
+AskKey voyage_api_key "Voyage API key for the hub" '^pa-[A-Za-z0-9_-]{20,}$' "starts with pa-"
+AskKey google_api_key "Google API key (Speech/TTS) for the hub" '^AIza[A-Za-z0-9_-]{30,}$' "starts with AIza"
 if ($webClientJson) { AddVersion "google-oauth-client" $webClientJson }
-$vapidPub = Ask vapid_public_key "VAPID public key (from: python -m py_vapid --gen; blank to skip push)" ""
-if ($vapidPub) { AddVersion "vapid-public-key" $vapidPub; AddVersion "vapid-private-key" (Ask vapid_private_key "VAPID private key" -Secret) }
+$vapidPub = Ask vapid_public_key "VAPID public key (from: python3 -m py_vapid --gen; blank to skip push)" "" -Pattern '^[A-Za-z0-9_-]{80,100}$' -Hint "87 urlsafe-base64 characters"
+if ($vapidPub) { AddVersion "vapid-public-key" $vapidPub; AddVersion "vapid-private-key" (Ask vapid_private_key "VAPID private key" -Secret -Pattern '^[A-Za-z0-9_-]{40,50}$' -Hint "43 urlsafe-base64 characters") }
 
 # Hub backup bucket + VM service account roles
 $hbb = $brand.gcp.hub_backup_bucket
@@ -420,28 +497,93 @@ if (-not (Exists @("gcloud", "compute", "routers", "describe", "nat-router", "--
 }
 Ok "outbound NAT ready"
 
-Pause-ForConsole "HTTPS load balancer + IAP" @(
-    "https://console.cloud.google.com/net-services/loadbalancing/list?project=$project",
-    "Unmanaged instance group containing 'hub' (zone $zone, port 8000) -> backend service (health check GET /health/live on 8000)",
-    "-> URL map -> HTTPS proxy with a Google-managed certificate for $hubDomain -> global forwarding rule.",
-    "DNS: A $hubDomain -> the forwarding rule's IP.",
-    "Enable IAP on the backend service; grant roles/iap.httpsResourceAccessor to the Workspace domain(s): $($domains -join ', ').",
-    "IAP -> programmatic access: add the 'Hub desktop (IAP)' OAuth client id.",
-    "Note the backend service's numeric id."
+# ── HTTPS load balancer + IAP (gcloud; the console UI keeps changing) ───────
+# Mirrors PMI's hub: unmanaged group with named port http:8000 -> HTTP backend
+# service (timeout 3600 s so streaming/WebSocket chat is not cut off) -> URL
+# map -> HTTPS proxy with a Google-managed certificate -> static IP.
+Step "6b. Load balancer and Identity-Aware Proxy"
+if (-not (Exists @("gcloud", "compute", "firewall-rules", "describe", "hub-allow-health-checks"))) {
+    Run gcloud compute firewall-rules create hub-allow-health-checks --network=default --direction=INGRESS --allow=tcp:8000 --source-ranges=130.211.0.0/22,35.191.0.0/16
+}
+if (-not (Exists @("gcloud", "compute", "firewall-rules", "describe", "hub-allow-iap-ssh"))) {
+    Run gcloud compute firewall-rules create hub-allow-iap-ssh --network=default --direction=INGRESS --allow=tcp:22 --source-ranges=35.235.240.0/20
+}
+if (-not (Exists @("gcloud", "compute", "instance-groups", "unmanaged", "describe", "hub-ig", "--zone=$zone"))) {
+    Run gcloud compute instance-groups unmanaged create hub-ig --zone=$zone
+    Run gcloud compute instance-groups unmanaged add-instances hub-ig --zone=$zone --instances=hub
+}
+Run gcloud compute instance-groups unmanaged set-named-ports hub-ig --zone=$zone --named-ports=http:8000
+if (-not (Exists @("gcloud", "compute", "health-checks", "describe", "hub-hc"))) {
+    Run gcloud compute health-checks create http hub-hc --port=8000 --request-path=/health/live --check-interval=10s --timeout=5s
+}
+if (-not (Exists @("gcloud", "compute", "backend-services", "describe", "hub-backend", "--global"))) {
+    Run gcloud compute backend-services create hub-backend --global --load-balancing-scheme=EXTERNAL --protocol=HTTP --port-name=http --health-checks=hub-hc --timeout=3600
+    Run gcloud compute backend-services add-backend hub-backend --global --instance-group=hub-ig --instance-group-zone=$zone
+}
+if (-not (Exists @("gcloud", "compute", "url-maps", "describe", "hub-url-map", "--global"))) {
+    Run gcloud compute url-maps create hub-url-map --default-service=hub-backend --global
+}
+if (-not (Exists @("gcloud", "compute", "ssl-certificates", "describe", "hub-cert", "--global"))) {
+    Run gcloud compute ssl-certificates create hub-cert --domains=$hubDomain --global
+}
+if (-not (Exists @("gcloud", "compute", "target-https-proxies", "describe", "hub-https-proxy", "--global"))) {
+    Run gcloud compute target-https-proxies create hub-https-proxy --url-map=hub-url-map --ssl-certificates=hub-cert --global
+}
+if (-not (Exists @("gcloud", "compute", "addresses", "describe", "hub-ip", "--global"))) {
+    Run gcloud compute addresses create hub-ip --global --ip-version=IPV4
+}
+if (-not (Exists @("gcloud", "compute", "forwarding-rules", "describe", "hub-fr", "--global"))) {
+    Run gcloud compute forwarding-rules create hub-fr --global --load-balancing-scheme=EXTERNAL --address=hub-ip --target-https-proxy=hub-https-proxy --ports=443
+}
+$hubIp = if ($DryRun) { "<hub-ip>" } else { (Run gcloud compute addresses describe hub-ip --global --format="value(address)").Trim() }
+Ok "load balancer created; public IP $hubIp"
+
+Pause-ForConsole "DNS record" @(
+    "At the registrar for $($hubDomain -replace '^[^.]+\.', ''): add  A  $hubDomain  ->  $hubIp",
+    "The Google-managed certificate turns ACTIVE 15-60 minutes after the name resolves; the hub answers after that.",
+    "Press Enter once the record is saved (the certificate keeps provisioning in the background)."
 )
-$backendId = Ask iap_backend_service_id "Backend service id (numeric)" ""
+
+# IAP: Google-managed OAuth client; sign-in allowed for the company's Workspace domain(s).
+if (-not (Exists @("gcloud", "iap", "web", "get-iam-policy", "--resource-type=backend-services", "--service=hub-backend"))) {
+    Run gcloud services enable iap.googleapis.com
+}
+try { Run gcloud iap web enable --resource-type=backend-services --service=hub-backend } catch {
+    if ("$_" -notmatch 'already') { throw }
+}
+foreach ($d in $domains) {
+    Run gcloud iap web add-iam-policy-binding --resource-type=backend-services --service=hub-backend --member="domain:$d" --role=roles/iap.httpsResourceAccessor
+}
+Run gcloud iap web add-iam-policy-binding --resource-type=backend-services --service=hub-backend --member="user:$adminMail" --role=roles/iap.httpsResourceAccessor
+# The desktop app signs in to IAP with its own OAuth client (hub_client.json from console step B.3).
+$desktopClientId = ""
+$p = Ask hub_desktop_client_json_path "Path to the downloaded 'Hub desktop (IAP)' client JSON (hub_client.json; blank to add later)" ""
+if ($p -and (Test-Path $p)) {
+    $cj = Get-Content $p -Raw | ConvertFrom-Json
+    $desktopClientId = "$(if ($cj.installed) { $cj.installed.client_id } elseif ($cj.web) { $cj.web.client_id })"
+}
+if ($desktopClientId) {
+    $iapYaml = Join-Path $tmpDir "lg-iap-settings.yaml"
+    "accessSettings:`n  oauthSettings:`n    programmaticClients:`n    - $desktopClientId`n" | Set-Content $iapYaml
+    Run gcloud iap settings set $iapYaml --resource-type=backend-services --service=hub-backend
+    Ok "IAP programmatic access: $desktopClientId"
+} else {
+    Note "Add the desktop client later:  gcloud iap settings set <yaml> --resource-type=backend-services --service=hub-backend  (accessSettings.oauthSettings.programmaticClients)"
+}
+$backendId = if ($DryRun) { "<backend-id>" } else { (Run gcloud compute backend-services describe hub-backend --global --format="value(id)").Trim() }
 if ($backendId) {
     $aud = "/projects/$projectNumber/global/backendServices/$backendId"
     $brand.gcp.iap_audience = $aud
     Run gcloud compute instances add-metadata hub --zone=$zone --metadata="iap-audience=$aud"
     if (-not $DryRun) {
         [IO.File]::WriteAllText($brandPath, ($brand | ConvertTo-Json -Depth 6) + "`n", (New-Object Text.UTF8Encoding $false))
-        try { Run gcloud compute ssh hub --zone=$zone --quiet --command="sudo google_metadata_script_runner startup" } catch { Note "startup re-run failed ($_); reboot the VM instead." }
+        try { Run gcloud compute ssh hub --zone=$zone --tunnel-through-iap --quiet --command="sudo google_metadata_script_runner startup" } catch { Note "startup re-run failed ($_); reboot the VM instead." }
     }
-    Ok "IAP audience set; startup script re-run on the VM"
+    Ok "IAP audience $aud set; startup script re-run on the VM"
 }
 
 Commit-Brand
 Step "Done"
-Note "Publish a release: bump VERSION/setup.iss/version.ts, commit, then  gh release create vX.Y.Z --repo $repo --generate-notes"
-Note "Verify the hub: scripts/hub/deploy-hub.ps1 -VerifyOnly  and  https://$hubDomain/health/live"
+Note "Publish a release: gh release create v`$(cat VERSION) --repo $repo --generate-notes   (the tag is the VERSION file; bump its patch digit for your own changes)"
+Note "Verify the hub once the certificate is ACTIVE (gcloud compute ssl-certificates describe hub-cert --global):"
+Note "  scripts/hub/deploy-hub.ps1 -Migrate   (first deploy creates the database schema)   then   https://$hubDomain/health/live"

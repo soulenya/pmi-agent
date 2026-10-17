@@ -103,12 +103,17 @@ jobs:
           $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
           $exe = "installer\Output\${{ steps.plan.outputs.setup }}.exe"
+          # A self-signed publisher certificate is unknown to the runner; trust its
+          # public half here so the status check below means "signed correctly".
+          $full = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($pfx, $env:WINDOWS_CERT_PASSWORD)
+          $pub = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($full.Export('Cert'))
+          $store = [System.Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
+          $store.Open('ReadWrite'); $store.Add($pub); $store.Close()
           & installer/cert/2-Sign-LittleGerry.ps1 -ExePath $exe -PfxPath $pfx -PfxPassword $env:WINDOWS_CERT_PASSWORD
           $sig = Get-AuthenticodeSignature $exe
-          if ($sig.Status -ne 'Valid') { throw "Signature status: $($sig.Status)" }
+          if ($sig.Status -ne 'Valid') { throw "Signature status: $($sig.Status) - $($sig.StatusMessage)" }
           # Public certificate for the one-click trust batch, taken from the same key.
-          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfx, $env:WINDOWS_CERT_PASSWORD)
-          [IO.File]::WriteAllBytes("installer\cert\LittleGerry-PublicCert.cer", $cert.Export('Cert'))
+          [IO.File]::WriteAllBytes("installer\cert\LittleGerry-PublicCert.cer", $pub.Export('Cert'))
           & installer/cert/3-Make-Trust-Bat.ps1
           Remove-Item $pfx -Force
 

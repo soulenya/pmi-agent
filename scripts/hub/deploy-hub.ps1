@@ -114,7 +114,9 @@ if ($Migrate) {
 echo "== blockers (idle in transaction)"
 docker exec $pgCtr psql -U $dbSuper -d $dbName -tAc "select count(*) from pg_stat_activity where datname='$dbName' and state='idle in transaction'"
 echo "== migrate"
-sudo bash -c 'set -a; . /opt/littlegerry/.env; set +a; docker run --rm --network littlegerry_default --env-file /opt/littlegerry/.env -e PGPASSWORD=`$POSTGRES_SUPERUSER_PASSWORD -e DATABASE_URL=postgresql+asyncpg://$dbSuper@postgres:5432/$dbName -e DATABASE_URL_SYNC=postgresql://$dbSuper@postgres:5432/$dbName --entrypoint alembic $image upgrade head' 2>&1 | tail -3
+API_IMAGE=$image docker compose up -d postgres 2>&1 | tail -1
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do docker exec $pgCtr pg_isready -U $dbSuper -d $dbName >/dev/null 2>&1 && break; sleep 5; done
+sudo bash -c 'PW=`$(sed -n "s/^POSTGRES_SUPERUSER_PASSWORD=//p" /opt/littlegerry/.env); docker run --rm --network littlegerry_default --env-file /opt/littlegerry/.env -e PGPASSWORD=`$PW -e DATABASE_URL=postgresql+asyncpg://$dbSuper@postgres:5432/$dbName -e DATABASE_URL_SYNC=postgresql://$dbSuper@postgres:5432/$dbName --entrypoint alembic $image upgrade head' 2>&1 | tail -3
 "@
 }
 

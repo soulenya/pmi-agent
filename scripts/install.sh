@@ -40,10 +40,16 @@ wait_for() {  # wait_for "<command>" <attempts> <sleep_seconds> "<label>"
   return 1
 }
 
+# Company line for the banner (brand/brand.json; PMI's when absent).
+BRAND_LINE="$(python3 -c "import json
+try: b=json.load(open('$PROJECT_ROOT/brand/brand.json'))
+except Exception: b={}
+c=b.get('company_name') or 'Precisian Medical Instruments'; p=(b.get('product') or {}).get('name') or ('VACTOR' if not b else '')
+print(c + (' / ' + p if p else ''))" 2>/dev/null || echo 'Precisian Medical Instruments / VACTOR')"
 echo
 echo "================================================"
 echo "  Little Gerry - AI Executive Assistant Installer"
-echo "  Precisian Medical Instruments / VACTOR (macOS)"
+echo "  $BRAND_LINE (macOS)"
 echo "================================================"
 echo
 info "Project root : $PROJECT_ROOT"

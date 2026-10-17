@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import os
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import pool
@@ -56,16 +57,26 @@ def get_url() -> str:
     """Resolve the sync DB URL for migrations.
 
     Migrations need DDL privileges (CREATE on schema ``public``), which only the
-    privileged ``pmi`` role has — the runtime ``pmi_app`` role cannot create
-    objects. So we prefer the ``DATABASE_URL_SYNC`` env var, then the alembic.ini
-    value (the ``pmi`` role). Each migration that creates a table is responsible
-    for handing ownership to ``pmi_app`` via ``ALTER TABLE ... OWNER TO pmi_app``
-    so the running API can access it.
+    privileged superuser role has — the runtime app role cannot create
+    objects. ``DATABASE_URL_SYNC`` comes from the process environment or, when
+    the launcher did not export it, from ``backend/.env`` (the installer writes
+    the brand's role and database there). Each migration that creates a table
+    is responsible for handing ownership to the app role.
     """
-    return os.environ.get(
-        "DATABASE_URL_SYNC",
-        config.get_main_option("sqlalchemy.url", ""),
-    )
+    url = os.environ.get("DATABASE_URL_SYNC")
+    if not url:
+        from dotenv import dotenv_values
+
+        env_file = Path(__file__).resolve().parents[1] / ".env"
+        url = (dotenv_values(env_file).get("DATABASE_URL_SYNC") or "") if env_file.is_file() else ""
+    if not url:
+        url = config.get_main_option("sqlalchemy.url", "")
+    if not url:
+        raise RuntimeError(
+            "DATABASE_URL_SYNC is not set and backend/.env has no value; "
+            "run the installer or export it before `alembic upgrade head`."
+        )
+    return url
 
 
 def run_migrations_offline() -> None:

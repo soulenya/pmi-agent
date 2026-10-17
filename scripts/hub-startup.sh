@@ -216,9 +216,9 @@ upload() {  # upload <local-file> <object-name>
     >/dev/null
 }
 
-set -a
-. /opt/littlegerry/.env
-set +a
+# Only this one value is needed; never `source .env` - a quote in any secret
+# would break the shell, and compose reads the file literally anyway.
+POSTGRES_SUPERUSER_PASSWORD=$(sed -n 's/^POSTGRES_SUPERUSER_PASSWORD=//p' /opt/littlegerry/.env)
 
 docker exec -e PGPASSWORD="${POSTGRES_SUPERUSER_PASSWORD}" "${PG_CONTAINER}" \
   pg_dump -U "${DB_SUPERUSER}" -d "${DB_NAME}" --no-owner --no-acl \
@@ -265,9 +265,7 @@ curl -sf -H "Authorization: Bearer $(token)" \
   "https://storage.googleapis.com/storage/v1/b/${BUCKET}/o/$(jq -rn --arg o "${OBJ}" '$o|@uri')?alt=media" \
   -o "$TMP/db.sql.gz"
 
-set -a
-. /opt/littlegerry/.env
-set +a
+POSTGRES_SUPERUSER_PASSWORD=$(sed -n 's/^POSTGRES_SUPERUSER_PASSWORD=//p' /opt/littlegerry/.env)
 PG="docker exec -e PGPASSWORD=${POSTGRES_SUPERUSER_PASSWORD} ${PG_CONTAINER}"
 
 if [[ "${TARGET}" == "${DB_NAME}" ]]; then

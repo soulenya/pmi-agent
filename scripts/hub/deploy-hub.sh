@@ -73,7 +73,9 @@ if [ "$VERIFY" = 1 ]; then remote "$VERIFY_SCRIPT"; exit 0; fi
 MIGRATE_SCRIPT=""
 if [ "$MIGRATE" = 1 ]; then
   MIGRATE_SCRIPT="echo '== migrate'
-sudo bash -c 'set -a; . /opt/littlegerry/.env; set +a; docker run --rm --network littlegerry_default --env-file /opt/littlegerry/.env -e PGPASSWORD=\$POSTGRES_SUPERUSER_PASSWORD -e DATABASE_URL=postgresql+asyncpg://$DB_SUPER@postgres:5432/$DB_NAME -e DATABASE_URL_SYNC=postgresql://$DB_SUPER@postgres:5432/$DB_NAME --entrypoint alembic $IMAGE upgrade head' 2>&1 | tail -3"
+API_IMAGE=$IMAGE docker compose up -d postgres 2>&1 | tail -1
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do docker exec $PG_CTR pg_isready -U $DB_SUPER -d $DB_NAME >/dev/null 2>&1 && break; sleep 5; done
+sudo bash -c 'PW=\$(sed -n \"s/^POSTGRES_SUPERUSER_PASSWORD=//p\" /opt/littlegerry/.env); docker run --rm --network littlegerry_default --env-file /opt/littlegerry/.env -e PGPASSWORD=\$PW -e DATABASE_URL=postgresql+asyncpg://$DB_SUPER@postgres:5432/$DB_NAME -e DATABASE_URL_SYNC=postgresql://$DB_SUPER@postgres:5432/$DB_NAME --entrypoint alembic $IMAGE upgrade head' 2>&1 | tail -3"
 fi
 
 remote "cd /opt/littlegerry

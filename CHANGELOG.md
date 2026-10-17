@@ -4,6 +4,37 @@
 
 ## Changelog
 
+### Unreleased
+**New-company setup: fixes from the first white-label install (Noctu, macOS admin)**
+
+- Migrations read `DATABASE_URL_SYNC` from `backend/.env` when the launcher
+  has not exported it (`migrations/env.py`, python-dotenv), so a brand whose
+  database role is not PMI's no longer hits `alembic.ini`'s PMI default on
+  first launch. Affected Windows and macOS installs alike; PMI unchanged
+  (its `.env` and the ini agree).
+- `windows-release.yml` trusts the brand's own signing certificate on the
+  runner before checking the signature — a self-signed publisher could
+  never reach `Valid` there, so no fork could release a Windows installer.
+- Hub scripts never `source .env` again (`backup.sh`, `restore.sh`, the
+  `deploy-hub` migrate step read the one value they need with `sed`); a
+  quote in any secret used to abort backups. `-Migrate` starts Postgres and
+  waits for it first, so the first deploy on a fresh VM works.
+- `bootstrap.ps1`: image built `--platform linux/amd64` with buildx (an
+  Apple Silicon `docker build` produced an arm64 image the VM could not
+  run); Fernet key generated in PowerShell (no `python` dependency); each
+  core secret checked on its own for a non-empty version; API-key prompts
+  validate prefix and reject multi-line pastes; required answers re-prompt;
+  `iam.disableServiceAccountKeyCreation` detected with an offer to lift it
+  for the project; IAM bindings after `service-accounts create` retried;
+  bundle id derived as reverse-DNS of the first domain; the load balancer,
+  managed certificate, static IP, IAP enablement, domain grant and
+  programmatic client are now created with `gcloud` (values match PMI's hub:
+  named port `http:8000`, `/health/live`, timeout 3600 s, health-check and
+  IAP-SSH firewall rules) — the only remaining console steps are the OAuth
+  consent screen, the OAuth clients and the DNS record; unattended runs take
+  defaults instead of looping on invalid input.
+- Installer banners and `.env.example` header read the brand instead of PMI.
+
 ### v5.25.0 · build 305 — 2026-10-15
 **PDF tables read as rows (bank statements, invoices, price lists)**
 
