@@ -34,6 +34,14 @@
   consent screen, the OAuth clients and the DNS record; unattended runs take
   defaults instead of looping on invalid input.
 - Installer banners and `.env.example` header read the brand instead of PMI.
+- `scripts/new-company/update-from-upstream.ps1`: one command for a company
+  to take PMI's latest — merge upstream master (workflow files take
+  upstream's side, `brand.json` the company's), push, `gh release create
+  v<VERSION>`, then for the hub: check the API-key secrets for bad pastes
+  (offer to destroy), rebuild/push the amd64 image, `deploy-hub
+  -UpdateStartupScript` + `-Migrate`, re-run the startup script and a
+  backup, verify. `deploy-hub.ps1` swaps the SDK's `gcloud.ps1` wrapper for
+  `gcloud.cmd` on Windows.
 
 ### v5.25.0 · build 305 — 2026-10-15
 **PDF tables read as rows (bank statements, invoices, price lists)**

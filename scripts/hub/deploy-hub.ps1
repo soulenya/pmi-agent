@@ -69,6 +69,8 @@ if (-not $gcloud) {
     $candidate = Join-Path $env:LOCALAPPDATA "Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
     if (Test-Path $candidate) { $gcloud = $candidate } else { throw "gcloud not found on PATH." }
 } else { $gcloud = $gcloud.Source }
+# The SDK's gcloud.ps1 wrapper turns stderr notices into terminating errors; use the .cmd beside it.
+if ($gcloud -like "*.ps1") { $gcloud = $gcloud -replace '\.ps1$', '.cmd' }
 
 function Remote([string]$script) {
     # Base64 keeps quoting out of the way; the VM decodes and runs as root.
