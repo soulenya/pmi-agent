@@ -4,8 +4,8 @@
 
 ## Changelog
 
-### Unreleased
-**Second white-label report (Noctu 5.25.0 update): database role access, Mac launcher, update tooling**
+### v5.26.0 · build 306 — 2026-10-21
+**White-label hardening from Noctu's two reports; database role ownership migration. PMI behaviour unchanged**
 
 - Migration **051**: every table and sequence in `public` is handed to the
   runtime role (`DB_APP_ROLE`), default privileges are set so future
@@ -47,9 +47,7 @@
   Regulatory-page sentences, the Windows `Install Little Gerry.bat` banner,
   the research bot's User-Agent. PMI probe byte-identical.
 
-### Unreleased (earlier)
-**New-company setup: fixes from the first white-label install (Noctu, macOS admin)**
-
+From the first report (same build):
 - Migrations read `DATABASE_URL_SYNC` from `backend/.env` when the launcher
   has not exported it (`migrations/env.py`, python-dotenv), so a brand whose
   database role is not PMI's no longer hits `alembic.ini`'s PMI default on

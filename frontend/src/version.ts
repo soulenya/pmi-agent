@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 305;
-export const BUILD_DATE = "2026-10-15";
+export const BUILD_NUMBER = 306;
+export const BUILD_DATE = "2026-10-21";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 306,
+    date: "2026-10-21",
+    title: "Internal housekeeping",
+    changes: [
+      "Database permissions are consolidated for the shared server, the Mac app closes cleanly and restores its window position safely, and the installer and setup scripts show the company's own name throughout. Nothing changes in how you use the app.",
+    ],
+  },
   {
     build: 305,
     date: "2026-10-15",
