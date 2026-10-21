@@ -25,7 +25,10 @@
 [CmdletBinding()]
 param([switch]$SkipHub, [switch]$NoRelease)
 $ErrorActionPreference = "Stop"
-$root = Resolve-Path (Join-Path $PSScriptRoot "../..")
+# The checkout is the current directory's repository (the script may be run
+# from a downloaded copy anywhere); fall back to the script's own location.
+$root = (& git rev-parse --show-toplevel 2>$null)
+if (-not $root) { $root = Resolve-Path (Join-Path $PSScriptRoot "../..") }
 Set-Location $root
 $IsWin = ($env:OS -eq "Windows_NT")
 $gcloud = if ($IsWin) { "gcloud.cmd" } else { "gcloud" }
@@ -70,8 +73,20 @@ if ($LASTEXITCODE -ne 0) { RunGit pull -q --ff-only $companyRemote master }
 if ($LASTEXITCODE -eq 0) {
     Ok "already up to date with upstream"
 } else {
-    & git merge --no-edit upstream/master 2>&1 | Out-Null
+    # A downloaded copy of this script sitting untracked where upstream now has
+    # it would make git refuse the merge; upstream's copy replaces it.
+    $self = "scripts/new-company/update-from-upstream.ps1"
+    if ((& git ls-files --others --exclude-standard -- $self) -and (& git ls-tree --name-only upstream/master -- $self)) {
+        Remove-Item (Join-Path $root $self) -Force
+        Note "removed the downloaded copy of $self (upstream provides it)"
+    }
+    $mergeOut = & git merge --no-edit upstream/master 2>&1
     if ($LASTEXITCODE -ne 0) {
+        $inProgress = Test-Path (Join-Path (& git rev-parse --git-dir) "MERGE_HEAD")
+        if (-not $inProgress) {
+            $mergeOut | ForEach-Object { Write-Host "  $_" }
+            Fail "git could not start the merge (see above - usually untracked files that upstream also has: move them away)."
+        }
         $conflicts = @(& git diff --name-only --diff-filter=U)
         foreach ($f in $conflicts) {
             if ($f -like ".github/workflows/*") { RunGit checkout --theirs -- $f; RunGit add -- $f; Note "took upstream's $f" }
@@ -150,5 +165,8 @@ Note "Re-running the startup script on the VM (regenerates .env from Secret Mana
 & $gcloud compute ssh $brand.gcp.hub_vm --zone=$zone --tunnel-through-iap --quiet --command="sudo google_metadata_script_runner startup >/dev/null 2>&1; sudo bash /opt/littlegerry/scripts/backup.sh"
 if ($LASTEXITCODE -ne 0) { Note "startup re-run or backup failed - reboot the VM from the console and run  scripts/hub/deploy-hub.ps1 -VerifyOnly" }
 & $deploy -VerifyOnly
+# Permission errors from the API would show here within a minute of the restart.
+$errs = & $gcloud compute ssh $brand.gcp.hub_vm --zone=$zone --tunnel-through-iap --quiet --command="sleep 20; sudo docker logs --since 2m $($brand.db.api_container) 2>&1 | grep -c 'InsufficientPrivilege' || true" 2>$null
+if ("$errs".Trim() -and "$errs".Trim() -ne "0") { Write-Host "  $errs permission errors in the API log in the last 2 minutes - send Morgan 'docker logs $($brand.db.api_container) | tail -50'." -ForegroundColor Yellow } else { Ok "no permission errors in the API log" }
 Step "Done"
 Note "Check https://$($brand.hub_url -replace '^https?://','')/health/live"

@@ -5,6 +5,42 @@
 ## Changelog
 
 ### Unreleased
+**Second white-label report (Noctu 5.25.0 update): database role access, Mac launcher, update tooling**
+
+- Migration **051**: every table and sequence in `public` is handed to the
+  runtime role (`DB_APP_ROLE`), default privileges are set so future
+  migrations are readable by it, `audit_events` stays append-only for that
+  role and the audit role gets SELECT/INSERT. Migration 001 and about half
+  the later ones never transferred ownership; the API on a new company's hub
+  therefore had no access to `users`, `tasks`, `conversations`,
+  `google_credentials` and 24 more (PMI's hub had been granted by hand).
+  Verified on a scratch database at Noctu's exact state (28/28 split):
+  after 051 the app role reads every table, cannot update/delete audit
+  rows, a table created later by the migrator is readable; second run is a
+  no-op. `deploy-hub` passes `DB_APP_ROLE`/`DB_AUDIT_ROLE` to the migration
+  container. **PMI: run `deploy-hub.ps1 -Migrate` with this release.**
+- Mac launcher: services start in their own process group and are killed as
+  a group (no orphaned `uvicorn`/`vite`/`esbuild`); teardown also runs on
+  SIGTERM/SIGHUP/interpreter exit; closing the window on macOS no longer
+  shows a modal (Cmd+Q ran it inside app termination and hung); a saved
+  window position is restored only when it lies inside the primary screen
+  (a point on a second display crashed pywebview's Cocoa `windowDidMove`);
+  if window creation still fails, the saved position is dropped, services
+  stopped and the launcher relaunches once. The `.app` stub falls back to
+  the package's install folder when the bundle has been dragged elsewhere,
+  and says so instead of failing silently.
+- `deploy-hub` verify polls `/health/live` for up to 60 s after the
+  recreate instead of failing on the first `000`.
+- `update-from-upstream.ps1` uses the current directory's repository, removes
+  an untracked downloaded copy of itself before merging, shows git's merge
+  output, and only commits when a merge is in progress; after the hub
+  deploy it counts `InsufficientPrivilege` errors in the API log.
+- `sync-upstream.yml` applies the same conflict policy (workflows take
+  upstream, `brand.json` stays) and, when conflicts remain, opens the pull
+  request with the markers committed and the files listed, instead of
+  failing with no PR.
+
+### Unreleased (earlier)
 **New-company setup: fixes from the first white-label install (Noctu, macOS admin)**
 
 - Migrations read `DATABASE_URL_SYNC` from `backend/.env` when the launcher

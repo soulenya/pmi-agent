@@ -57,6 +57,8 @@ $imageRepo = Pick $b.gcp.image_repo "littlegerry"
 $image     = "$registry/$project/$imageRepo/backend:$Tag"
 $dbName    = Pick $b.db.name "pmi_dev"
 $dbSuper   = Pick $b.db.superuser "pmi"
+$dbApp     = Pick $b.db.app_role "pmi_app"
+$dbAudit   = Pick $b.db.audit_role "pmi_audit"
 $apiCtr    = Pick $b.db.api_container "pmi_api"
 $pgCtr     = Pick $b.db.postgres_container "pmi_postgres"
 $hubDomain = (Pick $b.hub_url "https://hub.precisianmedical.com") -replace '^https?://', ''
@@ -105,7 +107,8 @@ $verify = @"
 echo "== verify"
 docker inspect --format '{{.Image}}' $apiCtr
 docker exec $pgCtr psql -U $dbSuper -d $dbName -tAc 'select version_num from alembic_version'
-curl -s -o /dev/null -w "health=%{http_code}\n" localhost:8000/health/live
+for i in `$(seq 1 30); do code=`$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/health/live || true); [ "`$code" = 200 ] && break; sleep 2; done
+echo "health=`$code"
 "@
 
 if ($VerifyOnly) { Remote $verify; return }
@@ -118,7 +121,7 @@ docker exec $pgCtr psql -U $dbSuper -d $dbName -tAc "select count(*) from pg_sta
 echo "== migrate"
 API_IMAGE=$image docker compose up -d postgres 2>&1 | tail -1
 for i in 1 2 3 4 5 6 7 8 9 10 11 12; do docker exec $pgCtr pg_isready -U $dbSuper -d $dbName >/dev/null 2>&1 && break; sleep 5; done
-sudo bash -c 'PW=`$(sed -n "s/^POSTGRES_SUPERUSER_PASSWORD=//p" /opt/littlegerry/.env); docker run --rm --network littlegerry_default --env-file /opt/littlegerry/.env -e PGPASSWORD=`$PW -e DATABASE_URL=postgresql+asyncpg://$dbSuper@postgres:5432/$dbName -e DATABASE_URL_SYNC=postgresql://$dbSuper@postgres:5432/$dbName --entrypoint alembic $image upgrade head' 2>&1 | tail -3
+sudo bash -c 'PW=`$(sed -n "s/^POSTGRES_SUPERUSER_PASSWORD=//p" /opt/littlegerry/.env); docker run --rm --network littlegerry_default --env-file /opt/littlegerry/.env -e PGPASSWORD=`$PW -e DB_APP_ROLE=$dbApp -e DB_AUDIT_ROLE=$dbAudit -e DATABASE_URL=postgresql+asyncpg://$dbSuper@postgres:5432/$dbName -e DATABASE_URL_SYNC=postgresql://$dbSuper@postgres:5432/$dbName --entrypoint alembic $image upgrade head' 2>&1 | tail -3
 "@
 }
 

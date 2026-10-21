@@ -103,20 +103,28 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-cat > "$APP_DIR/Contents/MacOS/launch" <<'STUB'
+cat > "$APP_DIR/Contents/MacOS/launch" <<STUB
 #!/bin/bash
 # Little Gerry.app launcher stub.
 #
 # A double-clicked .app is started by launchd with NO controlling terminal, so
 # running the setup flow here directly would hide all output and silently die on
-# the first error (e.g. a fresh Mac without `uv` yet). Instead we open Terminal
+# the first error (e.g. a fresh Mac without \`uv\` yet). Instead we open Terminal
 # and run the Start command there, so the one-time install flow (Homebrew, Docker,
 # uv, database, dependencies) is visible and interactive.
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # .../Contents/MacOS
-APPROOT="$(cd "$HERE/../../.." && pwd)"                  # install dir (parent of the .app)
-START="$APPROOT/Start Little Gerry.command"
-chmod +x "$START" 2>/dev/null || true
-exec open -a Terminal "$START"
+HERE="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"   # .../Contents/MacOS
+APPROOT="\$(cd "\$HERE/../../.." && pwd)"                  # install dir (parent of the .app)
+START="\$APPROOT/Start Little Gerry.command"
+# The .app was dragged out of its folder: use the install location the package wrote.
+if [ ! -f "\$START" ]; then
+  START="\$HOME/$INSTALL_LOCATION/Start Little Gerry.command"
+fi
+if [ ! -f "\$START" ]; then
+  osascript -e 'display alert "Little Gerry" message "The app must stay in its install folder (~/$INSTALL_LOCATION). Move it back, or reinstall." as critical' >/dev/null 2>&1
+  exit 1
+fi
+chmod +x "\$START" 2>/dev/null || true
+exec open -a Terminal "\$START"
 STUB
 chmod +x "$APP_DIR/Contents/MacOS/launch"
 

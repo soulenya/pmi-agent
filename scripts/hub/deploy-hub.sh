@@ -38,6 +38,7 @@ REGISTRY=$(pick gcp.registry "${REGION}-docker.pkg.dev")
 IMAGE_REPO=$(pick gcp.image_repo littlegerry)
 IMAGE="${REGISTRY}/${PROJECT}/${IMAGE_REPO}/backend:${TAG}"
 DB_NAME=$(pick db.name pmi_dev); DB_SUPER=$(pick db.superuser pmi)
+DB_APP=$(pick db.app_role pmi_app); DB_AUDIT=$(pick db.audit_role pmi_audit)
 API_CTR=$(pick db.api_container pmi_api); PG_CTR=$(pick db.postgres_container pmi_postgres)
 HUB_DOMAIN=$(pick hub_url https://hub.precisianmedical.com | sed -E 's#^https?://##')
 BACKUP_BKT=$(pick gcp.hub_backup_bucket "${PROJECT}-backup")
@@ -66,7 +67,8 @@ fi
 VERIFY_SCRIPT="echo '== verify'
 docker inspect --format '{{.Image}}' $API_CTR
 docker exec $PG_CTR psql -U $DB_SUPER -d $DB_NAME -tAc 'select version_num from alembic_version'
-curl -s -o /dev/null -w 'health=%{http_code}\n' localhost:8000/health/live"
+for i in \$(seq 1 30); do code=\$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/health/live || true); [ \"\$code\" = 200 ] && break; sleep 2; done
+echo \"health=\$code\""
 
 if [ "$VERIFY" = 1 ]; then remote "$VERIFY_SCRIPT"; exit 0; fi
 
@@ -75,7 +77,7 @@ if [ "$MIGRATE" = 1 ]; then
   MIGRATE_SCRIPT="echo '== migrate'
 API_IMAGE=$IMAGE docker compose up -d postgres 2>&1 | tail -1
 for i in 1 2 3 4 5 6 7 8 9 10 11 12; do docker exec $PG_CTR pg_isready -U $DB_SUPER -d $DB_NAME >/dev/null 2>&1 && break; sleep 5; done
-sudo bash -c 'PW=\$(sed -n \"s/^POSTGRES_SUPERUSER_PASSWORD=//p\" /opt/littlegerry/.env); docker run --rm --network littlegerry_default --env-file /opt/littlegerry/.env -e PGPASSWORD=\$PW -e DATABASE_URL=postgresql+asyncpg://$DB_SUPER@postgres:5432/$DB_NAME -e DATABASE_URL_SYNC=postgresql://$DB_SUPER@postgres:5432/$DB_NAME --entrypoint alembic $IMAGE upgrade head' 2>&1 | tail -3"
+sudo bash -c 'PW=\$(sed -n \"s/^POSTGRES_SUPERUSER_PASSWORD=//p\" /opt/littlegerry/.env); docker run --rm --network littlegerry_default --env-file /opt/littlegerry/.env -e PGPASSWORD=\$PW -e DB_APP_ROLE=$DB_APP -e DB_AUDIT_ROLE=$DB_AUDIT -e DATABASE_URL=postgresql+asyncpg://$DB_SUPER@postgres:5432/$DB_NAME -e DATABASE_URL_SYNC=postgresql://$DB_SUPER@postgres:5432/$DB_NAME --entrypoint alembic $IMAGE upgrade head' 2>&1 | tail -3"
 fi
 
 remote "cd /opt/littlegerry

@@ -141,6 +141,37 @@ def _no_window_kwargs() -> dict:
     return {}
 
 
+def _service_kwargs() -> dict:
+    """Popen kwargs for the backend/frontend services.
+
+    On POSIX each service gets its own process group so teardown can kill the
+    whole tree (``npm run dev`` -> node -> esbuild) rather than only the shell.
+    """
+    if IS_WINDOWS:
+        return _no_window_kwargs()
+    return {"start_new_session": True}
+
+
+def _terminate_service(p: subprocess.Popen) -> None:
+    if IS_WINDOWS:
+        p.terminate()
+        return
+    import signal
+    try:
+        os.killpg(p.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    except Exception:
+        p.terminate()
+    try:
+        p.wait(timeout=5)
+    except Exception:
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except Exception:
+            pass
+
+
 # Auto-update (installed copies pull signed installers from the private repo's
 # Releases using a read-only token baked in at build time).
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{BRAND['github_repo']}/releases/latest"
@@ -641,7 +672,7 @@ def _start_services() -> None:
             cwd=str(BACKEND_DIR),
             stdout=_backend_log,
             stderr=_backend_log,
-            **_no_window_kwargs(),
+            **_service_kwargs(),
         ))
 
         # 4. Frontend
@@ -654,7 +685,7 @@ def _start_services() -> None:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             shell=True,
-            **_no_window_kwargs(),
+            **_service_kwargs(),
         ))
 
         # Wait for backend health-check
@@ -690,10 +721,16 @@ def _force_exit_after(seconds: float) -> None:
     threading.Thread(target=_kill, daemon=True).start()
 
 
+_stopped = [False]
+
+
 def _stop_all() -> None:
+    if _stopped[0]:
+        return
+    _stopped[0] = True
     for p in _procs:
         try:
-            p.terminate()
+            _terminate_service(p)
         except Exception:
             pass
     _kill_port(8000)
@@ -701,6 +738,28 @@ def _stop_all() -> None:
     # Bounded so a slow/unresponsive Docker can't hang shutdown. ``-t 3`` gives
     # Postgres a 3 s grace period; the outer timeout caps the whole call.
     _run(f"docker stop -t 3 {PG_CONTAINER}", timeout=15)
+
+
+def _install_exit_hooks() -> None:
+    """Stop the services when the launcher is ended from outside the window
+    (Terminal closed, SIGTERM, interpreter exit) so nothing is left running."""
+    import atexit
+    import signal
+
+    atexit.register(_stop_all)
+    if IS_WINDOWS:
+        return
+
+    def _on_signal(_signum, _frame) -> None:
+        _force_exit_after(12)
+        _stop_all()
+        os._exit(0)
+
+    for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+        try:
+            signal.signal(sig, _on_signal)
+        except Exception:
+            pass
 
 
 
@@ -755,7 +814,7 @@ def _restart_services() -> None:
     _set_status("Restarting — stopping services...", 0)
     for p in _procs:
         try:
-            p.terminate()
+            _terminate_service(p)
         except Exception:
             pass
     _procs.clear()
@@ -1315,14 +1374,18 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
     state = _load_window_state()
     if "x" in state:
         try:
-            screens = webview.screens
-            min_x = min(s.x for s in screens)
-            min_y = min(s.y for s in screens)
-            max_x = max(s.x + s.width for s in screens)
-            max_y = max(s.y + s.height for s in screens)
-            # If the saved position is fully off every screen (e.g. a monitor
-            # was unplugged), fall back to centering instead.
-            if not (min_x - 100 <= state["x"] <= max_x - 100 and min_y <= state["y"] <= max_y - 100):
+            screens = list(webview.screens)
+            # pywebview's Cocoa backend places the window in the primary screen's
+            # coordinates; a point on another display can land outside every
+            # screen and crash in windowDidMove (screen() is None). Only restore
+            # a position that lies inside one screen - the primary one on macOS.
+            if IS_MAC:
+                screens = screens[:1]
+            inside = any(
+                s.x <= state["x"] <= s.x + s.width - 100 and s.y <= state["y"] <= s.y + s.height - 100
+                for s in screens
+            )
+            if not inside:
                 state.pop("x", None)
                 state.pop("y", None)
         except Exception:
@@ -1357,7 +1420,13 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
         global _skip_close_confirm
         _save_window_state(win)  # remember size/position for the next launch
         if _skip_close_confirm:
-            return None  # tray already confirmed — allow
+            return None  # tray already confirmed - allow
+        if IS_MAC:
+            # Cmd+Q runs this inside app termination; a modal here deadlocks the
+            # event loop (spinning cursor, Force Quit). Closing is quitting on
+            # macOS, as the user expects.
+            _skip_close_confirm = True
+            return None
         message = (
             "Shut down Little Gerry and stop all services?\n\n"
             "This will close the backend, frontend, database, and Ollama."
@@ -1471,16 +1540,34 @@ h1{{font-size:34px;font-weight:700;line-height:1}}
         store.mkdir(parents=True, exist_ok=True)
     except Exception:
         _log_error()
+    _install_exit_hooks()
     if IS_WINDOWS:
         webview.start(
             _after_start, win, gui="winforms", debug=False,
             private_mode=False, storage_path=str(store),
         )
     else:
-        webview.start(
-            _after_start, win, debug=False,
-            private_mode=False, storage_path=str(store),
-        )
+        try:
+            webview.start(
+                _after_start, win, debug=False,
+                private_mode=False, storage_path=str(store),
+            )
+        except Exception:
+            # Window creation failed (seen: restored position off-screen on a
+            # multi-display Mac). Forget the position, stop what was started,
+            # and relaunch once with a centred window.
+            _log_error()
+            try:
+                WINDOW_STATE_FILE.unlink()
+            except Exception:
+                pass
+            _force_exit_after(12)
+            _stop_all()
+            if not os.environ.get("LG_RELAUNCHED"):
+                os.environ["LG_RELAUNCHED"] = "1"
+                subprocess.Popen([sys.executable, str(Path(__file__).resolve())], cwd=str(ROOT),
+                                 start_new_session=True, close_fds=True)
+            os._exit(1)
 
     # Reached here only when the window is closed
     _force_exit_after(12)  # guarantee exit even if teardown blocks

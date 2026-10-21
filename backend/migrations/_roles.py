@@ -12,13 +12,14 @@ from __future__ import annotations
 import os
 
 
-def _brand_default() -> str:
+def _brand_default(key: str, fallback: str) -> str:
     try:
         from brand import get_brand
 
-        return get_brand().db["app_role"]
+        return get_brand().db[key]
     except Exception:  # noqa: BLE001 — migrations must run without the app importable
-        return "pmi_app"
+        return fallback
 
 
-APP_ROLE: str = os.environ.get("DB_APP_ROLE", "").strip() or _brand_default()
+APP_ROLE: str = os.environ.get("DB_APP_ROLE", "").strip() or _brand_default("app_role", "pmi_app")
+AUDIT_ROLE: str = os.environ.get("DB_AUDIT_ROLE", "").strip() or _brand_default("audit_role", "pmi_audit")
