@@ -4,7 +4,7 @@
 
 ## Changelog
 
-### Unreleased
+### v5.26.1 · build 307 — 2026-10-21
 **Clicking a generated file link no longer takes over the window**
 
 - A Markdown link to a generated file in Gerry's reply (`/api/files/<name>`,
