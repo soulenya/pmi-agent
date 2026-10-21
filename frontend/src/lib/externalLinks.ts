@@ -81,6 +81,41 @@ export async function saveFileNative(
   }
 }
 
+function blobToDataURL(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onloadend = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Download a generated file (``/api/files/<name>``) with the user's session and
+ * hand it to the OS: saved to Downloads and opened natively in the desktop app,
+ * a plain browser download elsewhere. Used for every file link in chat, so the
+ * app window itself never navigates to a backend URL — in the desktop shell
+ * that replaced the whole app with the raw file and left no way back.
+ */
+export async function downloadGeneratedFile(name: string, openAfter = true): Promise<void> {
+  const { fetchGeneratedFileBlob } = await import("../api/files");
+  const blob = await fetchGeneratedFileBlob(name);
+  if (hasNativeSaveFile()) {
+    const saved = await saveFileNative(name, await blobToDataURL(blob), openAfter);
+    if (saved) return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+const FILES_PATH_RE = /^\/api\/files\/([^/]+)$/;
+
 /**
  * Install a global, capture-phase click handler that routes external links to
  * the system browser. Safe to call once at startup in any environment; in a
@@ -100,8 +135,10 @@ export function installExternalLinkHandler(): void {
       const href = anchor.getAttribute("href");
       if (!href) return;
 
-      // Let download links and explicit non-navigations through unchanged.
-      if (anchor.hasAttribute("download")) return;
+      // Let download links and explicit non-navigations through unchanged
+      // (except generated-file links, handled below: WKWebView ignores the
+      // download attribute and would navigate).
+      if (anchor.hasAttribute("download") && !/\/api\/files\//.test(href)) return;
 
       let url: URL;
       try {
@@ -112,6 +149,24 @@ export function installExternalLinkHandler(): void {
 
       // Only redirect real web links; leave mailto:, tel:, blob:, etc. alone.
       if (url.protocol !== "http:" && url.protocol !== "https:") return;
+
+      // A link to a generated file (Gerry writes them as /api/files/<name>):
+      // fetch it with the session and hand it to the OS. Navigating the window
+      // there would show the raw file (or a 401) in place of the app.
+      const fileMatch = isInternalHost(url.hostname) ? FILES_PATH_RE.exec(url.pathname) : null;
+      if (fileMatch) {
+        event.preventDefault();
+        let name = fileMatch[1];
+        try {
+          name = decodeURIComponent(name);
+        } catch {
+          /* keep raw */
+        }
+        void downloadGeneratedFile(name, true).catch(() => {
+          /* the card's own buttons report errors; a bare link fails quietly */
+        });
+        return;
+      }
 
       // Keep app and local-backend navigation inside the window.
       if (isInternalHost(url.hostname)) return;
