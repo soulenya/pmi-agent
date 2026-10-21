@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 306;
+export const BUILD_NUMBER = 307;
 export const BUILD_DATE = "2026-10-21";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 307,
+    date: "2026-10-21",
+    title: "File links in chat open the file, not a blank window",
+    changes: [
+      "Clicking a link to a file Gerry made (in her reply or the card's Download button) now saves it to Downloads and opens it with your usual app. Before, the link could replace the whole window with the raw file and leave no way back.",
+    ],
+  },
   {
     build: 306,
     date: "2026-10-21",
