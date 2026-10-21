@@ -40,6 +40,13 @@
   request with the markers committed and the files listed, instead of
   failing with no PR.
 
+- Remaining literal "PMI" / "Precisian" in user-visible text now read the
+  brand: daily-briefing headline and prompt, email-draft fallback signature,
+  "Connect a PMI account" sign-in error, API title, contact-search and docx
+  style notes in tool results, the Inbox signature placeholder, two
+  Regulatory-page sentences, the Windows `Install Little Gerry.bat` banner,
+  the research bot's User-Agent. PMI probe byte-identical.
+
 ### Unreleased (earlier)
 **New-company setup: fixes from the first white-label install (Noctu, macOS admin)**
 

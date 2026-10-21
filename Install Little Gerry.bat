@@ -20,10 +20,16 @@ if %ERRORLEVEL% neq 0 (
 cd /d "%~dp0"
 title Little Gerry - Installer
 
+rem Company line from brand\brand.json (PMI's when absent).
+set "BRAND_LINE=Precisian Medical Instruments / VACTOR Program"
+if exist "brand\brand.json" (
+    for /f "usebackq delims=" %%L in (`powershell -NoProfile -Command "$b = Get-Content 'brand\brand.json' -Raw | ConvertFrom-Json; $b.company_name + $(if ($b.product.name) { ' / ' + $b.product.name } else { '' })"`) do set "BRAND_LINE=%%L"
+)
+
 echo.
 echo  ====================================================
 echo   Little Gerry AI Executive Assistant - Installer
-echo   Precisian Medical Instruments / VACTOR Program
+echo   %BRAND_LINE%
 echo  ====================================================
 echo.
 echo  This will install all required components:

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { BRAND, EXAMPLE_PROGRAM } from "../lib/brand";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -814,7 +815,7 @@ function GenerateDocModal({ parentId, folderName, onClose }: {
                   <span>
                     <span className="font-medium">Yes — auto-populate (recommended)</span>
                     <span className="block text-xs text-muted-foreground">
-                      Fills in PMI and VACTOR specifics from the company profile and knowledge base.
+                      Fills in {BRAND.companyShort} and {EXAMPLE_PROGRAM} specifics from the company profile and knowledge base.
                       Anything unknown is left as a [FILL IN: …] placeholder — nothing is invented.
                     </span>
                   </span>
@@ -1296,7 +1297,7 @@ export function RegulatoryPage() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Files are stored locally. Source files mostly originate from the PMI Share Drive — use
+        Files are stored locally. Source files mostly originate from the {BRAND.companyShort} Share Drive — use
         “Import from Drive” to pull a working copy into this controlled store.
       </p>
 

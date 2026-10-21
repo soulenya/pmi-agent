@@ -31,7 +31,7 @@ Keep the entire briefing under 300 words. Do not use emojis.
 """
 
 _BRIEFING_USER_TEMPLATE = """\
-Today is {today}. Generate the daily executive briefing for PMI based on this data:
+Today is {today}. Generate the daily executive briefing for """ + get_brand().company_short + """ based on this data:
 
 ## Open Tasks Due Today or Overdue ({due_count})
 {due_tasks_block}
@@ -153,7 +153,7 @@ async def _generate_briefing_content(user_id, db: AsyncSession, for_date: date) 
         for t in in_progress[:5]
     ]
 
-    headline = f"PMI Daily Briefing — {for_date.strftime('%B %d, %Y')}"
+    headline = f"{get_brand().company_short} Daily Briefing — {for_date.strftime('%B %d, %Y')}"
 
     # Build LLM prompt
     user_prompt = _BRIEFING_USER_TEMPLATE.format(

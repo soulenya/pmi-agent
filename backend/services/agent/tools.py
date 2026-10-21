@@ -6241,7 +6241,7 @@ async def execute_search_contacts(ctx: ToolContext, args: dict[str, Any]) -> str
 
     lines: list[str] = []
     if local:
-        lines.append(f"PMI contacts (from email) matching '{query}':")
+        lines.append(f"{_brand.company_short} contacts (from email) matching '{query}':")
         for c in local:
             company = f" — {c['company']}" if c.get("company") else ""
             seen = f" (seen {c.get('count', 0)}x)" if c.get("count") else ""
@@ -6855,7 +6855,7 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     await auto_pin_if_room(ctx.db, ctx.conversation_id, "generated_file", filename, safe_name)
     await log_room_event(ctx.db, ctx.conversation_id, f"Gerry created Word document: {filename}")
     if brand:
-        style_note = " Styled: PMI design system" + (
+        style_note = f" Styled: {_brand.company_short} design system" + (
             f" (fonts embedded: {', '.join(embedded)})." if embedded
             else " (font files missing on this install — Archivo/JetBrains Mono named but NOT embedded)."
         )
