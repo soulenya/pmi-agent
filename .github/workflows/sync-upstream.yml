@@ -61,10 +61,26 @@ jobs:
           if git merge --no-edit "$UPSTREAM_SHA"; then
             echo "conflicts=false" >> "$GITHUB_OUTPUT"
           else
-            # Keep the fork's brand file; everything else is left for the PR reviewer.
-            git checkout --ours brand/brand.json 2>/dev/null && git add brand/brand.json || true
-            git -c core.editor=true merge --continue || { echo "conflicts=true" >> "$GITHUB_OUTPUT"; git merge --abort; exit 0; }
-            echo "conflicts=false" >> "$GITHUB_OUTPUT"
+            # Same policy as scripts/new-company/update-from-upstream.ps1: the
+            # fork keeps its brand file, workflow files take upstream's version.
+            for f in $(git diff --name-only --diff-filter=U); do
+              case "$f" in
+                brand/brand.json) git checkout --ours -- "$f"; git add -- "$f" ;;
+                .github/workflows/*) git checkout --theirs -- "$f"; git add -- "$f" ;;
+              esac
+            done
+            LEFT=$(git diff --name-only --diff-filter=U)
+            if [ -n "$LEFT" ]; then
+              # Open the PR anyway, with the conflict markers committed, so the
+              # reviewer sees exactly where; the PR cannot be merged until fixed.
+              git add -A
+              git -c core.editor=true commit -q -m "Merge upstream (UNRESOLVED CONFLICTS: $(echo $LEFT | tr '\n' ' '))"
+              echo "conflicts=true" >> "$GITHUB_OUTPUT"
+              echo "conflict_files=$(echo $LEFT | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
+            else
+              git -c core.editor=true commit -q --no-edit
+              echo "conflicts=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
           if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/${{ github.ref_name }})" ]; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -77,14 +93,17 @@ jobs:
       - name: Open the pull request
         if: steps.merge.outputs.changed == 'true'
         run: |
+          BODY="Merges upstream \`${UPSTREAM_REF}\` (\`${UPSTREAM_SHA}\`). Review the diff, then merge and tag a release (\`gh release create v\$(cat VERSION)\`)."
+          if [ "${{ steps.merge.outputs.conflicts }}" = "true" ]; then
+            BODY="$(printf '%s\n\n%s %s\n%s' "$BODY" "**Unresolved conflicts** (markers are committed in this branch):" "${{ steps.merge.outputs.conflict_files }}" "Check out the branch, resolve them, commit, push, then merge.")"
+          fi
           gh pr create \
             --base "${{ github.ref_name }}" \
             --head "${{ steps.merge.outputs.branch }}" \
             --title "Sync from upstream ${{ vars.UPSTREAM_REPO }}@${UPSTREAM_REF}" \
-            --body "Merges upstream \`${UPSTREAM_REF}\` (\`${UPSTREAM_SHA}\`). Review the diff, then merge and tag a release."
+            --body "$BODY"
 
       - name: Report conflicts
         if: steps.merge.outputs.conflicts == 'true'
         run: |
-          echo "::error::Upstream merge has conflicts outside brand/brand.json. Merge upstream/${UPSTREAM_REF} locally and resolve them."
-          exit 1
+          echo "::warning::Upstream merge has conflicts in: ${{ steps.merge.outputs.conflict_files }} - see the pull request."
