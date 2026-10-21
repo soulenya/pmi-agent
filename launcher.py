@@ -261,6 +261,16 @@ def _log_error() -> None:
         pass
 
 
+def _log(text: str) -> None:
+    try:
+        log_dir = BACKEND_DIR / "logs"
+        log_dir.mkdir(exist_ok=True)
+        with open(log_dir / "launcher.log", "a", encoding="utf-8") as f:
+            f.write(f"\n--- {datetime.datetime.now()} ---\n{text}\n")
+    except Exception:
+        pass
+
+
 # ── service startup (runs in background thread) ───────────────────────────────
 
 def _parse_version(text: str) -> tuple[int, int, int]:
@@ -791,7 +801,8 @@ def _handle_control_cmd(cmd: str) -> None:
 
 
 def _poll_control_file() -> None:
-    """Background thread: watches for backend-written commands."""
+    """Background thread: watches for backend-written commands, and keeps the
+    main window on the app."""
     while True:
         time.sleep(1)
         try:
@@ -803,8 +814,31 @@ def _poll_control_file() -> None:
                     pass
                 if cmd:
                     _handle_control_cmd(cmd)
+            _keep_window_on_app()
         except Exception:
             _log_error()
+
+
+_APP_HOSTS = ("localhost:5173", "127.0.0.1:5173")
+
+
+def _keep_window_on_app() -> None:
+    """The window has no address bar: a link that navigates it to a backend
+    URL (a generated .html file, a 401 page) strands the user with no way
+    back. If the main window is anywhere but the app, load the app again."""
+    if _win_ref is None or not _ready.is_set():
+        return
+    try:
+        url = _win_ref.get_current_url() or ""
+    except Exception:
+        return
+    if not url.startswith(("http://", "https://")):
+        return  # splash (data/about) or not reported
+    host = url.split("/", 3)[2]
+    if host in _APP_HOSTS:
+        return
+    _log(f"window left the app ({url[:120]}); returning to {APP_URL}")
+    _win_ref.load_url(APP_URL)
 
 
 # ── restart / update helpers ─────────────────────────────────────────────────

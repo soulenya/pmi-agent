@@ -21,10 +21,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import {
-  getFileDownloadUrl,
   moveGeneratedFileToKB,
   openGeneratedFileInWorkspace,
 } from "@/api/files";
+import { downloadGeneratedFile } from "@/lib/externalLinks";
 import { addWorkroomItem, listWorkrooms } from "@/api/workrooms";
 import { useToastStore } from "@/stores/toastStore";
 
@@ -73,7 +73,7 @@ export function FileActionCard({
     .replace(/^[0-9a-f]{8}_/, "");
   const push = useToastStore((s) => s.push);
   const qc = useQueryClient();
-  const [busy, setBusy] = useState<"" | "workspace" | "kb" | "pin">("");
+  const [busy, setBusy] = useState<"" | "workspace" | "kb" | "pin" | "download">("");
   const [kbDone, setKbDone] = useState(false);
   const [pinDone, setPinDone] = useState(false);
   const [showRoomPicker, setShowRoomPicker] = useState(false);
@@ -109,6 +109,17 @@ export function FileActionCard({
       push("info", "No rooms yet — create one under Projects > Rooms.");
     } else {
       setShowRoomPicker((v) => !v);
+    }
+  };
+
+  const download = async () => {
+    setBusy("download");
+    try {
+      await downloadGeneratedFile(filename, false);
+    } catch {
+      push("error", "Couldn't download the file.");
+    } finally {
+      setBusy("");
     }
   };
 
@@ -174,15 +185,10 @@ export function FileActionCard({
         <span className="flex-1 truncate font-medium">{displayName}</span>
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        <a
-          href={getFileDownloadUrl(filename)}
-          download
-          target="_blank"
-          rel="noopener noreferrer"
-          className={btn}
-        >
-          <Download className="h-3 w-3" /> Download
-        </a>
+        <button type="button" onClick={download} disabled={busy !== ""} className={btn}>
+          {busy === "download" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+          Download
+        </button>
         <button type="button" onClick={openInWorkspace} disabled={busy !== ""} className={btn}>
           {busy === "workspace" ? (
             <Loader2 className="h-3 w-3 animate-spin" />

@@ -4,6 +4,18 @@
 
 ## Changelog
 
+### Unreleased
+**Clicking a generated file link no longer takes over the window**
+
+- A Markdown link to a generated file in Gerry's reply (`/api/files/<name>`,
+  e.g. an `.html` she wrote) counted as an in-app link, so the desktop window
+  navigated to the backend URL and showed the raw file (or a 401) in place
+  of the app, with no address bar to come back — on macOS this needed a
+  Force Quit (Noctu report, 21 Oct). Such links, and the chat card's
+  Download button, now fetch the file with the session and hand it to the
+  OS (saved to Downloads and opened with the default app). The launcher also
+  watches the main window and reloads the app if it ever leaves it.
+
 ### v5.26.0 · build 306 — 2026-10-21
 **White-label hardening from Noctu's two reports; database role ownership migration. PMI behaviour unchanged**
 
