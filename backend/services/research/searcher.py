@@ -125,7 +125,7 @@ async def fetch_page_text(url: str, max_chars: int = MAX_PAGE_CHARS) -> str:
         ) as client:
             resp = await client.get(
                 url,
-                headers={"User-Agent": "PMIAgent/1.0 (research bot; non-commercial)"},
+                headers={"User-Agent": "LittleGerry/1.0 (research bot; non-commercial)"},
             )
             resp.raise_for_status()
             content_type = resp.headers.get("content-type", "")

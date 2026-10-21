@@ -127,7 +127,7 @@ async def _llm_draft_email(
         return (
             f"Dear {recipient_name or 'Recipient'},\n\n"
             f"{purpose}\n\n"
-            "Best regards,\nPMI Team"
+            f"Best regards,\n{_brand.company_short} Team"
         )
 
 

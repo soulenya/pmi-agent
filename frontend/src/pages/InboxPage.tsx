@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BRAND } from "../lib/brand";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -1078,7 +1079,7 @@ function SignatureModal({ data, onClose }: { data?: SignatureData; onClose: () =
                 value={custom}
                 onChange={(e) => setCustom(e.target.value)}
                 rows={4}
-                placeholder={"Best regards,\nYour Name\nPMI"}
+                placeholder={`Best regards,\nYour Name\n${BRAND.companyShort}`}
                 className="mt-1 w-full text-sm px-2 py-1.5 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 focus:outline-none focus:border-zinc-500"
               />
             </span>

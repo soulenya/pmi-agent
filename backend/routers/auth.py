@@ -730,7 +730,7 @@ async def google_callback(
             payload={"email": email, "reason": "domain"},
         )
         await db.commit()
-        return _fail("Connect a PMI account, not a personal one.")
+        return _fail(f"Connect a {get_brand().company_short} account, not a personal one.")
 
     await google_user_creds.store(db, user.id, email, creds)
     await audit.log(
