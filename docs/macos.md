@@ -1,8 +1,8 @@
 # Little Gerry on macOS (Apple Silicon)
 
-Status and operating guide for the macOS port. Windows 11 remains the protected
-production baseline — everything macOS-specific here is **additive**; the Windows
-packaging, signing, launcher, and auto-update pipelines are untouched.
+Operating guide for the macOS build (current as of 5.26.1). Windows remains the
+primary platform — everything macOS-specific is **additive**; the Windows
+packaging, signing, launcher and auto-update pipelines are untouched.
 
 ## Architecture (same as Windows)
 
@@ -17,7 +17,7 @@ Windows installs keep their data exactly where it is.
 | Install | Inno Setup `LittleGerry_Setup.exe` (Authenticode-signed) | `LittleGerry.pkg` (per-user, home domain) via `scripts/build-macos.sh` |
 | Launch | `Start Little Gerry.bat` / launcher.py (pythonw) | `Little Gerry.app` stub → `Start Little Gerry.command` → launcher.py |
 | Webview | pywebview `winforms` (Edge WebView2) | pywebview Cocoa (WKWebView via PyObjC, auto-selected) |
-| Tray | pystray | none (Cocoa tray needs the main thread pywebview owns); window close + in-app ServiceMenu cover stop/restart/update |
+| Tray | pystray | none (Cocoa tray needs the main thread pywebview owns); closing the window quits; in-app ServiceMenu covers restart/update |
 | Auto-update | Downloads `LittleGerry_Setup.exe`, hands off to `scripts/apply_update.ps1` | Downloads `LittleGerry.pkg`, hands off to `scripts/apply_update.sh` (silent `installer -pkg … -target CurrentUserHomeDirectory`, no sudo) |
 | Secrets | Windows Credential Locker via `keyring` | macOS Keychain via `keyring` (same service/entry names) |
 | Publish | `scripts/publish-release.ps1` (creates the GitHub release) | `scripts/publish-macos.sh` (attaches the `.pkg` to the **same** vX.Y.Z release) |
@@ -51,59 +51,64 @@ double-click `Start Little Gerry.command` (or `Little Gerry.app` on installed co
   install dir. Unsigned builds may still warn on the `.pkg` itself
   (right-click → Open) until Developer ID signing is configured (below).
 
-## Code signing & notarization (prerequisite not yet met)
+## Code signing & notarization
 
-PMI's Authenticode certificate does **not** apply to macOS. A proper end-user
-deliverable requires an **Apple Developer Program membership** ($99/yr) and a
-**Developer ID Installer** certificate. `scripts/build-macos.sh` already supports
-it — signing/notarization are no-ops until these env vars are set:
+PMI's Authenticode certificate does **not** apply to macOS. Since June 2026 PMI
+holds an Apple Developer Program membership and a **Developer ID Installer**
+certificate, and `.github/workflows/macos-release.yml` signs, notarizes and
+staples every release's `.pkg` on a GitHub `macos-latest` runner (Apple
+silicon) from five repository secrets: `MACOS_CERT_P12_BASE64`,
+`MACOS_CERT_PASSWORD`, `MACOS_NOTARY_APPLE_ID`, `MACOS_NOTARY_PASSWORD`
+(app-specific), `MACOS_NOTARY_TEAM_ID`. When the secrets are absent — a new
+company's fork before it joins the program — the workflow still builds and
+attaches an **unsigned** `.pkg`; Gatekeeper then needs right-click → Open
+once. The first notarization on a new account can take 40 minutes.
+
+Locally, `scripts/build-macos.sh` signs/notarizes only when these are set:
 
 ```bash
-export DEVELOPER_ID_INSTALLER="Developer ID Installer: Precisian Medical Instruments (TEAMID)"
+export DEVELOPER_ID_INSTALLER="Developer ID Installer: <Company> (TEAMID)"
 export NOTARY_PROFILE="littlegerry"   # created once via:
 # xcrun notarytool store-credentials littlegerry \
 #   --apple-id <appleid> --team-id <TEAMID> --password <app-specific-password>
 bash scripts/publish-macos.sh
 ```
 
-When set, the `.pkg` is signed with `productsign`, submitted with `notarytool`,
-and the ticket stapled. **Until then, builds are unsigned and not a customer
-deliverable** — Gatekeeper will block them on machines with default settings.
-
 ## Release flow (both platforms, one tag)
 
-1. On Windows: `scripts\publish-release.ps1 -Version X.Y.Z -Notes "…"` — bumps
-   VERSION, builds + signs the `.exe`, creates the GitHub release `vX.Y.Z`.
-2. On the Mac: `git pull`, then `bash scripts/publish-macos.sh` — builds the
-   `.pkg` (signing/notarizing if configured) and attaches it to the same release.
+1. On Windows: the release recipe in DEVELOPER_GUIDE.md §14 builds and signs
+   the `.exe`, deploys the hub, and runs `gh release create vX.Y.Z`.
+2. The `macos-release.yml` workflow fires on *release published*, checks out
+   the tag, runs `scripts/build-macos.sh`, and uploads `LittleGerry.pkg` to the
+   same release. `workflow_dispatch` with a tag back-fills an older release.
 
 The launcher's updater picks the right asset per platform
-(`LittleGerry_Setup.exe` on Windows, `LittleGerry.pkg` on macOS) and applies it
+(`<setup_name>.exe` on Windows, `<pkg_name>.pkg` on macOS) and applies it
 by replacing the whole install dir contents via the platform's apply script —
 never patching files inside a signed bundle.
 
-## Items requiring verification on real Apple Silicon hardware
+## Status on real Apple Silicon hardware (Noctu, October 2026)
 
-Not provable from a Windows dev box; check these on the first Mac bring-up:
+The first production Mac install was a white-label customer's MacBook Air.
+Verified working: `uv sync` to native arm64 wheels, the Cocoa window,
+Docker-backed Postgres, Google OAuth hand-off, Keychain-backed secrets,
+self-update via the `.pkg`. Fixed from their reports (5.26.0–5.26.1):
 
-- [ ] `cd backend && uv sync` resolves every dependency to a native arm64 wheel
-      (pywebview must pull its PyObjC extras on macOS).
-- [ ] launcher.py runs as a native arm64 process (Activity Monitor → no "(Rosetta)";
-      `arch` prints `arm64`). Note: uv's python-build-standalone is not a framework
-      build — if the pywebview window misbehaves (no focus/menu), retry with a
-      framework Python (`brew install python` + `uv venv --python /opt/homebrew/bin/python3`).
-- [ ] WKWebView: WebSocket streaming chat, MediaRecorder voice capture, and the
-      `getUserMedia` permission flow inside the embedded view. If pywebview does not
-      grant the WKWebView media-capture permission callback, patch the Cocoa
-      delegate in launcher.py (platform-gated).
-- [ ] Mic TCC attribution: launching via `Little Gerry.app` must attribute the mic
-      to the bundle (whose plist has the usage string). Launching via the bare
-      `.command` in Terminal attributes to Terminal instead — fine for dev,
-      document for users.
-- [ ] Full voice round-trip (record → STT → agent → TTS → playback).
-- [ ] Google OAuth browser handoff (`open <url>`) and Keychain-backed token storage.
-- [ ] Ollama native install with Metal acceleration; provider works for local models.
-- [ ] `showSaveFilePicker` is unavailable in WKWebView — SaveFileDialog must take
-      its Downloads-folder fallback path gracefully.
-- [ ] Auto-update end-to-end: old `.pkg` install → new release → silent update →
-      relaunch (`backend/logs/apply_update.log`).
+- Services start in their own process group and are killed as a group, so
+  nothing is left running after quit; teardown also runs on SIGTERM/SIGHUP.
+- Closing the window quits without a confirmation dialog — a modal inside
+  app termination deadlocked Cocoa (spinning cursor, Force Quit).
+- A saved window position is restored only when it lies inside the primary
+  screen; one on a second display crashed pywebview's `windowDidMove`. If
+  window creation still fails the launcher clears the saved state and
+  relaunches itself once.
+- The `.app` stub falls back to `~/Applications/<install dir>` when the bundle
+  has been dragged elsewhere, and shows an alert instead of exiting silently.
+- Links to generated files in chat download and open natively instead of
+  navigating the window (WKWebView ignores the `download` attribute).
+- Migrations read `backend/.env`, so a brand whose database role is not PMI's
+  no longer fails on first launch.
+
+Still to confirm on a Mac: a full voice round-trip (record → STT → agent →
+TTS) and Ollama with Metal acceleration. There is no tray icon on macOS
+(pywebview's Cocoa backend owns the main thread); close is quit.

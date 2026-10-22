@@ -2,6 +2,8 @@
 
 **Little Gerry** is the AI Executive Assistant, chief of staff, and regulatory expert for [Precisian Medical Instruments](https://www.precisianmedical.com) and the **VACTOR** device program. It combines a powerful cloud AI brain (Anthropic Claude) with local-first data storage — your documents and conversations stay on your machine, while your AI is best-in-class.
 
+This repository is PMI's. The company is a parameter (`brand/brand.json`): a second company runs the same code from its own repository, Google Cloud project and hub — see [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) §4 and §15. Current release: **5.26.1 (build 307)**; everything since build 1 is in [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
 ## Table of Contents
@@ -23,7 +25,7 @@
 
 ## Overview
 
-Little Gerry runs as a **native Windows desktop application** — a branded splash screen launches all services in the background, then loads the full React app in a WebView2 window. A system tray icon provides quick access and graceful shutdown.
+Little Gerry runs as a **native desktop application** on Windows and Apple-silicon Macs — a branded splash screen launches all services in the background, then loads the full React app in a WebView2 (Windows) or WKWebView (macOS) window. A system tray icon (Windows) provides quick access and graceful shutdown. The same code also runs as the company's shared **hub** (one server behind Google Identity-Aware Proxy, reachable from a browser or phone) for the work people share.
 
 The stack: **React 19 + TypeScript + Vite** frontend, **FastAPI** backend (Python 3.14), **Anthropic Claude** for AI, **Voyage AI** for document embeddings, and **PostgreSQL 16 + pgvector** for vector search — all data stored locally on your machine.
 
@@ -718,6 +720,10 @@ Double-click: build-installer.bat
 
 Output: `installer\Output\LittleGerry_Setup.exe`
 
+### Releasing, the hub, and a second company
+
+The release sequence (docs gate → gates → installer + signing → hub image → `deploy-hub.ps1` → `gh release create`), the hub's layout and deploy script, and the new-company bootstrap and upstream-update scripts are described in [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) §10, §14 and §15.
+
 ---
 
 ## Security Notes
@@ -734,4 +740,4 @@ Output: `installer\Output\LittleGerry_Setup.exe`
 
 ---
 
-*Built for Precisian Medical Instruments · VACTOR Program · June 2026*
+*Built for Precisian Medical Instruments · VACTOR Program · 5.26.1, October 2026*
