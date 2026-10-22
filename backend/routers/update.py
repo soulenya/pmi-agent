@@ -244,6 +244,11 @@ async def _apply_release() -> UpdateResult:
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
             resp = await client.get(GITHUB_RELEASES_API, headers=_github_headers())
+            if resp.status_code in (401, 403, 404):
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"GitHub answered {resp.status_code} for {GITHUB_REPO} releases; the update token has expired or lacks access.",
+                )
             resp.raise_for_status()
             data = resp.json()
 
@@ -252,7 +257,16 @@ async def _apply_release() -> UpdateResult:
                 None,
             )
             if not asset:
-                raise HTTPException(status_code=502, detail="Installer asset not found in latest release")
+                present = ", ".join(a.get("name", "?") for a in data.get("assets", [])) or "none"
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        f"Release {data.get('tag_name', '?')} exists but {asset_name} is not attached yet "
+                        f"(attached: {present}). The installer is built by the repository's release "
+                        "workflow after publishing - the macOS build can take 20-40 minutes and is retried "
+                        "when GitHub's runners are busy. Try again later, or relaunch the app, which checks on start."
+                    ),
+                )
 
             target = Path(tempfile.gettempdir()) / target_name
             async with client.stream(
@@ -264,6 +278,8 @@ async def _apply_release() -> UpdateResult:
                 with open(target, "wb") as out:
                     async for chunk in dl.aiter_bytes():
                         out.write(chunk)
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"Could not download {asset_name}: GitHub answered {exc.response.status_code}.")
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Could not download update: {exc}")
 

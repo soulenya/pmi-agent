@@ -19,6 +19,14 @@
   `admin_email` at first sign-in gave the role, so an administrator who
   signed in with a different address than the one typed into the bootstrap
   was a member for good.
+- Applying an update before the release workflow has attached this
+  platform's installer answered a bare 502. The message now names the
+  release, the missing asset and what is attached, and says the build is
+  still running; the launcher says the same on the splash instead of
+  silently starting the old version; Settings shows the server's reason for
+  apply failures. `update-from-upstream.ps1` reports which installers are
+  attached after publishing and re-dispatches the macOS workflow when GitHub
+  failed to find it a runner.
 
 ### v5.26.1 · build 307 — 2026-10-21
 **Clicking a generated file link no longer takes over the window**
