@@ -25,6 +25,26 @@ class UserRepository(BaseRepository[User]):
     async def email_exists(self, email: str) -> bool:
         return await self.get_by_email(email) is not None
 
+    async def has_admin(self) -> bool:
+        result = await self.session.execute(
+            select(User.id).where(User.role == "admin", User.is_active.is_(True)).limit(1)
+        )
+        return result.scalar_one_or_none() is not None
+
+    def is_designated_admin(self, email: str) -> bool:
+        """The brand's administrator address (brand.json / ADMIN_EMAIL)."""
+        from config import settings
+
+        return (email or "").lower() == (settings.admin_email or "").strip().lower()
+
+    async def role_for_new_user(self, email: str) -> str:
+        """Admin for the brand's administrator address, and for the first
+        account on a database that has no administrator yet (a fresh install
+        is its owner's own copy); member otherwise."""
+        if self.is_designated_admin(email) or not await self.has_admin():
+            return "admin"
+        return "member"
+
 
 class UserSessionRepository(BaseRepository[UserSession]):
     def __init__(self, session: AsyncSession) -> None:

@@ -2369,9 +2369,10 @@ function UpdateSection() {
     }
   }
 
-  // Derive a human-readable error
+  // Derive a human-readable error: the server's detail first, axios's status line otherwise.
   const checkErrorMsg = isError
-    ? (error instanceof Error ? error.message : "Could not reach the update server.")
+    ? ((error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail as string | undefined) ||
+      (error instanceof Error ? error.message : "Could not reach the update server.")
     : null;
 
   return (

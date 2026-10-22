@@ -4,6 +4,22 @@
 
 ## Changelog
 
+### Unreleased
+**Check for Updates for every signed-in user; first account becomes administrator**
+
+- Settings → Check for Updates was admin-only and answered a member with a
+  bare "Request failed with status code 403" — read by Noctu as an expired
+  update token. Checking is now open to any signed-in user (applying stays
+  admin-only), and when GitHub itself refuses the request the message
+  names the repository, the status and whether an update token is present.
+- On a database with no administrator yet, the first account to sign in
+  becomes administrator (a fresh install is its owner's own copy); the
+  brand's `admin_email` is still promoted on sign-in even if it was
+  provisioned as a member earlier. Until now only an exact match with
+  `admin_email` at first sign-in gave the role, so an administrator who
+  signed in with a different address than the one typed into the bootstrap
+  was a member for good.
+
 ### v5.26.1 · build 307 — 2026-10-21
 **Clicking a generated file link no longer takes over the window**
 
