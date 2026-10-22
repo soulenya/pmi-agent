@@ -22,7 +22,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from dependencies import require_admin
+from dependencies import get_current_user, require_admin
 from config import settings
 from brand import get_brand
 
@@ -128,7 +128,7 @@ class UpdateResult(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/check", response_model=UpdateStatus)
-async def check_for_update(_=Depends(require_admin)) -> UpdateStatus:
+async def check_for_update(_=Depends(get_current_user)) -> UpdateStatus:
     """Compare the installed build against the latest available on GitHub.
 
     Installed copies compare ``VERSION`` against the latest release tag; developer
@@ -145,6 +145,16 @@ async def _check_release() -> UpdateStatus:
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(GITHUB_RELEASES_API, headers=_github_headers())
+            if resp.status_code in (401, 403, 404):
+                tok = "present" if _update_token() else "missing"
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        f"GitHub answered {resp.status_code} for {GITHUB_REPO} releases (update token {tok}). "
+                        "The repository's UPDATE_TOKEN secret has expired or lacks read access; "
+                        "generate a new fine-grained token (Contents: read-only), set the secret, and rebuild the release."
+                    ),
+                )
             resp.raise_for_status()
             data = resp.json()
     except httpx.HTTPError as exc:

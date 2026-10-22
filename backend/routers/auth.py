@@ -366,6 +366,12 @@ async def google_poll(
     auth_service = AuthService(db)
     user = await auth_service.user_repo.get_by_email(email)
 
+    if user is not None and user.role != "admin" and auth_service.user_repo.is_designated_admin(email):
+        # brand.json's administrator was provisioned as a member (address set
+        # or corrected after their first sign-in): promote on sign-in.
+        user.role = "admin"
+        await audit.log("user.promoted_admin", actor_id=user.id, entity_type="user", entity_id=user.id, payload={"email": email, "via": "brand_admin_email"})
+
     if user is None:
         # First sign-in on this machine — auto-provision the account (local-first:
         # this is the user's own copy). The owner becomes admin; everyone else is a
@@ -373,7 +379,7 @@ async def google_poll(
         import secrets as _secrets
         from services.auth.service import hash_password
 
-        role = "admin" if email == settings.admin_email.lower() else "member"
+        role = await auth_service.user_repo.role_for_new_user(email)
         display_name = (session_data.get("name") or "").strip() or email.split("@")[0]
         user = User(
             email=email,
@@ -504,11 +510,15 @@ async def iap_login(
     auth_service = AuthService(db)
     user = await auth_service.user_repo.get_by_email(email)
 
+    if user is not None and user.role != "admin" and auth_service.user_repo.is_designated_admin(email):
+        user.role = "admin"
+        await audit.log("user.promoted_admin", actor_id=user.id, entity_type="user", entity_id=user.id, payload={"email": email, "via": "brand_admin_email"})
+
     if user is None:
         import secrets as _secrets
         from services.auth.service import hash_password
 
-        role = "admin" if email == settings.admin_email.lower() else "member"
+        role = await auth_service.user_repo.role_for_new_user(email)
         user = User(
             email=email,
             display_name=email.split("@")[0],
