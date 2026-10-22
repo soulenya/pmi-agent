@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 307;
-export const BUILD_DATE = "2026-10-21";
+export const BUILD_NUMBER = 308;
+export const BUILD_DATE = "2026-10-22";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 308,
+    date: "2026-10-22",
+    title: "Clearer update messages",
+    changes: [
+      "Check for Updates works for every signed-in user (installing an update still needs an administrator). When an update cannot be checked or installed, the message now says why — for example that the new release's installer is still being built — instead of a bare error code.",
+      "On a brand-new install the first person to sign in becomes the administrator.",
+    ],
+  },
   {
     build: 307,
     date: "2026-10-21",

@@ -4,8 +4,8 @@
 
 ## Changelog
 
-### Unreleased
-**Check for Updates for every signed-in user; first account becomes administrator**
+### v5.26.2 · build 308 — 2026-10-22
+**Update check for every user; first account becomes administrator; update errors say why**
 
 - Settings → Check for Updates was admin-only and answered a member with a
   bare "Request failed with status code 403" — read by Noctu as an expired
