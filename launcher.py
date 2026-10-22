@@ -470,6 +470,11 @@ def _auto_update_release() -> bool:
             None,
         )
         if not asset:
+            # Published, but this platform's installer has not been attached yet
+            # (the release workflow builds it after publishing).
+            _log(f"update {version_str} published without {UPDATE_ASSET_NAME}; will check again next launch")
+            _set_status(f"Update {version_str} is published; its installer is still being built. Starting the current version.", 0)
+            time.sleep(2)
             return False
 
         _set_status(f"Downloading update {'.'.join(map(str, latest))}...", 0)

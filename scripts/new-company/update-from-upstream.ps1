@@ -122,6 +122,24 @@ if ($LASTEXITCODE -eq 0) {
     Ok "release created - the Windows and macOS workflows attach the installers (Actions tab, ~10-40 min)"
 }
 Note "Installed copies pick up $tag on their next launch."
+
+# The installers are attached by CI after publishing. Report which are there, and
+# re-dispatch the macOS workflow when GitHub failed to find it a runner (seen twice).
+$setup = "$($brand.windows.setup_name).exe"; $pkg = "$($brand.macos.pkg_name).pkg"
+$assets = @(& gh release view $tag --repo $repo --json assets --jq ".assets[].name" 2>$null)
+foreach ($want in @($setup, $pkg)) {
+    if ($assets -contains $want) { Ok "$want attached" } else { Note "$want not attached yet" }
+}
+if ($assets -notcontains $pkg) {
+    $run = & gh run list --repo $repo --workflow macos-release.yml --limit 1 --json status,conclusion --jq ".[0] | .status + \" \" + (.conclusion // \"\")" 2>$null
+    if ("$run" -match "completed (failure|cancelled)") {
+        & gh workflow run macos-release.yml --repo $repo -f tag=$tag *> $null
+        if ($LASTEXITCODE -eq 0) { Ok "macOS build had failed ($run); re-dispatched for $tag" }
+    } elseif ("$run" -match "in_progress|queued") {
+        Note "macOS build is $($run.Split(' ')[0]); the .pkg appears when it finishes"
+    }
+}
+Note "Check later with:  gh release view $tag --repo $repo --json assets --jq '.assets[].name'"
 if ($SkipHub -or -not $brand.hub_url) { Step "Done"; return }
 
 # ── 4. Hub ───────────────────────────────────────────────────────────────────

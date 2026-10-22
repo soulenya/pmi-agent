@@ -2363,7 +2363,12 @@ function UpdateSection() {
       const result = await applyUpdate();
       setApplyMessage(result.message);
     } catch (e: unknown) {
-      setApplyError(e instanceof Error ? e.message : "Update failed — check the terminal for details.");
+      const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      setApplyError(
+        typeof detail === "string" && detail
+          ? detail
+          : e instanceof Error ? e.message : "Update failed — check the terminal for details.",
+      );
     } finally {
       setApplying(false);
     }
