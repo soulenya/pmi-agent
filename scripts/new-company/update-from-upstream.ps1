@@ -62,7 +62,8 @@ foreach ($r in @("company", "origin")) {
 if (-not $companyRemote) { RunGit remote add company "https://github.com/$repo.git"; $companyRemote = "company" }
 Note "company remote: $companyRemote ($(& git remote get-url $companyRemote))"
 
-RunGit fetch -q upstream master
+# --no-tags: the company tags its own releases with the same vX.Y.Z names.
+RunGit fetch -q --no-tags upstream master
 RunGit fetch -q $companyRemote master
 $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
 if ($branch -ne "master") { RunGit checkout -q master }
