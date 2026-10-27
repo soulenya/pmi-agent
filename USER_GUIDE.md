@@ -412,6 +412,15 @@ A document with no text layer — a scan, a photo of a page, an image — is rea
 
 In the Library tab, use **Import from Drive** to search your Drive and pick files. One dialog then asks for the category and whether the batch is regulated (a single file can also be retitled), and the files are pulled into the Knowledge Base.
 
+### When the Drive file changes
+
+A document imported from Drive stays linked to its source. Three times a day (and whenever you click **Check for updates** in the Library) Little Gerry looks at each linked file. If one has been edited, renamed or removed in Drive, the document is marked in the Library **and an approval is raised** — it appears under **Waiting for you → Approvals**, so it is on Today and the bell like anything else that needs a decision. The card names the file, who changed it and when, with a link to open it in Drive.
+
+- **Update from Drive** replaces the Knowledge Base copy with the current file.
+- **Keep my copy** leaves the document as it is and stops the reminder. A later edit asks again.
+
+Nothing is re-imported on its own. **Apply update** and **Dismiss** on the document itself do the same two things; whichever you use, the approval closes.
+
 ### Avoiding duplicates
 
 Little Gerry detects when you try to add a file that is byte-for-byte identical to
@@ -803,7 +812,7 @@ tells you they cannot see any of it yet. Moving the project takes them with it.
 **On a hub project**, the **People** panel lists everyone on the project. If you
 own it, you can change that list.
 
-**To add someone,** type their work email address, choose what they should be able to do, and click **Add**:
+**To add someone,** pick them from the list of people at your firm — the same list Team chat uses — choose what they should be able to do, and click **Add**:
 
 | Role | What it allows |
 |------|----------------|
@@ -813,7 +822,7 @@ own it, you can change that list.
 
 Ownership is not on that list. Handing a project over is a different act from sharing it, and it is not done from a dropdown.
 
-**You can add someone who has never opened Little Gerry.** Their role is written down and waiting for them the first time they sign in with their own account.
+**The list shows people who have signed in at least once.** Choosing a name puts the role on the account they actually use, so they see the project the next time they open Little Gerry. **Someone else, by email…** is there for an address that is not listed yet; it has to match an account that exists, and if nobody has signed in with it you are told so rather than the role going to no one. If a name in the panel is marked **never signed in**, that role is parked on an account nobody uses — remove it and pick the person from the list.
 
 **Adding someone grants a role. It does not grant a way in.** They still sign in as themselves, and are still checked at sign-in, every time. For that reason only addresses at your firm can be added — the same list of domains that governs signing in governs sharing, so the two can never drift apart.
 
@@ -995,6 +1004,7 @@ Open **Gmail** from the **Communications** area of the home screen. Requires [Go
 
 - **Mark unread** puts a thread back in the pile so it shows as new again.
 - **Move to Trash** to clean up your inbox — available on the open email, and on hover in the list. Deleted mail is recoverable from Gmail for 30 days.
+- **Delete** in the toolbar moves every email you have ticked to Trash at once, after one confirmation. Anything that could not be moved stays ticked so you can try again.
 - **Draft selected** asks Little Gerry to draft replies for the emails you tick — each drafted reply lands in **Approvals** for your review.
 
 ---
@@ -1246,7 +1256,7 @@ One list of everything that needs you, in three tabs. Open it from the **bell** 
 
 | Tab | What is there | What you can do |
 |-----|---------------|-----------------|
-| **Approvals** | Any action Little Gerry proposes that could have real-world consequences — sending an email, creating a calendar event, writing to Odoo — with an AI-generated summary. | **Approve** runs it; **Reject** (with an optional comment) cancels it. Edit a drafted email before approving. **Clear expired** removes requests that timed out. Every decision is logged in the Audit Trail. |
+| **Approvals** | Any action Little Gerry proposes that could have real-world consequences — sending an email, creating a calendar event, writing to Odoo — with an AI-generated summary. Also a Knowledge Base document whose Drive source has changed. | **Approve** runs it; **Reject** (with an optional comment) cancels it. Edit a drafted email before approving. For a changed Drive file the buttons read **Update from Drive** / **Keep my copy**. **Clear expired** removes requests that timed out. Every decision is logged in the Audit Trail. |
 | **Suggestions** | Gerry's daily-scan suggestions: follow-ups, recommended tasks, imported meeting notes, budget entries. | **Create task** / **Keep** / **File & log** (the accept action depends on the kind), **Already done**, or **Dismiss**. Each one confirms what it did in a toast ("Filed … to …; logged …", "Marked already done") — or says why the server refused. Trust scores, grouping and bulk actions are on the full Suggestions page. |
 | **Notifications** | Task assignments and due-date reminders, new approval requests, briefings, documents added. Suggestions are not repeated here — they have their own tab. | Click one to go where it points; **Mark all read** clears the count. |
 

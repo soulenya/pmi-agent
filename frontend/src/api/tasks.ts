@@ -90,19 +90,27 @@ export async function promoteProject(
 
 // ── People ────────────────────────────────────────────────────────────────────
 
+/** Who to add: picked from the directory by id, or — as a fallback — by email. */
+export type MemberAdd =
+  | { user_id: string; email?: undefined }
+  | { email: string; user_id?: undefined };
+
 /**
  * Adding someone grants a role. It does not grant a way in: they still have to
  * be able to sign in on their own account before the role means anything.
+ *
+ * Prefer the id. It names the same account team chat does, so the role lands
+ * on the person chosen rather than on whatever a typed address happens to hit.
  */
 export async function addProjectMember(
   projectId: string,
-  email: string,
+  who: MemberAdd,
   role: AssignableRole,
   source: Source = "local",
 ): Promise<ProjectMember> {
   const resp = await apiClient.post<ProjectMember>(
     at(source, `/projects/${projectId}/members`),
-    { email, role },
+    { ...who, role },
   );
   return resp.data;
 }

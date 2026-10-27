@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { pushApprovalOutcomeToast } from "@/stores/toastStore";
 
 export const RISK_STYLES: Record<string, string> = {
@@ -78,19 +79,77 @@ export function useResolveApproval() {
       queryClient.invalidateQueries({ queryKey: ["approvals"] });
       queryClient.invalidateQueries({ queryKey: ["email-drafts"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      if (result.intent_type === "refresh_document") {
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
+      }
     },
   });
   return (id: string, approved: boolean, reason?: string) =>
     mutation.mutateAsync({ id, approved, reason });
 }
 
+/** What the two buttons do, in the words of the thing being decided. */
+export function approvalActionLabels(intentType: string): { approve: string; approving: string; reject: string } {
+  if (intentType === "refresh_document") {
+    return { approve: "Update from Drive", approving: "Updating…", reject: "Keep my copy" };
+  }
+  return { approve: "Approve", approving: "Approving…", reject: "Reject" };
+}
+
 /** Friendly preview for an approval payload. Renders email intents as a
- *  readable To/Subject/Body card (preserving line breaks); falls back to
- *  formatted JSON for everything else. */
+ *  readable To/Subject/Body card (preserving line breaks), a Drive change as
+ *  what changed and where; falls back to formatted JSON for everything else. */
 export function PayloadPreview({ intentType, payload }: {
   intentType: string;
   payload: Record<string, unknown>;
 }) {
+  if (intentType === "refresh_document") {
+    const sourceName = pick(payload, ["source_name"]);
+    const url = pick(payload, ["source_url"]);
+    const by = pick(payload, ["modified_by"]);
+    const when = pick(payload, ["source_modified"]);
+    const status = pick(payload, ["sync_status"]);
+    const docId = pick(payload, ["document_id"]);
+    const whenText = when ? new Date(when).toLocaleString() : null;
+    return (
+      <div className="mb-3 rounded-lg border bg-muted/40 text-sm">
+        <div className="flex gap-2 border-b px-3 py-2">
+          <span className="w-16 shrink-0 font-medium text-muted-foreground">Source</span>
+          <span className="min-w-0 break-all">
+            {url ? (
+              <a href={url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                {sourceName ?? "Open in Drive"} ↗
+              </a>
+            ) : (
+              sourceName ?? "—"
+            )}
+          </span>
+        </div>
+        {(by || whenText) && status !== "deleted" && (
+          <div className="flex gap-2 border-b px-3 py-2">
+            <span className="w-16 shrink-0 font-medium text-muted-foreground">Changed</span>
+            <span>
+              {whenText}
+              {by ? ` by ${by}` : ""}
+            </span>
+          </div>
+        )}
+        <div className="px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+          {status === "deleted"
+            ? "The file is gone from Drive, so there is nothing to re-import. Keep my copy leaves the Knowledge Base as it is."
+            : "Update from Drive replaces the Knowledge Base copy with the current file. Keep my copy leaves it as it is and stops this reminder."}
+          {docId && (
+            <>
+              {" "}
+              <Link to="/documents" className="text-primary underline">
+                Open the Knowledge Base
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
   if (intentType === "send_email" || intentType === "send_message") {
     const to = pick(payload, ["recipient_email", "recipient", "to", "recipient_name"]);
     const subject = pick(payload, ["subject", "title"]);
@@ -137,6 +196,7 @@ export function ApprovalCard({ intent, onResolve, compact = false }: {
   const [resolving, setResolving] = useState(false);
 
   const isEmail = intent.intent_type === "send_email" || intent.intent_type === "send_message";
+  const labels = approvalActionLabels(intent.intent_type);
   const [editing, setEditing] = useState(false);
   const [editTo, setEditTo] = useState("");
   const [editCc, setEditCc] = useState("");
@@ -188,7 +248,9 @@ export function ApprovalCard({ intent, onResolve, compact = false }: {
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {intent.intent_type.replace(/_/g, " ")}
+            {intent.intent_type === "refresh_document"
+              ? "Knowledge Base source changed"
+              : intent.intent_type.replace(/_/g, " ")}
           </span>
           <p className="mt-0.5 font-medium">{intent.intent_title}</p>
           {intent.intent_description && (
@@ -338,7 +400,7 @@ export function ApprovalCard({ intent, onResolve, compact = false }: {
                   className="flex items-center gap-1.5 rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground disabled:opacity-50"
                 >
                   <ShieldX className="h-4 w-4" />
-                  Confirm reject
+                  Confirm {labels.reject.toLowerCase()}
                 </button>
                 <button
                   onClick={() => setShowRejectBox(false)}
@@ -356,7 +418,7 @@ export function ApprovalCard({ intent, onResolve, compact = false }: {
                 className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
               >
                 <ShieldCheck className="h-4 w-4" />
-                {resolving ? "Approving…" : "Approve"}
+                {resolving ? labels.approving : labels.approve}
               </button>
               {isEmail && !editing && (
                 <button
@@ -374,7 +436,7 @@ export function ApprovalCard({ intent, onResolve, compact = false }: {
                 className="flex items-center gap-1.5 rounded-md border px-4 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
               >
                 <ShieldX className="h-4 w-4" />
-                Reject
+                {labels.reject}
               </button>
             </div>
           )}

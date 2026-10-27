@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 308;
-export const BUILD_DATE = "2026-10-22";
+export const BUILD_NUMBER = 309;
+export const BUILD_DATE = "2026-10-27";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 309,
+    date: "2026-10-27",
+    title: "Share with a person, not an address",
+    changes: [
+      "Adding someone to a project now picks them from the list of people at your firm — the same list Team chat uses — so the role lands on the account they actually sign in with. Typing an address still works as a fallback, but it has to match someone who has signed in; before, an address that matched no one quietly created an empty account and the person never saw the project. Anyone on a project whose account has never been signed in to is marked so you can remove them and pick the right person.",
+      "When a Knowledge Base document's Drive file is edited, renamed or removed, it now appears under Waiting for you → Approvals (and so on Today) with who changed it, when, and a link to the file. Update from Drive re-imports it; Keep my copy leaves it alone.",
+      "Inbox: tick emails and click Delete to move them all to Trash at once.",
+      "New-email pop-ups no longer stack many times over for the same email.",
+    ],
+  },
   {
     build: 308,
     date: "2026-10-22",

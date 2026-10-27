@@ -19,19 +19,23 @@ export function useNotificationWS(): void {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unmounted = useRef(false);
 
   useEffect(() => {
-    unmounted.current = false;
     if (!isAuthenticated || !accessToken) return;
+    // Belongs to this effect run alone. A flag shared across runs gets flipped
+    // back on by the next run (a token refresh), so a socket closed by cleanup
+    // could see it and reconnect from a stale closure — each refresh then left
+    // one more live socket, and every notification arrived once per socket.
+    let alive = true;
 
     const connect = () => {
-      if (unmounted.current) return;
+      if (!alive) return;
       try {
         const ws = new WebSocket(`${WS_BASE}/ws/notifications?token=${accessToken}`);
         wsRef.current = ws;
 
         ws.onmessage = (evt) => {
+          if (!alive || wsRef.current !== ws) return;
           try {
             const data = JSON.parse(evt.data as string) as {
               type: string;
@@ -45,6 +49,9 @@ export function useNotificationWS(): void {
             if (data.type === "notification") {
               // Invalidate so sidebar badge and page re-fetch
               queryClient.invalidateQueries({ queryKey: ["notifications"] });
+              if (data.notif_type === "approval_required") {
+                queryClient.invalidateQueries({ queryKey: ["approvals"] });
+              }
               if (data.notif_type === "email_received" && data.title) {
                 useToastStore
                   .getState()
@@ -69,8 +76,8 @@ export function useNotificationWS(): void {
         };
 
         ws.onclose = () => {
-          wsRef.current = null;
-          if (!unmounted.current) {
+          if (wsRef.current === ws) wsRef.current = null;
+          if (alive && wsRef.current === null) {
             reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS);
           }
         };
@@ -79,7 +86,7 @@ export function useNotificationWS(): void {
           ws.close();
         };
       } catch {
-        if (!unmounted.current) {
+        if (alive) {
           reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS);
         }
       }
@@ -88,7 +95,7 @@ export function useNotificationWS(): void {
     connect();
 
     return () => {
-      unmounted.current = true;
+      alive = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
       wsRef.current = null;

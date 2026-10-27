@@ -75,6 +75,8 @@ export interface ProjectMember {
   email: string | null;
   display_name: string | null;
   role: "owner" | "editor" | "commenter" | "viewer";
+  /** False: an account nobody has signed in to yet, so this role reaches no one. */
+  has_signed_in?: boolean;
 }
 
 /** Ownership moves by a different act than sharing, so it is not offered here. */

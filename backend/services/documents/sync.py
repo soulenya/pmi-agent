@@ -4,12 +4,14 @@ Document source-update detection (Google Drive sync).
 Provides cheap, metadata-only polling of Google Drive source files linked to
 Knowledge Base documents.  When a linked file is modified, renamed, or deleted
 in Drive, the corresponding document is *flagged* (sync_status) and a
-notification is raised for the owner — changes are never auto-applied, so a
-human can review and approve the re-import (important for regulated content).
+``refresh_document`` approval is raised for the owner — so it sits in the
+Approvals tab (and on Today) until they decide. Changes are never auto-applied:
+approving re-imports, rejecting keeps the stored copy (important for regulated
+content).
 
 Public API:
     parse_drive_time(s)                      -> datetime | None
-    check_document_updates(db)               -> dict   (scan + flag + notify)
+    check_document_updates(db)               -> dict   (scan + flag + raise approval)
     apply_document_update(db, emb, doc_id)   -> Document (re-import from Drive)
     dismiss_document_update(db, doc_id)      -> Document (acknowledge, re-baseline)
 """
@@ -20,15 +22,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import services.google_service as gs
+from models.db.approval import ApprovalIntent
 from models.db.document import Document
-from models.db.enums import NotificationType
-from repositories.conversation_repo import NotificationRepository
+from models.db.enums import ApprovalStatus, IntentType
+from models.db.notification import Notification
+from repositories.conversation_repo import ApprovalRepository
 
 logger = logging.getLogger(__name__)
+
+REFRESH_INTENT = IntentType.REFRESH_DOCUMENT.value
 
 
 def parse_drive_time(value: str | None) -> datetime | None:
@@ -79,9 +85,102 @@ async def _linked_documents(db: AsyncSession, owner_id=None) -> list[Document]:
     return list(result.scalars())
 
 
+async def _pending_refresh_intent(db: AsyncSession, doc_id: UUID) -> ApprovalIntent | None:
+    """The open approval for this document, if one is already waiting."""
+    return (
+        await db.execute(
+            select(ApprovalIntent)
+            .where(
+                ApprovalIntent.intent_type == REFRESH_INTENT,
+                ApprovalIntent.status == ApprovalStatus.PENDING,
+                ApprovalIntent.intent_payload["document_id"].astext == str(doc_id),
+            )
+            .order_by(ApprovalIntent.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+
+async def raise_refresh_approval(
+    db: AsyncSession, doc: Document, meta: dict | None, detail: str | None
+) -> ApprovalIntent | None:
+    """Put the change in front of the owner as an approval. One per document.
+
+    Returns the new intent, or None when there is nobody to ask or one is
+    already waiting.
+    """
+    if doc.created_by is None:
+        return None
+    if await _pending_refresh_intent(db, doc.id) is not None:
+        return None
+    current_name = (meta or {}).get("name") or doc.source_name or doc.title
+    verb = {
+        "modified": "was updated",
+        "renamed": "was renamed",
+        "deleted": "was removed",
+    }.get(doc.sync_status or "", "changed")
+    return await ApprovalRepository(db).create(
+        user_id=doc.created_by,
+        intent_type=REFRESH_INTENT,
+        intent_title=f"Update {doc.title} from Google Drive",
+        intent_description=detail or f"The source file {verb} in Google Drive.",
+        intent_payload={
+            "document_id": str(doc.id),
+            "document_title": doc.title,
+            "sync_status": doc.sync_status,
+            "detail": detail,
+            "source_name": current_name,
+            "source_id": doc.source_id,
+            "source_url": (meta or {}).get("url") or "",
+            "modified_by": (meta or {}).get("modified_by") or "",
+            "source_modified": (meta or {}).get("modified") or "",
+        },
+        risk_level="low",
+    )
+
+
+async def settle_refresh_approvals(
+    db: AsyncSession, doc_id: UUID, *, approved: bool, resolved_by: UUID | None = None
+) -> int:
+    """The document was dealt with — close any approval still open for it.
+
+    Apply and Dismiss on the Documents page, and Approve/Reject on the card,
+    must leave the same state behind; whichever happened first, the other
+    surface stops offering the choice. Does not commit.
+    """
+    intents = list(
+        (
+            await db.execute(
+                select(ApprovalIntent).where(
+                    ApprovalIntent.intent_type == REFRESH_INTENT,
+                    ApprovalIntent.status == ApprovalStatus.PENDING,
+                    ApprovalIntent.intent_payload["document_id"].astext == str(doc_id),
+                )
+            )
+        ).scalars()
+    )
+    if not intents:
+        return 0
+    now = datetime.now(timezone.utc)
+    for intent in intents:
+        intent.status = ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED
+        intent.resolved_by = resolved_by or intent.user_id
+        intent.resolved_at = now
+    await db.execute(
+        update(Notification)
+        .where(
+            Notification.is_read.is_(False),
+            Notification.entity_type == "approval_intent",
+            Notification.entity_id.in_([i.id for i in intents]),
+        )
+        .values(is_read=True, read_at=now)
+    )
+    return len(intents)
+
+
 async def check_document_updates(db: AsyncSession, owner_id=None) -> dict:
     """
-    Scan Drive-linked documents, flag changes, and notify owners.
+    Scan Drive-linked documents, flag changes, and raise an approval for each.
 
     *owner_id* narrows the scan to one person's documents, which is what the hub
     needs: only their own Google grant can read the files they linked.
@@ -90,7 +189,6 @@ async def check_document_updates(db: AsyncSession, owner_id=None) -> dict:
     Commits the transaction itself.
     """
     docs = await _linked_documents(db, owner_id)
-    notif_repo = NotificationRepository(db)
     now = datetime.now(timezone.utc)
 
     items: list[dict] = []
@@ -121,6 +219,14 @@ async def check_document_updates(db: AsyncSession, owner_id=None) -> dict:
         doc.sync_status = new_status
         doc.sync_detail = detail
         changed += 1
+
+        # An approval is raised once per flagged document: on the transition
+        # into a flagged state, or when a flagged document somehow has none
+        # waiting (predates this, or was cleared out as expired).
+        intent = None
+        if prev_status in (None, "current") or await _pending_refresh_intent(db, doc.id) is None:
+            intent = await raise_refresh_approval(db, doc, meta, detail)
+
         items.append(
             {
                 "id": str(doc.id),
@@ -128,30 +234,22 @@ async def check_document_updates(db: AsyncSession, owner_id=None) -> dict:
                 "sync_status": new_status,
                 "detail": detail,
                 "user_id": str(doc.created_by) if doc.created_by else None,
-                "notify": prev_status in (None, "current"),
+                "notify": intent is not None,
+                "approval_id": str(intent.id) if intent is not None else None,
             }
         )
-
-        # Only notify on a fresh transition into a flagged state (natural dedup).
-        if prev_status in (None, "current") and doc.created_by is not None:
-            await notif_repo.create(
-                user_id=doc.created_by,
-                type=NotificationType.SYSTEM_ALERT.value,
-                title=f"Document update available: {doc.title}",
-                message=detail,
-                entity_type="document",
-                entity_id=doc.id,
-            )
 
     await db.commit()
     return {"checked": len(docs), "changed": changed, "errors": errors, "items": items}
 
 
-async def apply_document_update(db: AsyncSession, embedding_svc, doc_id: UUID) -> Document:
+async def apply_document_update(
+    db: AsyncSession, embedding_svc, doc_id: UUID, *, resolved_by: UUID | None = None
+) -> Document:
     """
     Re-fetch a Drive-linked document's current content and re-ingest it,
     updating the stored file, chunks, and sync baseline. Sets sync_status back
-    to 'current'. Commits the transaction.
+    to 'current' and closes the document's open approval. Commits.
 
     Raises LookupError if not found, ValueError if not Drive-linked or content
     could not be extracted.
@@ -202,17 +300,20 @@ async def apply_document_update(db: AsyncSession, embedding_svc, doc_id: UUID) -
     doc.last_checked_at = now
     doc.sync_status = "current"
     doc.sync_detail = None
+    await settle_refresh_approvals(db, doc.id, approved=True, resolved_by=resolved_by)
 
     await db.commit()
     await db.refresh(doc)
     return doc
 
 
-async def dismiss_document_update(db: AsyncSession, doc_id: UUID) -> Document:
+async def dismiss_document_update(
+    db: AsyncSession, doc_id: UUID, *, resolved_by: UUID | None = None
+) -> Document:
     """
-    Acknowledge a flagged change without re-importing: clear the flag and
+    Acknowledge a flagged change without re-importing: clear the flag,
     re-baseline against the current Drive metadata so it is not re-flagged on
-    the next check. Commits the transaction.
+    the next check, and close the document's open approval. Commits.
 
     Raises LookupError if not found.
     """
@@ -235,6 +336,7 @@ async def dismiss_document_update(db: AsyncSession, doc_id: UUID) -> Document:
 
     doc.sync_status = "current"
     doc.sync_detail = None
+    await settle_refresh_approvals(db, doc.id, approved=False, resolved_by=resolved_by)
 
     await db.commit()
     await db.refresh(doc)

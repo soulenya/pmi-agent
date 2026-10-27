@@ -3,6 +3,7 @@ Google Workspace integration router.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from typing import Any
@@ -976,6 +977,20 @@ async def gmail_draft_selected(
     return {"count": len(drafted), "drafted": drafted, "skipped": skipped}
 
 
+def _trash_failure(exc: Exception) -> HTTPException:
+    """The single error vocabulary for a Trash that did not happen."""
+    if isinstance(exc, RuntimeError):
+        return HTTPException(401, str(exc))
+    msg = str(exc).lower()
+    if "insufficient" in msg or "scope" in msg or "permission" in msg or "403" in msg:
+        return HTTPException(
+            403,
+            "Deleting emails needs an extra Google permission. Please reconnect "
+            "your Google account (Google Workspace → reconnect) to grant it.",
+        )
+    return HTTPException(502, f"Could not move the email to Trash: {exc}")
+
+
 @router.post("/gmail/thread/{thread_id}/trash")
 async def gmail_thread_trash(thread_id: str, _user=Depends(get_current_user)):
     """Move a thread to the Gmail Trash (recoverable for 30 days).
@@ -987,17 +1002,44 @@ async def gmail_thread_trash(thread_id: str, _user=Depends(get_current_user)):
         raise HTTPException(401, "Google account not connected.")
     try:
         return gs.gmail_trash_thread(thread_id)
-    except RuntimeError as e:
-        raise HTTPException(401, str(e))
     except Exception as exc:
-        msg = str(exc).lower()
-        if "insufficient" in msg or "scope" in msg or "permission" in msg or "403" in msg:
-            raise HTTPException(
-                403,
-                "Deleting emails needs an extra Google permission. Please reconnect "
-                "your Google account (Google Workspace → reconnect) to grant it.",
-            )
-        raise HTTPException(502, f"Could not move the email to Trash: {exc}")
+        raise _trash_failure(exc) from exc
+
+
+class GmailTrashSelectedRequest(BaseModel):
+    thread_ids: list[str] = []
+
+
+@router.post("/gmail/threads/trash")
+async def gmail_threads_trash(
+    req: GmailTrashSelectedRequest, _user=Depends(get_current_user)
+):
+    """Move every ticked thread to Trash, reporting each one separately.
+
+    One bad thread must not stop the rest, so this never raises for a single
+    failure — unless it is the permission problem, which will fail them all
+    and is better said once than fifty times.
+    """
+    if not gs.get_credentials():
+        raise HTTPException(401, "Google account not connected.")
+
+    thread_ids = [tid for tid in dict.fromkeys(req.thread_ids) if tid][:100]
+    if not thread_ids:
+        raise HTTPException(422, "Select at least one email to delete.")
+
+    loop = asyncio.get_running_loop()
+    trashed: list[str] = []
+    failed: list[dict] = []
+    for tid in thread_ids:
+        try:
+            await loop.run_in_executor(None, gs.gmail_trash_thread, tid)
+            trashed.append(tid)
+        except Exception as exc:
+            failure = _trash_failure(exc)
+            if failure.status_code in (401, 403):
+                raise failure from exc
+            failed.append({"thread_id": tid, "error": failure.detail})
+    return {"count": len(trashed), "trashed": trashed, "failed": failed}
 
 
 def _modify_scope_error(exc: Exception, action: str) -> HTTPException:

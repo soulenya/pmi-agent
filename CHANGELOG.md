@@ -4,6 +4,45 @@
 
 ## Changelog
 
+### v5.27.0 · build 309 — 2026-10-27
+**Share a project by picking the person; changed Drive sources become approvals; delete ticked emails; one toast per email**
+
+- Sharing a project took a typed email address and, when it matched no
+  account, silently made a dormant one to carry the role — so the person
+  it was meant for signed in as themselves and found nothing (a project
+  shared with one person was never seen until it was opened to the
+  company). The People panel now picks from the same directory Team chat
+  uses and sends the account id; typing an address is the fallback and
+  must match someone who has signed in, else it is refused with a reason.
+  Members whose account has never been signed in to are marked **never
+  signed in** so a role parked on nobody can be spotted and removed.
+  `MemberAdd` takes `user_id` or `email`; `MemberOut.has_signed_in`.
+- A Knowledge Base document whose Drive source was edited, renamed or
+  removed used to raise a bell notification only. It now raises a
+  `refresh_document` approval for the owner — in the Approvals tab, so on
+  Today — naming the file, who changed it, when, with a Drive link.
+  **Update from Drive** re-imports; **Keep my copy** re-baselines. One
+  approval per document; repeat scans do not stack them; Apply/Dismiss
+  on the Documents page closes the approval and the card refreshes the
+  Library. A deleted source still asks, and says there is nothing to
+  re-import. Six tests, Drive mocked.
+- Inbox: **Delete (N)** moves every ticked thread to Trash after one
+  confirmation (`POST /gmail/threads/trash`, per-thread results; a
+  permission failure is reported once, not per email). Threads that
+  could not be moved stay ticked.
+- New-email toasts stacked many times over for one email. The
+  notifications socket shared one `unmounted` flag across effect runs; a
+  token refresh flipped it back before the old socket's `onclose` fired,
+  so the stale socket reconnected and every refresh left one more live
+  connection — and the server pushes each frame to every connection a
+  user has. Each effect run now owns its own liveness flag and a socket
+  that is no longer current neither reconnects nor delivers frames. The
+  toast store also drops an identical toast while the first is still up.
+- `docs/HUB_SETUP.md`: the runbook for a company adding the hub after
+  the desktop (answers file from the existing `brand.json` so the AppId
+  is unchanged, the two extra OAuth clients, DNS, first deploy,
+  `hub_client.json` in Drive, connecting desktops, troubleshooting).
+
 ### v5.26.2 · build 308 — 2026-10-22
 **Update check for every user; first account becomes administrator; update errors say why**
 

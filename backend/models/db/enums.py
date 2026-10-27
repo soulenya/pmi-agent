@@ -59,6 +59,9 @@ class IntentType(str, enum.Enum):
     EXTERNAL_API_CALL = "external_api_call"
     CREATE_TASK = "create_task"
     UPDATE_TASK = "update_task"
+    # A Knowledge Base document whose Drive source changed. Approve re-imports
+    # the current file; reject keeps the stored copy and re-baselines.
+    REFRESH_DOCUMENT = "refresh_document"
 
 
 class DocumentSourceType(str, enum.Enum):
