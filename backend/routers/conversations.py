@@ -645,6 +645,42 @@ async def _execute_approved_action(
 
         from services import erp as _erp
 
+        if itype == "refresh_document":
+            from services.documents.sync import apply_document_update
+            from services.embeddings.service import get_embedding_service_for_db
+
+            doc_id_raw = payload.get("document_id")
+            if not doc_id_raw:
+                return {"status": "error", "detail": "This approval names no document."}
+            try:
+                embedding_svc = await get_embedding_service_for_db(db)
+                doc = await apply_document_update(
+                    db, embedding_svc, uuid.UUID(str(doc_id_raw)), resolved_by=current_user.id
+                )
+            except LookupError:
+                return {"status": "error", "detail": "That document is no longer in the Knowledge Base."}
+            except ValueError as exc:
+                # The source is gone, or Drive gave back nothing usable. The
+                # stored copy is untouched; say so instead of pretending.
+                return {
+                    "status": "error",
+                    "detail": f"{exc} Your stored copy is unchanged — reject this approval to keep it and stop the reminder.",
+                }
+            await audit.log(
+                "approval.action_executed",
+                actor_id=current_user.id,
+                entity_type="approval_intent",
+                entity_id=intent.id,
+                payload={"intent_type": itype, "document_id": str(doc.id)},
+            )
+            await db.commit()
+            return {
+                "status": "executed",
+                "action": "refresh_document",
+                "document_id": str(doc.id),
+                "detail": f"{doc.title} re-imported from Google Drive.",
+            }
+
         # "odoo_write" historically; "<provider>_write" for any provider.
         if itype.endswith("_write") and itype[: -len("_write")] in _erp.PROVIDERS:
             conn = await _erp.load_connection(db, current_user.id)
@@ -872,6 +908,19 @@ async def resolve_approval(
         await _set_linked_email_draft_status(
             db, (intent.intent_payload or {}).get("draft_id"), "draft"
         )
+    elif intent.intent_type == "refresh_document":
+        # Rejected refresh: keep the stored copy and re-baseline, so the next
+        # Drive check does not raise the same approval again.
+        doc_id_raw = (intent.intent_payload or {}).get("document_id")
+        if doc_id_raw:
+            from services.documents.sync import dismiss_document_update
+
+            try:
+                await dismiss_document_update(
+                    db, uuid.UUID(str(doc_id_raw)), resolved_by=current_user.id
+                )
+            except LookupError:
+                pass  # the document was deleted meanwhile; nothing to re-baseline
     # Whatever surface resolved this (Approvals page, Email Drafts card, chat
     # card, or the bell itself), retire its notifications everywhere.
     await _sync_notifications_for_resolved_intents(db, current_user.id, [intent])

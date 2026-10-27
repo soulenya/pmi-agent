@@ -24,7 +24,14 @@ export const useToastStore = create<ToastState>()((set) => ({
   toasts: [],
   push: (kind, text, durationMs = 6000, route) => {
     const id = nextId++;
-    set((s) => ({ toasts: [...s.toasts, { id, kind, text, route }] }));
+    set((s) => {
+      // The same news twice while the first copy is still up is a duplicate,
+      // not a second event: one notification can reach us more than once.
+      if (s.toasts.some((t) => t.kind === kind && t.text === text && t.route === route)) {
+        return s;
+      }
+      return { toasts: [...s.toasts, { id, kind, text, route }] };
+    });
     window.setTimeout(
       () => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
       durationMs,
@@ -45,6 +52,14 @@ export function pushApprovalOutcomeToast(
   const push = useToastStore.getState().push;
   const title = result.intent_title.replace(/^Send (email|reply):\s*/i, "");
   const exec = result.execution_result;
+  if (result.intent_type === "refresh_document") {
+    const doc = title.replace(/^Update\s+/i, "").replace(/\s+from Google Drive$/i, "");
+    if (!approved) push("info", `Kept your copy of ${doc}.`);
+    else if (exec?.status === "executed") push("success", `${doc} updated from Google Drive.`);
+    else if (exec?.status === "error") push("error", `Couldn't update ${doc}: ${String(exec.detail ?? "unknown error")}`, 9000);
+    else push("success", `Approved — ${doc}`);
+    return;
+  }
   if (!approved) {
     push("info", `Rejected — ${title}`);
   } else if (exec?.status === "executed") {

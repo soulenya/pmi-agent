@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, UserPlus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exampleEmail } from "@/lib/brand";
@@ -8,7 +8,8 @@ import {
   removeProjectMember,
   updateProjectMember,
 } from "@/api/tasks";
-import type { Source } from "@/api/tasks";
+import type { MemberAdd, Source } from "@/api/tasks";
+import { listPeople } from "@/api/team";
 import type { AssignableRole, ProjectMember } from "@/types/tasks";
 import { MoveToHubCard } from "./MoveToHub";
 
@@ -17,6 +18,9 @@ const ROLES: { value: AssignableRole; label: string; hint: string }[] = [
   { value: "commenter", label: "Can comment", hint: "Read, and leave comments." },
   { value: "editor", label: "Can edit", hint: "Do the work: tasks, canvas, notes." },
 ];
+
+/** The picker's escape hatch for someone the directory does not list yet. */
+const BY_EMAIL = "__email__";
 
 function errorMessage(err: unknown): string {
   const detail = (err as { response?: { data?: { detail?: unknown } } })?.response
@@ -29,9 +33,11 @@ function errorMessage(err: unknown): string {
 /**
  * The member list, and the owner's controls for it.
  *
- * Adding someone hands them a role. It does not hand them a way in: they still
- * have to sign in as themselves before the role means anything, which is why an
- * address outside the firm is refused outright.
+ * People are added the way team chat adds them: picked from the directory of
+ * accounts that exist here, by id. A typed address can miss the account it was
+ * meant for — the role then sits on nobody and the person never hears of it —
+ * so typing one is the fallback, not the default, and it has to match someone
+ * who has already signed in.
  */
 export function ProjectPeoplePanel({
   projectId,
@@ -47,16 +53,41 @@ export function ProjectPeoplePanel({
   isOwner: boolean;
 }) {
   const qc = useQueryClient();
+  const [pick, setPick] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<AssignableRole>("editor");
+
+  // Member lists only mean something on the hub, and that is where team chat's
+  // directory lives too — the same people, under the same ids.
+  const people = useQuery({
+    queryKey: ["team", "people"],
+    queryFn: listPeople,
+    staleTime: 60_000,
+    enabled: isOwner && source === "hub",
+  });
+
+  const candidates = useMemo(() => {
+    const onProject = new Set(members.map(m => m.user_id));
+    return (people.data ?? []).filter(p => !p.is_me && !onProject.has(p.id));
+  }, [people.data, members]);
+
+  const byEmail = pick === BY_EMAIL;
+  const who: MemberAdd | null = byEmail
+    ? email.trim()
+      ? { email: email.trim() }
+      : null
+    : pick
+      ? { user_id: pick }
+      : null;
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["project-space", source, projectId] });
   };
 
   const addMutation = useMutation({
-    mutationFn: () => addProjectMember(projectId, email.trim(), role, source),
+    mutationFn: (target: MemberAdd) => addProjectMember(projectId, target, role, source),
     onSuccess: () => {
+      setPick("");
       setEmail("");
       refresh();
     },
@@ -105,6 +136,14 @@ export function ProjectPeoplePanel({
               {m.display_name || m.email || m.user_id}
               {m.display_name && m.email && (
                 <span className="ml-1.5 text-xs text-muted-foreground">{m.email}</span>
+              )}
+              {m.has_signed_in === false && (
+                <span
+                  className="ml-1.5 text-xs text-amber-600"
+                  title="No one has signed in to this account. If this is not the address they use, remove it and pick them from the list."
+                >
+                  never signed in
+                </span>
               )}
             </span>
 
@@ -160,18 +199,32 @@ export function ProjectPeoplePanel({
         <form
           onSubmit={e => {
             e.preventDefault();
-            if (email.trim()) addMutation.mutate();
+            if (who) addMutation.mutate(who);
           }}
           className="mt-4 space-y-2 border-t pt-4"
         >
           <div className="flex gap-2">
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder={exampleEmail()}
-              className="min-w-0 flex-1 rounded-md border bg-background px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
-            />
+            <select
+              value={pick}
+              disabled={busy || people.isLoading}
+              onChange={e => setPick(e.target.value)}
+              className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1.5 text-sm disabled:opacity-50"
+            >
+              <option value="">
+                {people.isLoading
+                  ? "Loading people…"
+                  : candidates.length
+                    ? "Choose someone…"
+                    : "Everyone here is already on this project"}
+              </option>
+              {candidates.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.display_name}
+                  {p.display_name !== p.email ? ` — ${p.email}` : ""}
+                </option>
+              ))}
+              <option value={BY_EMAIL}>Someone else, by email…</option>
+            </select>
             <select
               value={role}
               onChange={e => setRole(e.target.value as AssignableRole)}
@@ -185,7 +238,7 @@ export function ProjectPeoplePanel({
             </select>
             <button
               type="submit"
-              disabled={!email.trim() || busy}
+              disabled={!who || busy}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5",
                 "text-sm font-medium text-primary-foreground disabled:opacity-50",
@@ -199,8 +252,20 @@ export function ProjectPeoplePanel({
               Add
             </button>
           </div>
+          {byEmail && (
+            <input
+              type="email"
+              autoFocus
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder={exampleEmail()}
+              className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+            />
+          )}
           <p className="text-xs text-muted-foreground">
-            {ROLES.find(r => r.value === role)?.hint}
+            {byEmail
+              ? "They need to have signed in at least once; the address has to match their account."
+              : ROLES.find(r => r.value === role)?.hint}
           </p>
         </form>
       )}

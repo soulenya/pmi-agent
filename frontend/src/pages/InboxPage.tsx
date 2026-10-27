@@ -678,6 +678,38 @@ export default function InboxPage() {
     },
   });
 
+  const trashSelected = useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.post(
+        `${GOOGLE_PREFIX}/gmail/threads/trash`,
+        { thread_ids: Array.from(selectedIds) },
+        { timeout: 2 * 60 * 1000 },
+      );
+      return res.data as { count: number; trashed: string[]; failed: { thread_id: string; error: string }[] };
+    },
+    onSuccess: (data) => {
+      const gone = new Set(data.trashed);
+      if (selected && gone.has(selected)) setSelected(null);
+      // Keep only what did not go, so a retry targets just the failures.
+      setSelectedIds((prev) => new Set(Array.from(prev).filter((id) => !gone.has(id))));
+      threads.refetch();
+      setBatchDrafted(0);
+      if (data.count === 0) {
+        setBatchNotice({ kind: "error", text: data.failed[0]?.error ?? "Nothing was moved to Trash." });
+      } else {
+        const left = data.failed.length ? ` ${data.failed.length} couldn't be moved and ${data.failed.length === 1 ? "is" : "are"} still ticked.` : "";
+        setBatchNotice({
+          kind: "ok",
+          text: `${data.count} email${data.count === 1 ? "" : "s"} moved to Trash (recoverable in Gmail for 30 days).${left}`,
+        });
+      }
+    },
+    onError: (e) => {
+      setBatchDrafted(0);
+      setBatchNotice({ kind: "error", text: getError(e) });
+    },
+  });
+
   if (gstatus && !gstatus.connected) {
     return (
       <div className="max-w-xl mx-auto p-6">
@@ -745,6 +777,27 @@ export default function InboxPage() {
                 {draftSelected.isPending
                   ? "Drafting…"
                   : `Draft selected${selectedIds.size ? ` (${selectedIds.size})` : ""}`}
+              </button>
+              <button
+                onClick={() => {
+                  const n = selectedIds.size;
+                  if (
+                    window.confirm(
+                      `Move ${n} email${n === 1 ? "" : "s"} to Trash? You can recover them from Gmail for 30 days.`,
+                    )
+                  ) {
+                    setBatchNotice(null);
+                    trashSelected.mutate();
+                  }
+                }}
+                disabled={trashSelected.isPending || draftSelected.isPending || selectedIds.size === 0}
+                title={selectedIds.size === 0 ? "Tick the emails you want to delete" : "Move the ticked emails to Trash"}
+                className="text-xs px-2.5 py-1 rounded border border-red-900 text-red-300 hover:bg-red-950/40 disabled:opacity-50 disabled:hover:bg-transparent transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className={`w-3.5 h-3.5 ${trashSelected.isPending ? "animate-pulse" : ""}`} />
+                {trashSelected.isPending
+                  ? "Deleting…"
+                  : `Delete${selectedIds.size ? ` (${selectedIds.size})` : ""}`}
               </button>
               <button
                 onClick={() => setShowSig(true)}

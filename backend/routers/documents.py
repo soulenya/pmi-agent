@@ -597,14 +597,14 @@ async def check_document_updates_endpoint(
 async def apply_document_update_endpoint(
     doc_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     embedding_svc: EmbeddingService = Depends(get_embedding_service_db),
 ) -> ApiResponse[DocumentOut]:
     """Re-import a flagged document's current content from Google Drive."""
     from services.documents.sync import apply_document_update
 
     try:
-        doc = await apply_document_update(db, embedding_svc, doc_id)
+        doc = await apply_document_update(db, embedding_svc, doc_id, resolved_by=current_user.id)
     except LookupError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     except ValueError as exc:
@@ -622,13 +622,13 @@ async def apply_document_update_endpoint(
 async def dismiss_document_update_endpoint(
     doc_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> ApiResponse[DocumentOut]:
     """Acknowledge a flagged change without re-importing (re-baselines)."""
     from services.documents.sync import dismiss_document_update
 
     try:
-        doc = await dismiss_document_update(db, doc_id)
+        doc = await dismiss_document_update(db, doc_id, resolved_by=current_user.id)
     except LookupError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     return ApiResponse.ok(_doc_out(doc))

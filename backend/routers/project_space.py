@@ -7,14 +7,13 @@ pinned material and its people. The page opens on one request, not six.
 from __future__ import annotations
 
 import logging
-import secrets
 import uuid
 from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
-from sqlalchemy import func, select
+from pydantic import BaseModel, EmailStr, model_validator
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -23,7 +22,7 @@ from models.db.budget import Budget
 from models.db.project_custody import CUSTODY_ITEM_TYPES, ProjectItemCustody
 from models.db.project_member import ProjectMember
 from models.db.task import Project, Task
-from models.db.user import User
+from models.db.user import User, UserSession
 from models.db.workroom import Workroom, WorkroomItem, WorkroomJournalEntry
 from models.schemas.project_transfer import (
     ProjectBundle,
@@ -33,7 +32,6 @@ from models.schemas.project_transfer import (
 )
 from models.schemas.tasks import ProjectOut
 from services import budget_service
-from services.auth.service import hash_password
 from services.projects import custody, transfer
 from services.projects.access import ALLOWED_DOMAINS, resolve_role
 from services.projects.workroom import ensure_workroom
@@ -56,6 +54,9 @@ class MemberOut(BaseModel):
     email: str | None = None
     display_name: str | None = None
     role: str
+    # False marks an account nobody has ever signed in to — a role parked on
+    # one of those reaches no one, which is worth being able to see.
+    has_signed_in: bool = True
 
 
 # The owner is not assignable: ownership moves by a different act than sharing.
@@ -63,8 +64,22 @@ AssignableRole = Literal["viewer", "commenter", "editor"]
 
 
 class MemberAdd(BaseModel):
-    email: EmailStr
+    """Who to add: by id (picked from the directory) or, failing that, by email.
+
+    The id is preferred. It is the same way team chat names people, so the
+    person chosen is the person who gets the role — a typed address can miss
+    the account it was meant for and nobody finds out.
+    """
+
+    user_id: uuid.UUID | None = None
+    email: EmailStr | None = None
     role: AssignableRole = "editor"
+
+    @model_validator(mode="after")
+    def _someone_named(self) -> MemberAdd:
+        if self.user_id is None and not self.email:
+            raise ValueError("Name someone to add, by id or by email.")
+        return self
 
 
 class MemberUpdate(BaseModel):
@@ -92,6 +107,11 @@ class ProjectSpaceOut(BaseModel):
 
 async def _scalar(db: AsyncSession, stmt) -> int:
     return int((await db.execute(stmt)).scalar() or 0)
+
+
+def _signed_in_expr():
+    """SQL for "this member has signed in at least once" (sessions are never purged)."""
+    return exists().where(UserSession.user_id == ProjectMember.user_id)
 
 
 @router.get("/{project_id}/space", response_model=ProjectSpaceOut)
@@ -133,7 +153,7 @@ async def get_project_space(
 
     member_rows = (
         await db.execute(
-            select(ProjectMember, User)
+            select(ProjectMember, User, _signed_in_expr())
             .outerjoin(User, User.id == ProjectMember.user_id)
             .where(ProjectMember.project_id == project.id)
             .order_by(ProjectMember.created_at.asc())
@@ -145,8 +165,9 @@ async def get_project_space(
             email=getattr(u, "email", None),
             display_name=getattr(u, "display_name", None),
             role=m.role,
+            has_signed_in=bool(signed_in),
         )
-        for m, u in member_rows
+        for m, u, signed_in in member_rows
     ]
 
     my_role = await resolve_role(db, project, current_user.id) or "viewer"
@@ -287,11 +308,17 @@ async def _member_out(db: AsyncSession, member: ProjectMember) -> MemberOut:
     user = (
         await db.execute(select(User).where(User.id == member.user_id))
     ).scalar_one_or_none()
+    signed_in = (
+        await db.execute(
+            select(exists().where(UserSession.user_id == member.user_id))
+        )
+    ).scalar()
     return MemberOut(
         user_id=member.user_id,
         email=getattr(user, "email", None),
         display_name=getattr(user, "display_name", None),
         role=member.role,
+        has_signed_in=bool(signed_in),
     )
 
 
@@ -384,6 +411,46 @@ async def promote_project(
     return result
 
 
+async def _resolve_person(db: AsyncSession, body: MemberAdd) -> User:
+    """The account a share is meant for, or a refusal that says why.
+
+    Never invents an account. A role granted to a placeholder made from a
+    typed address goes to nobody — the person it was meant for signs in as
+    themselves and finds nothing waiting — so an address that matches no one
+    is an error the owner needs to see, not a case to paper over.
+    """
+    if body.user_id is not None:
+        user = await db.get(User, body.user_id)
+        if user is None or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="That person is not in this workspace.",
+            )
+        return user
+
+    email = (body.email or "").strip().lower()
+    domain = email.rsplit("@", 1)[-1] if "@" in email else ""
+    if domain not in ALLOWED_DOMAINS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"'{email}' is not on an address this workspace recognises.",
+        )
+    user = (
+        await db.execute(
+            select(User).where(func.lower(User.email) == email, User.is_active.is_(True))
+        )
+    ).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"Nobody has signed in as {email} yet. Pick them from the list, "
+                "or ask them to sign in once and then add them."
+            ),
+        )
+    return user
+
+
 @router.post(
     "/{project_id}/members",
     response_model=MemberOut,
@@ -395,38 +462,17 @@ async def add_project_member(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> MemberOut:
-    """Put someone on a project by email address.
+    """Put someone on a project.
 
-    The person does not have to have signed in yet. If their address is on an
-    allowed domain we create the account here, dormant, so that the role is
-    already waiting the first time they arrive. Identity is still checked at
-    sign-in — this grants a role, not a way in.
+    The person is named the way team chat names them — by the id of an account
+    that already exists here — so the role lands on the account they actually
+    sign in with. An email address is accepted as a fallback but has to match
+    someone who has signed in. Identity is still checked at sign-in: this
+    grants a role, not a way in.
     """
     await _require_owner(db, project, current_user.id)
 
-    email = body.email.strip().lower()
-    domain = email.rsplit("@", 1)[-1] if "@" in email else ""
-    if domain not in ALLOWED_DOMAINS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"'{email}' is not on an address this workspace recognises.",
-        )
-
-    user = (
-        await db.execute(select(User).where(func.lower(User.email) == email))
-    ).scalar_one_or_none()
-    if user is None:
-        user = User(
-            email=email,
-            display_name=email.split("@")[0],
-            hashed_password=hash_password(secrets.token_urlsafe(32)),
-            role="member",
-            is_active=True,
-            can_write_regulatory=True,
-            onboarding_complete=False,
-        )
-        db.add(user)
-        await db.flush()
+    user = await _resolve_person(db, body)
 
     existing = (
         await db.execute(
@@ -439,7 +485,7 @@ async def add_project_member(
     if existing is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"{email} is already on this project.",
+            detail=f"{user.display_name or user.email} is already on this project.",
         )
 
     member = ProjectMember(

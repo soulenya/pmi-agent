@@ -1138,6 +1138,9 @@ export function DocumentsPage() {
     mutationFn: (id: string) => applyDocumentUpdate(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      // The same change sits in Approvals; it was just settled from here.
+      queryClient.invalidateQueries({ queryKey: ["approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
     onError: (e: Error) => {
       setCheckStatus(`Apply update failed: ${getErrorMessage(e)}`);
@@ -1149,6 +1152,8 @@ export function DocumentsPage() {
     mutationFn: (id: string) => dismissDocumentUpdate(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 

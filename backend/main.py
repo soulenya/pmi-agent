@@ -232,9 +232,10 @@ async def _drive_sync_loop() -> None:
                         item["user_id"],
                         {
                             "type": "notification",
-                            "entity_id": item["id"],
-                            "title": f"Document update available: {item['title']}",
-                            "notif_type": "system_alert",
+                            "entity_id": item.get("approval_id") or item["id"],
+                            "title": f"Approval needed: Update {item['title']} from Google Drive",
+                            "notif_type": "approval_required",
+                            "route": "/waiting?tab=approvals",
                         },
                     )
             logger.info(
