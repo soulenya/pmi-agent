@@ -228,12 +228,20 @@ minutes, or immediately after reopening Settings.
 
 ## 6. From here on
 
-- **Releases.** `scripts\new-company\update-from-upstream.ps1` does the whole
-  cycle: merge PMI's `upstream/master`, push, publish the GitHub release
-  (installers build in Actions), rebuild and push the hub image, update the
-  VM's startup script, run migrations and recreate the API. The weekly
-  `sync-upstream.yml` opens a pull request with the merge when you would
-  rather look first.
+- **Releases.** Nothing to do. `sync-upstream.yml` runs daily in your
+  repository: when PMI publishes a release it merges it, publishes the
+  same version here and builds the installers; installed copies update at
+  their next launch. You will only hear from it if a merge has conflicts —
+  then a pull request (or a `sync/upstream-*` branch) waits for someone.
+  To take a release right now rather than tomorrow morning: Actions →
+  **Sync from upstream** → Run workflow. To review every release before it
+  ships, set the repository variable `UPSTREAM_AUTO_RELEASE` to `false`.
+- **Hub after a release.** The workflow ships the desktop; the hub still
+  needs its image rebuilt and deployed. From your checkout:
+  `pwsh ./scripts/new-company/update-from-upstream.ps1` does merge, release
+  (skipped if already published) and hub in one go, or
+  `scripts/hub/deploy-hub.ps1 -Tag <version> -Migrate` for the hub alone
+  after building and pushing the image.
 - **Hub only.** `scripts\hub\deploy-hub.ps1 -Tag <version> [-Migrate]`;
   `-VerifyOnly` just prints image, alembic head and health.
 - **Backups.** Nightly cron on the VM: `pg_dump` plus a tarball of `/data` to

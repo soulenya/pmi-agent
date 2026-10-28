@@ -4,6 +4,39 @@
 
 ## Changelog
 
+### v5.27.1 · build 310 — 2026-10-28
+**A company's copy ships PMI's releases by itself**
+
+- `sync-upstream.yml` (runs on the fork) used to open a pull request once
+  a week and stop; a release only happened if someone merged it and ran
+  `gh release create`, and on a new repository GitHub refuses pull
+  requests made by Actions, so even the PR never appeared (Noctu's runs
+  failed in 14 s and Lane stayed on 5.26.1). It now runs daily, merges
+  upstream's **latest release tag** rather than master, and when the merge
+  is clean pushes to the default branch, publishes `v<VERSION>` and
+  dispatches both installer workflows itself (a `GITHUB_TOKEN` release
+  does not fire `release:` triggers). Skips when the fork already has
+  that release. Only a conflict falls back to a branch + pull request —
+  and a refused PR is a warning naming the branch, not a failed run.
+  Release documents (`VERSION`, `CHANGELOG.md`, `version.ts`,
+  `setup.iss`) take upstream's side on conflict, like workflow files.
+  `UPSTREAM_AUTO_RELEASE=false` restores review-first. A fork still on
+  the old workflow takes one release by hand first.
+- Bootstrap grants Actions leave to open pull requests on the new
+  repository (`actions/permissions/workflow`), so the conflict path works
+  without a console visit.
+- macOS build: runs on `macos-15-intel`. `macos-latest` is Apple silicon,
+  and GitHub's arm64 runners are capacity-constrained — Noctu's builds sat
+  queued 15 minutes and were dropped ("not acquired by Runner of type
+  hosted"), twice. The package is scripts and a stub, nothing compiled, so
+  the builder's architecture is irrelevant; `hostArchitectures` in the
+  distribution XML still limits installation to arm64. The job also has a
+  45-minute limit and `notarytool --wait` a 30-minute one, so a
+  notarization Apple never answers fails the run instead of holding a
+  runner for hours.
+- `DEVELOPER_GUIDE.md` §15 and `docs/HUB_SETUP.md` §6 describe the
+  hands-off path and the `pwsh` invocation on macOS.
+
 ### v5.27.0 · build 309 — 2026-10-27
 **Share a project by picking the person; changed Drive sources become approvals; delete ticked emails; one toast per email**
 

@@ -189,7 +189,14 @@ if (-not $DryRun) {
     if ($LASTEXITCODE -ne 0) { & git remote add upstream "https://github.com/$upstream.git" *> $null }
 }
 Run gh variable set UPSTREAM_REPO --repo $repo --body $upstream
-Ok "UPSTREAM_REPO = $upstream (the Sync upstream workflow pulls PMI's fixes into a pull request)"
+Ok "UPSTREAM_REPO = $upstream (the Sync upstream workflow ships PMI's releases here each day)"
+# The workflow publishes releases and starts the installer builds itself. The
+# one thing it needs from the repository is leave to open a pull request when
+# a merge has conflicts — off by default on a new repository.
+if (-not $DryRun) {
+    & gh api -X PUT "repos/$repo/actions/permissions/workflow" -f default_workflow_permissions=write -F can_approve_pull_request_reviews=true *> $null
+    if ($LASTEXITCODE -eq 0) { Ok "Actions may open pull requests (for syncs that need a human)" } else { Note "Could not change the Actions workflow permissions; set 'Allow GitHub Actions to create and approve pull requests' under Settings > Actions > General." }
+} else { Note "> gh api -X PUT repos/$repo/actions/permissions/workflow (allow Actions to open pull requests)" }
 # The upstream is private: the sync workflow needs a read token on it.
 $hasUp = (-not $DryRun) -and ((& gh secret list --repo $repo 2>$null) -match '^UPSTREAM_TOKEN\b')
 if (-not $hasUp) {

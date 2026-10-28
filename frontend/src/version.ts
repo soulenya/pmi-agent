@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 309;
-export const BUILD_DATE = "2026-10-27";
+export const BUILD_NUMBER = 310;
+export const BUILD_DATE = "2026-10-28";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 310,
+    date: "2026-10-28",
+    title: "Companies running their own copy get releases automatically",
+    changes: [
+      "For a company running its own copy of Little Gerry: PMI's releases now arrive on their own. Each day the company's repository takes PMI's latest release, publishes it and builds the installers — nobody has to merge or tag anything. Installed copies update at their next launch as before.",
+      "The Mac installer builds on a runner type GitHub actually has available; builds had been sitting in a queue for 15 minutes and being dropped.",
+    ],
+  },
   {
     build: 309,
     date: "2026-10-27",

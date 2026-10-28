@@ -22,7 +22,16 @@ permissions:
 
 jobs:
   build-macos:
-    runs-on: macos-latest
+    # The package is scripts, a launcher stub and an icon — nothing compiled —
+    # so any Mac can build it. Apple-silicon runners (macos-latest) are the
+    # scarce ones: jobs sat queued for 15 minutes and were dropped with "not
+    # acquired by Runner of type hosted" (Noctu, Oct 2026). Intel runners have
+    # the capacity, and the .pkg they produce installs on arm64 all the same
+    # (hostArchitectures in distribution.xml decides that, not the builder).
+    runs-on: macos-15-intel
+    # Once running, the only slow step is Apple's notarization. Fail rather
+    # than hold a runner for hours if that never answers.
+    timeout-minutes: 45
     # Secrets are mapped to env so steps can detect whether signing is configured.
     # If the cert secret is empty, the build falls back to an unsigned .pkg.
     env:
