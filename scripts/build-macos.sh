@@ -219,9 +219,9 @@ if [ -n "${DEVELOPER_ID_INSTALLER:-}" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
   # it lives in the default credential store and no --keychain flag is needed.
   if [ -n "${NOTARY_KEYCHAIN:-}" ]; then
     xcrun notarytool submit "$FINAL_PKG" --keychain-profile "$NOTARY_PROFILE" \
-      --keychain "$NOTARY_KEYCHAIN" --wait
+      --keychain "$NOTARY_KEYCHAIN" --wait --timeout 30m
   else
-    xcrun notarytool submit "$FINAL_PKG" --keychain-profile "$NOTARY_PROFILE" --wait
+    xcrun notarytool submit "$FINAL_PKG" --keychain-profile "$NOTARY_PROFILE" --wait --timeout 30m
   fi
   info "Stapling notarization ticket..."
   xcrun stapler staple "$FINAL_PKG"

@@ -1,27 +1,35 @@
 name: Sync from upstream
 
-# For a company fork: fetch the upstream Little Gerry repository, merge its
-# master into a branch here and open a pull request with the diff. Nothing
-# lands on master until someone merges that PR. Conflicts are, by design,
-# limited to brand/brand.json (which the fork owns) and the release docs.
+# For a company fork: take Little Gerry's latest release from the upstream
+# repository and ship it here, with no one in the loop when the merge is
+# clean. Every day it fetches upstream, merges upstream's newest release tag
+# into this repository's default branch, publishes the matching release and
+# starts the installer builds — installed copies update at their next launch.
+#
+# Only a merge conflict stops it; then the merge lands on a branch and a pull
+# request is opened for someone to resolve. Conflicts are, by design, limited
+# to brand/brand.json (the fork keeps its own) and the release documents
+# (upstream's win); anything else is reported.
 #
 # Set the UPSTREAM_REPO repository variable (Settings → Variables) to the
 # upstream "owner/name"; a private upstream also needs UPSTREAM_TOKEN (a
-# read-only PAT on the upstream) in secrets. PMI's own repository has no
-# upstream, so this workflow does nothing there.
+# read-only PAT on the upstream) in secrets. Set UPSTREAM_AUTO_RELEASE=false
+# to go back to review-first: a pull request for every sync, releases by hand.
+# PMI's own repository has no upstream, so this workflow does nothing there.
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Upstream ref to sync (branch or tag)"
-        default: master
+        description: "Upstream ref to sync (a release tag, a branch, or 'latest' for upstream's newest release)"
+        default: latest
   schedule:
-    - cron: "17 6 * * 1"   # Mondays, 06:17 UTC
+    - cron: "17 6 * * *"   # daily, 06:17 UTC
 
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 jobs:
   sync:
@@ -29,21 +37,26 @@ jobs:
     if: vars.UPSTREAM_REPO != ''
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      UPSTREAM_REPO: ${{ vars.UPSTREAM_REPO }}
+      AUTO_RELEASE: ${{ vars.UPSTREAM_AUTO_RELEASE != 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Fetch upstream
+        id: fetch
         env:
           UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
         run: |
           set -euo pipefail
-          REF="${{ github.event.inputs.ref || 'master' }}"
+          REF="${{ github.event.inputs.ref || 'latest' }}"
           if [ -n "${UPSTREAM_TOKEN:-}" ]; then
-            URL="https://x-access-token:${UPSTREAM_TOKEN}@github.com/${{ vars.UPSTREAM_REPO }}.git"
+            URL="https://x-access-token:${UPSTREAM_TOKEN}@github.com/${UPSTREAM_REPO}.git"
+            API_TOKEN="$UPSTREAM_TOKEN"
           else
-            URL="https://github.com/${{ vars.UPSTREAM_REPO }}.git"
+            URL="https://github.com/${UPSTREAM_REPO}.git"
+            API_TOKEN="$GH_TOKEN"
           fi
           git remote add upstream "$URL"
           # The fork tags its own releases (v$(cat VERSION) on its merge
@@ -52,72 +65,112 @@ jobs:
           git fetch --no-tags upstream \
             "+refs/heads/*:refs/remotes/upstream/*" \
             "+refs/tags/*:refs/upstream-tags/*"
+
+          # "latest" means upstream's newest published release — what its own
+          # users are running — rather than whatever is on its master today.
+          if [ "$REF" = "latest" ]; then
+            REF=$(GH_TOKEN="$API_TOKEN" gh api "repos/${UPSTREAM_REPO}/releases/latest" --jq .tag_name 2>/dev/null || true)
+            if [ -z "$REF" ]; then
+              echo "::notice::${UPSTREAM_REPO} has no published release yet; syncing its master instead."
+              REF=master
+            fi
+          fi
+
           SHA=""
-          for CANDIDATE in "refs/remotes/upstream/$REF" "refs/upstream-tags/$REF"; do
+          for CANDIDATE in "refs/upstream-tags/$REF" "refs/remotes/upstream/$REF"; do
             if SHA=$(git rev-parse --verify -q "${CANDIDATE}^{commit}"); then break; fi
             SHA=""
           done
           if [ -z "$SHA" ]; then
-            echo "::error::Upstream ref '$REF' is neither a branch nor a tag of ${{ vars.UPSTREAM_REPO }}."
+            echo "::error::Upstream ref '$REF' is neither a tag nor a branch of ${UPSTREAM_REPO}."
             exit 1
           fi
           echo "UPSTREAM_SHA=$SHA" >> "$GITHUB_ENV"
           echo "UPSTREAM_REF=$REF" >> "$GITHUB_ENV"
 
-      - name: Merge into a sync branch
+          # Nothing to do when this repository already ships that version.
+          UP_VERSION=$(git show "$SHA:VERSION" | tr -d '[:space:]')
+          echo "UP_VERSION=$UP_VERSION" >> "$GITHUB_ENV"
+          if gh release view "v$UP_VERSION" --json tagName >/dev/null 2>&1; then
+            echo "Release v$UP_VERSION already exists here; nothing to sync."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif git merge-base --is-ancestor "$SHA" HEAD; then
+            echo "Upstream $REF is already merged; nothing to sync."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge upstream
         id: merge
+        if: steps.fetch.outputs.skip != 'true'
         run: |
           set -euo pipefail
           git config user.name "little-gerry-sync"
           git config user.email "sync@users.noreply.github.com"
-          BRANCH="sync/upstream-$(date +%Y%m%d)"
-          git checkout -b "$BRANCH"
-          if git merge --no-edit "$UPSTREAM_SHA"; then
+          BASE="${{ github.ref_name }}"
+          if git merge --no-edit -m "Merge upstream ${UPSTREAM_REF} (${UPSTREAM_REPO})" "$UPSTREAM_SHA"; then
             echo "conflicts=false" >> "$GITHUB_OUTPUT"
-          else
-            # Same policy as scripts/new-company/update-from-upstream.ps1: the
-            # fork keeps its brand file, workflow files take upstream's version.
-            for f in $(git diff --name-only --diff-filter=U); do
-              case "$f" in
-                brand/brand.json) git checkout --ours -- "$f"; git add -- "$f" ;;
-                .github/workflows/*) git checkout --theirs -- "$f"; git add -- "$f" ;;
-              esac
-            done
-            LEFT=$(git diff --name-only --diff-filter=U)
-            if [ -n "$LEFT" ]; then
-              # Open the PR anyway, with the conflict markers committed, so the
-              # reviewer sees exactly where; the PR cannot be merged until fixed.
-              git add -A
-              git -c core.editor=true commit -q -m "Merge upstream (UNRESOLVED CONFLICTS: $(echo $LEFT | tr '\n' ' '))"
-              echo "conflicts=true" >> "$GITHUB_OUTPUT"
-              echo "conflict_files=$(echo $LEFT | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
-            else
-              git -c core.editor=true commit -q --no-edit
-              echo "conflicts=false" >> "$GITHUB_OUTPUT"
-            fi
+            exit 0
           fi
-          if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/${{ github.ref_name }})" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
+          # Same policy as scripts/new-company/update-from-upstream.ps1: the
+          # fork keeps its brand file; workflow files and the release documents
+          # (version, changelog, installer version) take upstream's.
+          for f in $(git diff --name-only --diff-filter=U); do
+            case "$f" in
+              brand/brand.json) git checkout --ours -- "$f"; git add -- "$f" ;;
+              .github/workflows/*|VERSION|CHANGELOG.md|frontend/src/version.ts|installer/setup.iss)
+                git checkout --theirs -- "$f"; git add -- "$f" ;;
+            esac
+          done
+          LEFT=$(git diff --name-only --diff-filter=U || true)
+          if [ -n "$LEFT" ]; then
+            # Commit the markers so the reviewer sees exactly where; the branch
+            # cannot be merged until they are resolved.
+            git add -A
+            git -c core.editor=true commit -q -m "Merge upstream ${UPSTREAM_REF} (UNRESOLVED CONFLICTS: $(echo $LEFT | tr '\n' ' '))"
+            echo "conflicts=true" >> "$GITHUB_OUTPUT"
+            echo "conflict_files=$(echo $LEFT | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
           else
-            git push -u origin "$BRANCH"
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+            git -c core.editor=true commit -q --no-edit
+            echo "conflicts=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Open the pull request
-        if: steps.merge.outputs.changed == 'true'
+      - name: Ship it
+        id: ship
+        if: steps.fetch.outputs.skip != 'true' && steps.merge.outputs.conflicts == 'false' && env.AUTO_RELEASE == 'true'
         run: |
-          BODY="Merges upstream \`${UPSTREAM_REF}\` (\`${UPSTREAM_SHA}\`). Review the diff, then merge and tag a release (\`gh release create v\$(cat VERSION)\`)."
+          set -euo pipefail
+          VERSION=$(tr -d '[:space:]' < VERSION)
+          git push origin "HEAD:${{ github.ref_name }}"
+          gh release create "v$VERSION" \
+            --target "${{ github.ref_name }}" \
+            --title "Little Gerry $VERSION" \
+            --generate-notes \
+            --notes "Little Gerry $VERSION, from ${UPSTREAM_REPO} ${UPSTREAM_REF}. Installers are attached by the build workflows a few minutes after publishing."
+          # A release made with GITHUB_TOKEN does not fire other workflows'
+          # `release:` triggers, so start the installer builds directly.
+          gh workflow run windows-release.yml --ref "${{ github.ref_name }}" -f "tag=v$VERSION"
+          gh workflow run macos-release.yml --ref "${{ github.ref_name }}" -f "tag=v$VERSION"
+          echo "::notice::Published v$VERSION and started the installer builds. Installed copies update at their next launch once the assets are attached."
+
+      - name: Open a pull request instead
+        if: steps.fetch.outputs.skip != 'true' && (steps.merge.outputs.conflicts == 'true' || env.AUTO_RELEASE != 'true')
+        run: |
+          set -euo pipefail
+          BRANCH="sync/upstream-$(date +%Y%m%d)"
+          git branch -f "$BRANCH" HEAD
+          git push -f -u origin "$BRANCH"
+          BODY="Merges upstream \`${UPSTREAM_REF}\` of \`${UPSTREAM_REPO}\` (\`${UPSTREAM_SHA}\`). Review the diff, merge, then publish: \`gh release create v${UP_VERSION} --generate-notes\`."
           if [ "${{ steps.merge.outputs.conflicts }}" = "true" ]; then
             BODY="$(printf '%s\n\n%s %s\n%s' "$BODY" "**Unresolved conflicts** (markers are committed in this branch):" "${{ steps.merge.outputs.conflict_files }}" "Check out the branch, resolve them, commit, push, then merge.")"
+            echo "::warning::Upstream merge has conflicts in: ${{ steps.merge.outputs.conflict_files }} - see branch $BRANCH."
           fi
-          gh pr create \
-            --base "${{ github.ref_name }}" \
-            --head "${{ steps.merge.outputs.branch }}" \
-            --title "Sync from upstream ${{ vars.UPSTREAM_REPO }}@${UPSTREAM_REF}" \
-            --body "$BODY"
-
-      - name: Report conflicts
-        if: steps.merge.outputs.conflicts == 'true'
-        run: |
-          echo "::warning::Upstream merge has conflicts in: ${{ steps.merge.outputs.conflict_files }} - see the pull request."
+          if gh pr list --head "$BRANCH" --state open --json number --jq 'length' | grep -q '^[1-9]'; then
+            echo "A pull request for $BRANCH is already open."
+          elif ! gh pr create --base "${{ github.ref_name }}" --head "$BRANCH" \
+                 --title "Sync from upstream ${UPSTREAM_REPO}@${UPSTREAM_REF}" --body "$BODY"; then
+            # The default for a new repository is to refuse Actions-made pull
+            # requests. The branch is pushed regardless; say how to proceed.
+            echo "::warning::Could not open a pull request (Settings → Actions → General → 'Allow GitHub Actions to create and approve pull requests' is probably off). The merge is on branch $BRANCH — open the pull request by hand, or enable that setting."
+          fi
