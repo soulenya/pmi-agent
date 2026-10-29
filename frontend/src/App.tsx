@@ -9,6 +9,7 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
 import { hasFeature } from "@/lib/brand";
+import { useIsPhone } from "@/hooks/useViewport";
 
 // Login and Today are the first two screens anyone sees, so they stay in the
 // entry chunk. Everything else is fetched when its route is first opened.
@@ -32,6 +33,8 @@ const UsersPage = lazy(() => import("@/pages/UsersPage").then(m => ({ default: m
 const CalendarPage = lazy(() => import("@/pages/CalendarPage").then(m => ({ default: m.CalendarPage })));
 const ErpPage = lazy(() => import("@/pages/ErpPage"));
 const BudgetsPage = lazy(() => import("@/pages/BudgetsPage").then(m => ({ default: m.BudgetsPage })));
+const NotesPage = lazy(() => import("@/pages/NotesPage").then(m => ({ default: m.NotesPage })));
+const MobileGerryPage = lazy(() => import("@/pages/MobileGerryPage").then(m => ({ default: m.MobileGerryPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,6 +76,12 @@ function SearchRedirect() {
   return <Navigate to={`/documents?${params.toString()}`} replace />;
 }
 
+/** Home: on a phone, Gerry by voice; anywhere else, Today. */
+function HomeRoute() {
+  const phone = useIsPhone();
+  return phone ? <MobileGerryPage /> : <DashboardPage />;
+}
+
 function ThemedApp() {
   const [theme] = useState<ThemeValue>(() => {
     try { return (localStorage.getItem("pmi-theme") as ThemeValue) || "system"; }
@@ -88,8 +97,9 @@ function ThemedApp() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
             {/* The shell redirects /, /gerry and /planet/:id (the retired solar system). */}
-            <Route index element={<Page><DashboardPage /></Page>} />
+            <Route index element={<Page><HomeRoute /></Page>} />
             <Route path="gerry" element={<Navigate to="/chat" replace />} />
+            <Route path="notes" element={<Page><NotesPage /></Page>} />
             <Route path="planet/:planetId" element={<Page><DashboardPage /></Page>} />
             <Route path="dashboard" element={<Navigate to="/today" replace />} />
             <Route path="today" element={<Page><DashboardPage /></Page>} />

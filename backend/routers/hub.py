@@ -47,6 +47,8 @@ _ALLOWED_PREFIXES = (
     "/search/everything",
     "/team",
     "/notifications",
+    # Personal, not shared — but kept on the hub so every device sees one list.
+    "/notes",
 )
 
 _SCOPES = ["openid", "email"]

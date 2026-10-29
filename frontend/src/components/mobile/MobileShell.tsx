@@ -1,13 +1,13 @@
 /**
- * The phone shell: a slim header, the page, and five tabs along the bottom
- * with a More sheet for everything else. Phones are for noticing and
- * unblocking work, so the tabs are the places that need a glance — Today,
- * Waiting, Team, Tasks and Gerry — and nothing here is hover-only.
+ * The phone shell: Gerry first. The home screen is a conversation with her by
+ * voice; everything else — Today, what is waiting, Team, Tasks, Notes and the
+ * rest of the rail — is one tap away behind the menu button in the header.
+ * Nothing here is hover-only.
  *
  * Tablets and desktops never see this; AppShell picks it by width.
  */
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Bell,
   Bot,
@@ -18,6 +18,7 @@ import {
   MessagesSquare,
   Settings,
   Share,
+  StickyNote,
   Sun,
   X,
   type LucideIcon,
@@ -34,32 +35,39 @@ import { RAIL, railItemFor, railPageFor } from "@/lib/workbench";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 
-interface Tab {
+interface Place {
   id: string;
   label: string;
   icon: LucideIcon;
   to: string;
-  /** Route prefixes that light this tab. */
+  /** Route prefixes that mean "you are here". */
   match: string[];
+  badge?: "waiting" | "team";
 }
 
-const TABS: Tab[] = [
+/** The places that need a glance, at the top of the menu. */
+const PRIMARY: Place[] = [
+  { id: "gerry", label: "Gerry", icon: Bot, to: "/", match: ["/"] },
   { id: "today", label: "Today", icon: Sun, to: "/today", match: ["/today"] },
-  { id: "waiting", label: "Waiting", icon: Bell, to: "/waiting", match: ["/waiting", "/assistant"] },
-  { id: "team", label: "Team", icon: MessagesSquare, to: "/team", match: ["/team"] },
+  { id: "waiting", label: "Waiting for you", icon: Bell, to: "/waiting", match: ["/waiting", "/assistant"], badge: "waiting" },
+  { id: "notes", label: "Notes", icon: StickyNote, to: "/notes", match: ["/notes"] },
+  { id: "team", label: "Team", icon: MessagesSquare, to: "/team", match: ["/team"], badge: "team" },
   { id: "tasks", label: "Tasks", icon: FolderKanban, to: "/tasks", match: ["/tasks"] },
-  { id: "gerry", label: "Gerry", icon: Bot, to: "/chat", match: ["/chat", "/hub/chat"] },
+  { id: "chat", label: "Conversations", icon: MessagesSquare, to: "/chat", match: ["/chat", "/hub/chat"] },
 ];
 
-const TAB_ROUTES = new Set(TABS.flatMap((t) => t.match));
+const PRIMARY_ROUTES = new Set(PRIMARY.flatMap((p) => p.match));
 
 function under(pathname: string, route: string): boolean {
+  if (route === "/") return pathname === "/";
   return pathname === route || pathname.startsWith(route + "/");
 }
 
 /** What the header calls the place you are in. */
 function titleFor(pathname: string): string {
-  if (under(pathname, "/chat") || under(pathname, "/hub/chat")) return "Gerry";
+  if (pathname === "/") return "Gerry";
+  if (under(pathname, "/chat") || under(pathname, "/hub/chat")) return "Conversations";
+  if (under(pathname, "/notes")) return "Notes";
   if (under(pathname, "/settings")) return "Settings";
   if (under(pathname, "/users")) return "Users";
   const page = railPageFor(pathname);
@@ -67,47 +75,51 @@ function titleFor(pathname: string): string {
   return railItemFor(pathname)?.label ?? "Little Gerry";
 }
 
-/** A place under a tab is reached by drilling in; give it a way back up. */
+/** A place under another is reached by drilling in; give it a way back up. */
 function parentFor(pathname: string): string | null {
   if (/^\/(hub\/)?projects\/[^/]+/.test(pathname)) return "/projects";
   if (/^\/(hub\/)?chat\/[^/]+/.test(pathname)) return "/chat";
+  if (pathname !== "/" && !PRIMARY_ROUTES.has(pathname)) return "/";
   return null;
 }
 
 export function MobileShell() {
   const { pathname } = useLocation();
-  const [more, setMore] = useState(false);
+  const [menu, setMenu] = useState(false);
 
-  useEffect(() => setMore(false), [pathname]);
+  useEffect(() => setMenu(false), [pathname]);
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background">
-      <MobileHeader pathname={pathname} />
+      <MobileHeader pathname={pathname} menuOpen={menu} onMenu={() => setMenu((v) => !v)} />
       <HubOfflineBar />
-      <main
-        className="phone-main min-h-0 flex-1 overflow-y-auto p-3"
-        style={{ paddingBottom: "calc(4rem + env(safe-area-inset-bottom))" }}
-      >
+      <main className="phone-main min-h-0 flex-1 overflow-y-auto p-3">
         <Outlet />
       </main>
-      <TabBar pathname={pathname} moreOpen={more} onMore={() => setMore((v) => !v)} />
-      {more && <MoreSheet onClose={() => setMore(false)} />}
+      {menu && <MenuSheet pathname={pathname} onClose={() => setMenu(false)} />}
       <AddToHomeHint />
     </div>
   );
 }
 
-function MobileHeader({ pathname }: { pathname: string }) {
+function MobileHeader({
+  pathname,
+  menuOpen,
+  onMenu,
+}: {
+  pathname: string;
+  menuOpen: boolean;
+  onMenu: () => void;
+}) {
   const navigate = useNavigate();
   const parent = parentFor(pathname);
   const item = railItemFor(pathname);
   const page = railPageFor(pathname);
   const counts = useWaitingCounts();
-  // Section pills, unless every section is already a bottom tab (Today's group).
-  const pills =
-    item && item.pages.length > 1 && !parent && !item.pages.every((p) => TAB_ROUTES.has(p.route))
-      ? item.pages
-      : [];
+  const teamUnread = useTeamUnread();
+  const attention = counts.total + teamUnread;
+  // Section pills for a rail place with several pages, unless we are drilled in.
+  const pills = item && item.pages.length > 1 && !parent && pathname !== "/" ? item.pages : [];
   return (
     <header className="shrink-0 border-b bg-card" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       <div className="flex h-12 items-center gap-2 px-3">
@@ -126,6 +138,28 @@ function MobileHeader({ pathname }: { pathname: string }) {
         <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
           {pills.length ? item!.label : titleFor(pathname)}
         </h1>
+        <button
+          type="button"
+          onClick={onMenu}
+          aria-label="Menu"
+          aria-expanded={menuOpen}
+          className={cn(
+            "relative -mr-1 flex h-9 w-9 items-center justify-center rounded-md active:bg-accent",
+            menuOpen ? "text-primary" : "text-muted-foreground",
+          )}
+        >
+          {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          {!menuOpen && attention > 0 && (
+            <span
+              className={cn(
+                "absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none text-white",
+                counts.approvals > 0 ? "bg-amber-500" : "bg-destructive",
+              )}
+            >
+              {attention > 99 ? "99+" : attention}
+            </span>
+          )}
+        </button>
       </div>
       {pills.length > 0 && (
         <nav aria-label={`${item!.label} sections`} className="flex gap-1.5 overflow-x-auto px-3 pb-2">
@@ -133,9 +167,10 @@ function MobileHeader({ pathname }: { pathname: string }) {
             const active = page?.route === p.route;
             const n = p.badge === "waiting" ? counts.total : p.badge === "assistant" ? counts.suggestions : 0;
             return (
-              <NavLink
+              <button
                 key={p.route}
-                to={p.route}
+                type="button"
+                onClick={() => navigate(p.route)}
                 className={cn(
                   "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs",
                   active ? "border-primary bg-primary/10 font-semibold text-primary" : "text-muted-foreground",
@@ -145,7 +180,7 @@ function MobileHeader({ pathname }: { pathname: string }) {
                 {n > 0 && (
                   <span className="rounded-full bg-destructive px-1.5 text-[10px] font-semibold leading-4 text-white">{n}</span>
                 )}
-              </NavLink>
+              </button>
             );
           })}
         </nav>
@@ -154,79 +189,14 @@ function MobileHeader({ pathname }: { pathname: string }) {
   );
 }
 
-function TabBar({
-  pathname,
-  moreOpen,
-  onMore,
-}: {
-  pathname: string;
-  moreOpen: boolean;
-  onMore: () => void;
-}) {
-  const counts = useWaitingCounts();
-  const teamUnread = useTeamUnread();
-  const inTabs = [...TAB_ROUTES].some((r) => under(pathname, r));
-  const badge: Record<string, number> = {
-    waiting: counts.total,
-    team: teamUnread,
-  };
-
-  return (
-    <nav
-      aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t bg-card/95 backdrop-blur"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
-      {TABS.map((t) => {
-        const active = !moreOpen && t.match.some((r) => under(pathname, r));
-        const n = badge[t.id] ?? 0;
-        return (
-          <NavLink
-            key={t.id}
-            to={t.to}
-            aria-label={t.label}
-            className={cn(
-              "relative flex h-14 flex-col items-center justify-center gap-0.5 text-[11px]",
-              active ? "text-primary" : "text-muted-foreground active:text-foreground",
-            )}
-          >
-            <t.icon className="h-5 w-5" />
-            {t.label}
-            {n > 0 && (
-              <span
-                className={cn(
-                  "absolute left-1/2 top-1.5 ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none text-white",
-                  t.id === "waiting" && counts.approvals > 0 ? "bg-amber-500" : "bg-destructive",
-                )}
-              >
-                {n > 99 ? "99+" : n}
-              </span>
-            )}
-          </NavLink>
-        );
-      })}
-      <button
-        type="button"
-        onClick={onMore}
-        aria-label="More"
-        aria-expanded={moreOpen}
-        className={cn(
-          "flex h-14 flex-col items-center justify-center gap-0.5 text-[11px]",
-          moreOpen || !inTabs ? "text-primary" : "text-muted-foreground active:text-foreground",
-        )}
-      >
-        <Menu className="h-5 w-5" />
-        More
-      </button>
-    </nav>
-  );
-}
-
-function MoreSheet({ onClose }: { onClose: () => void }) {
+function MenuSheet({ pathname, onClose }: { pathname: string; onClose: () => void }) {
   const navigate = useNavigate();
   const { user, refreshToken, logout } = useAuthStore();
   const { data: hub } = useHubStatus();
-  const rest = RAIL.filter((item) => !TABS.some((t) => t.match.includes(item.route)));
+  const counts = useWaitingCounts();
+  const teamUnread = useTeamUnread();
+  const badge: Record<string, number> = { waiting: counts.total, team: teamUnread };
+  const rest = RAIL.filter((item) => !PRIMARY.some((p) => p.match.includes(item.route)) && item.route !== "/today");
 
   async function signOut() {
     if (refreshToken) {
@@ -247,8 +217,8 @@ function MoreSheet({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
       <div
         role="dialog"
-        aria-label="More"
-        className="fixed inset-x-0 bottom-0 z-50 max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t bg-background shadow-2xl"
+        aria-label="Menu"
+        className="fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl border-t bg-background shadow-2xl"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
       >
         <div className="flex items-center justify-between px-4 pb-1 pt-3">
@@ -268,6 +238,35 @@ function MoreSheet({ onClose }: { onClose: () => void }) {
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        <div className="px-3 py-1">
+          {PRIMARY.map((p) => {
+            const active = p.match.some((r) => under(pathname, r));
+            const n = p.badge ? badge[p.badge] ?? 0 : 0;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => navigate(p.to)}
+                className={cn(row, active && "bg-accent font-medium")}
+              >
+                <p.icon className={cn("h-4 w-4", active ? "text-primary" : "text-muted-foreground")} />
+                <span className="flex-1">{p.label}</span>
+                {n > 0 && (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 text-[10px] font-semibold leading-4 text-white",
+                      p.badge === "waiting" && counts.approvals > 0 ? "bg-amber-500" : "bg-destructive",
+                    )}
+                  >
+                    {n > 99 ? "99+" : n}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mx-3 my-1 h-px bg-border" />
         <div className="grid grid-cols-3 gap-1 px-3 py-2">
           {rest.map((item) => (
             <button

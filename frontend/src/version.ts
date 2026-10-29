@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 310;
-export const BUILD_DATE = "2026-10-28";
+export const BUILD_NUMBER = 311;
+export const BUILD_DATE = "2026-10-29";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 311,
+    date: "2026-10-29",
+    title: "Gerry first on your phone; notes she keeps for you; routines that decide",
+    changes: [
+      "On a phone the app now opens on Gerry: a big microphone, what was said underneath, a small box to type instead. Tap to talk, pause and she answers. Everything else — Today, Waiting for you, Notes, Team, Tasks and the rest — is behind the menu button at the top right.",
+      "Say “note that…”, “remember…” or “jot down…” and Gerry keeps it as a private note. Only you can see your notes. She reads them back when you ask, before she writes any status report or weekly update for you, and the Today briefing carries the week's. A Notes page (under Today) lists them.",
+      "Routines can follow steps, with decisions: “if any invoice is over 30 days unpaid, then draft a reminder and make a task; otherwise note that all is current.” Add them on the routine's card or by asking Gerry. She checks each condition when the routine runs and says which way it went.",
+      "The Drive link of a report a routine wrote now shows on Today and on the routine's card, even when Gerry's summary didn't repeat it. This week's report gets its link straight away.",
+    ],
+  },
   {
     build: 310,
     date: "2026-10-28",

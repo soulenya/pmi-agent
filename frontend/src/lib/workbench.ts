@@ -50,6 +50,7 @@ const ALL_RAIL: RailItem[] = [
       { route: "/today", label: "Today" },
       { route: "/waiting", label: "Waiting for you", badge: "waiting" },
       { route: "/assistant", label: "Suggestions", badge: "assistant" },
+      { route: "/notes", label: "Notes" },
     ],
     also: ["/dashboard", "/approvals", "/notifications"],
   },

@@ -2616,9 +2616,14 @@ TOOL_DEFINITIONS: list[dict] = [
                 "Create, update, enable, disable, or delete a recurring scheduled "
                 "task — a standing instruction Little Gerry runs daily/weekly/monthly "
                 "at a local time (e.g. 'check for new FDA guidance every morning'). "
-                "Created inside a workroom conversation, the task auto-binds to that "
-                "room: runs post into the room chat and journal. delete/disable "
-                "require confirm=true after the user explicitly confirms."
+                "A task may carry STEPS: an ordered procedure where each step is "
+                "something to do, or an IF with a condition and what to do THEN and "
+                "OTHERWISE — 'if any invoice is over 30 days unpaid, draft a reminder "
+                "and make a task; otherwise note that all is current'. Use steps "
+                "whenever the user describes branching or a sequence rather than one "
+                "report. Created inside a workroom conversation, the task auto-binds "
+                "to that room: runs post into the room chat and journal. "
+                "delete/disable require confirm=true after the user explicitly confirms."
             ),
             "parameters": {
                 "type": "object",
@@ -2630,7 +2635,17 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "task_id": {"type": "string", "description": "Required for update/enable/disable/delete (from list_scheduled_tasks)."},
                     "title": {"type": "string", "description": "Task title (create/update)."},
-                    "prompt": {"type": "string", "description": "The natural-language instruction to run each time (create/update)."},
+                    "prompt": {"type": "string", "description": "The natural-language instruction to run each time (create/update). With steps, this is the overall goal; the steps are the procedure."},
+                    "steps": {
+                        "type": "array",
+                        "description": (
+                            "The procedure, in order (create/update; an empty list clears it). "
+                            "Each item is {\"kind\": \"do\", \"text\": str} or "
+                            "{\"kind\": \"if\", \"condition\": str, \"then\": [str, ...], \"otherwise\": [str, ...]}. "
+                            "Conditions and actions are plain English; Gerry checks the condition with tools at run time."
+                        ),
+                        "items": {"type": "object"},
+                    },
                     "frequency": {"type": "string", "enum": ["daily", "weekly", "monthly"], "description": "Recurrence (default weekly)."},
                     "day_of_week": {"type": "integer", "description": "0=Monday .. 6=Sunday (weekly)."},
                     "day_of_month": {"type": "integer", "description": "1..31 (monthly; clamped to month length)."},
@@ -2673,8 +2688,10 @@ TOOL_DEFINITIONS: list[dict] = [
 # Project timeline and canvas tools live in their own module because they need
 # the project access rules; their schemas belong in the same list as the rest.
 from services.agent import project_tools as _project_tools  # noqa: E402
+from services.agent import notes_tools as _notes_tools  # noqa: E402
 
 TOOL_DEFINITIONS.extend(_project_tools.TOOL_DEFINITIONS)
+TOOL_DEFINITIONS.extend(_notes_tools.TOOL_DEFINITIONS)
 
 
 # ── Tool implementations ───────────────────────────────────────────────────────
@@ -7532,6 +7549,7 @@ from services.agent.custodian_tools import CUSTODIAN_EXECUTORS  # noqa: E402
 
 TOOL_EXECUTORS.update(CUSTODIAN_EXECUTORS)
 TOOL_EXECUTORS.update(_project_tools.TOOL_EXECUTORS)
+TOOL_EXECUTORS.update(_notes_tools.TOOL_EXECUTORS)
 
 
 # When a model passes its single string argument as plain text instead of a
@@ -7599,6 +7617,7 @@ _PRIMARY_ARG = {
 }
 
 _PRIMARY_ARG.update(_project_tools.PRIMARY_ARGS)
+_PRIMARY_ARG.update(_notes_tools.PRIMARY_ARGS)
 
 
 # ── Brand + feature pass over the tool schemas ────────────────────────────────────

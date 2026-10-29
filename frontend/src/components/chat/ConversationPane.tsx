@@ -212,13 +212,15 @@ export function ConversationPane({
   });
   const setVoiceActive = useVoiceAssistantStore((s) => s.setActive);
   const setVoiceSpeaking = useVoiceAssistantStore((s) => s.setSpeaking);
+  const setVoicePhase = useVoiceAssistantStore((s) => s.setPhase);
   const toggleRequests = useVoiceAssistantStore((s) => s.toggleRequests);
   const seenToggle = useRef(toggleRequests);
   useEffect(() => {
     if (!voiceHost) return;
     setVoiceActive(voice.voiceMode);
     setVoiceSpeaking(voice.phase === "speaking");
-  }, [voiceHost, voice.voiceMode, voice.phase, setVoiceActive, setVoiceSpeaking]);
+    setVoicePhase(voice.phase, voice.error);
+  }, [voiceHost, voice.voiceMode, voice.phase, voice.error, setVoiceActive, setVoiceSpeaking, setVoicePhase]);
   useEffect(() => {
     if (!voiceHost || toggleRequests === seenToggle.current) return;
     seenToggle.current = toggleRequests;

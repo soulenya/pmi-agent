@@ -416,6 +416,7 @@ async def _update_task_on_hub(ctx: "ToolContext", task_id: uuid.UUID, args: dict
 async def execute_list_scheduled_tasks(ctx: "ToolContext", args: dict[str, Any]) -> str:
     from models.db.scheduled_task import ScheduledTask
     from services.scheduler.runner import run_links
+    from services.scheduler.steps import describe_steps
 
     tasks = (
         (
@@ -443,11 +444,13 @@ async def execute_list_scheduled_tasks(ctx: "ToolContext", args: dict[str, Any])
         t = hits[0]
         when = f"{t.last_run_at:%Y-%m-%d %H:%M}" if t.last_run_at else "never"
         files = [f"/api/files/{f}" for f in (t.last_run_files or [])]
-        links = run_links(t.last_run_output)
+        links = list(t.last_run_links or []) or run_links(t.last_run_output)
         parts = [
             f'Scheduled task "{t.title}" [id={t.id}] — last run {when}, status {t.last_run_status or "never"}, {t.run_count} runs.',
             f"Standing instruction: {t.prompt[:1500]}",
         ]
+        if t.steps:
+            parts.append("Steps:\n" + describe_steps(t.steps))
         if links or files:
             parts.append("Links from the last run: " + ", ".join(links + files))
         parts.append("Last run output:\n" + (t.last_run_output or "(none)"))
@@ -470,9 +473,11 @@ async def execute_list_scheduled_tasks(ctx: "ToolContext", args: dict[str, Any])
             f"{'enabled' if t.enabled else 'DISABLED'} | "
             f"last run {last}: {t.last_run_status or 'never'} ({t.run_count} runs){next_run}"
         )
-        links = run_links(t.last_run_output) + [f"/api/files/{f}" for f in (t.last_run_files or [])]
+        links = (list(t.last_run_links or []) or run_links(t.last_run_output)) + [f"/api/files/{f}" for f in (t.last_run_files or [])]
         if links:
             lines.append("    produced: " + ", ".join(links[:4]))
+        if t.steps:
+            lines.append(f"    steps: {len(t.steps)} (pass task=<title> to read them)")
         if t.last_run_output:
             head = " ".join(t.last_run_output.split())[:220]
             lines.append(f"    last output: {head}{'…' if len(t.last_run_output) > 220 else ''}")
@@ -486,6 +491,7 @@ async def execute_list_scheduled_tasks(ctx: "ToolContext", args: dict[str, Any])
 async def execute_manage_scheduled_task(ctx: "ToolContext", args: dict[str, Any]) -> str:
     from models.db.scheduled_task import ScheduledTask
     from services.scheduler.runner import compute_next_run
+    from services.scheduler.steps import StepError, describe_steps, normalise_steps
 
     action = str(args.get("action", "")).lower()
 
@@ -497,10 +503,15 @@ async def execute_manage_scheduled_task(ctx: "ToolContext", args: dict[str, Any]
             return "Error: title and prompt are required to create a scheduled task."
         if frequency not in ("daily", "weekly", "monthly"):
             return "Error: frequency must be daily, weekly, or monthly."
+        try:
+            steps = normalise_steps(args.get("steps")) or None
+        except StepError as exc:
+            return f"Error: {exc}"
         task = ScheduledTask(
             user_id=ctx.user_id,
             title=title[:255],
             prompt=prompt,
+            steps=steps,
             frequency=frequency,
             day_of_week=int(args["day_of_week"]) if args.get("day_of_week") is not None else None,
             day_of_month=int(args["day_of_month"]) if args.get("day_of_month") is not None else None,
@@ -531,9 +542,10 @@ async def execute_manage_scheduled_task(ctx: "ToolContext", args: dict[str, Any]
         # Session runs with autoflush=False — flush so the new task is visible
         # to list_scheduled_tasks within the same agent turn.
         await ctx.db.flush()
+        steps_note = f"\nSteps:\n{describe_steps(task.steps)}" if task.steps else ""
         return (
             f"Scheduled task '{task.title}' created ({frequency}, next run "
-            f"{task.next_run_at:%Y-%m-%d %H:%M}){room_note}."
+            f"{task.next_run_at:%Y-%m-%d %H:%M}){room_note}.{steps_note}"
         )
 
     task_id = _parse_uuid(args.get("task_id"))
@@ -591,8 +603,15 @@ async def execute_manage_scheduled_task(ctx: "ToolContext", args: dict[str, Any]
             if args.get(field) is not None:
                 setattr(task, field, int(args[field]))
                 changed.append(field)
+        if "steps" in args:
+            # An explicit empty list clears the procedure; omit the key to leave it.
+            try:
+                task.steps = normalise_steps(args.get("steps")) or None
+            except StepError as exc:
+                return f"Error: {exc}"
+            changed.append(f"steps ({len(task.steps or [])})")
         if not changed:
-            return "Nothing to update — provide title, prompt, frequency, day_of_week, day_of_month, hour, or minute."
+            return "Nothing to update — provide title, prompt, steps, frequency, day_of_week, day_of_month, hour, or minute."
         task.next_run_at = compute_next_run(
             frequency=task.frequency,
             hour=task.hour,

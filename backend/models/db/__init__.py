@@ -21,6 +21,7 @@ from models.db.meeting import MeetingNote
 from models.db.notification import Notification
 from models.db.erp import ErpConnection
 from models.db.odoo import OdooConnection
+from models.db.personal_note import PersonalNote
 from models.db.project_custody import ProjectItemCustody
 from models.db.project_link import ProjectLink
 from models.db.project_member import ProjectMember
@@ -71,6 +72,7 @@ __all__ = [
     "CAPA",
     "RegulatoryNode",
     "Notification",
+    "PersonalNote",
     "Briefing",
     "SystemSetting",
     "UserSetting",
