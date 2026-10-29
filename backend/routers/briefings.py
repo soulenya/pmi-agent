@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,11 +42,15 @@ Today is {today}. Generate the daily executive briefing for """ + get_brand().co
 ## Pending Approvals Requiring Decision ({approval_count})
 {approvals_block}
 
+## Your Notes This Week ({notes_count})
+{notes_block}
+
 Write the briefing as clean Markdown with:
 1. A one-sentence headline summarising the day.
 2. A **Priority Actions** section listing the most urgent items.
 3. A **Status Summary** covering in-progress work.
-4. A brief **Outlook** sentence if relevant.
+4. A **From Your Notes** section only if there are notes: the threads worth carrying forward, in a sentence or two. Never invent a note.
+5. A brief **Outlook** sentence if relevant.
 """
 
 
@@ -155,6 +159,16 @@ async def _generate_briefing_content(user_id, db: AsyncSession, for_date: date) 
 
     headline = f"{get_brand().company_short} Daily Briefing — {for_date.strftime('%B %d, %Y')}"
 
+    # The person's own notes from the week — theirs alone, read as themselves.
+    from services import notes as notes_svc
+
+    try:
+        since = datetime.now(timezone.utc) - timedelta(days=7)
+        week_notes = await notes_svc.list_anywhere(db, user_id, since=since, limit=30)
+    except Exception:  # noqa: BLE001 — a briefing is still a briefing without them
+        logger.exception("Failed to read notes for the briefing")
+        week_notes = []
+
     # Build LLM prompt
     user_prompt = _BRIEFING_USER_TEMPLATE.format(
         today=for_date.strftime("%B %d, %Y"),
@@ -166,6 +180,8 @@ async def _generate_briefing_content(user_id, db: AsyncSession, for_date: date) 
         approvals_block="\n".join(
             f"- {a.intent_title} [risk: {a.risk_level}]" for a in pending[:8]
         ) or "None.",
+        notes_count=len(week_notes),
+        notes_block=notes_svc.render_rows(week_notes, max_chars=3_000) or "None.",
     )
 
     full_content = headline  # fallback if LLM fails

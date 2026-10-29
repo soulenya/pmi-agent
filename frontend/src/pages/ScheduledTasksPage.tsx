@@ -2,14 +2,17 @@ import { useMemo, useState } from "react";
 import { listWorkrooms } from "@/api/workrooms";
 import { EXAMPLE_PROGRAM } from "@/lib/brand";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, Loader2, Play, Plus, Power, Trash2, CalendarClock } from "lucide-react";
+import { Clock, ExternalLink, GitBranch, Loader2, Play, Plus, Power, Trash2, CalendarClock } from "lucide-react";
 import { FileActionCard, extractFileLinks } from "@/components/chat/MessageBubble";
+import { StepsEditor, StepsSummary, cleanSteps, stepsHaveGaps } from "@/components/routines/StepsEditor";
+import { openExternal } from "@/lib/externalLinks";
 import {
   listScheduledTasks,
   createScheduledTask,
   updateScheduledTask,
   deleteScheduledTask,
   runScheduledTaskNow,
+  type RoutineStep,
   type ScheduledTask,
   type ScheduledTaskInput,
   type ScheduleFrequency,
@@ -46,6 +49,90 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
+/** What a Drive / web link is, for a short chip. */
+function linkLabel(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname === "docs.google.com") {
+      const kind = u.pathname.split("/")[1];
+      return kind === "document" ? "Google Doc" : kind === "spreadsheets" ? "Google Sheet" : kind === "presentation" ? "Google Slides" : "Google Drive";
+    }
+    if (u.hostname.endsWith("drive.google.com")) return "Google Drive";
+    return u.hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+/** The routine's steps, with an editor that saves on demand. */
+function StepsPanel({
+  task,
+  onSave,
+  saving,
+}: {
+  task: ScheduledTask;
+  onSave: (steps: RoutineStep[]) => void;
+  saving: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<RoutineStep[]>(task.steps ?? []);
+  const saved = task.steps ?? [];
+
+  if (!editing) {
+    return (
+      <div className="rounded-md border bg-muted/20 p-2.5">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <GitBranch className="h-3 w-3" /> Steps {saved.length ? `(${saved.length})` : ""}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(saved);
+              setEditing(true);
+            }}
+            className="text-xs text-primary hover:underline"
+          >
+            {saved.length ? "Edit" : "Add steps"}
+          </button>
+        </div>
+        {saved.length ? (
+          <StepsSummary steps={saved} />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            None — the instruction is the whole routine. Steps let you say “if this, then that”.
+          </p>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-md border p-2.5 space-y-2">
+      <StepsEditor steps={draft} onChange={setDraft} compact />
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="rounded-md border px-2.5 py-1.5 text-xs hover:bg-accent"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={saving || stepsHaveGaps(draft)}
+          onClick={() => {
+            onSave(cleanSteps(draft));
+            setEditing(false);
+          }}
+          className="rounded-md bg-primary px-2.5 py-1.5 text-xs text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save steps"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const EMPTY_FORM: ScheduledTaskInput = {
   title: "",
   prompt: "",
@@ -55,6 +142,7 @@ const EMPTY_FORM: ScheduledTaskInput = {
   hour: 8,
   minute: 0,
   enabled: true,
+  steps: [],
 };
 
 export function ScheduledTasksPage() {
@@ -110,7 +198,7 @@ export function ScheduledTasksPage() {
   });
 
   const canSubmit = useMemo(
-    () => form.title.trim().length > 0 && form.prompt.trim().length > 0,
+    () => form.title.trim().length > 0 && form.prompt.trim().length > 0 && !stepsHaveGaps(form.steps ?? []),
     [form],
   );
 
@@ -120,6 +208,7 @@ export function ScheduledTasksPage() {
       ...form,
       day_of_week: form.frequency === "weekly" ? form.day_of_week : null,
       day_of_month: form.frequency === "monthly" ? form.day_of_month : null,
+      steps: cleanSteps(form.steps ?? []),
     };
     createMutation.mutate(body);
   };
@@ -164,6 +253,17 @@ export function ScheduledTasksPage() {
               rows={4}
               className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium flex items-center gap-1.5">
+              <GitBranch className="h-4 w-4 text-muted-foreground" /> Steps (optional)
+            </label>
+            <p className="text-xs text-muted-foreground">
+              A procedure for Gerry to follow in order. A <strong>decision</strong> step is “if this, then
+              that, otherwise the other” — she checks the condition when the routine runs and says which way
+              it went.
+            </p>
+            <StepsEditor steps={form.steps ?? []} onChange={(steps) => setForm({ ...form, steps })} />
           </div>
           {workrooms.length > 0 && (
             <div className="space-y-1.5">
@@ -310,6 +410,12 @@ export function ScheduledTasksPage() {
 
                 <p className="text-sm text-muted-foreground line-clamp-2">{t.prompt}</p>
 
+                <StepsPanel
+                  task={t}
+                  saving={updateMutation.isPending && updateMutation.variables?.id === t.id}
+                  onSave={(steps) => updateMutation.mutate({ id: t.id, body: { steps } })}
+                />
+
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>Next run: {t.enabled ? formatDate(t.next_run_at) : "—"}</span>
                   <span>Last run: {formatDate(t.last_run_at)}</span>
@@ -342,6 +448,23 @@ export function ScheduledTasksPage() {
                       {t.last_run_output}
                     </pre>
                   </details>
+                )}
+
+                {t.last_run_status === "success" && (t.last_run_links?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {t.last_run_links!.map((url) => (
+                      <button
+                        key={url}
+                        type="button"
+                        onClick={() => openExternal(url)}
+                        title={url}
+                        className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs hover:bg-accent"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {linkLabel(url)}
+                      </button>
+                    ))}
+                  </div>
                 )}
 
                 {runFiles(t).map((name) => (

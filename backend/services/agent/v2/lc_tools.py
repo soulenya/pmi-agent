@@ -131,7 +131,10 @@ _TOOL_DOCS = {
     "manage_scheduled_task": (
         'Create, update, enable, disable, or delete a recurring scheduled task. JSON fields: '
         '{"action": "create"|"update"|"enable"|"disable"|"delete", "task_id": str (UUID, for non-create), '
-        '"title": str, "prompt": str (the instruction the agent runs), "frequency": "daily"|"weekly"|"monthly", '
+        '"title": str, "prompt": str (the instruction the agent runs; with steps, the overall goal), '
+        '"steps": [{"kind": "do", "text": str} | {"kind": "if", "condition": str, "then": [str], "otherwise": [str]}] '
+        '(an ordered procedure with plain-English branches — use when the user describes if/then logic or a sequence; [] clears), '
+        '"frequency": "daily"|"weekly"|"monthly", '
         '"day_of_week": int 0-6 Mon-Sun (weekly), "day_of_month": int 1-31 (monthly), "hour": int, "minute": int, '
         '"confirm": bool (required true for disable/delete, only after the user explicitly confirms)}.'
     ),
@@ -159,8 +162,10 @@ _TOOL_DOCS = {
 }
 
 from services.agent.project_tools import TOOL_DOCS as _PROJECT_TOOL_DOCS  # noqa: E402
+from services.agent.notes_tools import TOOL_DOCS as _NOTES_TOOL_DOCS  # noqa: E402
 
 _TOOL_DOCS.update(_PROJECT_TOOL_DOCS)
+_TOOL_DOCS.update(_NOTES_TOOL_DOCS)
 
 # Same brand/feature pass as the v1 schemas: PMI wording → this brand's, and
 # tools the brand does not ship are not offered to the v2 agents either.

@@ -56,6 +56,7 @@ from routers.erp import router as erp_router, odoo_router
 from routers.files import router as files_router
 from routers.feedback import router as feedback_router
 from routers.workrooms import router as workrooms_router
+from routers.notes import router as notes_router
 from routers.hub import router as hub_router
 from routers.team import router as team_router
 from routers.budgets import router as budgets_router
@@ -812,6 +813,7 @@ def create_app() -> FastAPI:
     app.include_router(files_router)
     app.include_router(feedback_router)
     app.include_router(workrooms_router)
+    app.include_router(notes_router)
     app.include_router(hub_router)
     app.include_router(team_router)
     app.include_router(budgets_router)

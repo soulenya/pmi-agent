@@ -2,6 +2,15 @@ import { apiClient } from "./client";
 
 export type ScheduleFrequency = "daily" | "weekly" | "monthly";
 
+/**
+ * One step of a routine's procedure: something to do, or a decision with what
+ * to do either way. Conditions and actions are plain English — Gerry checks
+ * the condition with tools when the routine runs and says which branch she took.
+ */
+export type RoutineStep =
+  | { kind: "do"; text: string }
+  | { kind: "if"; condition: string; then: string[]; otherwise: string[] };
+
 export interface ScheduledTask {
   id: string;
   title: string;
@@ -18,6 +27,10 @@ export interface ScheduledTask {
   last_run_output: string | null;
   // Generated files the last successful run produced (verified on disk).
   last_run_files: string[] | null;
+  // Drive / web links the last run produced, gathered from every tool result —
+  // not just the ones the model repeated in its closing text.
+  last_run_links: string[] | null;
+  steps: RoutineStep[] | null;
   conversation_id: string | null;
   workroom_id: string | null;
   run_count: number;
@@ -35,6 +48,7 @@ export interface ScheduledTaskInput {
   minute: number;
   enabled?: boolean;
   workroom_id?: string | null;
+  steps?: RoutineStep[] | null;
 }
 
 export async function listScheduledTasks(): Promise<ScheduledTask[]> {

@@ -4,6 +4,57 @@
 
 ## Changelog
 
+### v5.28.0 · build 311 — 2026-10-29
+**Phone opens on Gerry by voice; private notes Gerry keeps for you; routines with if/then steps; Drive links from every run**
+
+- **Phone home is a conversation with Gerry.** Below phone width the app
+  opens on a large microphone, what was said underneath, a small box to
+  type instead. It is the day's voice thread (`kind=voice`, found if there
+  is one from today, started if not; **New** starts another). The five
+  bottom tabs are gone; a menu button in the header opens one sheet with
+  Gerry, Today, Waiting for you, Notes, Team, Tasks, Conversations at the
+  top (badges as before), then the rest of the rail, device notifications,
+  Settings, Sign out. The header button carries the bell count plus Team
+  unread. `MobileGerryPage`; `voiceAssistantStore` gains `phase`/`error`
+  so a host can draw its own mic; `ConversationPane(voiceHost)` reports
+  them. Routes: `/` is phone-aware (`HomeRoute`), `/today` unchanged.
+- **Notes.** "Note that…", "remember…", "jot down…" — spoken or typed —
+  and Gerry keeps it as a private note (`save_note`), in the user's words;
+  `list_notes` reads them back (window, text filter) and the executor
+  prompt tells her to call it before any status report, weekly update or
+  recap, so a scheduled routine run as you sees what you noted. Both tools
+  are on the executive assistant and house manager. The Today briefing
+  gets a *From your notes* section (last seven days). A **Notes** page
+  (Today › Notes; phone menu) lists, adds, edits, archives, deletes. Notes
+  are kept **on the hub when this install is connected** (`save_anywhere`
+  / `list_anywhere`; `/notes` added to the hub proxy allow-list), so the
+  phone and the laptop share one list and the routine finds both; a note
+  made while the hub is unreachable stays local and is labelled.
+  `personal_notes` table (migration 052, APP_ROLE ownership); every read
+  filters `user_id`; no admin view. Five tests.
+- **Routines can branch.** A scheduled task carries optional `steps`
+  (JSONB; `services/scheduler/steps.py`): each `{"kind":"do","text"}` or
+  `{"kind":"if","condition","then":[…],"otherwise":[…]}`, plain English.
+  The runner renders them after the prompt as a numbered PROCEDURE telling
+  Gerry to check each condition with tools, take exactly one branch and
+  say which and why. Steps editor on the Routines form and on each card
+  (add / decision / reorder / remove; a branch's actions one per line);
+  `manage_scheduled_task` accepts `steps` on create/update ([] clears) and
+  `list_scheduled_tasks` shows them, so "add a step to the weekly report:
+  if … then …" works by voice. Ten tests on validation and rendering.
+- **The Drive link of a routine's report reaches Today.** The card read
+  links from the model's closing text, truncated to 4000 chars — today's
+  weekly report uploaded to Drive and the summary never repeated the
+  address, so Today showed the report with nothing to open. The executor
+  now collects every web/Drive URL from every tool result during a run
+  (`collected_links`); the runner stores them as `last_run_links` (from
+  tool results first, then the text) and the run prompt asks for the link
+  at the end. The Today card, the Routines card and the agent's listing
+  read `last_run_links` first. Runs from before this are read back once
+  from the "Open in Drive" chip their assistant message kept
+  (`_backfill_links` on GET), so the existing weekly report gets its link
+  without waiting for next Thursday. Three tests.
+
 ### v5.27.1 · build 310 — 2026-10-28
 **A company's copy ships PMI's releases by itself**
 

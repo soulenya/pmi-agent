@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.db.enums import MessageRole
 from models.db.scheduled_task import ScheduledTask
 from services import google_user_creds
+from services.scheduler.steps import render_steps
 from repositories.conversation_repo import (
     ConversationRepository,
     MessageRepository,
@@ -185,15 +186,19 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
     # history is unchanged. Room context (goal, pins, journal) comes from the
     # system prompt, not message history, so standing room tasks keep it.
     fresh_prompt = (
-        f"{task.prompt}\n\n"
+        f"{task.prompt}\n"
+        f"{render_steps(task.steps)}\n\n"
         "[SCHEDULED RUN — FRESH EXECUTION REQUIRED] You are starting from "
         "nothing: do the work from scratch with real tool calls IN THIS RUN. "
-        "Never reference a file, link, or ID you did not create in this run."
+        "Never reference a file, link, or ID you did not create in this run. "
+        "End with the link to anything you created or uploaded (Drive documents, "
+        "sheets) so the person can open it from the summary."
     )
 
     status = "success"
     output = ""
     files: list[str] = []
+    links: list[str] = []
     try:
         executor = await AgentExecutor.create(db, task.user_id, conv.id)
         executor.fresh_context = True
@@ -201,11 +206,17 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
         # the executor persists the final assistant message itself.
         async for _frame in executor._run(fresh_prompt):
             pass
+        # Links come from the tools' own answers (an upload's Drive address),
+        # then from the closing text — in that order, so the real thing is first.
+        links = list(executor.collected_links)
 
         # Read back the most recent assistant message as the run output.
         msgs = await msg_repo.list_for_conversation(conv.id, limit=200, most_recent=True)
         assistant_msgs = [m for m in msgs if m.role == MessageRole.ASSISTANT]
         output = assistant_msgs[-1].content if assistant_msgs else ""
+        for url in run_links(output):
+            if url not in links:
+                links.append(url)
         if not output:
             status = "failed"
             output = "The scheduled run produced no response."
@@ -228,6 +239,7 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
         status = "failed"
         output = f"Run failed: {exc}"
         files = []
+        links = []
 
     # Standing room task — journal the run so the room timeline stays complete.
     if room is not None and status == "success":
@@ -248,6 +260,9 @@ async def run_scheduled_task(db: AsyncSession, task: ScheduledTask) -> dict:
     # Recorded from the FULL output before truncation, so the file cards on the
     # Scheduled Tasks page survive a long report.
     task.last_run_files = files or None
+    # Links in full, from the whole run: the Today card reads these rather than
+    # fishing in the truncated text.
+    task.last_run_links = (links if status == "success" else []) or None
     task.run_count = (task.run_count or 0) + 1
     task.next_run_at = compute_next_run(
         frequency=task.frequency,

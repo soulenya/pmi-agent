@@ -22,6 +22,7 @@ from services.scheduler.runner import (
     compute_next_run,
     start_background_run,
 )
+from services.scheduler.steps import StepError, normalise_steps
 
 router = APIRouter(prefix="/scheduled-tasks", tags=["scheduled-tasks"])
 
@@ -43,6 +44,8 @@ class ScheduledTaskOut(BaseModel):
     last_run_status: str | None = None
     last_run_output: str | None = None
     last_run_files: list[str] | None = None
+    last_run_links: list[str] | None = None
+    steps: list[dict] | None = None
     conversation_id: uuid.UUID | None = None
     workroom_id: uuid.UUID | None = None
     run_count: int
@@ -63,6 +66,8 @@ class ScheduledTaskCreate(BaseModel):
     minute: int = Field(default=0, ge=0, le=59)
     enabled: bool = True
     workroom_id: uuid.UUID | None = None
+    # The procedure: do / if-then-otherwise steps (services.scheduler.steps).
+    steps: list[dict] | None = None
 
 
 class ScheduledTaskUpdate(BaseModel):
@@ -75,9 +80,17 @@ class ScheduledTaskUpdate(BaseModel):
     minute: int | None = Field(default=None, ge=0, le=59)
     enabled: bool | None = None
     workroom_id: uuid.UUID | None = None
+    steps: list[dict] | None = None
 
 
 # ── helpers ───────────────────────────────────────────────────────────────
+
+def _clean_steps(raw) -> list[dict] | None:
+    try:
+        steps = normalise_steps(raw)
+    except StepError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return steps or None
 
 def _validate_frequency(freq: str) -> None:
     if freq not in VALID_FREQUENCIES:
@@ -132,6 +145,39 @@ def _recompute(task: ScheduledTask) -> None:
 
 # ── endpoints ─────────────────────────────────────────────────────────────
 
+async def _backfill_links(db: AsyncSession, task: ScheduledTask) -> None:
+    """Links for a run recorded before ``last_run_links`` existed.
+
+    The run's assistant message kept the "Open in Drive" chip its upload
+    produced even when the closing text never repeated the address; read it
+    back once and store it, so an existing weekly report is reachable from
+    Today without waiting for its next run.
+    """
+    if task.last_run_links is not None or task.last_run_status != "success" or not task.conversation_id:
+        return
+    from models.db.conversation import Message
+    from services.scheduler.runner import run_links
+
+    row = (
+        await db.execute(
+            select(Message.tool_results, Message.content)
+            .where(Message.conversation_id == task.conversation_id, Message.role == "assistant")
+            .order_by(Message.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    links: list[str] = []
+    if row is not None:
+        for art in row[0] or []:
+            url = art.get("url") if isinstance(art, dict) else None
+            if url and url not in links:
+                links.append(url)
+        for url in run_links(row[1]):
+            if url not in links:
+                links.append(url)
+    task.last_run_links = links  # [] marks "looked, nothing" so this runs once
+
+
 @router.get("", response_model=list[ScheduledTaskOut])
 async def list_scheduled_tasks(
     db: AsyncSession = Depends(get_db),
@@ -144,6 +190,13 @@ async def list_scheduled_tasks(
             .order_by(ScheduledTask.created_at.desc())
         )
     ).scalars().all()
+    touched = False
+    for task in rows:
+        if task.last_run_links is None and task.last_run_status == "success" and task.conversation_id:
+            await _backfill_links(db, task)
+            touched = True
+    if touched:
+        await db.commit()
     return list(rows)
 
 
@@ -166,6 +219,7 @@ async def create_scheduled_task(
         minute=body.minute,
         enabled=body.enabled,
         workroom_id=body.workroom_id,
+        steps=_clean_steps(body.steps),
     )
     if task.enabled:
         _recompute(task)
@@ -188,6 +242,8 @@ async def update_scheduled_task(
         _validate_frequency(data["frequency"])
     if "workroom_id" in data:
         await _validate_workroom(db, data["workroom_id"], user)
+    if "steps" in data:
+        data["steps"] = _clean_steps(data["steps"])
     for key, value in data.items():
         setattr(task, key, value)
     # Re-derive the next run whenever the schedule or enabled flag changes.

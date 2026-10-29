@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
@@ -120,6 +121,8 @@ Word or Excel file, call convert_drive_file and edit the Google copy.
    - If the user asks to generate, create, or export a plain-text/markdown/csv file → call generate_file
    - If the user asks for a slide deck, presentation, pitch deck, product briefing, demo deck or board deck → call list_deck_archetypes, then ASK which security classification applies (open / confidential internal / confidential proprietary information / confidential trade secret — never guess, it is printed on every slide), then call create_deck. NEVER use create_docx for a deck — a deck is not a Word document
    - If the user asks for a Word document, report, memo, weekly update, or formatted deliverable → call create_docx (it appears on the Generated Files page)
+   - If the user says "note that", "remember", "jot down", "make a note" or dictates a thought to keep → call save_note with their words as said, then confirm in one line
+   - Before any status report, weekly update, recap or "what did I note" → call list_notes (their private notes; nobody else's are ever returned)
    - If the user asks to upload a file you created to Google Drive → call upload_to_drive with the generated filename
    - When in doubt about Drive content, use list_drive_folder to browse and search_drive_content to read
 2. DO NOT just describe what you are about to do — use the tool and show the result.
@@ -140,6 +143,10 @@ Today's date: {{today}}
 
 
 # ── Tool status helpers ───────────────────────────────────────────────────────
+
+# A web or Drive address inside a tool result; trailing punctuation is trimmed
+# at the use site.
+_LINK_RE = re.compile(r"https?://[^\s<>()\[\]\"'`]+")
 
 _TOOL_RUNNING_LABELS: dict[str, str] = {
     "search_knowledge_base": "Searching knowledge base…",
@@ -224,8 +231,10 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
 }
 
 from services.agent.project_tools import RUNNING_LABELS as _PROJECT_LABELS  # noqa: E402
+from services.agent.notes_tools import RUNNING_LABELS as _NOTES_LABELS  # noqa: E402
 
 _TOOL_RUNNING_LABELS.update(_PROJECT_LABELS)
+_TOOL_RUNNING_LABELS.update(_NOTES_LABELS)
 
 
 def _tool_running_label(tool_name: str, args: dict) -> str:
@@ -321,6 +330,10 @@ class AgentExecutor:
     # Set when the user asks to stop. Checked between streamed chunks and
     # between tool rounds; whatever was generated so far is still saved.
     stop_event: asyncio.Event | None = None
+    # Every web/Drive link a tool returned during the latest run, in order.
+    # A scheduled run reads this when it ends: the model's closing text may
+    # not repeat the Drive link of the document it just uploaded.
+    collected_links: list[str] = field(default_factory=list)
 
     def _stop_requested(self) -> bool:
         return self.stop_event is not None and self.stop_event.is_set()
@@ -400,6 +413,7 @@ class AgentExecutor:
         accumulated_content = ""
         cited_chunk_ids: list[str] = []
         turn_artifacts: list[dict] = []  # "take me to it" chips for created things
+        self.collected_links = []
 
         for _round in range(MAX_TOOL_ROUNDS):
             tool_calls_this_round: list[dict] = []
@@ -549,6 +563,11 @@ class AgentExecutor:
                     if art not in turn_artifacts:
                         turn_artifacts.append(art)
                         yield _json.dumps({"type": "artifact_link", "artifact": art})
+                if isinstance(result, str) and not result.startswith(("Error", "Unknown tool", "Tool '")):
+                    for m in _LINK_RE.finditer(result):
+                        url = m.group(0).rstrip(".,;:*_)")
+                        if "/api/files/" not in url and url not in self.collected_links:
+                            self.collected_links.append(url)
 
                 # If a tool staged a confirm/cancel popup (e.g. KB deletion),
                 # emit it to the client and clear it. The frontend performs the

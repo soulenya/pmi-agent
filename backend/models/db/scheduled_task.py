@@ -63,6 +63,15 @@ class ScheduledTask(Base):
     # disk when the run ended. Kept separately because last_run_output is
     # truncated for display and can cut the /api/files/... links off the end.
     last_run_files: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # Links the last run produced — Drive documents, sheets, web pages —
+    # gathered from every tool result during the run, not just from whatever
+    # the model restated at the end. A report written straight to Drive is
+    # reachable from Today because of this.
+    last_run_links: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # The routine's procedure: ordered steps, each "do" or an "if" with
+    # then/otherwise branches (see services.scheduler.steps). Rendered into
+    # the run's instruction after ``prompt``. Null means the prompt alone.
+    steps: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     # Conversation that holds the run history, so the user can open it in chat.
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True

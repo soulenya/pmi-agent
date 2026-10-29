@@ -140,6 +140,9 @@ _TOOLS = [
     "log_workroom_progress",
     "get_file_template",
     "generate_file",
+    # The user's private notes: kept on request, read before any recap.
+    "save_note",
+    "list_notes",
 ]
 
 

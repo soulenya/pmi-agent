@@ -176,6 +176,9 @@ _TOOLS = [
     "list_deck_archetypes",
     "read_deck",
     "request_approval",
+    # The user's private notes: kept on request, read before any recap.
+    "save_note",
+    "list_notes",
     # Delegation
     "delegate_to_agent",
 ]

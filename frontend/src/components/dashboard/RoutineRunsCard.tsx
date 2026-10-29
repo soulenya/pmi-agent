@@ -21,8 +21,10 @@ import { openExternal } from "@/lib/externalLinks";
 const URL_RE = /https?:\/\/[^\s<>()[\]"']+/g;
 const RECENT_DAYS = 8;
 
+/** Links the run produced: the list gathered from tool results while it ran,
+ *  falling back to whatever the (truncated) text mentions for older runs. */
 function runLinks(t: ScheduledTask): string[] {
-  const out: string[] = [];
+  const out: string[] = [...(t.last_run_links ?? [])];
   for (const m of (t.last_run_output ?? "").matchAll(URL_RE)) {
     const url = m[0].replace(/[.,;:*_]+$/, "");
     if (url.includes("/api/files/")) continue;
