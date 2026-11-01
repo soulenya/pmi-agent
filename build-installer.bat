@@ -2,7 +2,7 @@
 :: ============================================================
 ::  Build Little Gerry Windows Installer (.exe)
 ::
-::  Requires Inno Setup 6 (free): https://jrsoftware.org/isinfo.php
+::  Requires Inno Setup 6 or 7 (free): https://jrsoftware.org/isinfo.php
 ::
 ::  After downloading and installing Inno Setup, run this file
 ::  from the project root. It compiles installer\setup.iss into:
@@ -20,14 +20,16 @@ echo.
 echo  Building Little Gerry Windows installer...
 echo.
 
-:: Find Inno Setup Compiler (iscc.exe)
+:: Find Inno Setup Compiler (iscc.exe) - 7 (x64) first, then 6
 set "ISCC="
-if exist "%ProgramFiles(x86)%\Inno Setup 6\iscc.exe" (
+if exist "%ProgramFiles%\Inno Setup 7\iscc.exe" (
+    set "ISCC=%ProgramFiles%\Inno Setup 7\iscc.exe"
+) else if exist "%ProgramFiles(x86)%\Inno Setup 6\iscc.exe" (
     set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\iscc.exe"
 ) else if exist "%ProgramFiles%\Inno Setup 6\iscc.exe" (
     set "ISCC=%ProgramFiles%\Inno Setup 6\iscc.exe"
 ) else (
-    echo  [ERROR] Inno Setup 6 not found.
+    echo  [ERROR] Inno Setup not found.
     echo.
     echo  Please download and install it from:
     echo    https://jrsoftware.org/isdl.php

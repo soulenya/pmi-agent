@@ -353,6 +353,11 @@ async def submit_for_approval(
         raise HTTPException(status_code=403, detail="Forbidden")
     if not draft.draft_body:
         raise HTTPException(status_code=400, detail="Draft body is empty — generate it first")
+    if not (draft.recipient_email or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="This draft has no recipient. Use Edit recipients on the card to say who it goes to.",
+        )
     if draft.status == "pending_approval":
         raise HTTPException(status_code=409, detail="Already pending approval")
 

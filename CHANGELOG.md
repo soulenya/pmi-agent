@@ -4,6 +4,84 @@
 
 ## Changelog
 
+### v5.29.0 · build 313 — 2026-10-30
+**Every layer of the stack brought current after a security sweep; meeting recipients found in Gmail, not just the calendar; edit a draft's recipients on its card**
+
+*Security sweep & toolchain.* A review of recent advisories against
+everything Little Gerry runs on, then an upgrade of each layer to its
+current release. What it closes:
+
+- **JWT library swapped: python-jose → PyJWT 2.15.** python-jose's
+  algorithm-confusion guard was bypassed again in 2026
+  (CVE-2026-85394, Critical, no fix published). Our tokens were HS256
+  with a symmetric secret so the public-key path wasn't reachable, but
+  the library is unmaintained; `services/auth/service.py`,
+  `routers/auth.py` (Google OAuth state) and `services/push/apns.py`
+  (ES256 provider token) now use PyJWT. Tokens issued before the upgrade
+  stay valid — same algorithm, same secret, same claims. PyJWT warns
+  when an HS256 secret is under 32 bytes; the generated secrets (64-byte
+  `token_urlsafe`, 48-byte hub secret) are well over.
+- **Backend (`uv lock --upgrade`)**: Pillow 13.0 (<13 image-decoder RCE
+  with public PoC), pydantic 2.14.2 (seven advisories), urllib3 2.8
+  (proxy MITM), aiohttp 3.14.5, websockets 17.4, cryptography 50,
+  certifi 2026.10.23 (drops the compromised eMudhra/emSign roots),
+  FastAPI 0.162 / Starlette 1.10 / uvicorn 0.54, SQLAlchemy 2.1.6,
+  alembic 1.20, asyncpg 0.32, anthropic 2.3 / openai 3.42,
+  langchain-core 1.7 / langgraph 1.2, google-auth 2.62.
+- **Hub image**: `python:3.14-slim-trixie` (CPython 3.14.10 — ssl
+  use-after-free fix and the eMudhra denylist — on Debian 13 with OpenSSL
+  3.5.7) and `node:24-slim` for the frontend build stage (Node 24.22:
+  Brotli RCE and TLS-bypass fixes).
+- **PostgreSQL**: `pgvector/pgvector:pg16` repinned from 16.14 to the
+  16.15 multi-arch digest in `docker-compose.yml`,
+  `docker-compose.hub.yml` and `scripts/hub-startup.sh`. Hubs pick it up
+  on the next `deploy-hub.ps1 -UpdateStartupScript`.
+- **Frontend**: Vite 8.3, `@vitejs/plugin-react` 6, **Tailwind 4.3**
+  (CSS-first config: `tailwind.config.ts` removed, theme moved into
+  `src/index.css` under `@theme`; `@tailwindcss/postcss` replaces the
+  autoprefixer pair; utility-class diff before/after: nothing lost),
+  React 19.3, react-router 7.18, axios 1.21, lucide 1.66,
+  framer-motion 14.9, ESLint 10, typescript-eslint 8.72, `@types/node`
+  26. TypeScript stays on 5.9 — the 7.0 Go compiler builds the project
+  but typescript-eslint doesn't accept it yet. `npm audit`: 0.
+- **CI / build tools**: `actions/checkout@v7` in all three workflows;
+  the Windows release workflow, `build-installer.bat` and
+  `publish-release.ps1` look for Inno Setup 7 first, then 6.
+- Found clean and left as-is: FastAPI, SQLAlchemy, httpx, the Anthropic
+  and OpenAI SDKs, GCP IAP / Secret Manager, `actions/checkout`.
+- Not something a release can fix — **OS-level, each machine**:
+  WebView2 / WKWebView (the launcher's web view; patched by Windows
+  Update / macOS updates), Docker Desktop ≥ 4.97, PowerShell 7 ≥
+  7.4.19 / 7.5.10 / 7.6.5, and local Python 3.14.10 / Node 24.22 on
+  the PC that builds installers.
+
+*Meetings & drafts.*
+
+- The live-meeting precheck read today's primary calendar and nothing
+  else. Most invites arrive by mail and are never accepted onto the
+  calendar, so the thank-you draft after a meeting was addressed to no
+  one. `find_meeting_event` (live_assist) now looks in order: the
+  calendar (±1 day); invitations in Gmail from the last week
+  (`gmail_recent_invitations` — messages with a text/calendar part or an
+  invitation subject; `parse_ical_invite` reads SUMMARY, DTSTART,
+  ORGANIZER and every ATTENDEE with its CN, unfolding RFC 5545 lines;
+  cancelled and declined ones skipped), matched by start time within 45
+  minutes; then a lone same-day invite without a readable time. Names
+  come from the invite's CN before the address. `facts.source` says
+  `calendar` / `gmail:ical` / `gmail:headers`; the consent card shows
+  which, and the note's attendees are stored either way.
+- `read_meeting`: a note with no attendees recorded now looks for the
+  Gmail invitation around the meeting's date (title words + time
+  proximity) and reports who was on it, so "draft a follow-up for today's
+  meeting" in chat has recipients to work with; failing that it tells
+  the agent to ask rather than guess.
+- Email Drafts: **Edit recipients** on every draft card — To name, To
+  email, CC, BCC — saved through the existing `PUT`, which already took
+  the fields the UI never offered. A draft with no To is marked in amber
+  and `submit-for-approval` refuses it with a reason instead of making an
+  approval that fails on send.
+- Three tests on the iCalendar parser and the nested-part finder.
+
 ### v5.28.0 · build 311 — 2026-10-29
 **Phone opens on Gerry by voice; private notes Gerry keeps for you; routines with if/then steps; Drive links from every run**
 

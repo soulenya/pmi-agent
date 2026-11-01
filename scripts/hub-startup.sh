@@ -102,7 +102,7 @@ chmod +x scripts/init_db_hub.sh
 cat > docker-compose.yml <<YMLEOF
 services:
   postgres:
-    image: pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+    image: pgvector/pgvector:pg16@sha256:0dd3149a06e4579a0d70d8fef9945636cd514005e7237deb27f9b67886f8dc4f
     container_name: ${PG_CONTAINER}
     restart: unless-stopped
     environment:

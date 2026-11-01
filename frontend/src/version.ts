@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 311;
-export const BUILD_DATE = "2026-10-29";
+export const BUILD_NUMBER = 313;
+export const BUILD_DATE = "2026-10-30";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,18 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 313,
+    date: "2026-10-30",
+    title: "Security sweep — everything under the hood brought current; meeting follow-ups find the invite in Gmail",
+    changes: [
+      "We reviewed recent security advisories for every piece Little Gerry is built on and brought each to its current release: the web framework, database driver, image library, the token library behind sign-in (replaced outright with a maintained one), the AI SDKs, the hub's Python and PostgreSQL, and the tools that build the app itself. Nothing changes in how Gerry works; you stay signed in.",
+      "Still on you: keep Windows and macOS updated (the app's web view is part of the OS), and Docker Desktop and PowerShell current on the PC that builds installers.",
+      "When Gerry drafts a thank-you after a meeting, she now finds the attendees even when the invite only ever reached your Gmail and was never accepted onto the calendar. She looks at the calendar first, then at invitations in your mail from the last week, and tells you which she used.",
+      "Asked in chat to draft a follow-up for a meeting whose note has no attendees, Gerry looks for the invitation in Gmail before asking who was there.",
+      "Email Drafts: Edit recipients on any draft card to change To, CC and BCC. A draft with no one in To is flagged and can't be submitted until someone is named.",
+    ],
+  },
   {
     build: 311,
     date: "2026-10-29",

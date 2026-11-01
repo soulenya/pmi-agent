@@ -6175,6 +6175,64 @@ async def execute_search_meetings(ctx: ToolContext, args: dict[str, Any]) -> str
     return "\n".join(out)
 
 
+async def _attendees_from_gmail_invite(meeting) -> list[str]:
+    """Who was invited, read from the invitation email nearest the meeting's day.
+
+    Returns "Name <email>" strings, or [] when Google is not connected or no
+    invitation within two days of the meeting matches. Never raises.
+    """
+    import asyncio
+    from datetime import datetime, timedelta, timezone
+
+    from services import google_service as gs
+
+    try:
+        if not gs.get_credentials():
+            return []
+        when = meeting.meeting_date or meeting.created_at
+        if when is None:
+            return []
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=timezone.utc)
+        age_days = max(1, (datetime.now(timezone.utc) - when).days + 3)
+        invites = await asyncio.to_thread(
+            lambda: gs.gmail_recent_invitations(days=min(age_days, 60), max_results=40)
+        )
+    except Exception:  # noqa: BLE001 — a lookup failure is just "nothing found"
+        return []
+
+    title_words = {w.lower() for w in (meeting.title or "").split() if len(w) >= 4}
+    best, best_score = None, 0.0
+    for inv in invites:
+        score = 0.0
+        start = str(inv.get("start") or "")
+        try:
+            if start:
+                s = datetime.fromisoformat(start.replace("Z", "+00:00"))
+                if s.tzinfo is None:
+                    s = s.replace(tzinfo=timezone.utc)
+                gap = abs((s - when).total_seconds())
+                if gap > 2 * 86400:
+                    continue
+                score += max(0.0, 2.0 - gap / 86400)  # closer in time scores higher
+        except ValueError:
+            pass
+        words = {w.lower() for w in str(inv.get("title") or "").split() if len(w) >= 4}
+        score += len(title_words & words)
+        if inv.get("attendees") and score > best_score:
+            best, best_score = inv, score
+    if best is None or best_score <= 0:
+        return []
+    out: list[str] = []
+    for a in best.get("attendees", []):
+        email = a.get("email", "")
+        if not email:
+            continue
+        name = (a.get("name") or "").strip()
+        out.append(f"{name} <{email}>" if name else email)
+    return out
+
+
 async def execute_read_meeting(ctx: ToolContext, args: dict[str, Any]) -> str:
     from sqlalchemy import select
 
@@ -6209,6 +6267,22 @@ async def execute_read_meeting(ctx: ToolContext, args: dict[str, Any]) -> str:
     out = [f"Meeting: {meeting.title}", f"Date: {when}"]
     if meeting.attendees:
         out.append(f"Attendees: {', '.join(meeting.attendees)}")
+    else:
+        # The precheck saw no calendar event. Most invites arrive by mail and
+        # are never accepted into the calendar, so look for the invitation in
+        # Gmail around the meeting's date before saying nobody is known.
+        found = await _attendees_from_gmail_invite(meeting)
+        if found:
+            out.append(
+                "Attendees (from the invitation in Gmail — the meeting was not on the calendar): "
+                + ", ".join(found)
+            )
+        else:
+            out.append(
+                "Attendees: none recorded — no calendar event or Gmail invitation was found. "
+                "Ask the user who was there before drafting to anyone, or search_gmail for the "
+                "thread the meeting was arranged in."
+            )
     for label, value in (
         ("Summary", meeting.summary),
         ("Decisions", meeting.decisions),

@@ -55,7 +55,7 @@ def _signing_token() -> str:
     if _jwt_cache["token"] and (now - _jwt_cache["issued_at"]) < _JWT_TTL_SECONDS:
         return _jwt_cache["token"]
 
-    from jose import jwt  # python-jose — same lib the auth service uses
+    import jwt  # PyJWT — same lib the auth service uses
 
     key = Path(str(settings.apns_key_path)).expanduser().read_text()
     token = jwt.encode(

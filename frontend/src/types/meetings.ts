@@ -68,6 +68,8 @@ export interface EmailDraftUpdate {
   subject?: string;
   recipient_name?: string;
   recipient_email?: string;
+  cc?: string;
+  bcc?: string;
   purpose?: string;
   tone?: string;
   key_points?: string;

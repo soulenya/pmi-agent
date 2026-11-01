@@ -120,7 +120,7 @@ pmi-agent/
 
 ## 3. Local development
 
-Prerequisites: Windows 10/11 or an Apple-silicon Mac; Docker Desktop; Node 20; Python 3.14 through `uv` (`backend/.python-version`); Git. Keys: Anthropic, Voyage (the free tier is enough).
+Prerequisites: Windows 10/11 or an Apple-silicon Mac; Docker Desktop; Node 24; Python 3.14 through `uv` (`backend/.python-version`); Git. Keys: Anthropic, Voyage (the free tier is enough).
 
 ```bash
 git clone https://github.com/soulenya/pmi-agent.git && cd pmi-agent
@@ -168,7 +168,7 @@ The product is *Little Gerry*; the company is a parameter.
 
 ## 5. Backend
 
-FastAPI, Python 3.14, SQLAlchemy 2.0 async + asyncpg, Alembic, pgvector, `slowapi` rate limiting, `keyring`. `main.py` builds the app, mounts 46 routers and two WebSockets.
+FastAPI, Python 3.14, SQLAlchemy 2.1 async + asyncpg, Alembic, pgvector, `slowapi` rate limiting, `keyring`, PyJWT (`pyjwt[crypto]` — not python-jose, whose algorithm-confusion guard was bypassed again in 2026 with no fix). `main.py` builds the app, mounts 46 routers and two WebSockets.
 
 | Area | Routers |
 |---|---|
@@ -222,7 +222,7 @@ Chat attachments (`chat_attachments.py`) use the same extractors, store encrypte
 
 ## 8. Frontend
 
-React 19, TypeScript, Vite 6, Tailwind, shadcn/ui, TanStack Query (server state), Zustand (client state), React Router 7. `@/` → `src/`.
+React 19, TypeScript 5.9, Vite 8, Tailwind 4 (CSS-first: theme in `src/index.css` `@theme`, no `tailwind.config`), shadcn/ui, TanStack Query (server state), Zustand (client state), React Router 7. `@/` → `src/`.
 
 - **Workbench shell** (`lib/workbench.ts`, `components/layout/`): left rail (Today, Gerry, Projects, Tasks, Team, Mail, Knowledge, Calendar, Compliance, Finance — filtered by `features`), recent places, You menu, Ctrl+K search, peek drawer, Gerry side panel bound to the open project. Phone layout under 768 px on the hub.
 - **Pages** (`src/pages/`, lazy-loaded): Dashboard (Today), Chat, Projects / ProjectSpace / Portfolio, Tasks, Team, Inbox / Emails / Contacts, Documents / Search / GeneratedFiles, Calendar, Meetings, Regulatory, Research / ResearchBrowser, Budgets, Erp, Workrooms, ScheduledTasks, Assistant, Waiting, Settings, Users, Audit, Backups, Agents, Login.
@@ -255,7 +255,7 @@ One GCE VM (`hub`, e2-standard-2, Ubuntu 24.04, no external IP, Cloud NAT) runs 
 
 - **Bring-up:** `scripts/hub-startup.sh` runs on boot from instance metadata (`project, region, registry, image, hub-domain, iap-audience, backup-bucket, db-*, api-container, postgres-container, vapid-subject`; PMI defaults). It pulls secrets from Secret Manager into `/opt/littlegerry/.env` (never `source`d — values are read with `sed`), renders compose and the init SQL, installs `backup.sh` (nightly cron → GCS: `pg_dump` + `/data` tarball) and `restore.sh`, and starts the stack. There is no auto-migrate: the deploy script runs alembic.
 - **Deploy:** `scripts/hub/deploy-hub.ps1 [-Tag X] [-Migrate] [-UpdateStartupScript] [-VerifyOnly]` (bash twin `.sh`): backup → registry login → pull → optional `alembic upgrade head` as the DB superuser (Postgres brought up first) → `compose up -d --force-recreate api` → verify image digest, alembic head and `/health/live` (polled for 60 s). All coordinates come from `brand.gcp.*`.
-- **Image:** `backend/Dockerfile`; `.dockerignore` excludes `backend/assets/` except `starter/`. Build with `--platform linux/amd64` (buildx) — an arm64 Mac would otherwise build an image the VM cannot run.
+- **Image:** `backend/Dockerfile` — `python:3.14-slim-trixie` (Debian 13: OpenSSL 3.5, current `ca-certificates`) with the frontend built in a `node:24-slim` stage; `.dockerignore` excludes `backend/assets/` except `starter/`. Build with `--platform linux/amd64` (buildx) — an arm64 Mac would otherwise build an image the VM cannot run.
 - **Roles:** `superuser` owns migrations; `app_role` is what the API connects as (owner of every table since migration 051; `audit_events` append-only); `audit_role` may read and insert audit rows.
 - **Desktop ↔ hub:** `services/hub/` — the desktop obtains an IAP-scoped credential once per machine, then proxies project/task/budget/Team/conversation calls; nothing is cached locally; an amber bar reports unreachability. Conversations are mirrored both ways by id.
 
@@ -308,7 +308,7 @@ Every release is one commit on `master` (mirrored to `dev/v1.5`) and one GitHub 
 
 1. **Docs gate.** `CHANGELOG.md` entry (`### vX.Y.Z · build N — date`); `USER_GUIDE.md` / `README.md` where behaviour changed; `frontend/src/version.ts` (`BUILD_NUMBER`, `BUILD_DATE`, a plain-English changelog entry); `VERSION` (no trailing newline); `installer/setup.iss` `AppVersion`.
 2. **Gates** (§13); commit with a message file (`git commit -F`); push `master` and `master:dev/v1.5`.
-3. **Installer.** `powershell -ExecutionPolicy Bypass -Command "$defs = & installer\brand-defines.ps1; & iscc.exe /Q @defs installer\setup.iss"` → `installer\Output\LittleGerry_Setup.exe`; sign with `installer\cert\2-Sign-LittleGerry.ps1` (PMI's PFX, interactive); verify `Get-AuthenticodeSignature` is `Valid`.
+3. **Installer.** `powershell -ExecutionPolicy Bypass -Command "$defs = & installer\brand-defines.ps1; & iscc.exe /Q @defs installer\setup.iss"` → `installer\Output\LittleGerry_Setup.exe` (Inno Setup 7 at `C:\Program Files\Inno Setup 7\`, or 6 at `C:\Program Files (x86)\Inno Setup 6\`; both compile the script); sign with `installer\cert\2-Sign-LittleGerry.ps1` (PMI's PFX, interactive); verify `Get-AuthenticodeSignature` is `Valid`.
 4. **Hub image.** With the Cloud SDK on PATH (so `docker-credential-gcloud` resolves): `docker build -f backend/Dockerfile -t <registry>/<project>/littlegerry/backend:X.Y.Z -t …:latest .`, push both tags, confirm the digest line.
 5. **Hub deploy.** `scripts\hub\deploy-hub.ps1 -Tag X.Y.Z [-Migrate]`; confirm digest, alembic head, `health=200`.
 6. **Publish.** `gh release create vX.Y.Z installer\Output\LittleGerry_Setup.exe Trust-Little-Gerry.bat --target master --title "Little Gerry X.Y.Z" --notes-file notes.md`. `macos-release.yml` builds, signs and notarises `LittleGerry.pkg` and attaches it; `windows-release.yml` sees the exe already present and does nothing (for a fork it builds and signs instead).
