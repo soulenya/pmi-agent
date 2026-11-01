@@ -343,13 +343,16 @@ export function LiveMeetingAssist() {
                       ))}
                     </ul>
                     <p className="mt-1 text-[11px] text-muted-foreground">
+                      {state.recipients_source?.startsWith("gmail")
+                        ? "From the invitation in your Gmail (the meeting isn't on your calendar). "
+                        : "From the calendar invite. "}
                       Colleagues on the invite are CC'd, never addressed.
                     </p>
                   </>
                 ) : (
                   <p className="text-muted-foreground">
-                    No outside attendees found on the calendar invite. Add who the thank-you
-                    should go to, or leave it and fill in To: on the draft later.
+                    No outside attendees found on the calendar or in a Gmail invitation. Add who the
+                    thank-you should go to, or leave it and fill in To: on the draft later.
                   </p>
                 )}
                 <div className="mt-1.5 flex items-center gap-1">

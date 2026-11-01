@@ -2,7 +2,7 @@
 # via launcher.py and never use this.
 #
 # Build context is the repo root: docker build -f backend/Dockerfile .
-FROM node:22-slim AS frontend
+FROM node:24-slim AS frontend
 
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
@@ -11,7 +11,9 @@ COPY frontend/ ./
 # Mode "hub" selects .env.hub — same-origin API, wss:// sockets.
 RUN npm run build -- --mode hub
 
-FROM python:3.12-slim-bookworm
+# Trixie (Debian 13) carries OpenSSL 3.5 and a current ca-certificates; the
+# desktop runs 3.14 too, so the hub and the installs share one interpreter.
+FROM python:3.14-slim-trixie
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 

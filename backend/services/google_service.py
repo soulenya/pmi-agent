@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import email.mime.text
 import logging
+import re
 import threading
 import time
 import uuid
@@ -2313,6 +2314,151 @@ def calendar_events(days_behind: int = 0, days_ahead: int = 7) -> list[dict]:
             "attendees": [a.get("email", "") for a in e.get("attendees", [])],
             "url": e.get("htmlLink", ""),
         })
+    return out
+
+
+# ── Invitations that live in Gmail, not (yet) on the calendar ─────────────────
+#
+# Most invites arrive as mail carrying a text/calendar part. Until the person
+# accepts, the event is not on the primary calendar at all (or sits there as
+# "needsAction" with no reminder), so a meeting precheck that reads only the
+# calendar sees nobody. The iCalendar part names every attendee; this reads it.
+
+_ICAL_ADDR_RE = re.compile(r"mailto:([^\s;,>\"']+)", re.IGNORECASE)
+_ICAL_CN_RE = re.compile(r";CN=\"?([^\";:]+)\"?", re.IGNORECASE)
+
+
+def _unfold_ical(text: str) -> str:
+    """RFC 5545 folds long lines with CRLF + space; join them back."""
+    return re.sub(r"\r?\n[ \t]", "", text)
+
+
+def parse_ical_invite(text: str) -> dict:
+    """Pull the useful facts out of an iCalendar body.
+
+    Returns ``{title, start, attendees: [{email, name}], organizer}`` with
+    whatever was present; missing pieces are empty. Never raises.
+    """
+    out: dict = {"title": "", "start": "", "attendees": [], "organizer": ""}
+    try:
+        body = _unfold_ical(text or "")
+        seen: set[str] = set()
+        for line in body.splitlines():
+            key = line.split(":", 1)[0].split(";", 1)[0].upper()
+            if key == "SUMMARY":
+                out["title"] = line.split(":", 1)[1].strip()
+            elif key == "DTSTART":
+                raw = line.split(":", 1)[1].strip()
+                # 20261030T150000Z or 20261030T150000 or 20261030 (all-day)
+                try:
+                    if raw.endswith("Z"):
+                        out["start"] = datetime.strptime(raw, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc).isoformat()
+                    elif "T" in raw:
+                        out["start"] = datetime.strptime(raw, "%Y%m%dT%H%M%S").isoformat()
+                    else:
+                        out["start"] = datetime.strptime(raw, "%Y%m%d").date().isoformat()
+                except ValueError:
+                    out["start"] = raw
+            elif key in ("ATTENDEE", "ORGANIZER"):
+                m = _ICAL_ADDR_RE.search(line)
+                if not m:
+                    continue
+                email = m.group(1).strip().lower()
+                cn = _ICAL_CN_RE.search(line)
+                name = cn.group(1).strip() if cn else ""
+                if key == "ORGANIZER":
+                    out["organizer"] = email
+                if email not in seen:
+                    seen.add(email)
+                    out["attendees"].append({"email": email, "name": name})
+    except Exception:  # noqa: BLE001 — a malformed invite is just an empty answer
+        pass
+    return out
+
+
+def _find_ical_part(payload: dict) -> str:
+    """The decoded text/calendar part of a message, or ""."""
+    stack = [payload or {}]
+    while stack:
+        part = stack.pop()
+        mime = (part.get("mimeType") or "").lower()
+        body = part.get("body", {}) or {}
+        if mime == "text/calendar" and body.get("data"):
+            try:
+                return base64.urlsafe_b64decode(body["data"] + "==").decode("utf-8", "ignore")
+            except Exception:  # noqa: BLE001
+                return ""
+        stack.extend(part.get("parts", []) or [])
+    return ""
+
+
+def gmail_recent_invitations(days: int = 7, max_results: int = 25) -> list[dict]:
+    """Meeting invitations found in Gmail over the last ``days``.
+
+    Each item: ``{message_id, thread_id, subject, from, date, title, start,
+    attendees: [{email, name}], organizer, source}`` where ``source`` is
+    ``ical`` when the attendees came from the calendar part and ``headers``
+    when they had to be read from To/Cc (an invite forwarded as plain mail).
+    Newest first. Declined and cancelled invites are skipped.
+    """
+    svc = _build("gmail", "v1")
+    query = (
+        f"newer_than:{max(1, days)}d "
+        "(filename:ics OR has:attachment filename:invite.ics OR "
+        "subject:(invitation OR invite OR \"updated invitation\" OR \"meeting request\") OR "
+        "\"has invited you\")"
+    )
+    resp = svc.users().messages().list(userId="me", q=query, maxResults=max_results).execute()
+    out: list[dict] = []
+    for m in resp.get("messages", []) or []:
+        try:
+            detail = svc.users().messages().get(userId="me", id=m["id"], format="full").execute()
+        except Exception:  # noqa: BLE001 — one unreadable message must not spoil the search
+            continue
+        payload = detail.get("payload", {}) or {}
+        headers = _headers_of(payload)
+        subject = headers.get("Subject", "") or ""
+        low = subject.lower()
+        if low.startswith(("declined:", "canceled:", "cancelled:", "canceled event", "cancelled event")):
+            continue
+        ical = _find_ical_part(payload)
+        if ical:
+            facts = parse_ical_invite(ical)
+            source = "ical"
+            if "METHOD:CANCEL" in _unfold_ical(ical).upper():
+                continue
+        else:
+            facts = {"title": "", "start": "", "attendees": [], "organizer": ""}
+            source = "headers"
+        if not facts["attendees"]:
+            # No calendar part: everyone on the mail is the best we have.
+            from email.utils import getaddresses
+
+            raw = ", ".join(x for x in (headers.get("From", ""), headers.get("To", ""), headers.get("Cc", "")) if x)
+            seen: set[str] = set()
+            for name, addr in getaddresses([raw.replace(";", ",")]):
+                addr = (addr or "").strip().lower()
+                if "@" in addr and addr not in seen:
+                    seen.add(addr)
+                    facts["attendees"].append({"email": addr, "name": (name or "").strip()})
+            source = "headers"
+        title = facts["title"] or re.sub(
+            r"^(updated invitation|invitation|invite|meeting request|fwd|fw|re):\s*", "", subject, flags=re.IGNORECASE
+        ).split("@")[0].strip()
+        out.append(
+            {
+                "message_id": m["id"],
+                "thread_id": detail.get("threadId", ""),
+                "subject": subject,
+                "from": headers.get("From", ""),
+                "date": headers.get("Date", ""),
+                "title": title,
+                "start": facts["start"],
+                "attendees": facts["attendees"],
+                "organizer": facts["organizer"],
+                "source": source,
+            }
+        )
     return out
 
 

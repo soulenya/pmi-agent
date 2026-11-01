@@ -53,7 +53,7 @@ function Find-Tool($name, $fallbacks) {
 }
 $git  = Find-Tool "git"  @("C:\Program Files\Git\cmd\git.exe")
 $gh   = Find-Tool "gh"   @("C:\Program Files\GitHub CLI\gh.exe")
-$iscc = Find-Tool "iscc" @("C:\Program Files (x86)\Inno Setup 6\iscc.exe")
+$iscc = Find-Tool "iscc" @("C:\Program Files\Inno Setup 7\iscc.exe", "C:\Program Files (x86)\Inno Setup 6\iscc.exe")
 
 # Guard: new version must be higher than the current one.
 $current = (Get-Content $verFile -Raw).Trim()

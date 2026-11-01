@@ -48,7 +48,7 @@ jobs:
           "tag=$tag" >> $env:GITHUB_OUTPUT
 
       - name: Checkout repo at the release tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tag.outputs.tag }}
 
@@ -72,7 +72,9 @@ jobs:
         if: steps.plan.outputs.build == 'true'
         shell: pwsh
         run: |
-          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe")) {
+          # 7 (x64, Program Files) or 6 (Program Files (x86)) — whichever is there.
+          $have = @("$env:ProgramFiles\Inno Setup 7\iscc.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe") | Where-Object { Test-Path $_ }
+          if (-not $have) {
             choco install innosetup --no-progress -y
           }
 
@@ -91,8 +93,11 @@ jobs:
         if: steps.plan.outputs.build == 'true'
         shell: pwsh
         run: |
+          $iscc = @("$env:ProgramFiles\Inno Setup 7\iscc.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "Inno Setup not found after install" }
+          Write-Host "Using $iscc"
           $defs = & installer/brand-defines.ps1
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe" /Q @defs installer\setup.iss
+          & $iscc /Q @defs installer\setup.iss
           if ($LASTEXITCODE -ne 0) { throw "iscc failed ($LASTEXITCODE)" }
           Get-ChildItem installer\Output
 

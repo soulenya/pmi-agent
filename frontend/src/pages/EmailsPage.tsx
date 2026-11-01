@@ -224,6 +224,13 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
   const [expanded, setExpanded] = useState(false);
   const [editingBody, setEditingBody] = useState(false);
   const [editedBody, setEditedBody] = useState(draft.draft_body ?? "");
+  const [editingTo, setEditingTo] = useState(false);
+  const [to, setTo] = useState({
+    recipient_name: draft.recipient_name ?? "",
+    recipient_email: draft.recipient_email ?? "",
+    cc: draft.cc ?? "",
+    bcc: draft.bcc ?? "",
+  });
   const [sendOutcome, setSendOutcome] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
   );
@@ -269,6 +276,7 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["email-drafts"] });
       setEditingBody(false);
+      setEditingTo(false);
     },
   });
 
@@ -345,15 +353,107 @@ function DraftCard({ draft }: { draft: EmailDraft }) {
             <h3 className="font-semibold text-sm">{draft.subject}</h3>
             <StatusBadge status={draft.status} />
           </div>
-          <div className="mt-1 text-xs text-muted-foreground flex flex-wrap gap-3">
-            {draft.recipient_name && (
+          <div className="mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-3">
+            {draft.recipient_name || draft.recipient_email ? (
               <span>To: {draft.recipient_name}{draft.recipient_email ? ` <${draft.recipient_email}>` : ""}</span>
+            ) : (
+              <span className="text-amber-600 dark:text-amber-400">To: nobody yet</span>
             )}
             {draft.cc && <span>CC: {draft.cc}</span>}
             {draft.bcc && <span>BCC: {draft.bcc}</span>}
+            {canEdit && !editingTo && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTo({
+                    recipient_name: draft.recipient_name ?? "",
+                    recipient_email: draft.recipient_email ?? "",
+                    cc: draft.cc ?? "",
+                    bcc: draft.bcc ?? "",
+                  });
+                  setEditingTo(true);
+                }}
+                className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+                title="Change who this goes to"
+              >
+                <Edit3 className="h-3 w-3" /> Edit recipients
+              </button>
+            )}
             <span className="capitalize">Tone: {draft.tone}</span>
             <span>{new Date(draft.created_at).toLocaleDateString()}</span>
           </div>
+          {editingTo && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveMutation.mutate({
+                  recipient_name: to.recipient_name.trim(),
+                  recipient_email: to.recipient_email.trim(),
+                  cc: to.cc.trim(),
+                  bcc: to.bcc.trim(),
+                });
+              }}
+              className="mt-2 grid grid-cols-1 gap-2 rounded-md border bg-background p-3 sm:grid-cols-2"
+            >
+              <label className="text-xs">
+                <span className="text-muted-foreground">To (name)</span>
+                <input
+                  value={to.recipient_name}
+                  onChange={(e) => setTo({ ...to, recipient_name: e.target.value })}
+                  placeholder="Joe Smith"
+                  className="mt-0.5 w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </label>
+              <label className="text-xs">
+                <span className="text-muted-foreground">To (email)</span>
+                <input
+                  type="email"
+                  value={to.recipient_email}
+                  onChange={(e) => setTo({ ...to, recipient_email: e.target.value })}
+                  placeholder="joe@hatch.co"
+                  className="mt-0.5 w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </label>
+              <label className="text-xs">
+                <span className="text-muted-foreground">CC</span>
+                <input
+                  value={to.cc}
+                  onChange={(e) => setTo({ ...to, cc: e.target.value })}
+                  placeholder="Comma-separated"
+                  className="mt-0.5 w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </label>
+              <label className="text-xs">
+                <span className="text-muted-foreground">BCC</span>
+                <input
+                  value={to.bcc}
+                  onChange={(e) => setTo({ ...to, bcc: e.target.value })}
+                  placeholder="Comma-separated"
+                  className="mt-0.5 w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                />
+              </label>
+              <div className="flex items-center gap-2 sm:col-span-2">
+                <button
+                  type="submit"
+                  disabled={saveMutation.isPending}
+                  className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {saveMutation.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Save recipients
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingTo(false)}
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent"
+                >
+                  Cancel
+                </button>
+                {saveMutation.isError && (
+                  <span className="text-xs text-destructive">Couldn’t save. Please try again.</span>
+                )}
+              </div>
+            </form>
+          )}
           {(draft.attachments?.length ?? 0) > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {draft.attachments.map((a) => (

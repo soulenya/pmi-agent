@@ -11,7 +11,8 @@ from typing import Any
 from uuid import UUID
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError as JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings

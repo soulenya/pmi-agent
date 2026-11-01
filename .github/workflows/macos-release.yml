@@ -51,7 +51,7 @@ jobs:
           fi
 
       - name: Checkout repo at the release tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.tag.outputs.tag }}
           fetch-depth: 0

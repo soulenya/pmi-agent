@@ -576,8 +576,8 @@ _GOOGLE_STATE_PURPOSE = "google-connect"
 def _sign_google_state(user_id: _uuid.UUID, code_verifier: str) -> str:
     from datetime import datetime, timedelta, timezone
 
+    import jwt
     from cryptography.fernet import Fernet
-    from jose import jwt
 
     return jwt.encode(
         {
@@ -598,8 +598,9 @@ def _sign_google_state(user_id: _uuid.UUID, code_verifier: str) -> str:
 def _read_google_state(state: str) -> tuple[_uuid.UUID, str]:
     """The user and PKCE verifier this consent belongs to. Raises ValueError on
     a bad state."""
+    import jwt
     from cryptography.fernet import Fernet, InvalidToken
-    from jose import JWTError, jwt
+    from jwt import PyJWTError as JWTError
 
     try:
         claims = jwt.decode(

@@ -166,6 +166,8 @@ export interface LiveState {
   party?: string;
   /** Attendees outside the company — who a thank-you email would go to. */
   recipients?: LiveRecipient[];
+  /** "calendar", "gmail:ical", "gmail:headers" or "" — where those names were found. */
+  recipients_source?: string;
   nda_hint?: string;
   segments?: LiveSegment[];
   cards?: LiveCard[];

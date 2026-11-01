@@ -40,7 +40,7 @@ jobs:
       UPSTREAM_REPO: ${{ vars.UPSTREAM_REPO }}
       AUTO_RELEASE: ${{ vars.UPSTREAM_AUTO_RELEASE != 'false' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

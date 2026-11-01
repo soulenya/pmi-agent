@@ -134,6 +134,9 @@ class LiveMeetingSession:
             "started_at": self.started_at.isoformat(),
             "party": self.party,
             "recipients": list(self.recipients),
+            # Where the recipients came from: "calendar", "gmail:ical",
+            # "gmail:headers" or "" when nothing was found.
+            "recipients_source": str((self.facts or {}).get("source") or ""),
             "nda_hint": self.nda_hint,
             "segments": [s for s in self.segments if s["seq"] > after_segment],
             "cards": [c for c in self.cards if c["seq"] > after_card],
@@ -485,8 +488,86 @@ def _company_domains(own_email: str = "") -> set[str]:
     return {d for d in domains if d}
 
 
+def _nearest_event(events: list[dict], now: datetime, window_s: int) -> dict | None:
+    """The event with attendees whose start is closest to now, within the window."""
+    best, best_delta = None, None
+    for e in events:
+        try:
+            start = datetime.fromisoformat(str(e["start"]).replace("Z", "+00:00"))
+        except (ValueError, KeyError, TypeError):
+            continue
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=now.tzinfo)
+        delta = abs((start - now).total_seconds())
+        if delta <= window_s and e.get("attendees") and (best_delta is None or delta < best_delta):
+            best, best_delta = e, delta
+    return best
+
+
+def _invite_as_event(inv: dict) -> dict:
+    """Shape a Gmail invitation like a calendar event for the same matching."""
+    return {
+        "title": inv.get("title") or inv.get("subject") or "",
+        "start": inv.get("start") or "",
+        "description": "",
+        "attendees": [a["email"] for a in inv.get("attendees", []) if a.get("email")],
+        "attendee_names": {a["email"]: a.get("name", "") for a in inv.get("attendees", []) if a.get("email")},
+        "source": f"gmail:{inv.get('source', 'ical')}",
+        "thread_id": inv.get("thread_id", ""),
+    }
+
+
+async def find_meeting_event(own_email: str = "", window_minutes: int = 45) -> dict | None:
+    """The meeting happening about now, with its attendees — from wherever it is.
+
+    Looks in order, stopping at the first hit:
+      1. the primary calendar (accepted or not — needsAction events are listed);
+      2. invitations in Gmail from the last week, by their iCalendar start time;
+      3. a Gmail invitation with no usable start time, if there is exactly one
+         recent enough to be today's meeting.
+    Most invites for a small firm arrive by mail and are never accepted into
+    the calendar, so a calendar-only check saw no one (reported 2026-10-30).
+    """
+    from services import google_service as gs
+
+    if not gs.get_credentials():
+        return None
+    now = datetime.now(timezone.utc)
+    window_s = window_minutes * 60
+
+    try:
+        events = await asyncio.to_thread(lambda: gs.calendar_events(1, 1))
+        best = _nearest_event(events, now, window_s)
+        if best is not None:
+            best = dict(best)
+            best["source"] = "calendar"
+            return best
+    except Exception:  # noqa: BLE001
+        logger.debug("Meeting lookup: calendar failed", exc_info=True)
+
+    try:
+        invites = await asyncio.to_thread(lambda: gs.gmail_recent_invitations(days=7, max_results=25))
+    except Exception:  # noqa: BLE001
+        logger.debug("Meeting lookup: Gmail invitations failed", exc_info=True)
+        return None
+    shaped = [_invite_as_event(i) for i in invites]
+    timed = [e for e in shaped if e["start"] and "T" in str(e["start"])]
+    best = _nearest_event(timed, now, window_s)
+    if best is not None:
+        return best
+    # Wider net: an invite for today whose time we could not read, or a
+    # forwarded invite with no calendar part at all — but only when one
+    # candidate stands out, never a guess between several.
+    today = now.date().isoformat()
+    todays = [e for e in shaped if str(e["start"]).startswith(today) or not e["start"]]
+    todays = [e for e in todays if e["attendees"]]
+    if len(todays) == 1:
+        return todays[0]
+    return None
+
+
 async def precheck(get_db, own_email: str = "") -> dict:
-    """Best-effort meeting facts from the calendar, split by company domain.
+    """Best-effort meeting facts, split by company domain.
 
     Returns {party, to_emails, cc_emails, recipients, nda_hint, vocabulary}:
       * to_emails  — attendees OUTSIDE the company (the other party)
@@ -497,6 +578,10 @@ async def precheck(get_db, own_email: str = "") -> dict:
       * party      — "Joe/Phil" greeting names from the external attendees
       * vocabulary — trusted proper nouns (event title words, attendee names,
         org names) fed to STT as hints and used to auto-correct the transcript
+
+    The event comes from the calendar when it is there, otherwise from the
+    invitation in Gmail (see ``find_meeting_event``); ``facts.source`` says
+    which, so the consent card can tell the user where the names came from.
     """
     party, to_emails, cc_emails, hint = "", "", "", ""
     ours = _company_domains(own_email)
@@ -506,65 +591,59 @@ async def precheck(get_db, own_email: str = "") -> dict:
     vocabulary: list[str] = []
     event_title = ""
     from_calendar = False
+    source = ""
     try:
-        from services import google_service as gs
+        best = await find_meeting_event(own_email)
+        if best is not None:
+            source = str(best.get("source") or "calendar")
+            from_calendar = source == "calendar"
+            event_title = str(best.get("title") or "").strip()
+            attendees = [a for a in best["attendees"] if isinstance(a, str) and "@" in a]
+            names_by_email: dict = best.get("attendee_names") or {}
+            externals = [
+                a for a in attendees
+                if _domain(a) and _domain(a) not in ours
+                and a.lower() != own_email.lower()
+            ]
+            internals = [
+                a for a in attendees
+                if _domain(a) in ours and a.lower() != own_email.lower()
+            ]
+            to_emails = ", ".join(externals)[:255]
+            cc_emails = ", ".join(internals)[:500]
 
-        if gs.get_credentials():
-            events = await asyncio.to_thread(lambda: gs.calendar_events(0, 1))
-            now = datetime.now(timezone.utc)
-            best = None
-            best_delta = None
-            for e in events:
-                try:
-                    start = datetime.fromisoformat(str(e["start"]).replace("Z", "+00:00"))
-                except (ValueError, KeyError):
-                    continue
-                delta = abs((start - now).total_seconds())
-                if delta <= 45 * 60 and e.get("attendees") and (best_delta is None or delta < best_delta):
-                    best, best_delta = e, delta
-            if best is not None:
-                from_calendar = True
-                event_title = str(best.get("title") or "").strip()
-                attendees = [a for a in best["attendees"] if isinstance(a, str) and "@" in a]
-                externals = [
-                    a for a in attendees
-                    if _domain(a) and _domain(a) not in ours
-                    and a.lower() != own_email.lower()
-                ]
-                internals = [
-                    a for a in attendees
-                    if _domain(a) in ours and a.lower() != own_email.lower()
-                ]
-                to_emails = ", ".join(externals)[:255]
-                cc_emails = ", ".join(internals)[:500]
-                names = [n for n in (_first_name(a) for a in externals) if n]
-                party = "/".join(names[:4])
-                recipients = [
-                    {"name": _first_name(a), "email": a} for a in externals
-                ]
-                # Trusted vocabulary: event title + description tokens, full
-                # attendee name parts, and org names from external domains.
-                seen: set[str] = set()
+            def _given(a: str) -> str:
+                full = str(names_by_email.get(a) or "").strip()
+                return full.split()[0] if full and full.split()[0].isalpha() else _first_name(a)
 
-                def _add(term: str) -> None:
-                    term = term.strip().strip(",.;:()[]\"'")
-                    if len(term) >= 3 and term.lower() not in seen:
-                        seen.add(term.lower())
-                        vocabulary.append(term)
+            names = [n for n in (_given(a) for a in externals) if n]
+            party = "/".join(names[:4])
+            recipients = [{"name": _given(a), "email": a} for a in externals]
+            # Trusted vocabulary: event title + description tokens, full
+            # attendee name parts, and org names from external domains.
+            seen: set[str] = set()
 
-                _add(str(best.get("title", "")))
-                for word in str(best.get("title", "")).split():
+            def _add(term: str) -> None:
+                term = term.strip().strip(",.;:()[]\"'")
+                if len(term) >= 3 and term.lower() not in seen:
+                    seen.add(term.lower())
+                    vocabulary.append(term)
+
+            _add(str(best.get("title", "")))
+            for word in str(best.get("title", "")).split():
+                _add(word)
+            for word in str(best.get("description", ""))[:300].split():
+                if word[:1].isupper():
                     _add(word)
-                for word in str(best.get("description", ""))[:300].split():
-                    if word[:1].isupper():
-                        _add(word)
-                for a in attendees:
-                    for part in a.split("@")[0].replace(".", " ").replace("_", " ").split():
-                        _add(part.title())
-                for a in externals:
-                    _add(_domain(a).split(".")[0].title())
+            for a in attendees:
+                for part in str(names_by_email.get(a) or "").split():
+                    _add(part)
+                for part in a.split("@")[0].replace(".", " ").replace("_", " ").split():
+                    _add(part.title())
+            for a in externals:
+                _add(_domain(a).split(".")[0].title())
     except Exception:  # noqa: BLE001
-        logger.debug("Live precheck: calendar lookup failed", exc_info=True)
+        logger.debug("Live precheck: meeting lookup failed", exc_info=True)
 
     # NDA hint: cheap title search over the KB for an NDA naming the party.
     try:
@@ -605,6 +684,8 @@ async def precheck(get_db, own_email: str = "") -> dict:
             "external_emails": externals,
             "internal_emails": internals,
             "from_calendar": from_calendar,
+            # "calendar", "gmail:ical", "gmail:headers" or "" — where the names came from.
+            "source": source,
         },
     }
 
