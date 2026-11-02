@@ -274,7 +274,7 @@ async def _auto_title_conversation(
 ) -> None:
     """Title an untitled conversation with a short 1-3 word topic label.
 
-    A fast LLM call names the topic ("Budget Review", "NAR Contract"); if the
+    A fast LLM call names the topic ("Budget Review", "Vendor Contract"); if the
     model is unavailable or rambles, fall back to word-boundary truncation of
     the first message. Never blocks or fails the chat turn.
     """

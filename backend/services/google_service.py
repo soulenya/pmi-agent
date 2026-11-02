@@ -693,8 +693,8 @@ def gmail_get_thread(thread_id: str) -> dict:
         })
     # Every address this account owns, so the UI can exclude them from
     # Reply-all. The profile address alone is not enough: mail addressed to a
-    # send-as alias (morganjkeane@precisianmedical.com vs the primary
-    # morganjkeane@pmi-llc.com) was being Cc'd back to the user.
+    # send-as alias (the company-domain alias vs the primary
+    # the admin's own address) was being Cc'd back to the user.
     own = gmail_own_addresses()
     me = own[0] if own else ""
     return {

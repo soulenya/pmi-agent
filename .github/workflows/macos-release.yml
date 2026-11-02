@@ -32,6 +32,9 @@ jobs:
     # Once running, the only slow step is Apple's notarization. Fail rather
     # than hold a runner for hours if that never answers.
     timeout-minutes: 45
+    # Signing and notary secrets live in the "release" environment (required
+    # reviewer, refs v* only) — see windows-release.yml for why.
+    environment: release
     # Secrets are mapped to env so steps can detect whether signing is configured.
     # If the cert secret is empty, the build falls back to an unsigned .pkg.
     env:

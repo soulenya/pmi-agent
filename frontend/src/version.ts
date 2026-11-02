@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 313;
-export const BUILD_DATE = "2026-10-30";
+export const BUILD_NUMBER = 314;
+export const BUILD_DATE = "2026-11-02";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 314,
+    date: "2026-11-02",
+    title: "Updates are checked for our signature before they install",
+    changes: [
+      "Before an update installs, Little Gerry now confirms the file was signed by your company — not just that it came from the right download. One that fails is deleted and your current version starts; you'd see “couldn't be verified” on the splash screen. Nothing changes when all is well.",
+      "Publishing a release now needs a one-click approval from the owner before the signed installers are built.",
+      "If the Node.js on your computer is older than the version Little Gerry needs, the first launch after this update brings it current (one extra “allow changes” prompt on Windows). Older Node trusts security certificates that were revoked in October.",
+      "Housekeeping from a security review: example names and numbers in the app's help text and tests are now fictitious, and an unused leftover from an earlier desktop shell was removed.",
+    ],
+  },
   {
     build: 313,
     date: "2026-10-30",
@@ -1267,7 +1278,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-07-28",
     title: "Named chats, offline warnings, and model-update alerts",
     changes: [
-      "Conversations get a short 1-3 word topic name (\"Budget Reconciliation\", \"NAR Contract\") instead of your truncated first message — both chat engines, with truncation as fallback if the naming model is unavailable",
+      "Conversations get a short 1-3 word topic name (\"Budget Reconciliation\", \"Vendor Contract\") instead of your truncated first message — both chat engines, with truncation as fallback if the naming model is unavailable",
       "Launch pop-down warns when systems are offline: Google Workspace disconnected, AI engine unreachable, or API key missing — with a Fix button straight to Settings",
       "Gerry now notices when newer Claude models are available for the models you're using (e.g. Opus 5) and tells you — checked live against your API",
       "One-time tip reminds you each task type can run its own model (Settings → Models per Task)",
@@ -1494,7 +1505,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-07-21",
     title: "Interconnects — invoices meet budgets, budgets meet Odoo",
     changes: [
-      "'Gerry, file the invoice from OVYL's email' — the attachment lands byte-for-byte in the right '<Company> Invoices' Drive folder, where the invoice sheet's daily pipeline ingests it. Gerry never writes to the invoice workbook itself",
+      "'Gerry, file the invoice from Northwind's email' — the attachment lands byte-for-byte in the right '<Company> Invoices' Drive folder, where the invoice sheet's daily pipeline ingests it. Gerry never writes to the invoice workbook itself",
       "When a filed invoice has a readable amount and a matching personal budget, Gerry SUGGESTS the ledger entry — accept it on the Assistant page or dismiss it, never silent",
       "New advisory cross-check: compare a budget's tracked spending against Odoo actuals side by side — a sanity check, not a reconciliation",
       "Sharing spelled out: a teammate shares their budget sheet from Google Sheets, you paste the link on Manage Budgets to follow it read-only",
@@ -3071,7 +3082,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: "Remote Ollama Server Support",
     changes: [
       "Ollama server URL is now fully configurable — point to any machine on the network",
-      "Settings → Ollama shows 'Ollama Server URL' field (e.g. http://192.168.1.50:11434)",
+      "Settings → Ollama shows 'Ollama Server URL' field (e.g. http://192.0.2.10:11434)",
       "Health check and model list both use the configured URL (no longer hardcoded to localhost)",
       "Includes server setup and cleanup PowerShell scripts (scripts/ folder)",
     ],

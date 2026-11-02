@@ -71,8 +71,8 @@ PMI's latest.
 
 ## What a user sees during an update
 
-- A brief "Checking for updates… / Downloading update… / Installing update…"
-  status on the splash screen.
+- A brief "Checking for updates… / Downloading update… / Verifying update… /
+  Installing update…" status on the splash screen.
 - Windows: one elevation (UAC) prompt showing the publisher from the brand
   (**Precisian Medical Instruments** for PMI), because the installer is signed
   and the publisher certificate is trusted via `Trust-Little-Gerry.bat`.
@@ -84,3 +84,40 @@ PMI's latest.
 and is available to every signed-in user; applying from there is admin-only.
 If GitHub refuses the request the message names the repository, the status and
 whether a token was present.
+
+---
+
+## The signature gate
+
+A downloaded installer runs with administrator rights, so the app does not take
+GitHub's word for it — someone holding the GitHub login could publish a release,
+but cannot sign one. Before anything runs, `update_verify.py` (project root,
+standard library only, shared by `launcher.py` and `backend/routers/update.py`)
+checks the file, and `scripts/apply_update.ps1` / `apply_update.sh` check it a
+second time before installing:
+
+| Platform | Check | Pinned in `brand/brand.json` |
+|---|---|---|
+| Windows | `Get-AuthenticodeSignature` verifies, and the signer certificate's SHA-1 thumbprint is listed | `windows.cert_thumbprints` (list) |
+| macOS | `pkgutil --check-signature` reports an Apple-issued **Developer ID Installer** signature, and its Team ID is listed | `macos.team_ids` (list) |
+
+On Windows a PC that has not run `Trust-Little-Gerry.bat` reports the chain as
+untrusted; with a pinned thumbprint that is accepted (the signature over the
+file has still been verified — a modified file reports `HashMismatch`). With
+**no** pins the gate falls back to a weaker check — a trusted chain plus the
+brand's `windows.cert_cn`, or any Apple Developer ID — which rules out an
+unsigned file but not a different legitimate developer. Pin.
+
+A refused file is deleted and logged (`backend/logs/launcher.log`,
+`apply_update.log`); the splash says the update "couldn't be verified as
+published by …" and the current version starts. The retry guard records
+`signature: …` in `update_attempt.json`, so after two refusals the launcher
+stops downloading that version and tells the user to contact the administrator.
+Settings → System → Apply reports the same reason.
+
+**Rotating a certificate.** Add the new thumbprint (or Team ID) to the list and
+ship one release signed with the *old* key; every install then trusts both;
+sign later releases with the new key; remove the old entry when all machines
+are past that release. `installer/cert/1-Create-Signing-Certificate.ps1` and
+the new-company bootstrap append the thumbprint automatically. The Apple Team
+ID does not change when the Developer ID certificate is renewed.

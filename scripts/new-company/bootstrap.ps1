@@ -240,8 +240,8 @@ $brand = [ordered]@{
     product = if ($flagship) { [ordered]@{ name = $flagship; one_liner = ""; engineering_context = "" } } else { [ordered]@{} }
     domains = @($domains); admin_email = $adminMail; support_email = $adminMail
     vapid_subject = "mailto:$adminMail"; github_repo = $repo; hub_url = $hubUrl
-    windows = [ordered]@{ app_id = $appId; install_dir_name = "Little Gerry ($short)"; setup_name = "LittleGerry_${short}_Setup" -replace '[^A-Za-z0-9_]', ''; cert_cn = $company }
-    macos = [ordered]@{ bundle_id = $bundleId; pkg_name = "LittleGerry-$short" -replace '[^A-Za-z0-9_-]', '' }
+    windows = [ordered]@{ app_id = $appId; install_dir_name = "Little Gerry ($short)"; setup_name = "LittleGerry_${short}_Setup" -replace '[^A-Za-z0-9_]', ''; cert_cn = $company; cert_thumbprints = @() }
+    macos = [ordered]@{ bundle_id = $bundleId; pkg_name = "LittleGerry-$short" -replace '[^A-Za-z0-9_-]', ''; team_ids = @() }
     data_dir_name = ".littlegerry-$slug"; keyring_service = "littlegerry-$slug"
     db = [ordered]@{ name = "littlegerry"; superuser = "lg"; app_role = "lg_app"; audit_role = "lg_audit"; api_container = "lg_api"; postgres_container = "lg_postgres" }
     drive = [ordered]@{ company_context = ""; templates_folder = ""; workrooms_share_folder = ""; budgets_folder = ""; invoices_folder = ""; backups_folder = ""; app_clients_folder = ""; restricted_folders = @(); shared_drive_name = ""; hub_client_file = ""; oauth_client_download_url = ""; stt_key_download_url = "" }
@@ -367,9 +367,22 @@ if (-not (Exists @("gcloud", "iam", "service-accounts", "describe", $viewerSa)))
 Retry 5 4 { Run gsutil iam ch "serviceAccount:${viewerSa}:objectViewer" "gs://$dbb" }
 Ok "drive-backup bucket ready (set up the Drive→GCS transfer job in the console when wanted)"
 
-# ── 4. GitHub: auto-update token ────────────────────────────────────────────
-Step "4. GitHub auto-update token ($repo)"
-$hasToken = (-not $DryRun) -and ((& gh secret list --repo $repo 2>$null) -match '^UPDATE_TOKEN\b')
+# ── 4. GitHub: release environment + auto-update token ──────────────────────
+Step "4. GitHub release environment and auto-update token ($repo)"
+# Signing and update secrets live in the "release" environment: the installer
+# workflows only see them after the administrator approves the run, so a stolen
+# GitHub login cannot sign a release. Refs admitted: tags v* only.
+if (-not $DryRun) {
+    $adminId = (& gh api user --jq .id 2>$null)
+    $envBody = @{ wait_timer = 0; prevent_self_review = $false
+        reviewers = @(@{ type = "User"; id = [int]$adminId })
+        deployment_branch_policy = @{ protected_branches = $false; custom_branch_policies = $true } } | ConvertTo-Json -Depth 4 -Compress
+    $envBody | gh api -X PUT "repos/$repo/environments/release" --input - *> $null
+    $policies = @(& gh api "repos/$repo/environments/release/deployment-branch-policies" --jq '.branch_policies[].name' 2>$null)
+    if ($policies -notcontains "v*") { '{"name":"v*","type":"tag"}' | gh api -X POST "repos/$repo/environments/release/deployment-branch-policies" --input - *> $null }
+    Ok "release environment: reviewer = you, refs v* only"
+} else { Note "> gh api PUT repos/$repo/environments/release (reviewer=you, tags v*)" }
+$hasToken = (-not $DryRun) -and ((& gh secret list --repo $repo --env release 2>$null) -match '^UPDATE_TOKEN\b')
 if ($hasToken) { Ok "UPDATE_TOKEN already set" } else {
     Pause-ForConsole "Read-only token for the installed app" @(
         "The installed app polls this repository's releases with a fine-grained token (GitHub cannot mint these from the CLI).",
@@ -380,7 +393,7 @@ if ($hasToken) { Ok "UPDATE_TOKEN already set" } else {
         "Generate, copy it, and paste it at the next prompt."
     )
     $pat = Ask update_token "Paste the token (blank to skip; installs then cannot self-update)" -Secret
-    if ($pat) { if (-not $DryRun) { $pat | gh secret set UPDATE_TOKEN --repo $repo } else { Note "> gh secret set UPDATE_TOKEN" }; Ok "UPDATE_TOKEN set" }
+    if ($pat) { if (-not $DryRun) { $pat | gh secret set UPDATE_TOKEN --repo $repo --env release } else { Note "> gh secret set UPDATE_TOKEN --env release" }; Ok "UPDATE_TOKEN set" }
 }
 
 # ── 5. Windows code signing ─────────────────────────────────────────────────
@@ -393,11 +406,21 @@ if (-not (Test-Path $pfx)) {
 if (Test-Path $pfx) {
     $pfxPass = Ask windows_cert_password "The .pfx password (stored as the Actions secret WINDOWS_CERT_PASSWORD)" -Secret
     if (-not $DryRun) {
-        [Convert]::ToBase64String([IO.File]::ReadAllBytes($pfx)) | gh secret set WINDOWS_CERT_PFX_BASE64 --repo $repo
-        $pfxPass | gh secret set WINDOWS_CERT_PASSWORD --repo $repo
+        [Convert]::ToBase64String([IO.File]::ReadAllBytes($pfx)) | gh secret set WINDOWS_CERT_PFX_BASE64 --repo $repo --env release
+        $pfxPass | gh secret set WINDOWS_CERT_PASSWORD --repo $repo --env release
         & (Join-Path $root "installer/cert/3-Make-Trust-Bat.ps1")
+        # Installed copies refuse updates whose signer isn't pinned here; the
+        # create-certificate script pins a fresh one, so this covers an existing .pfx.
+        $pfxThumb = try { (New-Object Security.Cryptography.X509Certificates.X509Certificate2($pfx, "$pfxPass")).Thumbprint } catch { "" }
+        if (-not $pfxThumb) { $pfxThumb = Ask windows_cert_thumbprint "SHA-1 thumbprint of the signing certificate (pinned in brand.json)" -Pattern '^[0-9A-Fa-f]{40}$' }
+        $bj = Get-Content $brandPath -Raw | ConvertFrom-Json
+        $pins = @($bj.windows.cert_thumbprints | Where-Object { $_ })
+        if ($pfxThumb -and ($pins -notcontains $pfxThumb.ToUpper())) {
+            $bj.windows | Add-Member -NotePropertyName cert_thumbprints -NotePropertyValue @($pins + $pfxThumb.ToUpper()) -Force
+            [IO.File]::WriteAllText($brandPath, ($bj | ConvertTo-Json -Depth 8) + "`n", (New-Object Text.UTF8Encoding $false))
+        }
     }
-    Ok "signing secrets set; trust batch built"
+    Ok "signing secrets set; trust batch built; certificate pinned in brand.json"
 }
 
 function Commit-Brand {

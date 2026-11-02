@@ -22,9 +22,14 @@
     "app_id": "{F4A2B7C1-3D8E-4F6A-92B5-1E7D3C9A0F28}",
     "install_dir_name": "Little Gerry",
     "setup_name": "LittleGerry_Setup",
-    "cert_cn": "Precisian Medical Instruments"
+    "cert_cn": "Precisian Medical Instruments",
+    "cert_thumbprints": ["5C5867DBC82E529223641F7D857BA61F68B654C1"]
   },
-  "macos": { "bundle_id": "com.precisian.littlegerry", "pkg_name": "LittleGerry" },
+  "macos": {
+    "bundle_id": "com.precisian.littlegerry",
+    "pkg_name": "LittleGerry",
+    "team_ids": ["U562KSFM7B"]
+  },
   "data_dir_name": ".pmi-agent",
   "keyring_service": "pmi-agent",
   "db": {

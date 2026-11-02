@@ -12,7 +12,9 @@ Two deployment shapes are supported:
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -38,6 +40,19 @@ GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/late
 _PROJECT_ROOT     = Path(__file__).resolve().parent.parent.parent
 VERSION_FILE      = _PROJECT_ROOT / "VERSION"
 UPDATE_TOKEN_FILE = _PROJECT_ROOT / "update_token.txt"
+
+
+def _load_update_verify():
+    """update_verify.py lives at the project root next to launcher.py (shared
+    with it; stdlib only). Loaded by path because the backend's import root is
+    backend/."""
+    spec = importlib.util.spec_from_file_location("update_verify", _PROJECT_ROOT / "update_verify.py")
+    if spec is None or spec.loader is None:
+        raise RuntimeError("update_verify.py is missing from the install directory")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("update_verify", module)  # dataclasses resolve annotations via sys.modules
+    spec.loader.exec_module(module)
+    return module
 
 
 def _is_installed() -> bool:
@@ -285,6 +300,29 @@ async def _apply_release() -> UpdateResult:
 
     if not apply_script.exists():
         raise HTTPException(status_code=500, detail=f"{apply_script.name} not found")
+
+    # Same gate as the launcher: the installer runs as administrator, so it
+    # must carry our signature, not merely come from our GitHub release.
+    publisher = str(_b.get("publisher") or _b.get("company_name") or "the publisher")
+    try:
+        verdict = _load_update_verify().verify_installer(target, _b)
+    except Exception as exc:
+        verdict = None
+        reason = f"could not verify the installer: {exc}"
+    else:
+        reason = verdict.reason
+    if verdict is None or not verdict.ok:
+        with contextlib.suppress(OSError):
+            target.unlink()
+        logger.error("update %s refused: %s", data.get("tag_name"), reason)
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"The downloaded {asset_name} is not signed by {publisher} ({reason}). "
+                "It was deleted and not installed. Tell your administrator."
+            ),
+        )
+    logger.info("update %s signature OK: %s", data.get("tag_name"), verdict.describe())
 
     try:
         if sys.platform == "win32":

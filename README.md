@@ -328,7 +328,7 @@ cd pmi-agent
 bash scripts/install.sh        # installs Homebrew deps, DB, migrations, frontend
 ```
 
-`install.sh` installs the prerequisites via Homebrew (Docker Desktop, Python, Node 20,
+`install.sh` installs the prerequisites via Homebrew (Docker Desktop, Python, Node 24,
 `uv`), brings up PostgreSQL, runs migrations, seeds the admin user, and makes the
 launcher scripts executable.
 

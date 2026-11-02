@@ -12,9 +12,9 @@ ICS = (
     "DTSTART:20261030T150000Z\r\n"
     "ORGANIZER;CN=Joe Smith:mailto:joe@hatch.co\r\n"
     "ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;CN=Morgan Keane\r\n"
-    " ;X-NUM-GUESTS=0:mailto:morganjkeane@pmi-llc.com\r\n"
+    " ;X-NUM-GUESTS=0:mailto:morgan@example.com\r\n"
     "ATTENDEE;CN=\"Hoefer, Matthew\":mailto:matthew.hoefer@hatch.co\r\n"
-    "ATTENDEE;CN=Lindsey:mailto:lindsey@precisianmedical.com\r\n"
+    "ATTENDEE;CN=Lindsey:mailto:lindsey@example.com\r\n"
     "END:VEVENT\r\n"
     "END:VCALENDAR\r\n"
 )
@@ -28,9 +28,9 @@ def test_attendees_names_and_start_are_read_including_folded_lines():
     by_email = {a["email"]: a["name"] for a in facts["attendees"]}
     assert by_email == {
         "joe@hatch.co": "Joe Smith",
-        "morganjkeane@pmi-llc.com": "Morgan Keane",  # folded across two lines
+        "morgan@example.com": "Morgan Keane",  # folded across two lines
         "matthew.hoefer@hatch.co": "Hoefer, Matthew",  # quoted CN with a comma
-        "lindsey@precisianmedical.com": "Lindsey",
+        "lindsey@example.com": "Lindsey",
     }
 
 

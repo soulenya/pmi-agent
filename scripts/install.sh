@@ -9,7 +9,7 @@
 #  Prerequisites installed automatically:
 #    - Homebrew (if missing)
 #    - Docker Desktop  (runs the PostgreSQL + pgvector database)
-#    - Node.js 20 LTS
+#    - Node.js 24 LTS (24.22.1 or newer; an older Node is upgraded)
 #    - uv  (Python package manager; uv installs Python 3.14 itself)
 #
 #  Run from the project root:
@@ -87,7 +87,11 @@ brew_if_missing() {  # brew_if_missing <formula> <check-cmd> <label>
 }
 
 brew_cask_if_missing "docker"   "docker" "Docker Desktop"
-brew_if_missing      "node@20"   "node"   "Node.js 20 LTS"
+# Node.js: install or upgrade to the supported floor (24.22.1+, see
+# scripts/upgrade-node.sh and NODE_MIN in launcher.py). An existing Node is
+# upgraded in place - old Node trusts revoked root certificates.
+info "Checking Node.js..."
+if bash "$(dirname "$0")/upgrade-node.sh"; then ok "Node.js 24 LTS ready"; else warn "Node.js is missing or old - install 24.22.1 or newer from https://nodejs.org/"; fi
 brew_if_missing      "uv"        "uv"     "uv (Python package manager)"
 # Python itself is managed by uv (backend/.python-version pins 3.14, matching
 # the Windows build) — `uv sync` downloads a native arm64 interpreter as needed.

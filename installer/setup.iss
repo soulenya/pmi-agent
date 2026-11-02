@@ -23,7 +23,7 @@
 #ifndef AppPublisher
   #define AppPublisher  "Precisian Medical Instruments"
 #endif
-#define AppVersion    "5.29.0"
+#define AppVersion    "5.30.0"
 #ifndef AppURL
   #define AppURL        "https://github.com/soulenya/pmi-agent"
 #endif
@@ -117,6 +117,7 @@ Source: "..\Update Little Gerry.bat";       DestDir: "{app}"; Flags: ignoreversi
 Source: "..\docker-compose.yml";            DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md";                     DestDir: "{app}"; Flags: ignoreversion
 Source: "..\launcher.py";                   DestDir: "{app}"; Flags: ignoreversion
+Source: "..\update_verify.py";              DestDir: "{app}"; Flags: ignoreversion
 Source: "..\Spaceman on Black BG.png";      DestDir: "{app}"; Flags: ignoreversion
 Source: "..\.gitignore";                   DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 ; google_credentials.json (OAuth client secret) is intentionally NOT bundled �
@@ -136,7 +137,7 @@ Source: "..\backend\*"; DestDir: "{app}\backend"; \
 
 ; Frontend source (without node_modules — npm install runs during setup)
 Source: "..\frontend\*"; DestDir: "{app}\frontend"; \
-    Excludes: "node_modules,dist,src-tauri\target"; \
+    Excludes: "node_modules,dist"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; Scripts

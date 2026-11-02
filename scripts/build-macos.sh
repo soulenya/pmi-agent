@@ -61,7 +61,6 @@ rsync -a \
   --exclude '**/.venv' \
   --exclude '**/node_modules' \
   --exclude 'frontend/dist' \
-  --exclude 'frontend/src-tauri/target' \
   --exclude '**/__pycache__' \
   --exclude '**/*.pyc' \
   --exclude 'backend/logs/*' \

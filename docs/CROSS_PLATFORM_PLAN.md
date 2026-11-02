@@ -38,7 +38,7 @@ Little Gerry currently ships as a Windows-only desktop app (pywebview + WebView2
 | Installer | `installer/setup.iss` | Inno Setup is Windows-only |
 
 ### Cleanup noted during audit
-- `frontend/src-tauri/` and the Tauri deps in `frontend/package.json` are unused (app uses pywebview). Can be removed during the port.
+- `frontend/src-tauri/` and the Tauri deps were removed in 5.30.0 (the app uses pywebview).
 - `scripts/setup-llm-server.ps1`, `cleanup-ollama.ps1`, `backup-ollama-models.ps1`, `migrate-to-server.ps1`, `test-llm-server.ps1`, `build-desktop.ps1` are advanced/optional — defer porting.
 
 ---

@@ -10,7 +10,7 @@
     Prerequisites installed automatically via winget:
       - Docker Desktop (runs PostgreSQL database)
       - Python 3.14+
-      - Node.js 20 LTS
+      - Node.js 24 LTS (24.22.1 or newer; an older Node is upgraded)
       - uv (Python package manager)
       - Microsoft Visual C++ Redistributable (x64) - required by native
         Python extensions such as greenlet; missing on fresh Windows installs
@@ -113,7 +113,7 @@ function Test-VCRedist {
 function Update-SessionPath {
     $machinePath = [System.Environment]::GetEnvironmentVariable("PATH", "Machine")
     $userPath    = [System.Environment]::GetEnvironmentVariable("PATH", "User")
-    $env:PATH    = "$machinePath;$userPath;$env:USERPROFILE\.cargo\bin;$env:USERPROFILE\.local\bin"
+    $env:PATH    = "$machinePath;$userPath;$env:USERPROFILE\.local\bin"
 }
 
 # ── Wait for TCP port ─────────────────────────────────────────────────────────
@@ -198,7 +198,13 @@ if (Get-Command wsl -ErrorAction SilentlyContinue) {
 
 Install-WingetPackage -Name "Docker Desktop"  -Id "Docker.DockerDesktop"  -TestCmd "docker"
 Install-WingetPackage -Name "Python 3.14"      -Id "Python.Python.3.14"    -TestCmd "python"
-Install-WingetPackage -Name "Node.js 20 LTS"   -Id "OpenJS.NodeJS.LTS"     -TestCmd "node"
+# Node.js: install or upgrade to the supported floor (24.22.1+, see
+# scripts/upgrade-node.ps1 and NODE_MIN in launcher.py). An existing Node is
+# upgraded in place rather than reported as "already installed" - old Node
+# trusts revoked root certificates.
+Write-Info "Checking Node.js..."
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "upgrade-node.ps1") 2>&1 | ForEach-Object { Write-Info $_ }
+if ($LASTEXITCODE -eq 0) { Write-OK "Node.js 24 LTS ready" } else { Write-Warn "Node.js is missing or old (exit $LASTEXITCODE) - install 24.22.1 or newer from https://nodejs.org/" }
 
 # Microsoft Visual C++ Redistributable (x64) - detected via registry, not a
 # command, so it needs its own check. Required by greenlet/SQLAlchemy at runtime.
@@ -245,11 +251,6 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     }
 } else {
     Write-OK "uv already installed"
-}
-
-if (-not $SkipTauriBuild) {
-    Install-WingetPackage -Name "Rust toolchain" -Id "Rustlang.Rustup" -TestCmd "cargo"
-    Update-SessionPath
 }
 
 Update-SessionPath
@@ -411,7 +412,6 @@ VITE_WS_BASE=ws://127.0.0.1:8000
     Write-OK "frontend/.env already exists - skipping"
 }
 
-# Creating desktop shortcuts is the next step — skip Ollama model pull and Tauri build
 # ─────────────────────────────────────────────────────────────────────────────
 Write-Step "Step 8 (Final) - Creating desktop shortcuts"
 # ─────────────────────────────────────────────────────────────────────────────
