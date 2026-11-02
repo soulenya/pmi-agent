@@ -59,7 +59,10 @@ certificate, and `.github/workflows/macos-release.yml` signs, notarizes and
 staples every release's `.pkg` on a GitHub `macos-latest` runner (Apple
 silicon) from five repository secrets: `MACOS_CERT_P12_BASE64`,
 `MACOS_CERT_PASSWORD`, `MACOS_NOTARY_APPLE_ID`, `MACOS_NOTARY_PASSWORD`
-(app-specific), `MACOS_NOTARY_TEAM_ID`. When the secrets are absent — a new
+(app-specific), `MACOS_NOTARY_TEAM_ID`. Put the same Team ID in
+`brand/brand.json` → `macos.team_ids`: installed copies refuse a `.pkg` update
+whose Developer ID team isn't listed there (docs/AUTO_UPDATE.md, "The signature
+gate"). When the secrets are absent — a new
 company's fork before it joins the program — the workflow still builds and
 attaches an **unsigned** `.pkg`; Gatekeeper then needs right-click → Open
 once. The first notarization on a new account can take 40 minutes.

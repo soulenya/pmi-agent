@@ -7,7 +7,8 @@
     Stops the running app, installs the update silently, then relaunches.
 
 .PARAMETER Installer
-    Full path to the downloaded, signed LittleGerry_Setup.exe.
+    Full path to the downloaded LittleGerry_Setup.exe. Its Authenticode
+    signature is checked against brand\brand.json before it runs.
 
 .PARAMETER AppDir
     The application install directory (project root).
@@ -43,6 +44,60 @@ function Start-App {
 Write-Log "=== apply_update started ==="
 Write-Log "Installer: $Installer"
 Write-Log "AppDir:    $AppDir"
+
+# ── Signature gate ───────────────────────────────────────────────────────────
+# The launcher has already verified the file; check again here because this
+# script elevates it. Mirrors update_verify.py: Authenticode must verify, and
+# the signer thumbprint must be one pinned in brand\brand.json
+# (windows.cert_thumbprints). Without pins, require a trusted chain and the
+# brand's certificate name.
+function Test-InstallerSignature([string]$Path) {
+    $pins = @(); $cn = ""
+    try {
+        $b = Get-Content (Join-Path $AppDir "brand\brand.json") -Raw | ConvertFrom-Json
+        $pins = @($b.windows.cert_thumbprints | Where-Object { $_ } | ForEach-Object { ($_ -replace '[^0-9A-Fa-f]', '').ToUpper() })
+        $cn = if ($b.windows.cert_cn) { "$($b.windows.cert_cn)" } elseif ($b.publisher) { "$($b.publisher)" } else { "" }
+    } catch { Write-Log "WARN: brand.json unreadable: $($_.Exception.Message)" }
+
+    $sig = Get-AuthenticodeSignature -LiteralPath $Path
+    $status = [string]$sig.Status
+    $thumb = if ($sig.SignerCertificate) { $sig.SignerCertificate.Thumbprint.ToUpper() } else { "" }
+    $subject = if ($sig.SignerCertificate) { $sig.SignerCertificate.Subject } else { "" }
+    Write-Log "Signature: status=$status thumbprint=$thumb subject=$subject"
+
+    $trusted = ($status -eq "Valid")
+    $untrustedRoot = ($status -eq "UnknownError" -and "$($sig.StatusMessage)" -match "not trusted")
+    if (-not ($trusted -or $untrustedRoot)) { return "Authenticode status $status`: $($sig.StatusMessage)" }
+    if (-not $thumb) { return "no signer certificate" }
+    if ($pins.Count -gt 0) {
+        if ($pins -contains $thumb) { return $null }
+        return "signer thumbprint $thumb is not pinned in brand.json ($($pins -join ', '))"
+    }
+    if (-not $trusted) { return "no pinned thumbprint and the signer's root is not trusted on this PC" }
+    if ($cn -and $subject -notmatch ("(^|,\s*)CN=" + [regex]::Escape($cn) + "(,|$)")) { return "signer is '$subject', expected CN=$cn" }
+    return $null
+}
+
+if (Test-Path $Installer) {
+    $problem = $null
+    try { $problem = Test-InstallerSignature $Installer } catch { $problem = "could not verify: $($_.Exception.Message)" }
+    if ($problem) {
+        Write-Log "REFUSED: $problem"
+        Remove-Item $Installer -Force -ErrorAction SilentlyContinue
+        try {
+            $markerPath = Join-Path $logDir "update_attempt.json"
+            if (Test-Path $markerPath) {
+                $m = Get-Content $markerPath -Raw | ConvertFrom-Json
+                $m | Add-Member -NotePropertyName last_error -NotePropertyValue "signature: $problem" -Force
+                $m | ConvertTo-Json -Compress | Set-Content $markerPath -Encoding UTF8
+            }
+        } catch {}
+        Start-App
+        Write-Log "=== apply_update finished (refused) ==="
+        exit 1
+    }
+    Write-Log "Signature OK."
+}
 
 try {
     # Give the launcher a moment to exit and release file locks.

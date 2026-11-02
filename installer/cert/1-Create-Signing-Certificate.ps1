@@ -86,6 +86,22 @@ if ($OpenSsl) {
     $thumb = $cert.Thumbprint
 }
 
+# Pin the new certificate in brand.json so installed copies accept updates
+# signed with it (update_verify.py reads windows.cert_thumbprints). Appended,
+# not replaced: a rotation ships one release under the old certificate that
+# already trusts the new one.
+if ((Test-Path $brandFile) -and $thumb) {
+    $thumb = $thumb.ToUpper()
+    $raw = Get-Content $brandFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not $raw.windows) { $raw | Add-Member -NotePropertyName windows -NotePropertyValue ([pscustomobject]@{}) }
+    $pins = @($raw.windows.cert_thumbprints | Where-Object { $_ })
+    if ($pins -notcontains $thumb) {
+        $raw.windows | Add-Member -NotePropertyName cert_thumbprints -NotePropertyValue @($pins + $thumb) -Force
+        [IO.File]::WriteAllText((Resolve-Path $brandFile), ($raw | ConvertTo-Json -Depth 8) + "`n", (New-Object Text.UTF8Encoding $false))
+        Write-Host "    Pinned thumbprint in brand/brand.json (windows.cert_thumbprints)." -ForegroundColor Green
+    }
+}
+
 Write-Host ""
 Write-Host "  Done." -ForegroundColor Green
 Write-Host "    Public  (share with team) : $cerPath"

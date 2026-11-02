@@ -8,10 +8,10 @@
     The dedicated server must already be set up (setup-llm-server.ps1 run and rebooted).
 
 .PARAMETER ServerIP
-    IP address of the dedicated LLM server (e.g. 192.168.1.50)
+    IP address of the dedicated LLM server (e.g. 192.0.2.10)
 
 .EXAMPLE
-    .\migrate-to-server.ps1 -ServerIP 192.168.1.50
+    .\migrate-to-server.ps1 -ServerIP 192.0.2.10
 #>
 param(
     [Parameter(Mandatory=$false)]

@@ -21,7 +21,7 @@ def _statement_pdf() -> bytes:
     page.insert_text((480, y), "Amount", fontsize=9)
     for date, desc, amount in [
         ("Aug 5", "Electronic Withdrawal To GOOGLE", "45.04-"),
-        ("Aug 24", "Business Bill Pay ESS TO Ovyl LLC", "2,009.50-"),
+        ("Aug 24", "Business Bill Pay ESS TO Northwind Supply LLC", "1,234.56-"),
         ("Aug 25", "Business Bill Pay ESS TO Hatch PD", "13,635.00-"),
     ]:
         y += 14
@@ -44,7 +44,7 @@ def _two_column_pdf() -> bytes:
 def test_statement_rows_stay_on_one_line():
     text = _extract_text_pdf(_statement_pdf())
     lines = [ln for ln in text.splitlines() if ln.strip()]
-    assert any("Aug 24" in ln and "Ovyl" in ln and "2,009.50-" in ln for ln in lines)
+    assert any("Aug 24" in ln and "Northwind" in ln and "1,234.56-" in ln for ln in lines)
     # Columns are separated by the wide-gap marker, not a single space.
     row = next(ln for ln in lines if "13,635.00-" in ln)
     assert "Hatch PD   13,635.00-" in row

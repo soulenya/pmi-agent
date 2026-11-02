@@ -1,6 +1,6 @@
 """
 PMI Agent — FastAPI application factory.
-Binds to 127.0.0.1 only. CORS restricted to Tauri + localhost origins.
+Binds to 127.0.0.1 only. CORS restricted to the local desktop shell + dev-server origins.
 """
 
 from __future__ import annotations
@@ -762,7 +762,7 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-    # CORS — Tauri desktop shell + local dev server by default; the hub
+    # CORS — pywebview desktop shell + local dev server by default; the hub
     # overrides settings.cors_origins with its own origin.
     app.add_middleware(
         CORSMiddleware,

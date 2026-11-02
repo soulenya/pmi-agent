@@ -4,7 +4,68 @@
 
 ## Changelog
 
-### v5.29.0 · build 313 — 2026-10-30
+### v5.30.0 · build 314 — 2026-11-02
+**Updates must carry our signature before they run; release secrets behind an approval; Node floor raised; confidential leftovers scrubbed**
+
+Response to the third-party security review of 2026-11-01 (Part 1).
+
+- **Signed-update gate.** Installed copies downloaded the newest release
+  and ran it as administrator on GitHub's say-so alone. Now `update_verify.py`
+  (project root, standard library, shared by `launcher.py` and
+  `routers/update.py`) checks the file first: on Windows
+  `Get-AuthenticodeSignature` must verify and the signer thumbprint must be
+  in `brand.json` → `windows.cert_thumbprints`; on macOS
+  `pkgutil --check-signature` must show an Apple-issued **Developer ID
+  Installer** whose Team ID is in `macos.team_ids`. A PC without the
+  trust batch (chain "not trusted") is accepted when the thumbprint is
+  pinned — the signature over the file has still been checked, and a
+  modified file reports `HashMismatch`. Without pins the gate falls back to
+  trusted-chain + `cert_cn` / any Developer ID (weaker; new companies get
+  pins from `1-Create-Signing-Certificate.ps1` and `bootstrap.ps1`, which
+  now append the thumbprint). `apply_update.ps1` / `apply_update.sh` run
+  the same check again before installing. A refusal deletes the file, logs
+  the reason, writes `signature: …` into `update_attempt.json` (the retry
+  guard then stops after two tries and names the administrator), and the
+  splash says the update "couldn't be verified as published by …".
+  PMI's pins: thumbprint `5C5867DB…54C1`, Team ID `U562KSFM7B`. Live-tested:
+  the real 5.29.0 installer passes; a one-byte-modified copy, Microsoft-
+  signed `notepad.exe` and an unsigned exe are refused. 16 tests.
+- **`release` environment.** Signing, notary and update-token secrets move
+  from repository secrets into a GitHub environment with a required
+  reviewer (the owner) that admits only `v*` tags; `windows-release.yml`
+  and `macos-release.yml` declare `environment: release`, so a run pauses
+  under Actions → "Review deployments" until approved. A stolen login can
+  push a workflow; it cannot approve one. `sync-upstream.yml` and
+  `update-from-upstream.ps1` now dispatch the installer builds on the tag
+  ref (the only ref the environment allows); `bootstrap.ps1` creates the
+  environment for a new company and sets its secrets there.
+- **Node.js floor 24.22.1** (`NODE_MIN` in `launcher.py`; `engines` in
+  `package.json`). Node ships its own root list — the eMudhra roots were
+  pulled in 24.22.1 — and installer-based updates never touched it, so a
+  user PC could stay on Node 20 forever. The launcher now runs
+  `scripts/upgrade-node.ps1` (winget, one UAC prompt, newest 24.x) or
+  `scripts/upgrade-node.sh` (Homebrew `node@24`, linked) when Node is below
+  the floor, at most once a day; `install.ps1` / `install.sh` use the same
+  scripts instead of "already installed". A newer major is left alone.
+- **Legacy Tauri shell removed**: `frontend/src-tauri/`, `@tauri-apps/*`
+  deps and scripts, `build-desktop.ps1`, `gen_icons.py`, the `tauri://` and
+  `:1420` CORS origins, and an `install.ps1` block that referenced an
+  undeclared `$SkipTauriBuild` (would have installed a Rust toolchain on
+  user PCs, or failed under strict mode). The desktop shell is pywebview.
+- **Scrubbed from the tree**: a real bank-statement line (vendor and amount)
+  in `test_pdf_layout.py` and the CHANGELOG, a customer contract number in
+  tests / USER_GUIDE / CHANGELOG, a partner's name in prompts, placeholders
+  and docs, teammates' addresses in three test files, an internal LAN
+  address in two scripts and the shipped changelog (now RFC 5737
+  `192.0.2.10`). The git history itself is handled separately (Part 2).
+- Repository settings: secret scanning + push protection on; a `master`
+  ruleset blocks deletion and force-push (admin bypass for the planned
+  history rewrite).
+- Not in this release, still true from the review: the leaked 2026-06
+  Google OAuth client secret was already rotated — Google rejects it
+  (`invalid_client`) — so no credential changes for anyone.
+
+
 **Every layer of the stack brought current after a security sweep; meeting recipients found in Gmail, not just the calendar; edit a draft's recipients on its card**
 
 *Security sweep & toolchain.* A review of recent advisories against
@@ -327,7 +388,7 @@ From the first report (same build):
 - PDF text extraction (`services/documents/ingestion.py`, used by chat
   attachments, the Knowledge Base and `read_document`) now rebuilds each
   visual row from word positions, so a statement line reads
-  `Aug 24 Business Bill Pay   ESS TO Ovyl LLC BILL PMT   2,009.50-` instead
+  `Aug 24 Business Bill Pay   ESS TO Northwind Supply LLC BILL PMT   1,234.56-` instead
   of dates, descriptions and amounts arriving as separate runs (PyMuPDF's
   block order), which left the assistant unable to match amounts to
   merchants and falling back to the slow vision transcription. Wide gaps
@@ -1639,7 +1700,7 @@ the local twin of the sheet; the ledger now does the same.
   twin's ledger, `canEdit`, `source="local"`, `onChanged=settle`; the note
   explains the path and keeps **Update from Drive** for Sheets-side edits. No
   twin (sheet made elsewhere) or an external sheet: read-only as before.
-- Verified on the live hub project SO/LIC CLIN 001: 8 Paid ticks + 13 edit
+- Verified on a live hub project: 8 Paid ticks + 13 edit
   buttons + add-entry row appeared; added an Allocated $2.34 test row (hub copy
   13 → 14 rows), ticked it (hub copy: Spent $199.40, Allocated back to
   $387,892.43, date 2026-09-13), deleted it (sheet, local and hub all back to
@@ -2507,7 +2568,7 @@ hub and then insisting in the next breath that he could not find it.
 The second one was real. Only two of Gerry's tools knew that a project can
 live on the hub instead of on this computer. Every other one looked in the
 local database, found nothing, and said so — which is why he could list
-"SO/LIC CLIN 001" and then fail to open its timeline.
+a project and then fail to open its timeline.
 
 - **Sub-tasks sit under their parent**, indented, instead of scattering
   themselves through the status groups. A parent shows a fold arrow and a
@@ -3260,7 +3321,7 @@ them fixed.
 - **UI**: Linked-folders card (link invoice/receipts folder → offer to scan now; per-folder files-read / extracted-total / last-scan, Daily-scan checkbox, Scan now, unlink keeps folder), Gmail toggle, and an in-budget bulk review panel (accept/dismiss each, Accept all — sequential, each write re-reads the sheet).
 - **Phase 5 — ledger filters & isolation**: category chips are toggle filters (multi-select, ad-hoc + uncategorized included, live "showing N of M · subtotal"); row checkboxes + "Isolate selected" show only checked rows with their subtotal. In-app only.
 - **Fix**: external-sheet linking now parses pasted URLs (was: raw 404 spilled into a truncated toast) with honest 404/403 guidance.
-- Live-verified end-to-end: OCR on a rendered receipt image, folder scan extracting "OVYL LLC / $123.45" from a generated PDF via the real LLM, registry dedup on re-scan, Gmail check pass (temp Drive artifacts trashed).
+- Live-verified end-to-end: OCR on a rendered receipt image, folder scan extracting "NORTHWIND SUPPLY LLC / $123.45" from a generated PDF via the real LLM, registry dedup on re-scan, Gmail check pass (temp Drive artifacts trashed).
 
 ### v3.3.8 — 2026-07-21
 **Budget Phase 4 + Invoice Phase 1 — interconnects**

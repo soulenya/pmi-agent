@@ -149,10 +149,11 @@ jobs:
             --generate-notes \
             --notes "Little Gerry $VERSION, from ${UPSTREAM_REPO} ${UPSTREAM_REF}. Installers are attached by the build workflows a few minutes after publishing."
           # A release made with GITHUB_TOKEN does not fire other workflows'
-          # `release:` triggers, so start the installer builds directly.
-          gh workflow run windows-release.yml --ref "${{ github.ref_name }}" -f "tag=v$VERSION"
-          gh workflow run macos-release.yml --ref "${{ github.ref_name }}" -f "tag=v$VERSION"
-          echo "::notice::Published v$VERSION and started the installer builds. Installed copies update at their next launch once the assets are attached."
+          # `release:` triggers, so start the installer builds directly — on
+          # the tag, which is the only ref the "release" environment admits.
+          gh workflow run windows-release.yml --ref "v$VERSION" -f "tag=v$VERSION"
+          gh workflow run macos-release.yml --ref "v$VERSION" -f "tag=v$VERSION"
+          echo "::notice::Published v$VERSION and started the installer builds. They wait for a reviewer's approval under Actions (release environment); installed copies update at their next launch once the assets are attached."
 
       - name: Open a pull request instead
         if: steps.fetch.outputs.skip != 'true' && (steps.merge.outputs.conflicts == 'true' || env.AUTO_RELEASE != 'true')

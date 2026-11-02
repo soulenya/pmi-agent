@@ -60,7 +60,7 @@ no admin password is required.
 
 ### 2. Install prerequisites (fresh Mac only, one-time)
 
-Little Gerry needs Docker Desktop, Node.js 20, and uv. On a Mac that has never
+Little Gerry needs Docker Desktop, Node.js 24 (24.22.1 or newer), and uv. On a Mac that has never
 run Little Gerry before, run this once in Terminal:
 
 ```bash

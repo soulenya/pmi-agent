@@ -49,17 +49,13 @@ class Settings(BaseSettings):
     # ── Server ───────────────────────────────────────────────────────────────
     host: str = "127.0.0.1"
     port: int = 8000
-    # Origins allowed to call the API. Desktop shell + local dev by default;
-    # the hub replaces this with its own origin via CORS_ORIGINS.
+    # Origins allowed to call the API. Desktop shell (pywebview) + local dev by
+    # default; the hub replaces this with its own origin via CORS_ORIGINS.
     # pywebview opens the frontend on 127.0.0.1:5173, not localhost:5173, so
     # both spellings are required.
     cors_origins: list[str] = [
-        "tauri://localhost",
-        "https://tauri.localhost",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://localhost:1420",
-        "http://127.0.0.1:1420",
     ]
 
     # ── Hub deployment ───────────────────────────────────────────────────────

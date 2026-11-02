@@ -77,12 +77,12 @@ def test_every_advertised_tool_has_a_working_executor():
 @pytest.mark.asyncio
 async def test_create_tasks_writes_the_whole_batch(db_session: AsyncSession):
     owner = await _user(db_session, "batch-owner@pmi.local")
-    project = await _project(db_session, owner, "SO/LIC CLIN 001")
+    project = await _project(db_session, owner, "Pilot Build Phase 1")
 
     out = await pt.execute_create_tasks(
         _Ctx(db_session, owner.id),
         {
-            "project": "SO/LIC CLIN 001",
+            "project": "Pilot Build Phase 1",
             "tasks": [
                 {"title": "CLIN 003", "is_milestone": True, "due_date": "2026-03-01"},
                 {"title": "CLIN 004", "priority": "high"},

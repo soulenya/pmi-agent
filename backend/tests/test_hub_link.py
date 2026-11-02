@@ -69,7 +69,7 @@ def test_everything_else_is_refused(path: str):
 async def test_link_round_trips_and_hides_the_token(db_session: AsyncSession):
     user = await _user(db_session, "hub-link@pmi.local")
     link = await hub.save_link(
-        db_session, user.id, "https://hub.example.com/", "person@pmi-llc.com", "rt-secret"
+        db_session, user.id, "https://hub.example.com/", "person@example.com", "rt-secret"
     )
 
     assert link.hub_url == "https://hub.example.com"
@@ -78,15 +78,15 @@ async def test_link_round_trips_and_hides_the_token(db_session: AsyncSession):
 
     again = await hub.get_link(db_session, user.id)
     assert again is not None
-    assert again.email == "person@pmi-llc.com"
+    assert again.email == "person@example.com"
 
 
 @pytest.mark.asyncio
 async def test_connecting_again_replaces_the_old_credential(db_session: AsyncSession):
     user = await _user(db_session, "hub-again@pmi.local")
-    await hub.save_link(db_session, user.id, "https://a.example.com", "a@pmi-llc.com", "first")
+    await hub.save_link(db_session, user.id, "https://a.example.com", "a@example.com", "first")
     link = await hub.save_link(
-        db_session, user.id, "https://b.example.com", "b@pmi-llc.com", "second"
+        db_session, user.id, "https://b.example.com", "b@example.com", "second"
     )
 
     assert hub.decrypt(link.refresh_token_encrypted) == "second"
@@ -96,7 +96,7 @@ async def test_connecting_again_replaces_the_old_credential(db_session: AsyncSes
 @pytest.mark.asyncio
 async def test_disconnect_removes_the_link(db_session: AsyncSession):
     user = await _user(db_session, "hub-bye@pmi.local")
-    await hub.save_link(db_session, user.id, "https://a.example.com", "a@pmi-llc.com", "rt")
+    await hub.save_link(db_session, user.id, "https://a.example.com", "a@example.com", "rt")
 
     assert await hub.disconnect(db_session, user.id) is True
     assert await hub.get_link(db_session, user.id) is None

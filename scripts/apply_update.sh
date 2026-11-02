@@ -8,7 +8,9 @@
 #  domain (no sudo), then relaunches.
 #
 #  Args:
-#    $1  Installer  - full path to the downloaded LittleGerry.pkg
+#    $1  Installer  - full path to the downloaded LittleGerry.pkg; its
+#                     Developer ID signature is checked against brand.json
+#                     before it runs
 #    $2  AppDir     - the application install directory (project root)
 #
 #  Mirrors scripts/apply_update.ps1 on Windows.
@@ -39,6 +41,50 @@ trap 'start_app; log "=== apply_update finished ==="' EXIT
 log "=== apply_update started ==="
 log "Installer: $INSTALLER"
 log "AppDir:    $APPDIR"
+
+# ── Signature gate ──────────────────────────────────────────────────────────
+# The launcher has already verified the file; check again here because this
+# script installs it. Mirrors update_verify.py: pkgutil must report an
+# Apple-issued developer signature with a Developer ID Installer identity, and
+# the Team ID must be one pinned in brand/brand.json (macos.team_ids). Without
+# pins any Apple-issued Developer ID is accepted.
+verify_installer() {
+  local out status team pins
+  out="$(/usr/sbin/pkgutil --check-signature "$1" 2>&1)"
+  status="$(printf '%s\n' "$out" | sed -n 's/^ *Status: *//p' | head -1)"
+  log "Signature: status=$status"
+  case "$status" in
+    "signed by a developer certificate issued by Apple"*) ;;
+    *) echo "pkgutil status: ${status:-no signature}"; return ;;
+  esac
+  team="$(printf '%s\n' "$out" | sed -nE 's/.*Developer ID Installer: .*\(([A-Z0-9]{10})\).*/\1/p' | head -1)"
+  if [ -z "$team" ]; then echo "signed, but not with a Developer ID Installer certificate"; return; fi
+  pins="$(/usr/bin/python3 -c 'import json,sys; b=json.load(open(sys.argv[1])); print(" ".join(str(t).strip().upper() for t in (b.get("macos") or {}).get("team_ids") or [] if str(t).strip()))' "$APPDIR/brand/brand.json" 2>/dev/null)"
+  if [ -n "$pins" ]; then
+    for p in $pins; do [ "$p" = "$team" ] && return; done
+    echo "Developer ID team $team is not pinned in brand.json ($pins)"; return
+  fi
+  log "No pinned team id in brand.json; accepting Apple Developer ID $team"
+}
+
+if [ -f "$INSTALLER" ]; then
+  problem="$(verify_installer "$INSTALLER")"
+  if [ -n "$problem" ]; then
+    log "REFUSED: $problem"
+    rm -f "$INSTALLER" 2>/dev/null
+    marker="$LOGDIR/update_attempt.json"
+    if [ -f "$marker" ]; then
+      /usr/bin/python3 - "$marker" "$problem" <<'PY' 2>/dev/null
+import json, sys
+p, why = sys.argv[1], sys.argv[2]
+m = json.load(open(p)); m["last_error"] = "signature: " + why
+json.dump(m, open(p, "w"))
+PY
+    fi
+    exit 1   # EXIT trap relaunches the current version
+  fi
+  log "Signature OK."
+fi
 
 # 1. Give the launcher a moment to exit and release file locks.
 sleep 2

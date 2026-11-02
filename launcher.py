@@ -22,6 +22,8 @@ import traceback
 import urllib.request
 from pathlib import Path
 
+import update_verify  # sibling module; shipped by the installer next to this file
+
 ROOT         = Path(__file__).parent
 BACKEND_DIR  = ROOT / "backend"
 FRONTEND_DIR = ROOT / "frontend"
@@ -179,6 +181,13 @@ VERSION_FILE        = ROOT / "VERSION"
 UPDATE_TOKEN_FILE   = ROOT / "update_token.txt"
 _DEPS_TIMEOUT       = 300    # seconds, per dependency command
 
+# Oldest Node.js this release runs on. Node carries its own root-certificate
+# list (the eMudhra roots were pulled in 24.22.1) and reaches the network for
+# npm, so an old Node on a user's PC is a security hole no app update closes
+# by itself. Below this the launcher runs scripts/upgrade-node.* once a day.
+NODE_MIN = (24, 22, 1)
+NODE_MARKER_FILE = BACKEND_DIR / "logs" / "node_upgrade.json"
+
 _procs: list[subprocess.Popen] = []
 _status_text = "Initializing..."
 _status_step = 0
@@ -322,19 +331,19 @@ def _load_update_marker() -> dict:
         return {}
 
 
-def _record_update_attempt(version_str: str) -> None:
+def _record_update_attempt(version_str: str, last_error: str | None = None) -> None:
     try:
         marker = _load_update_marker()
         attempts = marker.get("attempts", 0) + 1 if marker.get("version") == version_str else 1
         UPDATE_MARKER_FILE.parent.mkdir(parents=True, exist_ok=True)
-        UPDATE_MARKER_FILE.write_text(
-            json.dumps({
-                "version": version_str,
-                "attempts": attempts,
-                "last_attempt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            }),
-            encoding="utf-8",
-        )
+        record = {
+            "version": version_str,
+            "attempts": attempts,
+            "last_attempt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+        if last_error:
+            record["last_error"] = last_error
+        UPDATE_MARKER_FILE.write_text(json.dumps(record), encoding="utf-8")
     except Exception:
         _log_error()
 
@@ -456,6 +465,11 @@ def _auto_update_release() -> bool:
                     "off under Windows Security > App & browser control > Smart App "
                     "Control, then run 'Update Little Gerry'."
                 )
+            elif last_err.startswith("signature:"):
+                hint = (
+                    f"The downloaded installer was not signed by {BRAND.get('publisher') or BRAND['company_name']} "
+                    "and was not installed. Tell your administrator."
+                )
             else:
                 hint = "Run 'Update Little Gerry' to retry."
             _set_status(
@@ -498,6 +512,27 @@ def _auto_update_release() -> bool:
             target = target.with_name(f"{target.stem}_{os.getpid()}{target.suffix}")
         with urllib.request.urlopen(dl_req, timeout=300) as r, open(target, "wb") as out:
             shutil.copyfileobj(r, out)
+
+        # The installer runs as administrator. Refuse anything not signed by us,
+        # even though it came from our own GitHub release: a stolen GitHub
+        # login could publish a release, but it cannot sign with our key.
+        _set_status(f"Verifying update {version_str}...", 0)
+        verdict = update_verify.verify_installer(target, BRAND)
+        if not verdict.ok:
+            _log(f"update {version_str} REFUSED - {verdict.reason}")
+            try:
+                target.unlink()
+            except OSError:
+                pass
+            _record_update_attempt(version_str, last_error=f"signature: {verdict.reason}")
+            _set_status(
+                f"Update {version_str} couldn't be verified as published by "
+                f"{BRAND.get('publisher') or BRAND['company_name']} - starting the current version.",
+                0,
+            )
+            time.sleep(3)
+            return False
+        _log(f"update {version_str} signature OK - {verdict.describe()}")
 
         _set_status("Installing update...", 0)
         _record_update_attempt(version_str)
@@ -550,6 +585,64 @@ def _auto_update() -> None:
         _set_status("Update installed.", 0)
     except Exception:
         _log_error()
+
+
+def _node_version() -> tuple[int, int, int] | None:
+    try:
+        out = _run("node --version", timeout=20)
+        text = out.stdout.decode("utf-8", "ignore") if isinstance(out.stdout, bytes) else str(out.stdout or "")
+        if out.returncode != 0 or not text.strip():
+            return None
+        return _parse_version(text.strip().splitlines()[0])
+    except Exception:
+        return None
+
+
+def _ensure_node() -> None:
+    """Upgrade Node.js in place when it is below NODE_MIN (see there).
+
+    Windows: one UAC prompt for scripts/upgrade-node.ps1 (winget, machine-wide
+    MSI). macOS: Homebrew, no elevation. Tried at most once a day so a declined
+    prompt or an offline machine doesn't nag on every launch; the app still
+    starts on the old Node either way.
+    """
+    have = _node_version()
+    if have is None or have >= NODE_MIN or have[0] > NODE_MIN[0]:
+        return
+    try:
+        marker = json.loads(NODE_MARKER_FILE.read_text(encoding="utf-8"))
+        if time.time() - float(marker.get("at", 0)) < 86400:
+            _log(f"node {'.'.join(map(str, have))} is below {'.'.join(map(str, NODE_MIN))}; upgrade tried recently, skipping")
+            return
+    except Exception:
+        pass
+    want = ".".join(map(str, NODE_MIN))
+    _set_status(f"Updating Node.js to {want}+ (one-time security update)...", 0)
+    ok = False
+    try:
+        if IS_WINDOWS:
+            script = ROOT / "scripts" / "upgrade-node.ps1"
+            inner = f"-NoProfile -ExecutionPolicy Bypass -File \"{script}\" -MinVersion {want}"
+            cmd = (
+                "powershell.exe -NoProfile -NonInteractive -Command "
+                f"\"$p = Start-Process powershell.exe -ArgumentList '{inner}' -Verb RunAs -Wait -PassThru -WindowStyle Hidden; exit $p.ExitCode\""
+            )
+            ok = _run(cmd, timeout=900).returncode == 0
+        elif IS_MAC:
+            script = ROOT / "scripts" / "upgrade-node.sh"
+            ok = _run(f"/bin/bash \"{script}\" {want}", timeout=900).returncode == 0
+    except Exception:
+        _log_error()
+    now = _node_version()
+    _log(f"node upgrade {'ok' if ok else 'did not complete'}: {have} -> {now}")
+    try:
+        NODE_MARKER_FILE.parent.mkdir(parents=True, exist_ok=True)
+        NODE_MARKER_FILE.write_text(json.dumps({"at": time.time(), "ok": ok, "from": have, "to": now}), encoding="utf-8")
+    except Exception:
+        pass
+    if not ok:
+        _set_status(f"Node.js is older than {want}; the update didn't finish. Gerry will start anyway - please tell your administrator.", 0)
+        time.sleep(4)
 
 
 def _sync_dependencies() -> None:
@@ -630,7 +723,11 @@ def _start_services() -> None:
         # 0b. Developer checkouts: pull the latest code via git.
         _auto_update()
 
-        # 0c. Always reconcile dependencies with the current code. Installer-based
+        # 0c. Node.js below the supported floor is upgraded in place (one UAC
+        # prompt on Windows); installer-based updates never touch it otherwise.
+        _ensure_node()
+
+        # 0d. Always reconcile dependencies with the current code. Installer-based
         # updates replace the code but never touched the Python venv or node_modules,
         # so a release that adds a dependency would silently break (e.g. the ddgs
         # search package). Both commands are fast no-ops when already in sync.

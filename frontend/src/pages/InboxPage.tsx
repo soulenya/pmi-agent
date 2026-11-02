@@ -1492,7 +1492,7 @@ function ComposeModal({
                 value={instruction}
                 onChange={(e) => setInstruction(e.target.value)}
                 rows={3}
-                placeholder="e.g. Tell Lindsey the NAR audit is delayed to mid-July and ask to reschedule the site visit."
+                placeholder="e.g. Tell Jordan the supplier audit is delayed to mid-July and ask to reschedule the site visit."
                 className="mt-1 w-full text-sm px-2 py-1.5 rounded bg-zinc-950 border border-zinc-700 text-zinc-200 focus:outline-none focus:border-zinc-500"
               />
             </div>

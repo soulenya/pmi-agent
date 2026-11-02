@@ -28,7 +28,6 @@ backend/.pytest_out.txt
 
 frontend/node_modules/
 frontend/dist/
-frontend/src-tauri/
 
 # Desktop packaging and ops tooling — not part of the server image.
 installer/

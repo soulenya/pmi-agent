@@ -3,14 +3,14 @@
     Tests connectivity from THIS machine to the dedicated Ollama LLM server.
 
 .PARAMETER ServerIP
-    IP address of the LLM server (e.g. 192.168.1.50)
+    IP address of the LLM server (e.g. 192.0.2.10)
 
 .PARAMETER Port
     Ollama port (default: 11434)
 
 .EXAMPLE
-    .\test-llm-server.ps1 192.168.1.50
-    .\test-llm-server.ps1 192.168.1.50 -Port 11434
+    .\test-llm-server.ps1 192.0.2.10
+    .\test-llm-server.ps1 192.0.2.10 -Port 11434
 #>
 param(
     [Parameter(Mandatory=$false)]

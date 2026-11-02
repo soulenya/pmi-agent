@@ -2335,7 +2335,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                     "company": {
                         "type": "string",
-                        "description": "Company folder hint, e.g. 'OVYL'. Omit to match from the sender.",
+                        "description": "Company folder hint, e.g. 'Northwind'. Omit to match from the sender.",
                     },
                     "attachment_filename": {
                         "type": "string",
@@ -7628,7 +7628,7 @@ TOOL_EXECUTORS.update(_notes_tools.TOOL_EXECUTORS)
 
 # When a model passes its single string argument as plain text instead of a
 # JSON object, the v2 normalizer delivers it as {"input": "<text>"}. Map that
-# onto each tool's primary parameter so e.g. search_knowledge_base("NAR contract")
+# onto each tool's primary parameter so e.g. search_knowledge_base("vendor contract")
 # works instead of failing with "Error: query must not be empty."
 _PRIMARY_ARG = {
     "search_knowledge_base": "query",
