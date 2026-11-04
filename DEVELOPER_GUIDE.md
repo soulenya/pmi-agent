@@ -300,6 +300,8 @@ backend\scripts\_brand_probe.py dump <out.json>     # PMI identity probe: compar
 
 There is no ESLint configuration; `tsc` is the frontend gate. New backend behaviour gets a test in `backend/tests/` that runs without a database where possible (`test_pdf_layout.py`, `test_erp.py`, `test_design_tokens.py` are the pattern).
 
+**Provider SDK upgrades** (`anthropic`, `openai`): the import check and the unit tests are not enough — SDK 2.x removed `temperature` from `messages.stream()` and every chat failed for two days (5.29.0 → 5.30.1). `tests/test_anthropic_client.py` binds the wrapper's kwargs against the installed SDK's real signatures and catches that class of break; still make one live call through each wrapper path (`chat_stream` and `chat`) with a real key before publishing a release that bumps a provider SDK's major version.
+
 ---
 
 ## 14. Releasing
