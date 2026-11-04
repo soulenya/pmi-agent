@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 314;
-export const BUILD_DATE = "2026-11-02";
+export const BUILD_NUMBER = 315;
+export const BUILD_DATE = "2026-11-04";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 315,
+    date: "2026-11-04",
+    title: "Fix: Gerry answered every message with an 'unexpected keyword argument' error",
+    changes: [
+      "Since the 5.29.0 update, chatting with Gerry (and routines, briefings and drafts) failed with “LLM error: … unexpected keyword argument 'temperature'”. A library update had dropped a setting Gerry was still sending. Fixed; nothing to do on your side.",
+    ],
+  },
   {
     build: 314,
     date: "2026-11-02",

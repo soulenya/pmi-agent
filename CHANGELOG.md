@@ -4,6 +4,26 @@
 
 ## Changelog
 
+### v5.30.1 · build 315 — 2026-11-04
+**Hotfix: chat with Gerry failed with "AsyncMessages.stream() got an unexpected keyword argument 'temperature'"**
+
+- Every Claude call — chat, routines, briefings, drafts, extraction — raised
+  that TypeError since 5.29.0. The Anthropic SDK 2.x upgrade removed
+  `temperature` from `messages.create()` / `messages.stream()` (the API had
+  already deprecated it for Claude 5 models; the wrapper's runtime
+  "retry without temperature" only caught the API's `BadRequestError`, not
+  the SDK's `TypeError`). `AnthropicClient` no longer forwards it; the
+  parameter stays on `chat()` / `chat_stream()` for interface parity with
+  the Ollama and OpenAI clients, which still honour it. The self-healing
+  `_TEMP_UNSUPPORTED_MODELS` machinery is gone with it.
+- `tests/test_anthropic_client.py`: binds the exact kwargs the wrapper
+  builds against the installed SDK's real `create`/`stream` signatures, so
+  the next SDK upgrade that drops or renames a parameter fails in CI, not
+  in a user's chat. Fails on 5.30.0's code; passes now. Live round-trip
+  confirmed on both paths.
+- Lesson recorded in DEVELOPER_GUIDE §13: a provider-SDK major bump needs
+  a live smoke call, not only the import check.
+
 ### v5.30.0 · build 314 — 2026-11-02
 **Updates must carry our signature before they run; release secrets behind an approval; Node floor raised; confidential leftovers scrubbed**
 
