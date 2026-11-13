@@ -1101,6 +1101,21 @@ Hover over any document row → click **AI Draft**. Little Gerry pulls relevant 
 
 Ask for a Word document in chat — a weekly update, a briefing, a tech spec, a memo, meeting notes, a report — and it lands on the Generated Files page (and on Drive if you ask).
 
+### Documents, spreadsheets and forms
+
+Three kinds of output, and where each one goes:
+
+| You ask for | You get | Say this for the Google version |
+|---|---|---|
+| a document, memo, report, notes | a **Word file** (.docx) on Generated Files | "as a Google Doc" / "in Drive" → opens in Google Docs |
+| a table, tracker, schedule, comparison, export | an **Excel workbook** (.xlsx): bold frozen header row, numbers that sort and add up, sized columns, one or more sheets | "as a Google Sheet" / "in Drive" → opens in Google Sheets |
+| a deck, pitch, briefing slides | **Google Slides** on Drive (a .pptx copy on Generated Files) | — already native |
+| a survey, questionnaire, feedback form, RSVP, sign-up | a **Google Form** on Drive, with the editor link and the link to send out | — always a Google Form |
+
+Office files are the default for documents and spreadsheets because they download, attach to email and live outside Google; ask for the Google version whenever you want to share or edit it in the browser. A file already on Generated Files can be sent to Drive afterwards too — "put that spreadsheet in Drive as a Google Sheet". Gerry only ever reports a Drive link after she has read the file back from Drive, so a link she gives you is real.
+
+Forms need one extra permission the first time. If Gerry says Google was connected before she could create forms, go to **Settings › Connections › Google Workspace**, **Disconnect**, then **Connect** again and tick every box.
+
 ### The look
 
 Every ordinary document is set in the **Precisian Medical design system**: Archivo for headings and body, JetBrains Mono for labels, black and white with the one red accent. The title sits over a red rule; sections are divided by hairlines, not boxes; tables have mono column labels over a red rule and hairline rows with no fills; numbered lists are hairline-ruled rows with a red `01 02 03` index; the header and footer are small mono capitals, the footer reading `PRECISIAN MEDICAL INSTRUMENTS · PAGE X OF Y` unless the template says otherwise. A cover banner, when a template calls for one, is a black block with a red mono eyebrow and a white title.
@@ -1181,6 +1196,8 @@ Navigate to **Settings › Connections › Google Workspace**.
 |---------|--------------------------|
 | **Gmail** | Read, search, and tag emails; compose & send your own; reply/reply-all/forward; mark read or unread; move to Trash; summarise and collapse long threads; open attachments — see [Gmail](#gmail-inbox-compose--replies). In chat, Gerry sees what is attached to an email and can read inside the attachments (Word, Excel, PowerPoint, PDF, text, CSV, pictures and scans) — "get the totals from the three invoices on Geof's latest email" works. Signature logos are recognised for what they are |
 | **Google Drive** | Browse folders, read files, import to KB; edit a specific file in place once you allow it — see [Letting Gerry edit a Drive file](#letting-gerry-edit-a-drive-file) |
+| **Google Docs / Sheets / Slides** | Anything Gerry writes can land on your Drive as a **native Google file** — say "as a Google Doc", "put it in Drive" or "so I can share it" and the Word document, spreadsheet or deck opens in the Google editor instead of downloading. Slides are always native; documents and spreadsheets stay Office files unless you ask — see [Documents, spreadsheets and forms](#documents-spreadsheets-and-forms) |
+| **Google Forms** | "Make a form for…" — a survey, questionnaire, RSVP or sign-up sheet with short-answer, paragraph, multiple-choice, checkbox, dropdown, scale, date and time questions. You get the editor link and a link to send to respondents; Google collects the answers in the form's Responses tab |
 | **Google Calendar** | Read events, show on Calendar page |
 | **Contacts** | Look up contact information |
 
@@ -1196,7 +1213,7 @@ By default Gerry reads your Drive but never changes anything. If you ask her to 
 2. Click **Allow** and she can edit **that file only**. Every other file in your Drive stays read-only, and the next file needs its own separate permission.
 3. Click **Deny** and nothing happens.
 
-What she can edit this way: **Google Docs** (append, find-and-replace, or rewrite), **Google Sheets** (set a cell range or append a row), **Google Slides** (replace text across a deck, rewrite one text box, add a new text box, remove a box, add a whole new slide, or delete a slide), and **plain-text files**. PDFs and images are not editable in place — she'll offer to upload a replacement instead.
+What she can edit this way: **Google Docs** (append, find-and-replace, or rewrite), **Google Sheets** (set a cell range, append a row, or add a new tab — empty or filled with a header row and data in one go), **Google Slides** (replace text across a deck, rewrite one text box, add a new text box, remove a box, add a whole new slide, or delete a slide), and **plain-text files**. PDFs and images are not editable in place — she'll offer to upload a replacement instead.
 
 **Word, Excel and PowerPoint files are converted first.** A `.docx` or `.xlsx` on Drive can't be edited directly, so Gerry makes a Google copy of it and edits that. She does this herself — you are never asked to open the file and pick *Open with Google Docs*. The copy is a **new file with a new link**, which she gives you; **your original is left exactly as it was**, so if you want the changes in the Word file you'll need to download the edited copy. Your edit permission carries over to it automatically.
 

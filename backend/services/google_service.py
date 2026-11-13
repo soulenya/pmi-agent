@@ -40,6 +40,9 @@ SCOPES = [
     # Reading and editing decks. Like Docs, which deck Gerry may write to is
     # gated per file in drive_edit_grants rather than by the scope.
     "https://www.googleapis.com/auth/presentations",
+    # Creating Google Forms (surveys, questionnaires, sign-up sheets).
+    # forms.body covers create/edit of the form itself, not its responses.
+    "https://www.googleapis.com/auth/forms.body",
     "https://www.googleapis.com/auth/tasks.readonly",
     "https://www.googleapis.com/auth/userinfo.email",
     "openid",
@@ -1129,14 +1132,15 @@ _WORKSPACE_IMPORT_MAP = {
 
 
 def drive_import_attachment(
-    data: bytes, name: str, source_mime: str | None = None
+    data: bytes, name: str, source_mime: str | None = None, folder_id: str | None = None
 ) -> dict:
     """Upload bytes to Drive so they open in Google Workspace, and return the link.
 
     Office/text files (docx, xlsx, pptx, csv, txt, …) are converted into the
     matching native Google doc (Docs/Sheets/Slides) so they open in the Workspace
     editor. Non-convertible types (PDF, images, archives, …) are uploaded as-is
-    and open in the Drive viewer. Requires the ``drive.file`` scope (granted on
+    and open in the Drive viewer. ``folder_id`` places the file in a folder
+    (My Drive root when omitted). Requires the ``drive.file`` scope (granted on
     connect). Returns ``{id, name, url}`` where ``url`` is the webViewLink.
     """
     import io
@@ -1150,6 +1154,8 @@ def drive_import_attachment(
     metadata: dict[str, Any] = {"name": name}
     if target:
         metadata["mimeType"] = target
+    if folder_id:
+        metadata["parents"] = [folder_id]
 
     svc = _build("drive", "v3")
     media = MediaIoBaseUpload(io.BytesIO(data), mimetype=src_key, resumable=False)
@@ -2504,6 +2510,150 @@ def contacts_search(query: str, max_results: int = 10) -> list[dict]:
     return out
 
 
+# ── Forms ─────────────────────────────────────────────────────────────────
+
+FORMS_SCOPE = "https://www.googleapis.com/auth/forms.body"
+
+# Question kinds the agent may ask for → how the Forms API spells them.
+_FORM_CHOICE_TYPES = {
+    "multiple_choice": "RADIO",
+    "checkboxes": "CHECKBOX",
+    "dropdown": "DROP_DOWN",
+}
+FORM_QUESTION_TYPES = (
+    "short_text", "paragraph", "multiple_choice", "checkboxes", "dropdown",
+    "linear_scale", "date", "time", "section",
+)
+
+
+def forms_build_requests(questions: list[dict]) -> list[dict]:
+    """Turn the agent's question list into Forms API ``batchUpdate`` requests.
+
+    Pure (no API calls) so it can be tested. Raises ``ValueError`` on a question
+    the API would reject — a choice question without options, an unknown
+    type — with a message the agent can act on.
+    """
+    requests: list[dict] = []
+    for idx, q in enumerate(questions):
+        if not isinstance(q, dict):
+            raise ValueError(f"question {idx + 1} must be an object")
+        title = str(q.get("title") or q.get("question") or "").strip()
+        qtype = str(q.get("type") or "short_text").strip().lower()
+        if not title:
+            raise ValueError(f"question {idx + 1} has no title")
+        if qtype not in FORM_QUESTION_TYPES:
+            raise ValueError(
+                f"question {idx + 1} ('{title}') has unknown type '{qtype}'; "
+                f"use one of {', '.join(FORM_QUESTION_TYPES)}"
+            )
+        item: dict[str, Any] = {"title": title}
+        desc = str(q.get("description") or "").strip()
+        if desc:
+            item["description"] = desc
+
+        if qtype == "section":
+            item["pageBreakItem"] = {}
+        else:
+            question: dict[str, Any] = {"required": bool(q.get("required", False))}
+            if qtype == "short_text":
+                question["textQuestion"] = {"paragraph": False}
+            elif qtype == "paragraph":
+                question["textQuestion"] = {"paragraph": True}
+            elif qtype in _FORM_CHOICE_TYPES:
+                options = [str(o).strip() for o in (q.get("options") or []) if str(o).strip()]
+                if len(options) < 1:
+                    raise ValueError(f"question {idx + 1} ('{title}') is a {qtype} question but has no options")
+                choice: dict[str, Any] = {
+                    "type": _FORM_CHOICE_TYPES[qtype],
+                    "options": [{"value": o} for o in options],
+                }
+                if q.get("other_option") and qtype != "dropdown":
+                    choice["options"].append({"isOther": True})
+                question["choiceQuestion"] = choice
+            elif qtype == "linear_scale":
+                low = int(q.get("low", 1))
+                high = int(q.get("high", 5))
+                if not (0 <= low <= 1 and 2 <= high <= 10 and low < high):
+                    raise ValueError(
+                        f"question {idx + 1} ('{title}'): linear scale must start at 0 or 1 and end between 2 and 10"
+                    )
+                scale: dict[str, Any] = {"low": low, "high": high}
+                if q.get("low_label"):
+                    scale["lowLabel"] = str(q["low_label"])
+                if q.get("high_label"):
+                    scale["highLabel"] = str(q["high_label"])
+                question["scaleQuestion"] = scale
+            elif qtype == "date":
+                question["dateQuestion"] = {"includeYear": True}
+            elif qtype == "time":
+                question["timeQuestion"] = {}
+            item["questionItem"] = {"question": question}
+
+        requests.append({"createItem": {"item": item, "location": {"index": idx}}})
+    return requests
+
+
+def forms_create(
+    title: str,
+    description: str = "",
+    questions: list[dict] | None = None,
+    collect_email: bool = False,
+    folder_id: str | None = None,
+) -> dict:
+    """Create a Google Form and return ``{id, title, edit_url, responder_url}``.
+
+    ``forms.create`` only accepts a title; everything else goes through one
+    ``batchUpdate``. The form lands in My Drive root unless ``folder_id`` moves
+    it. Requires the ``forms.body`` scope.
+    """
+    svc = _build("forms", "v1")
+    created = svc.forms().create(body={"info": {"title": title, "documentTitle": title}}).execute()
+    form_id = created["formId"]
+
+    requests: list[dict] = []
+    info_fields = []
+    info: dict[str, Any] = {}
+    if description:
+        info["description"] = description
+        info_fields.append("description")
+    if info_fields:
+        requests.append({"updateFormInfo": {"info": info, "updateMask": ",".join(info_fields)}})
+    if collect_email:
+        requests.append({
+            "updateSettings": {
+                "settings": {"emailCollectionType": "VERIFIED"},
+                "updateMask": "emailCollectionType",
+            }
+        })
+    requests.extend(forms_build_requests(questions or []))
+    if requests:
+        svc.forms().batchUpdate(formId=form_id, body={"requests": requests}).execute()
+
+    final = svc.forms().get(formId=form_id).execute()
+
+    if folder_id:
+        drive = _build("drive", "v3")
+        try:
+            meta = drive.files().get(fileId=form_id, fields="parents", supportsAllDrives=True).execute()
+            drive.files().update(
+                fileId=form_id,
+                addParents=folder_id,
+                removeParents=",".join(meta.get("parents", [])),
+                fields="id",
+                supportsAllDrives=True,
+            ).execute()
+        except Exception:  # noqa: BLE001 — placement is cosmetic; the form works from root
+            logger.warning("Form %s created but could not be moved to folder %s", form_id, folder_id)
+
+    return {
+        "id": form_id,
+        "title": (final.get("info") or {}).get("title") or title,
+        "edit_url": f"https://docs.google.com/forms/d/{form_id}/edit",
+        "responder_url": final.get("responderUri") or f"https://docs.google.com/forms/d/{form_id}/viewform",
+        "question_count": sum(1 for it in final.get("items", []) if "questionItem" in it),
+    }
+
+
 # ── Sheets ────────────────────────────────────────────────────────────────
 
 def sheets_read(spreadsheet_id: str, range_: str = "Sheet1") -> dict:
@@ -2660,14 +2810,41 @@ def sheets_append_rows(spreadsheet_id: str, range_: str, rows: list[list]) -> No
 
 
 def sheets_add_tab(spreadsheet_id: str, title: str, frozen_rows: int = 0) -> None:
-    """Add an empty tab to a spreadsheet Little Gerry created."""
+    """Add an empty tab to a spreadsheet. Raises ``ValueError`` when a tab of
+    that name already exists (the API would otherwise fail opaquely)."""
     svc = _build("sheets", "v4")
+    meta = svc.spreadsheets().get(spreadsheetId=spreadsheet_id, fields="sheets.properties.title").execute()
+    existing = {s["properties"].get("title", "").lower() for s in meta.get("sheets", [])}
+    if title.lower() in existing:
+        raise ValueError(f"A tab named '{title}' already exists in this spreadsheet.")
     props: dict = {"title": title}
     if frozen_rows:
         props["gridProperties"] = {"frozenRowCount": frozen_rows}
     svc.spreadsheets().batchUpdate(
         spreadsheetId=spreadsheet_id,
         body={"requests": [{"addSheet": {"properties": props}}]},
+    ).execute()
+
+
+def sheets_bold_header(spreadsheet_id: str, tab_title: str) -> None:
+    """Bold row 1 of a named tab."""
+    svc = _build("sheets", "v4")
+    meta = svc.spreadsheets().get(spreadsheetId=spreadsheet_id, fields="sheets.properties").execute()
+    gid = next(
+        (s["properties"]["sheetId"] for s in meta.get("sheets", []) if s["properties"].get("title") == tab_title),
+        None,
+    )
+    if gid is None:
+        return
+    svc.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={"requests": [{
+            "repeatCell": {
+                "range": {"sheetId": gid, "startRowIndex": 0, "endRowIndex": 1},
+                "cell": {"userEnteredFormat": {"textFormat": {"bold": True}}},
+                "fields": "userEnteredFormat.textFormat.bold",
+            }
+        }]},
     ).execute()
 
 

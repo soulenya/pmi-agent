@@ -684,9 +684,21 @@ async def apply_edit(
                 first = values[0] if isinstance(values[0], list) else list(values)
                 await _run(lambda: gs.sheets_append_row(file_id, target, first))
                 summary = f"appended a row to {target}"
+            elif mode == "add_tab":
+                title = (text or "").strip()
+                if not title:
+                    raise DriveEditError("add_tab needs the new tab's name in text.")
+                rows = [r for r in (values or []) if isinstance(r, list)]
+                await _run(lambda: gs.sheets_add_tab(file_id, title, frozen_rows=1 if rows else 0))
+                if rows:
+                    await _run(lambda: gs.sheets_update_range(file_id, f"'{title}'!A1", rows))
+                    await _run(lambda: gs.sheets_bold_header(file_id, title))
+                    summary = f'added tab "{title}" with {len(rows)} row(s) (header frozen)'
+                else:
+                    summary = f'added empty tab "{title}"'
             else:
                 raise DriveEditError(
-                    f'Google Sheets support set_cells and append — not "{mode}".'
+                    f'Google Sheets support set_cells, append and add_tab — not "{mode}".'
                 )
 
         elif mime == SLIDES_MIME:

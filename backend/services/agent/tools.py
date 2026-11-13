@@ -1084,8 +1084,9 @@ TOOL_DEFINITIONS: list[dict] = [
                 "real document immediately. Only works on files the user has already "
                 "granted you permission for (request_drive_edit_permission); without a "
                 "grant this refuses and nothing is changed. Google Docs support "
-                "'append', 'replace' and 'overwrite'; Google Sheets support 'set_cells' "
-                "and 'append'; Google Slides support 'replace', 'set_shape', "
+                "'append', 'replace' and 'overwrite'; Google Sheets support 'set_cells', "
+                "'append' and 'add_tab' (a new worksheet, optionally filled in the same "
+                "call); Google Slides support 'replace', 'set_shape', "
                 "'add_text_box', 'add_slide', 'delete_shape' and 'delete_slide'; "
                 "plain-text/markdown files support all three text modes. "
                 "Word/Excel/PowerPoint files CANNOT be edited — call convert_drive_file "
@@ -1109,7 +1110,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     "mode": {
                         "type": "string",
                         "enum": [
-                            "append", "replace", "overwrite", "set_cells",
+                            "append", "replace", "overwrite", "set_cells", "add_tab",
                             "set_shape", "add_text_box", "add_slide",
                             "delete_shape", "delete_slide",
                         ],
@@ -1118,6 +1119,9 @@ TOOL_DEFINITIONS: list[dict] = [
                             "replace = swap every occurrence of 'find' with 'replace'; "
                             "overwrite = discard the body and write 'text' instead; "
                             "set_cells = write 'values' into a spreadsheet 'cell_range'; "
+                            "add_tab = add a new worksheet to a spreadsheet named 'text', "
+                            "and when 'values' is given write those rows into it starting "
+                            "at A1 (first row becomes the bold frozen header); "
                             "set_shape = replace one deck text box, its object id in "
                             "'cell_range' and the new text in 'text'; "
                             "add_text_box = put a NEW text box on a slide — the SLIDE's "
@@ -2395,7 +2399,7 @@ TOOL_DEFINITIONS: list[dict] = [
                 "properties": {
                     "filename": {
                         "type": "string",
-                        "description": "Filename with extension, e.g. 'report.md' or 'tasks.csv'. Allowed: .txt .md .csv .json",
+                        "description": "Filename with extension, e.g. 'report.md' or 'tasks.csv'. Allowed: .txt .md .csv .json. For a spreadsheet use create_xlsx; for a Word document use create_docx.",
                     },
                     "content": {
                         "type": "string",
@@ -2497,8 +2501,147 @@ TOOL_DEFINITIONS: list[dict] = [
                         "type": "boolean",
                         "description": "Embed the PMI 'Spaceman Black' company logo centred at the top of page 1 (required by the investor-update templates).",
                     },
+                    "to_drive": {
+                        "type": "string",
+                        "enum": ["google_doc", "file"],
+                        "description": (
+                            "Also put the document on the user's Google Drive. 'google_doc' "
+                            "converts it into a native Google Doc that opens in the Docs editor — "
+                            "use this whenever the user asks for a Google Doc, something 'in Drive', "
+                            "or something to share/edit with others. 'file' uploads the .docx as-is. "
+                            "Omit for a download-only Word file (the default)."
+                        ),
+                    },
+                    "folder_id": {
+                        "type": "string",
+                        "description": "With to_drive: the Drive folder id to place it in. Omit for My Drive.",
+                    },
                 },
                 "required": ["filename", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_xlsx",
+            "description": (
+                "Create a spreadsheet — a real Excel (.xlsx) workbook with one or more "
+                "sheets, each with a header row and data rows — and save it to the "
+                "Generated Files area. Use this for any tabular deliverable: a tracker, "
+                "a schedule, a comparison, a budget table, an export of tasks or "
+                "contacts. Numbers are written as numbers so formulas and sorting work; "
+                "the header row is bold and frozen; columns are sized to their content. "
+                "Cell values starting with '=' are written as formulas. "
+                "With to_drive='google_sheet' it is converted into a native Google Sheet "
+                "the user can open and edit — use that whenever they ask for a Google "
+                "Sheet or something 'in Drive'. Returns a download URL (and the Drive link)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "Workbook filename, e.g. 'Vendor Tracker.xlsx'. The extension is added if missing.",
+                    },
+                    "sheets": {
+                        "type": "array",
+                        "description": "The worksheets in order. At least one.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string", "description": "Tab name (max 31 chars)."},
+                                "columns": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "Header row labels, left to right.",
+                                },
+                                "rows": {
+                                    "type": "array",
+                                    "description": "Data rows; each row is a list of cell values (string, number, boolean or null) in column order.",
+                                    "items": {"type": "array", "items": {}},
+                                },
+                            },
+                            "required": ["title", "columns", "rows"],
+                        },
+                    },
+                    "to_drive": {
+                        "type": "string",
+                        "enum": ["google_sheet", "file"],
+                        "description": (
+                            "Also put it on Google Drive: 'google_sheet' converts to a native "
+                            "Google Sheet; 'file' uploads the .xlsx as-is. Omit for download only."
+                        ),
+                    },
+                    "folder_id": {
+                        "type": "string",
+                        "description": "With to_drive: the Drive folder id to place it in. Omit for My Drive.",
+                    },
+                },
+                "required": ["filename", "sheets"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_google_form",
+            "description": (
+                "Create a Google Form — a survey, questionnaire, feedback form, RSVP or "
+                "sign-up sheet — on the user's Google Drive. Returns the editor link (for "
+                "the user) and the responder link (to send to people). Write real "
+                "questions; for choice questions supply the options. Question types: "
+                "short_text, paragraph, multiple_choice (pick one), checkboxes (pick "
+                "many), dropdown, linear_scale (low/high 0-1 to 2-10 with optional end "
+                "labels), date, time, and section (a page break with a heading). "
+                "Responses are collected by Google and viewed in the form's Responses tab; "
+                "this tool does not read them."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Form title, shown to respondents."},
+                    "description": {"type": "string", "description": "Intro text under the title."},
+                    "questions": {
+                        "type": "array",
+                        "description": "Questions in order.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string", "description": "The question text."},
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "short_text", "paragraph", "multiple_choice", "checkboxes",
+                                        "dropdown", "linear_scale", "date", "time", "section",
+                                    ],
+                                },
+                                "description": {"type": "string", "description": "Help text under the question."},
+                                "required": {"type": "boolean"},
+                                "options": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "For multiple_choice / checkboxes / dropdown.",
+                                },
+                                "other_option": {"type": "boolean", "description": "Add an 'Other…' free-text choice (not for dropdown)."},
+                                "low": {"type": "integer", "description": "linear_scale start: 0 or 1 (default 1)."},
+                                "high": {"type": "integer", "description": "linear_scale end: 2-10 (default 5)."},
+                                "low_label": {"type": "string"},
+                                "high_label": {"type": "string"},
+                            },
+                            "required": ["title", "type"],
+                        },
+                    },
+                    "collect_email": {
+                        "type": "boolean",
+                        "description": "Record each respondent's verified Google account email. Default false (anonymous).",
+                    },
+                    "folder_id": {
+                        "type": "string",
+                        "description": "Drive folder id to place the form in. Omit for My Drive.",
+                    },
+                },
+                "required": ["title", "questions"],
             },
         },
     },
@@ -2508,10 +2651,13 @@ TOOL_DEFINITIONS: list[dict] = [
             "name": "upload_to_drive",
             "description": (
                 "Upload a previously generated file (from the Generated Files area) to the "
-                "user's Google Drive. Provide the server filename returned by create_docx or "
-                "generate_file (e.g. the value after '/api/files/'). Optionally place it inside "
-                "a Drive folder by id. Returns the Google Drive link. Requires the user to have "
-                "connected Google with write access."
+                "user's Google Drive. Provide the server filename returned by create_docx, "
+                "create_xlsx or generate_file (e.g. the value after '/api/files/'). Optionally "
+                "place it inside a Drive folder by id. With as_google=true a .docx/.xlsx/.csv/"
+                ".pptx/.txt/.md is converted into a native Google Doc/Sheet/Slides the user "
+                "can edit in the browser — use that whenever they want it 'as a Google Doc', "
+                "'in Drive' or shared for editing. Returns the Google Drive link. Requires "
+                "the user to have connected Google with write access."
             ),
             "parameters": {
                 "type": "object",
@@ -2527,6 +2673,10 @@ TOOL_DEFINITIONS: list[dict] = [
                     "folder_id": {
                         "type": "string",
                         "description": "Optional Google Drive folder id to upload into. Omit to upload to the Drive root.",
+                    },
+                    "as_google": {
+                        "type": "boolean",
+                        "description": "Convert to the native Google format (Doc / Sheet / Slides) instead of storing the file as-is. Default false.",
                     },
                 },
                 "required": ["filename"],
@@ -6955,15 +7105,257 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     return (
         f"Word document created and verified ({out_path.stat().st_size} bytes): "
         f"/api/files/{safe_name}" + logo_note + style_note
+        + await _maybe_drive(args, out_path, Path(filename).stem, native_word="Google Doc")
+    )
+
+
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def build_xlsx(sheets: list[dict], out_path: Path) -> dict:
+    """Write an .xlsx workbook from ``[{title, columns, rows}]``.
+
+    Header row bold and frozen, columns auto-sized, numbers kept numeric, cells
+    starting with '=' written as formulas. Returns ``{sheets, rows}`` counts.
+    Raises ``ValueError`` on an empty or malformed sheet list.
+    """
+    import openpyxl
+    from openpyxl.styles import Font
+    from openpyxl.utils import get_column_letter
+
+    if not isinstance(sheets, list) or not sheets:
+        raise ValueError("at least one sheet is required")
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    seen: set[str] = set()
+    total_rows = 0
+    for i, sh in enumerate(sheets):
+        if not isinstance(sh, dict):
+            raise ValueError(f"sheet {i + 1} must be an object")
+        columns = [str(c) for c in (sh.get("columns") or [])]
+        rows = sh.get("rows") or []
+        if not columns:
+            raise ValueError(f"sheet {i + 1} has no columns")
+        title = re.sub(r"[\[\]:*?/\\]", " ", str(sh.get("title") or f"Sheet{i + 1}")).strip()[:31] or f"Sheet{i + 1}"
+        base, n = title, 2
+        while title.lower() in seen:
+            title, n = f"{base[:28]} {n}", n + 1
+        seen.add(title.lower())
+
+        ws = wb.create_sheet(title)
+        ws.append(columns)
+        for c in range(1, len(columns) + 1):
+            ws.cell(row=1, column=c).font = Font(bold=True)
+        ws.freeze_panes = "A2"
+        for r in rows:
+            if not isinstance(r, list):
+                raise ValueError(f"sheet '{title}': every row must be a list of cells")
+            ws.append([_xlsx_cell(v) for v in r])
+        total_rows += len(rows)
+
+        for c in range(1, len(columns) + 1):
+            width = max(
+                (len(str(ws.cell(row=rr, column=c).value or "")) for rr in range(1, min(ws.max_row, 500) + 1)),
+                default=8,
+            )
+            ws.column_dimensions[get_column_letter(c)].width = min(max(width + 2, 8), 60)
+
+    wb.save(str(out_path))
+    return {"sheets": len(sheets), "rows": total_rows}
+
+
+def _xlsx_cell(v: Any) -> Any:
+    """Keep numbers/bools as typed; turn numeric-looking strings into numbers."""
+    if v is None or isinstance(v, (int, float, bool)):
+        return v
+    s = str(v)
+    if s.startswith("="):
+        return s  # formula
+    t = s.strip().replace(",", "")
+    if re.fullmatch(r"-?\d+", t):
+        return int(t)
+    if re.fullmatch(r"-?\d*\.\d+", t):
+        return float(t)
+    return s
+
+
+async def execute_create_xlsx(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Build a real .xlsx workbook; optionally hand it to Drive as a Google Sheet."""
+    import asyncio
+
+    import openpyxl
+
+    filename = re.sub(r"[^\w.\- ]", "_", str(args.get("filename", "spreadsheet.xlsx")).strip()).strip() or "spreadsheet.xlsx"
+    if Path(filename).suffix.lower() not in (".xlsx", ".xls", ".csv"):
+        filename = Path(filename).stem + ".xlsx"
+    else:
+        filename = Path(filename).stem + ".xlsx"  # openpyxl writes only the modern format
+
+    _GENERATED_FILES_DIR.mkdir(exist_ok=True)
+    safe_name = f"{uuid.uuid4().hex[:8]}_{filename}"
+    out_path = _GENERATED_FILES_DIR / safe_name
+    try:
+        counts = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: build_xlsx(args.get("sheets") or [], out_path)
+        )
+    except ValueError as exc:
+        return f"Spreadsheet not created — {exc}"
+    except Exception as exc:  # noqa: BLE001 — surface a readable message to the model
+        return f"Spreadsheet build failed: {exc}"
+
+    if not out_path.is_file() or out_path.stat().st_size == 0:
+        return "Error: workbook was not created on disk. Treat as failed."
+    try:
+        openpyxl.load_workbook(str(out_path), read_only=True).close()
+    except Exception as exc:  # noqa: BLE001 — report a corrupt write honestly
+        return f"Error: workbook was written but is not a valid file ({exc}). Treat as failed."
+
+    from services.workroom_context import auto_pin_if_room, log_room_event
+
+    await auto_pin_if_room(ctx.db, ctx.conversation_id, "generated_file", filename, safe_name)
+    await log_room_event(ctx.db, ctx.conversation_id, f"Gerry created spreadsheet: {filename}")
+    return (
+        f"Spreadsheet created and verified ({counts['sheets']} sheet{'s' if counts['sheets'] != 1 else ''}, "
+        f"{counts['rows']} data row{'s' if counts['rows'] != 1 else ''}, {out_path.stat().st_size} bytes): "
+        f"/api/files/{safe_name}"
+        + await _maybe_drive(args, out_path, Path(filename).stem, native_word="Google Sheet")
+    )
+
+
+async def _maybe_drive(args: dict[str, Any], path: Path, drive_name: str, native_word: str) -> str:
+    """Honour a create_* tool's ``to_drive`` argument. Returns text to append
+    to the tool result ('' when no upload was asked for)."""
+    mode = str(args.get("to_drive") or "").strip().lower()
+    if not mode:
+        return ""
+    convert = mode.startswith("google")
+    folder_id = str(args.get("folder_id") or "").strip() or None
+    ok, msg = await _drive_upload_verified(path, drive_name, folder_id, convert)
+    if not ok:
+        return f"\nNot on Drive: {msg} The file is still downloadable above."
+    return f"\n{msg}" if not convert else f"\nOpened as {native_word}: {msg}"
+
+
+async def _drive_upload_verified(
+    path: Path, drive_name: str, folder_id: str | None, convert: bool
+) -> tuple[bool, str]:
+    """Upload a local file to Drive and read it back before claiming success.
+
+    ``convert`` turns Office/text files into the native Google type. Returns
+    ``(ok, message)``; on success the message carries the link and id — never
+    reported without the read-back, which is what keeps fabricated Drive links
+    out of Gerry's answers.
+    """
+    import asyncio
+    import mimetypes
+
+    from services.google_service import (
+        drive_get_metadata,
+        drive_import_attachment,
+        drive_upload_file,
+        get_credentials,
+    )
+
+    if not get_credentials():
+        return False, "Google Workspace is not connected."
+    loop = asyncio.get_event_loop()
+    try:
+        if convert:
+            data = path.read_bytes()
+            mime = mimetypes.guess_type(path.name)[0]
+            result = await loop.run_in_executor(
+                None, lambda: drive_import_attachment(data, drive_name, mime, folder_id=folder_id)
+            )
+        else:
+            result = await loop.run_in_executor(
+                None, lambda: drive_upload_file(str(path), name=drive_name, folder_id=folder_id)
+            )
+    except Exception as exc:  # noqa: BLE001 — surface a readable message to the model
+        return False, f"Drive upload failed: {exc}."
+
+    file_id = str(result.get("id", "")).strip()
+    if not file_id:
+        return False, "Drive upload failed: no file id was returned. Treat as failed."
+    try:
+        meta = await loop.run_in_executor(None, lambda: drive_get_metadata(file_id))
+    except Exception as exc:  # noqa: BLE001 — report verification failure honestly
+        return False, f"Drive upload could not be verified ({exc}). Treat as unconfirmed."
+    if meta is None or meta.get("trashed"):
+        return False, (
+            "Drive upload could not be verified — the file is not retrievable on Drive "
+            "after upload. Treat as failed; do not report it as uploaded."
+        )
+    url = meta.get("url") or result.get("url") or "(no link returned)"
+    return True, f"'{meta.get('name', drive_name)}' is on Google Drive (id={file_id}). Link: {url}"
+
+
+async def execute_create_google_form(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Create a Google Form from a question list."""
+    import asyncio
+
+    from services.google_service import (
+        FORMS_SCOPE,
+        forms_build_requests,
+        forms_create,
+        get_credentials,
+        granted_scopes,
+    )
+
+    title = str(args.get("title") or "").strip()
+    if not title:
+        return "Error: title is required."
+    questions = args.get("questions") or []
+    if not isinstance(questions, list) or not questions:
+        return "Error: at least one question is required."
+    if not get_credentials():
+        return "Google Workspace is not connected — connect it in Settings first."
+    if FORMS_SCOPE not in granted_scopes():
+        return (
+            "Google was connected before Little Gerry could create forms. Ask the user to "
+            "reconnect Google Workspace in Settings (Disconnect, then Connect, ticking every "
+            "permission); then create the form. Do not pretend the form exists."
+        )
+    try:
+        forms_build_requests(questions)  # validate before any API call
+    except ValueError as exc:
+        return f"Form not created — {exc}."
+
+    try:
+        result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: forms_create(
+                title,
+                str(args.get("description") or "").strip(),
+                questions,
+                bool(args.get("collect_email")),
+                str(args.get("folder_id") or "").strip() or None,
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001 — surface a readable message to the model
+        msg = str(exc)
+        if "accessNotConfigured" in msg or "Forms API has not been used" in msg or "forms.googleapis.com" in msg:
+            return (
+                "Form not created — the Google Forms API is not enabled for this company's "
+                "Google Cloud project. The administrator enables it once at "
+                "https://console.cloud.google.com/apis/library/forms.googleapis.com ."
+            )
+        return f"Form creation failed: {msg}"
+
+    from services.workroom_context import log_room_event
+
+    await log_room_event(ctx.db, ctx.conversation_id, f"Gerry created Google Form: {result['title']}")
+    n = int(result.get("question_count") or 0)
+    return (
+        f"Google Form created and verified ('{result['title']}', {n} question{'s' if n != 1 else ''}, "
+        f"id={result['id']}).\nEdit (for the user): {result['edit_url']}\n"
+        f"Share with respondents: {result['responder_url']}"
     )
 
 
 async def execute_upload_to_drive(ctx: ToolContext, args: dict[str, Any]) -> str:
-    """Upload a generated file to the user's Google Drive."""
-    import asyncio
-
-    from services.google_service import drive_get_metadata, drive_upload_file
-
+    """Upload a generated file to the user's Google Drive, optionally converted
+    to the native Google type (as_google)."""
     filename = str(args.get("filename", "")).strip()
     if not filename:
         return "Error: filename is required."
@@ -6979,36 +7371,14 @@ async def execute_upload_to_drive(ctx: ToolContext, args: dict[str, Any]) -> str
     default_name = re.sub(r"^[0-9a-f]{8}_", "", filename)
     drive_name = str(args.get("drive_name") or default_name).strip() or default_name
     folder_id = str(args.get("folder_id") or "").strip() or None
+    convert = bool(args.get("as_google"))
+    if convert:
+        drive_name = Path(drive_name).stem  # a native Google Doc has no extension
 
-    try:
-        result = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: drive_upload_file(str(path), name=drive_name, folder_id=folder_id)
-        )
-    except Exception as exc:  # noqa: BLE001 — surface a readable message to the model
-        return f"Drive upload failed: {exc}"
-
-    # Read-back verification: confirm Drive actually has the file by fetching its
-    # metadata with the returned id. Without a real, confirmed id we never report
-    # a successful upload (this is exactly what prevents fabricated Drive links).
-    file_id = str(result.get("id", "")).strip()
-    if not file_id:
-        return "Drive upload failed: no file id was returned. Treat as failed."
-    try:
-        meta = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: drive_get_metadata(file_id)
-        )
-    except Exception as exc:  # noqa: BLE001 — report verification failure honestly
-        return f"Drive upload could not be verified ({exc}). Treat as unconfirmed."
-    if meta is None or meta.get("trashed"):
-        return (
-            "Drive upload could not be verified — the file is not retrievable on "
-            "Drive after upload. Treat as failed; do not report it as uploaded."
-        )
-
-    return (
-        f"Uploaded and verified '{meta.get('name', drive_name)}' on Google Drive "
-        f"(id={file_id}). Link: {meta.get('url') or result.get('url') or '(no link returned)'}"
-    )
+    ok, msg = await _drive_upload_verified(path, drive_name, folder_id, convert)
+    if not ok:
+        return msg
+    return ("Uploaded and verified as a native Google file: " if convert else "Uploaded and verified: ") + msg
 
 
 _PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -7556,6 +7926,8 @@ TOOL_EXECUTORS = {
     "fetch_page": execute_fetch_page,
     "generate_file": execute_generate_file,
     "create_docx": execute_create_docx,
+    "create_xlsx": execute_create_xlsx,
+    "create_google_form": execute_create_google_form,
     "create_deck": execute_create_deck,
     "list_deck_archetypes": execute_list_deck_archetypes,
     "read_deck": execute_read_deck,
@@ -7882,6 +8254,20 @@ def artifact_links_for(tool_name: str, result: Any) -> list[dict]:
         m = _URL_RE.search(result)
         if m:
             chips.append({"type": "artifact_link", "tool": tool_name, "url": m.group(0), "label": "Open in Drive"})
+    if tool_name in ("create_docx", "create_xlsx") and "is on Google Drive" in result:
+        m = _URL_RE.search(result.split("is on Google Drive", 1)[1])
+        if m:
+            label = "Open in Google Docs" if "Opened as Google Doc" in result else (
+                "Open in Google Sheets" if "Opened as Google Sheet" in result else "Open in Drive"
+            )
+            chips.append({"type": "artifact_link", "tool": tool_name, "url": m.group(0), "label": label})
+    if tool_name == "create_google_form" and result.startswith("Google Form created"):
+        edit = re.search(r"Edit \(for the user\): (https://\S+)", result)
+        share = re.search(r"Share with respondents: (https://\S+)", result)
+        if edit:
+            chips.append({"type": "artifact_link", "tool": tool_name, "url": edit.group(1), "label": "Open the form"})
+        if share:
+            chips.append({"type": "artifact_link", "tool": tool_name, "url": share.group(1), "label": "Respondent link"})
     if tool_name == "file_invoice_from_email" and result.startswith('Filed "'):
         m = _URL_RE.search(result)
         if m:

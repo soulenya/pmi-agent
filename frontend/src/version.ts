@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 315;
-export const BUILD_DATE = "2026-11-04";
+export const BUILD_NUMBER = 316;
+export const BUILD_DATE = "2026-11-13";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 316,
+    date: "2026-11-13",
+    title: "Spreadsheets with tabs, Google Docs and Sheets on request, Google Forms",
+    changes: [
+      "Ask Gerry for a spreadsheet — a tracker, a schedule, a comparison, an export — and you get a real Excel workbook with as many tabs as you like, a bold frozen header row, numbers that sort and add up, and sized columns. Until now she could only hand you a one-sheet CSV.",
+      "Say “as a Google Doc”, “as a Google Sheet” or “put it in Drive” and the document or spreadsheet opens in the Google editor instead of downloading — ready to share. Word and Excel files stay the default when you don't say.",
+      "“Make a form for…” — Gerry builds a Google Form (survey, feedback form, RSVP, sign-up sheet) with the question types you'd expect and gives you the editor link and the link to send out. The first time, you may be asked to reconnect Google in Settings so she has permission for Forms.",
+      "On a Google Sheet you've let her edit, she can now add a new tab — empty, or filled with a header and rows in one step.",
+    ],
+  },
   {
     build: 315,
     date: "2026-11-04",

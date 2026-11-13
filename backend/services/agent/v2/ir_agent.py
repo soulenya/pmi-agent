@@ -73,6 +73,8 @@ _TOOLS = [
     "get_budget_snapshot",
     "compare_budget_to_odoo",
     "create_docx",
+    "create_xlsx",
+    "create_google_form",
     "create_deck",
     "list_deck_archetypes",
     "read_deck",
