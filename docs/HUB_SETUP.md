@@ -21,13 +21,13 @@ of waiting for the certificate.
 
 You need, on one machine:
 
-| Tool | Why | Check |
-|---|---|---|
-| `gcloud` + `gsutil` | create and operate the GCP resources | `gcloud auth list` shows the account that owns your Little Gerry project |
-| `gh` | reads/writes your fork | `gh auth status` shows your fork's owner |
-| `docker` with buildx | builds the hub image | `docker buildx version` |
-| `git` | the fork checkout | — |
-| PowerShell | Windows PowerShell 5+ or `pwsh` 7 on macOS/Linux | — |
+| fisTool                 | Why                                                | Check                                                                      |
+| ----------------------- | -------------------------------------------------- | -------------------------------------------------------------------------- |
+| `gcloud` + `gsutil` | create and operate the GCP resources               | `gcloud auth list` shows the account that owns your Little Gerry project |
+| `gh`                  | reads/writes your fork                             | `gh auth status` shows your fork's owner                                 |
+| `docker` with buildx  | builds the hub image                               | `docker buildx version`                                                  |
+| `git`                 | the fork checkout                                  | —                                                                         |
+| PowerShell              | Windows PowerShell 5+ or `pwsh` 7 on macOS/Linux | —                                                                         |
 
 And you need to decide / have:
 
@@ -201,7 +201,6 @@ Each installed copy connects once, as its user. Two things make that possible:
    (`app-clients/`), readable by everyone at the company. If you have several
    files by that name, set `drive.hub_client_file` in `brand.json` to the
    file's Drive id.
-
 2. **A release with `hub_url` set.** The desktop learns the hub address from
    `brand.json` at build time, so the installs need a release built after
    step 3 committed it:
@@ -257,14 +256,14 @@ minutes, or immediately after reopening Settings.
 
 ## If something goes wrong
 
-| Symptom | Likely cause | Do |
-|---|---|---|
-| Browser shows a certificate error at the hub address | Managed certificate not yet `ACTIVE`, or DNS not resolving to `hub-ip` | `nslookup hub.<domain>`; `gcloud compute ssl-certificates describe hub-cert --global` |
-| `health=000` or `502` after deploy | API container still starting, or a secret is missing/blank | SSH in; `docker logs lg_api`; `gcloud secrets versions access latest --secret=anthropic-api-key` should print a bare key |
-| Bootstrap fails creating a service-account key | Org policy `iam.disableServiceAccountKeyCreation` | The script offers to lift it for the project; accept, re-run |
-| Desktop: "No hub address is configured for this build" | The installed release was built before `hub_url` was committed | Publish a new release (section 5.2) and update |
-| Desktop: connect fails with an IAP error | `Hub desktop (IAP)` client not in the programmatic-access allowlist | Re-run bootstrap and give the `hub_client.json` path at step 6b, or `gcloud iap settings set <yaml> --resource-type=backend-services --service=hub-backend` with `accessSettings.oauthSettings.programmaticClients: [<client_id>]` |
-| Weekly sign-outs on the hub | Consent screen in Testing | Set it to In production |
+| Symptom                                                | Likely cause                                                               | Do                                                                                                                                                                                                                                       |
+| ------------------------------------------------------ | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Browser shows a certificate error at the hub address   | Managed certificate not yet `ACTIVE`, or DNS not resolving to `hub-ip` | `nslookup hub.<domain>`; `gcloud compute ssl-certificates describe hub-cert --global`                                                                                                                                                |
+| `health=000` or `502` after deploy                 | API container still starting, or a secret is missing/blank                 | SSH in; `docker logs lg_api`; `gcloud secrets versions access latest --secret=anthropic-api-key` should print a bare key                                                                                                             |
+| Bootstrap fails creating a service-account key         | Org policy `iam.disableServiceAccountKeyCreation`                        | The script offers to lift it for the project; accept, re-run                                                                                                                                                                             |
+| Desktop: "No hub address is configured for this build" | The installed release was built before `hub_url` was committed           | Publish a new release (section 5.2) and update                                                                                                                                                                                           |
+| Desktop: connect fails with an IAP error               | `Hub desktop (IAP)` client not in the programmatic-access allowlist      | Re-run bootstrap and give the `hub_client.json` path at step 6b, or `gcloud iap settings set <yaml> --resource-type=backend-services --service=hub-backend` with `accessSettings.oauthSettings.programmaticClients: [<client_id>]` |
+| Weekly sign-outs on the hub                            | Consent screen in Testing                                                  | Set it to In production                                                                                                                                                                                                                  |
 
 The bootstrap is re-runnable: anything it already created is kept. When in
 doubt, run it again with the same answers file.

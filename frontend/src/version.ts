@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 316;
+export const BUILD_NUMBER = 317;
 export const BUILD_DATE = "2026-11-13";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 317,
+    date: "2026-11-13",
+    title: "Dropdowns and tab order on Google Sheets",
+    changes: [
+      "On a Google Sheet you've let her edit, Gerry can now add a dropdown pick-list to a column or range (“make column D a Status dropdown: Open, Blocked, Done”) and reorder the tabs (“move Summary to the front”).",
+    ],
+  },
   {
     build: 316,
     date: "2026-11-13",
