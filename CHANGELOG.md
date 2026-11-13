@@ -4,6 +4,51 @@
 
 ## Changelog
 
+### v5.31.0 · build 316 — 2026-11-13
+**Spreadsheets with tabs, Google Docs/Sheets on request, Google Forms, and new tabs on an existing Sheet**
+
+A user asked Gerry for a multi-tab spreadsheet and she correctly said she
+couldn't: her only tabular output was CSV, and `edit_drive_file` could set
+cells and append rows to a Sheet but not add a worksheet. Four tools close
+that.
+
+- **`create_xlsx`** — a real Excel workbook (`openpyxl`): one or more sheets
+  from `{title, columns, rows}`, bold frozen header row, numbers kept
+  numeric (numeric-looking strings converted; `SOP-011` and dates left as
+  text), `=…` cells as formulas, columns sized to content, tab names
+  sanitised and de-duplicated. Verified by re-opening before it is
+  reported; lands on Generated Files like `create_docx`.
+- **Native Google output on request.** `create_docx` and `create_xlsx`
+  take `to_drive: "google_doc" | "google_sheet" | "file"` (+ `folder_id`);
+  `upload_to_drive` takes `as_google`. The Google variants go through
+  Drive's import conversion (`drive_import_attachment`, which now accepts
+  `folder_id`) so the result opens in the Docs/Sheets editor. Office files
+  remain the default — Morgan's call: they download and attach; the Google
+  version is for "in Drive" / "to share". One shared
+  `_drive_upload_verified` does upload + read-back for all three tools, so a
+  link is never reported without Drive confirming the file exists. Chips:
+  "Open in Google Docs" / "Open in Google Sheets".
+- **`create_google_form`** — surveys, questionnaires, RSVPs, sign-ups via
+  the Forms API: short_text, paragraph, multiple_choice, checkboxes,
+  dropdown (no "Other"), linear_scale (0/1 → 2–10 with end labels), date,
+  time, section (page break); `collect_email`; `folder_id`. The request
+  list is built and validated by the pure `forms_build_requests` before any
+  API call, so a choice question without options or a bad scale is refused
+  with a reason. Returns the editor link and the respondent link (two
+  chips). New scope `forms.body` — users who connected before this release
+  are told to reconnect (Disconnect → Connect, tick every box) when they
+  first ask for a form; everything else keeps working on the old grant. The
+  Forms API must be enabled on the company's GCP project
+  (`bootstrap.ps1` now enables it; PMI's two projects enabled by hand).
+- **`edit_drive_file` mode `add_tab`** on a granted Google Sheet: the new
+  worksheet's name in `text`, optional `values` rows written from A1 with
+  the first row bold and frozen (`sheets_bold_header`). `sheets_add_tab`
+  now refuses a duplicate name readably instead of a raw API error.
+- Tests: `test_google_outputs.py` (12 — workbook, cell typing, every form
+  question type and each rejection, chips), `test_sheet_add_tab.py` (4 —
+  grant + dispatch, fill + format, duplicate refusal). Brand probe: 2 tools
+  added, 3 descriptions amended, nothing else.
+
 ### v5.30.1 · build 315 — 2026-11-04
 **Hotfix: chat with Gerry failed with "AsyncMessages.stream() got an unexpected keyword argument 'temperature'"**
 

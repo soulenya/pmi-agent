@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Set up Little Gerry for a new company: brand.json, Google Cloud, signing,
     GitHub secrets and (optionally) the hub VM.
@@ -289,7 +289,7 @@ if (-not (Exists @("gcloud", "projects", "describe", $project))) {
     Ok "project created and linked to billing"
 } else { Ok "project exists" }
 Run gcloud config set project $project
-$apis = "drive.googleapis.com gmail.googleapis.com calendar-json.googleapis.com people.googleapis.com docs.googleapis.com sheets.googleapis.com slides.googleapis.com tasks.googleapis.com speech.googleapis.com texttospeech.googleapis.com storage.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com compute.googleapis.com iap.googleapis.com cloudresourcemanager.googleapis.com" -split ' '
+$apis = "drive.googleapis.com gmail.googleapis.com calendar-json.googleapis.com people.googleapis.com docs.googleapis.com sheets.googleapis.com slides.googleapis.com forms.googleapis.com tasks.googleapis.com speech.googleapis.com texttospeech.googleapis.com storage.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com compute.googleapis.com iap.googleapis.com cloudresourcemanager.googleapis.com" -split ' '
 Run gcloud services enable @apis
 Ok "APIs enabled"
 $projectNumber = if ($DryRun) { "<project-number>" } else { (Run gcloud projects describe $project --format="value(projectNumber)").Trim() }
@@ -297,7 +297,7 @@ $projectNumber = if ($DryRun) { "<project-number>" } else { (Run gcloud projects
 Pause-ForConsole "OAuth consent screen" @(
     "https://console.cloud.google.com/apis/credentials/consent?project=$project",
     "User type: Internal. App name: Little Gerry. Support email: $adminMail.",
-    "Scopes: the 17 in backend/services/google_service.py (Drive, Gmail, Calendar, Contacts, Docs, Sheets, Slides, Tasks, userinfo).",
+    "Scopes: the 18 in backend/services/google_service.py (Drive, Gmail, Calendar, Contacts, Docs, Sheets, Slides, Tasks, userinfo).",
     "Publishing status must be 'In production' (in Testing, refresh tokens expire after 7 days)."
 )
 Pause-ForConsole "OAuth clients" @(
