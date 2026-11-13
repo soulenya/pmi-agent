@@ -37,10 +37,11 @@ COPY --from=frontend /build/dist ./static
 ENV PATH="/opt/venv/bin:$PATH" \
     HOST=0.0.0.0 \
     PORT=8000 \
-    STORAGE_ROOT=/data/documents
+    STORAGE_ROOT=/data/documents \
+    MPLCONFIGDIR=/data/matplotlib
 
 RUN groupadd -r app && useradd -r -g app app \
-    && mkdir -p /data/documents \
+    && mkdir -p /data/documents /data/matplotlib \
     && chown -R app:app /data /app
 
 USER app
