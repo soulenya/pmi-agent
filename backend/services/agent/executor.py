@@ -225,6 +225,7 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
     "generate_file": "Generating file…",
     "create_docx": "Creating Word document…",
     "create_xlsx": "Creating spreadsheet…",
+    "create_chart": "Drawing the chart…",
     "create_google_form": "Creating Google Form…",
     "create_deck": "Building the deck…",
     "list_deck_archetypes": "Checking slide layouts…",

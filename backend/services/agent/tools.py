@@ -18,6 +18,7 @@ Tools receive a ToolContext rather than direct DB sessions so the caller
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import logging
 import os
@@ -2447,6 +2448,15 @@ TOOL_DEFINITIONS: list[dict] = [
                 "'| --- | --- |' separator after the first row to style it as a column-"
                 "header row; OMIT the separator for label/value grids (metadata blocks) "
                 "— their label columns (1st, 3rd) render as labels. "
+                "CHARTS: a fenced block starting with ```chart and containing a JSON spec "
+                "renders a real axis chart (PNG, design-system styling) inline where the "
+                "block sits: {\"type\": \"column\"|\"bar\"|\"line\"|\"stacked_bar\"|\"pie\"|"
+                "\"scatter\", \"title\", \"subtitle\"?, \"categories\": [x labels], "
+                "\"series\": [{\"name\", \"values\": [numbers]}], \"unit\"?: \"$\"|\"%\"|"
+                "\"kPa\"…, \"x_label\"?, \"y_label\"?, \"y_min\"?, \"y_max\"?, "
+                "\"show_values\"?: bool, \"source\"?}. Scatter uses series[].points: "
+                "[[x,y],…]. Use a chart whenever numbers are compared across categories "
+                "or over time — never draw one from block characters or ASCII. "
                 "Returns a download URL."
             ),
             "parameters": {
@@ -2526,6 +2536,39 @@ TOOL_DEFINITIONS: list[dict] = [
                     },
                 },
                 "required": ["filename", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_chart",
+            "description": (
+                "Render a real axis chart (bar, column, line, stacked bar, pie or scatter) "
+                "as a PNG image in the company design system and save it to Generated "
+                "Files; optionally upload it to Drive. Use this when the user wants a chart "
+                "on its own (to paste into something, attach, or look at). For a chart "
+                "INSIDE a Word document or Google Doc use a ```chart block in create_docx "
+                "instead — same spec. Never imitate a chart with block characters or ASCII."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string", "description": "e.g. 'burn-vs-plan.png'. The extension is added if missing."},
+                    "chart": {
+                        "type": "object",
+                        "description": (
+                            "{type, title, subtitle?, categories: [x labels], series: [{name, values: [numbers]}], "
+                            "unit? ('$', '%', 'kPa'…), x_label?, y_label?, y_min?, y_max?, show_values?, source?}. "
+                            "scatter: series[].points = [[x, y], …] and no categories. pie: exactly one series."
+                        ),
+                    },
+                    "width_in": {"type": "number", "description": "Width in inches (default 6.5)."},
+                    "height_in": {"type": "number", "description": "Height in inches (default 3.6)."},
+                    "to_drive": {"type": "boolean", "description": "Also upload the PNG to the user's Google Drive."},
+                    "folder_id": {"type": "string", "description": "With to_drive: Drive folder id."},
+                },
+                "required": ["filename", "chart"],
             },
         },
     },
@@ -7032,9 +7075,50 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
     table_rows: list[list[str]] = []
     table_has_header = False
     num_index = 0
+    chart_lines: list[str] | None = None  # inside a ```chart fence
+    charts_embedded = 0
+    chart_problems: list[str] = []
+
+    def _embed_chart(raw_json: str) -> None:
+        nonlocal charts_embedded
+        import json as _json
+
+        from services import charts as _charts
+
+        try:
+            spec = _charts.validate_spec(_json.loads(raw_json))
+            png = _charts.render_png(spec)
+        except (ValueError, _json.JSONDecodeError) as exc:
+            chart_problems.append(str(exc))
+            p = document.add_paragraph()
+            r = p.add_run(f"[chart not rendered: {exc}]")
+            r.italic = True
+            return
+        pic = document.add_paragraph()
+        pic.add_run().add_picture(io.BytesIO(png), width=Inches(6.3))
+        pic.paragraph_format.space_before = Pt(6)
+        pic.paragraph_format.space_after = Pt(10)
+        charts_embedded += 1
+
     for raw_line in content.splitlines():
         line = raw_line.rstrip()
         stripped = line.strip()
+        # ```chart … ``` fences carry a JSON chart spec (services.charts); the
+        # chart is rendered to PNG and placed inline where the fence sits.
+        if chart_lines is not None:
+            if stripped.startswith("```"):
+                _embed_chart("\n".join(chart_lines))
+                chart_lines = None
+            else:
+                chart_lines.append(line)
+            continue
+        if stripped.lower().startswith("```chart"):
+            _flush_table(table_rows, table_has_header)
+            table_rows = []
+            table_has_header = False
+            chart_lines = []
+            body_started = True
+            continue
         # Pipe-table rows are collected and flushed as one Word table. A
         # markdown separator row ('| --- | --- |') after the first row marks it
         # as a HEADER table (colored first row); tables without a separator
@@ -7081,6 +7165,8 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
             _add_markdown_runs(p, stripped)
         body_started = True
     _flush_table(table_rows, table_has_header)
+    if chart_lines is not None:  # unterminated fence — render what we have
+        _embed_chart("\n".join(chart_lines))
 
     embedded: list[str] = []
     if brand:
@@ -7110,11 +7196,63 @@ async def execute_create_docx(ctx: ToolContext, args: dict[str, Any]) -> str:
         )
     else:
         style_note = " Styled: controlled document (design system not applied)."
+    if charts_embedded:
+        style_note += f" Charts embedded: {charts_embedded}."
+    if chart_problems:
+        style_note += (
+            f" {len(chart_problems)} chart block(s) could NOT be rendered and appear as a "
+            f"bracketed note in the document — fix and regenerate: {'; '.join(chart_problems[:3])}"
+        )
     return (
         f"Word document created and verified ({out_path.stat().st_size} bytes): "
         f"/api/files/{safe_name}" + logo_note + style_note
         + await _maybe_drive(args, out_path, Path(filename).stem, native_word="Google Doc")
     )
+
+
+async def execute_create_chart(ctx: ToolContext, args: dict[str, Any]) -> str:
+    """Render a chart spec to a PNG in Generated Files."""
+    from services import charts
+
+    filename = re.sub(r"[^\w.\- ]", "_", str(args.get("filename", "chart.png")).strip()).strip() or "chart.png"
+    filename = Path(filename).stem + ".png"
+    try:
+        spec = charts.validate_spec(args.get("chart"))
+    except ValueError as exc:
+        return f"Chart not created — {exc}."
+    try:
+        w = float(args.get("width_in") or 6.5)
+        h = float(args.get("height_in") or 3.6)
+    except (TypeError, ValueError):
+        w, h = 6.5, 3.6
+    w, h = min(max(w, 2.0), 14.0), min(max(h, 1.5), 10.0)
+
+    _GENERATED_FILES_DIR.mkdir(exist_ok=True)
+    safe_name = f"{uuid.uuid4().hex[:8]}_{filename}"
+    out_path = _GENERATED_FILES_DIR / safe_name
+    try:
+        size = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: charts.render_to_file(spec, out_path, width_in=w, height_in=h)
+        )
+    except Exception as exc:  # noqa: BLE001 — surface a readable message to the model
+        return f"Chart render failed: {exc}"
+    if not out_path.is_file() or size == 0 or out_path.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+        return "Error: the chart image was not written as a valid PNG. Treat as failed."
+
+    from services.workroom_context import auto_pin_if_room, log_room_event
+
+    await auto_pin_if_room(ctx.db, ctx.conversation_id, "generated_file", filename, safe_name)
+    await log_room_event(ctx.db, ctx.conversation_id, f"Gerry created chart: {filename}")
+    n = len(spec["series"])
+    line = (
+        f"Chart created and verified ({spec['type']}, {n} series, {size:,} bytes): /api/files/{safe_name}"
+    )
+    if args.get("to_drive"):
+        ok, msg = await _drive_upload_verified(
+            out_path, Path(filename).stem, str(args.get("folder_id") or "").strip() or None, convert=False
+        )
+        line += f"\n{msg}" if ok else f"\nNot on Drive: {msg} The image is still downloadable above."
+    return line
 
 
 _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -7935,6 +8073,7 @@ TOOL_EXECUTORS = {
     "generate_file": execute_generate_file,
     "create_docx": execute_create_docx,
     "create_xlsx": execute_create_xlsx,
+    "create_chart": execute_create_chart,
     "create_google_form": execute_create_google_form,
     "create_deck": execute_create_deck,
     "list_deck_archetypes": execute_list_deck_archetypes,

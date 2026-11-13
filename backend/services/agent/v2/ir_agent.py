@@ -74,6 +74,7 @@ _TOOLS = [
     "compare_budget_to_odoo",
     "create_docx",
     "create_xlsx",
+    "create_chart",
     "create_google_form",
     "create_deck",
     "list_deck_archetypes",

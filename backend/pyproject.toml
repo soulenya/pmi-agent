@@ -56,6 +56,7 @@ dependencies = [
     "voyageai>=0.3.0",
     # Launcher UI (splash screen + system tray + app window)
     "pillow>=10.0.0",
+    "matplotlib>=3.10.0",
     "pystray>=0.19.5",
     "pywebview>=5.0.0",
     # Google Workspace

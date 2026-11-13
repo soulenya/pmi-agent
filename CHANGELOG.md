@@ -4,6 +4,29 @@
 
 ## Changelog
 
+### v5.32.0 · build 318 — 2026-11-13
+**Real charts in Word documents, Google Docs and on their own**
+
+- Gerry had no way to draw an axis chart and, rightly, refused to fake
+  another one from block characters. New `services/charts.py` renders a
+  small JSON spec to PNG with matplotlib (Agg): column, bar, line,
+  stacked_bar, pie, scatter; design-system palette (black, red accent,
+  greys), Archivo/JetBrains Mono registered from the bundled TTFs, title
+  with the red rule, mono tick labels, hairline grid, unit-aware value
+  formatting (`$1,500`, `12.5%`, `7 kPa`), optional subtitle/source line.
+  `validate_spec` normalises numbers (strings, commas, `$`, `%`) and rejects
+  what the renderer can't draw with an actionable reason.
+- **In documents:** a fenced ```` ```chart ```` block in `create_docx`
+  content renders inline where it sits (6.3" wide). A bad block becomes a
+  bracketed note in the document and the tool result says which. Through
+  `to_drive: google_doc` the image survives Drive's conversion as an inline
+  object (verified live).
+- **On its own:** `create_chart` → PNG on Generated Files, optional Drive
+  upload; size clamped 2–14" × 1.5–10".
+- `matplotlib>=3.10` added to the backend (ships in the hub image via the
+  lock). 19 tests in `test_charts.py`, including a docx package check for
+  the embedded image part.
+
 ### v5.31.1 · build 317 — 2026-11-13
 **Dropdowns and tab order on Google Sheets Gerry may edit**
 
