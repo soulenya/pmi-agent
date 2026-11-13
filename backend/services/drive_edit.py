@@ -696,9 +696,24 @@ async def apply_edit(
                     summary = f'added tab "{title}" with {len(rows)} row(s) (header frozen)'
                 else:
                     summary = f'added empty tab "{title}"'
+            elif mode == "set_dropdown":
+                if not cell_range:
+                    raise DriveEditError("set_dropdown needs cell_range like 'Tab'!C2:C200 (tab name included).")
+                opts = [str(o) for row in (values or []) for o in (row if isinstance(row, list) else [row])]
+                if not opts:
+                    raise DriveEditError("set_dropdown needs the options in values, e.g. [[\"Open\", \"Done\"]].")
+                n = await _run(lambda: gs.sheets_set_dropdown(file_id, cell_range, opts, strict=not all_occurrences))
+                where = f"{n} cell(s) in {cell_range}" if n else cell_range
+                summary = f"put a dropdown ({', '.join(opts[:6])}{'…' if len(opts) > 6 else ''}) on {where}"
+            elif mode == "move_tab":
+                title = (text or "").strip()
+                if not title or position is None:
+                    raise DriveEditError("move_tab needs the tab name in text and the new 1-based position.")
+                order = await _run(lambda: gs.sheets_move_tab(file_id, title, int(position)))
+                summary = f'moved tab "{title}" to position {position}; tabs are now: {", ".join(order)}'
             else:
                 raise DriveEditError(
-                    f'Google Sheets support set_cells, append and add_tab — not "{mode}".'
+                    f'Google Sheets support set_cells, append, add_tab, set_dropdown and move_tab — not "{mode}".'
                 )
 
         elif mime == SLIDES_MIME:

@@ -1085,8 +1085,9 @@ TOOL_DEFINITIONS: list[dict] = [
                 "granted you permission for (request_drive_edit_permission); without a "
                 "grant this refuses and nothing is changed. Google Docs support "
                 "'append', 'replace' and 'overwrite'; Google Sheets support 'set_cells', "
-                "'append' and 'add_tab' (a new worksheet, optionally filled in the same "
-                "call); Google Slides support 'replace', 'set_shape', "
+                "'append', 'add_tab' (a new worksheet, optionally filled in the same "
+                "call), 'set_dropdown' (a pick-list on a cell range) and 'move_tab' "
+                "(reorder worksheets); Google Slides support 'replace', 'set_shape', "
                 "'add_text_box', 'add_slide', 'delete_shape' and 'delete_slide'; "
                 "plain-text/markdown files support all three text modes. "
                 "Word/Excel/PowerPoint files CANNOT be edited — call convert_drive_file "
@@ -1111,6 +1112,7 @@ TOOL_DEFINITIONS: list[dict] = [
                         "type": "string",
                         "enum": [
                             "append", "replace", "overwrite", "set_cells", "add_tab",
+                            "set_dropdown", "move_tab",
                             "set_shape", "add_text_box", "add_slide",
                             "delete_shape", "delete_slide",
                         ],
@@ -1122,6 +1124,12 @@ TOOL_DEFINITIONS: list[dict] = [
                             "add_tab = add a new worksheet to a spreadsheet named 'text', "
                             "and when 'values' is given write those rows into it starting "
                             "at A1 (first row becomes the bold frozen header); "
+                            "set_dropdown = put a pick-list on every cell of 'cell_range' "
+                            "(tab name included, e.g. 'Tasks'!D2:D500) with the choices in "
+                            "'values' as one row, e.g. [[\"Open\",\"Blocked\",\"Done\"]]; "
+                            "set all_occurrences=true to allow typed values outside the list; "
+                            "move_tab = move the worksheet named 'text' to the 1-based "
+                            "'position' among the tabs; "
                             "set_shape = replace one deck text box, its object id in "
                             "'cell_range' and the new text in 'text'; "
                             "add_text_box = put a NEW text box on a slide — the SLIDE's "
@@ -1154,7 +1162,7 @@ TOOL_DEFINITIONS: list[dict] = [
                     "position": {
                         "type": "integer",
                         "description": (
-                            "Where the new slide goes, counting from 1 (add_slide only). "
+                            "Where the new slide goes (add_slide) or where the tab goes (move_tab), counting from 1. "
                             "Omit to append it at the end."
                         ),
                     },

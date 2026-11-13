@@ -4,6 +4,22 @@
 
 ## Changelog
 
+### v5.31.1 · build 317 — 2026-11-13
+**Dropdowns and tab order on Google Sheets Gerry may edit**
+
+- Asked for a status dropdown and a different tab order, Gerry correctly
+  said her Sheets tool had neither and offered an Apps Script instead. Two
+  new `edit_drive_file` modes: **`set_dropdown`** — a `ONE_OF_LIST` data-
+  validation rule on every cell of `cell_range` (tab name required, e.g.
+  `'Tasks'!D2:D500` or `Tasks!D:D`), choices in `values`, strict unless
+  `all_occurrences` is set; **`move_tab`** — the worksheet named in `text`
+  to the 1-based `position`, reporting the resulting order.
+- `parse_a1_range` (pure) validates the range before any API call;
+  `sheets_move_tab` accounts for the Sheets API indexing the destination
+  *before* the tab is removed (a rightward move needs +1) — verified live in
+  both directions against a real spreadsheet.
+- 5 tests added to `test_sheet_add_tab.py` (9 total).
+
 ### v5.31.0 · build 316 — 2026-11-13
 **Spreadsheets with tabs, Google Docs/Sheets on request, Google Forms, and new tabs on an existing Sheet**
 

@@ -2829,11 +2829,7 @@ def sheets_add_tab(spreadsheet_id: str, title: str, frozen_rows: int = 0) -> Non
 def sheets_bold_header(spreadsheet_id: str, tab_title: str) -> None:
     """Bold row 1 of a named tab."""
     svc = _build("sheets", "v4")
-    meta = svc.spreadsheets().get(spreadsheetId=spreadsheet_id, fields="sheets.properties").execute()
-    gid = next(
-        (s["properties"]["sheetId"] for s in meta.get("sheets", []) if s["properties"].get("title") == tab_title),
-        None,
-    )
+    gid = _sheet_gid(svc, spreadsheet_id, tab_title)
     if gid is None:
         return
     svc.spreadsheets().batchUpdate(
@@ -2846,6 +2842,108 @@ def sheets_bold_header(spreadsheet_id: str, tab_title: str) -> None:
             }
         }]},
     ).execute()
+
+
+def _sheet_gid(svc, spreadsheet_id: str, tab_title: str) -> int | None:
+    meta = svc.spreadsheets().get(spreadsheetId=spreadsheet_id, fields="sheets.properties").execute()
+    for s in meta.get("sheets", []):
+        if s["properties"].get("title", "").lower() == tab_title.lower():
+            return s["properties"]["sheetId"]
+    return None
+
+
+_A1_RE = re.compile(r"^(?:'([^']+)'|([^'!]+))!([A-Za-z]{1,3})(\d*):([A-Za-z]{1,3})(\d*)$")
+
+
+def parse_a1_range(a1: str) -> tuple[str, int, int, int | None, int | None]:
+    """'Tab'!B2:B100 → (tab, col_start0, col_end0_exclusive, row_start0, row_end0_exclusive).
+
+    Rows are None when the range is whole columns ('Tab'!B:B). Pure, so the
+    agent's range mistakes are reported before any API call.
+    """
+    m = _A1_RE.match(a1.strip())
+    if not m:
+        raise ValueError(f"'{a1}' is not a range like 'Tab'!B2:B100 or Tab!B:B (tab name required)")
+    tab = m.group(1) or m.group(2)
+
+    def col(s: str) -> int:
+        n = 0
+        for ch in s.upper():
+            n = n * 26 + ord(ch) - 64
+        return n - 1
+
+    c1, c2 = col(m.group(3)), col(m.group(5))
+    if c2 < c1:
+        c1, c2 = c2, c1
+    r1 = int(m.group(4)) - 1 if m.group(4) else None
+    r2 = int(m.group(6)) if m.group(6) else None
+    if (r1 is None) != (r2 is None):
+        raise ValueError(f"'{a1}': give both row numbers or neither (B2:B100 or B:B)")
+    if r1 is not None and r2 is not None and r2 <= r1:
+        r1, r2 = r2 - 1, r1 + 1
+    return tab, c1, c2 + 1, r1, r2
+
+
+def sheets_set_dropdown(
+    spreadsheet_id: str, a1_range: str, options: list[str], strict: bool = True
+) -> int:
+    """Put a dropdown (ONE_OF_LIST data validation) on every cell of a range.
+    Returns the number of cells covered (0 when rows are unbounded)."""
+    tab, c1, c2, r1, r2 = parse_a1_range(a1_range)
+    opts = [str(o).strip() for o in options if str(o).strip()]
+    if not opts:
+        raise ValueError("a dropdown needs at least one option")
+    svc = _build("sheets", "v4")
+    gid = _sheet_gid(svc, spreadsheet_id, tab)
+    if gid is None:
+        raise ValueError(f"Tab '{tab}' not found in spreadsheet.")
+    grid: dict[str, Any] = {"sheetId": gid, "startColumnIndex": c1, "endColumnIndex": c2}
+    if r1 is not None:
+        grid["startRowIndex"], grid["endRowIndex"] = r1, r2
+    svc.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={"requests": [{
+            "setDataValidation": {
+                "range": grid,
+                "rule": {
+                    "condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": o} for o in opts]},
+                    "showCustomUi": True,
+                    "strict": bool(strict),
+                },
+            }
+        }]},
+    ).execute()
+    return (c2 - c1) * ((r2 or 0) - (r1 or 0)) if r1 is not None else 0
+
+
+def sheets_move_tab(spreadsheet_id: str, tab_title: str, position: int) -> list[str]:
+    """Move a tab to a 1-based position among the tabs. Returns the new order."""
+    svc = _build("sheets", "v4")
+    meta = svc.spreadsheets().get(spreadsheetId=spreadsheet_id, fields="sheets.properties").execute()
+    sheets = sorted(meta.get("sheets", []), key=lambda s: s["properties"].get("index", 0))
+    titles = [s["properties"]["title"] for s in sheets]
+    match = [s for s in sheets if s["properties"]["title"].lower() == tab_title.lower()]
+    if not match:
+        raise ValueError(f"Tab '{tab_title}' not found; tabs are: {', '.join(titles)}")
+    if not 1 <= position <= len(sheets):
+        raise ValueError(f"position must be between 1 and {len(sheets)}")
+    cur = match[0]["properties"]["index"]
+    # The API's index is where the tab lands *before* removal, so a move to the
+    # right needs +1 to land on the position the user means.
+    target = position - 1
+    api_index = target + 1 if target > cur else target
+    svc.spreadsheets().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={"requests": [{
+            "updateSheetProperties": {
+                "properties": {"sheetId": match[0]["properties"]["sheetId"], "index": api_index},
+                "fields": "index",
+            }
+        }]},
+    ).execute()
+    t = titles.pop(cur)
+    titles.insert(target, t)
+    return titles
 
 
 def sheets_update_range(spreadsheet_id: str, range_: str, values: list[list]) -> None:
