@@ -133,6 +133,7 @@ _TOOLS = [
     "compare_budget_to_odoo",
     "create_docx",
     "create_xlsx",
+    "create_chart",
     "create_google_form",
     "upload_to_drive",
     "create_deck",

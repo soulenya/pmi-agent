@@ -173,6 +173,7 @@ _TOOLS = [
     "generate_file",
     "create_docx",
     "create_xlsx",
+    "create_chart",
     "create_google_form",
     "create_deck",
     "list_deck_archetypes",

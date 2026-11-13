@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 317;
+export const BUILD_NUMBER = 318;
 export const BUILD_DATE = "2026-11-13";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 318,
+    date: "2026-11-13",
+    title: "Real charts in documents",
+    changes: [
+      "Gerry can now draw proper charts — column, bar, line, stacked, pie and scatter — in the company style, and place them inside a Word document or Google Doc right where they belong, or hand you one as an image. No more block-character bar charts.",
+    ],
+  },
   {
     build: 317,
     date: "2026-11-13",

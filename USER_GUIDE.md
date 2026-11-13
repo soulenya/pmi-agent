@@ -1111,6 +1111,7 @@ Three kinds of output, and where each one goes:
 | a table, tracker, schedule, comparison, export | an **Excel workbook** (.xlsx): bold frozen header row, numbers that sort and add up, sized columns, one or more sheets | "as a Google Sheet" / "in Drive" → opens in Google Sheets |
 | a deck, pitch, briefing slides | **Google Slides** on Drive (a .pptx copy on Generated Files) | — already native |
 | a survey, questionnaire, feedback form, RSVP, sign-up | a **Google Form** on Drive, with the editor link and the link to send out | — always a Google Form |
+| a chart | a **real chart** (column, bar, line, stacked, pie, scatter) in the company style — inside the Word document / Google Doc where it belongs, or as a standalone image | — the Google Doc keeps the chart |
 
 Office files are the default for documents and spreadsheets because they download, attach to email and live outside Google; ask for the Google version whenever you want to share or edit it in the browser. A file already on Generated Files can be sent to Drive afterwards too — "put that spreadsheet in Drive as a Google Sheet". Gerry only ever reports a Drive link after she has read the file back from Drive, so a link she gives you is real.
 
