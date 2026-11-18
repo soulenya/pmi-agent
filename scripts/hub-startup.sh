@@ -28,6 +28,9 @@ DB_AUDIT_ROLE=$(meta db-audit-role pmi_audit)
 API_CONTAINER=$(meta api-container pmi_api)
 PG_CONTAINER=$(meta postgres-container pmi_postgres)
 VAPID_SUBJECT=$(meta vapid-subject mailto:morganjkeane@precisianmedical.com)
+# GBrain, the shared company brain (docs/GBRAIN.md): off unless this is set to
+# an image built from gbrain/Dockerfile.
+GBRAIN_IMAGE=$(meta gbrain-image "")
 APP=/opt/littlegerry
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -144,6 +147,9 @@ services:
       HUB_MODE: "true"
       IAP_AUDIENCE: ${IAP_AUDIENCE}
       GOOGLE_WEB_CLIENT_JSON: \${GOOGLE_WEB_CLIENT_JSON:-}
+      # The company brain; both empty unless this hub runs GBrain (docs/GBRAIN.md).
+      GBRAIN_MCP_URL: \${GBRAIN_MCP_URL:-}
+      GBRAIN_MCP_TOKEN: \${GBRAIN_MCP_TOKEN:-}
       STORAGE_ROOT: /data/documents
       HOST: 0.0.0.0
       PORT: "8000"
@@ -152,10 +158,30 @@ services:
     ports:
       - "8000:8000"
 
+  # The shared company brain (docs/GBRAIN.md). Behind a profile, so nothing
+  # above starts or stops it; the block at the end of hub-startup.sh does.
+  gbrain:
+    profiles: ["gbrain"]
+    image: \${GBRAIN_IMAGE:-${GBRAIN_IMAGE:-${IMAGE%/*}/gbrain:latest}}
+    container_name: gbrain
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # sslmode=disable: GBrain requires TLS of any Postgres that is not on
+      # localhost, and this connection never leaves the compose network.
+      GBRAIN_DATABASE_URL: postgresql://gbrain:\${GBRAIN_DB_PASSWORD:-}@postgres:5432/gbrain?sslmode=disable
+    volumes:
+      - gbrain_data:/data
+    # No ports, like Postgres: MCP is http://gbrain:3131/mcp on this network only.
+
 volumes:
   postgres_data:
     driver: local
   appdata:
+    driver: local
+  gbrain_data:
     driver: local
 YMLEOF
 
@@ -177,6 +203,14 @@ umask 077
   echo "VAPID_PUBLIC_KEY=$(secret vapid-public-key || true)"
   echo "VAPID_PRIVATE_KEY=$(secret vapid-private-key || true)"
   echo "VAPID_SUBJECT=${VAPID_SUBJECT}"
+  if [[ -n "${GBRAIN_IMAGE}" ]]; then
+    echo "GBRAIN_DB_PASSWORD=$(secret gbrain-db-password || true)"
+    # What the API uses to reach the brain. The token is minted from the
+    # running brain, so it is absent the first time; the API then reports the
+    # brain as not set up until the secret exists and this script runs again.
+    echo "GBRAIN_MCP_URL=http://gbrain:3131/mcp"
+    echo "GBRAIN_MCP_TOKEN=$(secret gbrain-mcp-token || true)"
+  fi
 } > .env
 chmod 600 .env
 
@@ -187,6 +221,7 @@ DB_NAME=${DB_NAME}
 DB_SUPERUSER=${DB_SUPERUSER}
 API_CONTAINER=${API_CONTAINER}
 PG_CONTAINER=${PG_CONTAINER}
+GBRAIN_DB=${GBRAIN_IMAGE:+gbrain}
 ENVEOF
 
 # ── Nightly backup ──────────────────────────────────────────────────────
@@ -231,7 +266,20 @@ docker run --rm -v "${VOL}:/data:ro" -v "$TMP:/out" alpine \
   tar czf /out/data.tar.gz -C /data .
 upload "$TMP/data.tar.gz" "files/data-${STAMP}.tar.gz"
 
-echo "backup ok ${STAMP} db=$(stat -c%s "$TMP/db.sql.gz") files=$(stat -c%s "$TMP/data.tar.gz")"
+# The brain's database, on hubs that run GBrain. Last, so a problem here
+# cannot cost the two uploads above. Unlike the main dump it keeps owners and
+# grants (its role name never varies), and it sits under its own prefix so the
+# restore drill's "newest object under db/" stays the app database.
+GBRAIN_NOTE=""
+if [[ -n "${GBRAIN_DB:-}" ]]; then
+  docker exec -e PGPASSWORD="${POSTGRES_SUPERUSER_PASSWORD}" "${PG_CONTAINER}" \
+    pg_dump -U "${DB_SUPERUSER}" -d "${GBRAIN_DB}" \
+    | gzip -9 > "$TMP/gbrain.sql.gz"
+  upload "$TMP/gbrain.sql.gz" "gbrain/${GBRAIN_DB}-${STAMP}.sql.gz"
+  GBRAIN_NOTE=" gbrain=$(stat -c%s "$TMP/gbrain.sql.gz")"
+fi
+
+echo "backup ok ${STAMP} db=$(stat -c%s "$TMP/db.sql.gz") files=$(stat -c%s "$TMP/data.tar.gz")${GBRAIN_NOTE}"
 BAKEOF
 chmod 700 scripts/backup.sh
 
@@ -240,6 +288,7 @@ cat > scripts/restore.sh <<'RSTEOF'
 # Restore a database backup from GCS.
 #   restore.sh                        newest backup -> scratch DB (a drill)
 #   restore.sh db/<db>-X.sql.gz <db>  real restore, API stopped first
+#   restore.sh gbrain/gbrain-X.sql.gz gbrain   the brain, GBrain stopped first
 set -euo pipefail
 . /opt/littlegerry/scripts/hub.env
 BUCKET=${BACKUP_BUCKET}
@@ -268,13 +317,24 @@ curl -sf -H "Authorization: Bearer $(token)" \
 POSTGRES_SUPERUSER_PASSWORD=$(sed -n 's/^POSTGRES_SUPERUSER_PASSWORD=//p' /opt/littlegerry/.env)
 PG="docker exec -e PGPASSWORD=${POSTGRES_SUPERUSER_PASSWORD} ${PG_CONTAINER}"
 
+# Which container holds the target open, and who owns it once restored.
+# GBrain's dump carries its owners, so its database must be its role's again.
+STOP=""
+OWNER=${DB_SUPERUSER}
 if [[ "${TARGET}" == "${DB_NAME}" ]]; then
-  docker stop "${API_CONTAINER}"
+  STOP=${API_CONTAINER}
+elif [[ -n "${GBRAIN_DB:-}" && "${TARGET}" == "${GBRAIN_DB}" ]]; then
+  STOP=gbrain
+  OWNER=${GBRAIN_DB}
+fi
+
+if [[ -n "${STOP}" ]]; then
+  docker stop "${STOP}"
 fi
 
 ${PG} psql -U "${DB_SUPERUSER}" -d postgres -v ON_ERROR_STOP=1 \
   -c "DROP DATABASE IF EXISTS \"${TARGET}\"" \
-  -c "CREATE DATABASE \"${TARGET}\" OWNER ${DB_SUPERUSER}" >/dev/null
+  -c "CREATE DATABASE \"${TARGET}\" OWNER ${OWNER}" >/dev/null
 gunzip -c "$TMP/db.sql.gz" \
   | docker exec -i -e PGPASSWORD="${POSTGRES_SUPERUSER_PASSWORD}" "${PG_CONTAINER}" \
       psql -U "${DB_SUPERUSER}" -d "${TARGET}" -q -v ON_ERROR_STOP=1 >/dev/null
@@ -283,8 +343,8 @@ TABLES=$(${PG} psql -U "${DB_SUPERUSER}" -d "${TARGET}" -tAc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
 echo "restored ${OBJ} -> ${TARGET}: ${TABLES} tables"
 
-if [[ "${TARGET}" == "${DB_NAME}" ]]; then
-  docker start "${API_CONTAINER}"
+if [[ -n "${STOP}" ]]; then
+  docker start "${STOP}"
 fi
 RSTEOF
 chmod 700 scripts/restore.sh
@@ -323,5 +383,81 @@ for attempt in 1 2 3; do
   sleep 10
 done
 docker compose up -d
+
+# ── GBrain ──────────────────────────────────────────────────────────────
+# Last, and never fatal: the hub is up by now, and a brain that cannot start
+# must not take it down.
+
+# GBrain connects as an ordinary role, so the things its schema needs from a
+# superuser are done for it here: the extensions, BYPASSRLS, and the event
+# trigger that turns row-level security on for every table it creates (the SQL
+# is upstream's AUTO_RLS_DBA_SQL). Safe to re-run; the password follows the
+# secret. Nobody else may connect to its database.
+provision_gbrain_db() {
+  GBRAIN_DB_PASSWORD="$1" docker exec -i -e GBRAIN_DB_PASSWORD "${PG_CONTAINER}" \
+    psql -q -v ON_ERROR_STOP=1 -U "${DB_SUPERUSER}" -d postgres <<SQLEOF
+\getenv pw GBRAIN_DB_PASSWORD
+SELECT 'CREATE ROLE gbrain LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gbrain')\gexec
+ALTER ROLE gbrain WITH BYPASSRLS PASSWORD :'pw';
+SELECT 'CREATE DATABASE gbrain OWNER gbrain' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'gbrain')\gexec
+REVOKE CONNECT ON DATABASE gbrain FROM PUBLIC;
+\connect gbrain
+SET client_min_messages = warning;
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+DO \$do\$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_event_trigger WHERE evtname = 'auto_rls_on_create_table') THEN
+    CREATE OR REPLACE FUNCTION public.auto_enable_rls() RETURNS event_trigger
+      LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS \$f\$
+      DECLARE obj record;
+      BEGIN
+        FOR obj IN SELECT * FROM pg_event_trigger_ddl_commands()
+          WHERE object_type = 'table' AND schema_name = 'public'
+        LOOP
+          EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', obj.object_identity);
+        END LOOP;
+      END;
+      \$f\$;
+    ALTER FUNCTION public.auto_enable_rls() OWNER TO gbrain;
+    CREATE EVENT TRIGGER auto_rls_on_create_table ON ddl_command_end
+      WHEN TAG IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')
+      EXECUTE FUNCTION public.auto_enable_rls();
+  END IF;
+END
+\$do\$;
+SQLEOF
+}
+
+start_gbrain() {
+  local pw attempt
+  pw=$(sed -n 's/^GBRAIN_DB_PASSWORD=//p' .env)
+  # It goes into a connection URL as it is, so it has to be URL-safe.
+  if [[ ! "${pw}" =~ ^[A-Za-z0-9_-]{16,}$ ]]; then
+    echo "gbrain: secret gbrain-db-password is missing, or is not 16+ URL-safe characters (openssl rand -hex 32)"
+    return 1
+  fi
+  # Postgres restarts once while it initialises a new volume; retry across it.
+  for attempt in 1 2 3 4 5 6; do
+    if provision_gbrain_db "${pw}"; then
+      break
+    fi
+    if [[ "${attempt}" == 6 ]]; then
+      echo "gbrain: could not prepare its database"
+      return 1
+    fi
+    sleep 5
+  done
+  docker compose --profile gbrain up -d gbrain
+}
+
+if [[ -n "${GBRAIN_IMAGE}" ]]; then
+  if start_gbrain; then
+    echo "gbrain: started"
+  else
+    echo "WARNING: gbrain did not start (see above); the hub itself is unaffected"
+  fi
+fi
 
 echo "=== hub startup complete $(date -Is) ==="

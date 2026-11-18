@@ -47,6 +47,9 @@ services:
       IAP_AUDIENCE: ${IAP_AUDIENCE:?required}
       # Downloaded "web" OAuth client JSON, for per-user Google connections.
       GOOGLE_WEB_CLIENT_JSON: ${GOOGLE_WEB_CLIENT_JSON:-}
+      # The company brain; both empty unless this hub runs GBrain (docs/GBRAIN.md).
+      GBRAIN_MCP_URL: ${GBRAIN_MCP_URL:-}
+      GBRAIN_MCP_TOKEN: ${GBRAIN_MCP_TOKEN:-}
       STORAGE_ROOT: /data/documents
       HOST: 0.0.0.0
       PORT: "8000"
@@ -68,8 +71,31 @@ services:
       retries: 5
       start_period: 30s
 
+  # The shared company brain (docs/GBRAIN.md). Behind a profile, so a plain
+  # `up -d` leaves it alone:
+  #   docker compose -f docker-compose.hub.yml --profile gbrain up -d gbrain
+  # Its database, role and event trigger must exist first; hub-startup.sh
+  # (provision_gbrain_db) creates them.
+  gbrain:
+    profiles: ["gbrain"]
+    image: ${GBRAIN_IMAGE:-us-central1-docker.pkg.dev/pmi-littlegerry-hub/littlegerry/gbrain:latest}
+    container_name: gbrain
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # sslmode=disable: GBrain requires TLS of any Postgres that is not on
+      # localhost, and this connection never leaves the compose network.
+      GBRAIN_DATABASE_URL: postgresql://gbrain:${GBRAIN_DB_PASSWORD:-}@postgres:5432/gbrain?sslmode=disable
+    volumes:
+      - gbrain_data:/data
+    # No ports, like Postgres: MCP is http://gbrain:3131/mcp on this network only.
+
 volumes:
   postgres_data:
     driver: local
   appdata:
+    driver: local
+  gbrain_data:
     driver: local

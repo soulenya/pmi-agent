@@ -67,6 +67,8 @@ dependencies = [
     "psutil>=7.2.2",
     "soundcard>=0.4.6",
     "numpy>=2.4.6",
+    # MCP client, for the company brain (GBrain) on the hub
+    "mcp>=2.3.0",
 ]
 
 [dependency-groups]

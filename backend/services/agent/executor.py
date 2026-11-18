@@ -39,6 +39,7 @@ from services.agent.guardrails import (
     WRITING_STYLE_NOTE,
 )
 from services.agent.tools import TOOL_DEFINITIONS, ToolContext, artifact_links_for, dispatch_tool
+from services.agent.brain_tools import PROMPT_GUIDE as _BRAIN_PROMPT_GUIDE
 from brand import escape_braces, get_brand
 from services.embeddings.service import get_embedding_service_for_db
 from services.llm.ollama import OllamaClient, OllamaError, get_ollama_client
@@ -55,6 +56,9 @@ MAX_TOOL_ROUNDS = settings.agent_max_tool_rounds
 # ── System prompt (company values from brand/brand.json) ──────────────────────────
 
 _B = get_brand()
+
+# Only a brand that ships the company brain tools is told about them.
+_COMPANY_BRAIN_GUIDE = f"\n   - {_BRAIN_PROMPT_GUIDE}" if _B.feature("company_brain") else ""
 
 SYSTEM_PROMPT = f"""\
 You are {escape_braces(_B.identity_line)}.
@@ -122,7 +126,7 @@ Word or Excel file, call convert_drive_file and edit the Google copy.
    - If the user asks for a slide deck, presentation, pitch deck, product briefing, demo deck or board deck → call list_deck_archetypes, then ASK which security classification applies (open / confidential internal / confidential proprietary information / confidential trade secret — never guess, it is printed on every slide), then call create_deck. NEVER use create_docx for a deck — a deck is not a Word document
    - If the user asks for a Word document, report, memo, weekly update, or formatted deliverable → call create_docx (it appears on the Generated Files page)
    - If the user says "note that", "remember", "jot down", "make a note" or dictates a thought to keep → call save_note with their words as said, then confirm in one line
-   - Before any status report, weekly update, recap or "what did I note" → call list_notes (their private notes; nobody else's are ever returned)
+   - Before any status report, weekly update, recap or "what did I note" → call list_notes (their private notes; nobody else's are ever returned){_COMPANY_BRAIN_GUIDE}
    - If the user asks to upload a file you created to Google Drive → call upload_to_drive with the generated filename
    - When in doubt about Drive content, use list_drive_folder to browse and search_drive_content to read
 2. DO NOT just describe what you are about to do — use the tool and show the result.
@@ -235,9 +239,11 @@ _TOOL_RUNNING_LABELS: dict[str, str] = {
 
 from services.agent.project_tools import RUNNING_LABELS as _PROJECT_LABELS  # noqa: E402
 from services.agent.notes_tools import RUNNING_LABELS as _NOTES_LABELS  # noqa: E402
+from services.agent.brain_tools import RUNNING_LABELS as _BRAIN_LABELS  # noqa: E402
 
 _TOOL_RUNNING_LABELS.update(_PROJECT_LABELS)
 _TOOL_RUNNING_LABELS.update(_NOTES_LABELS)
+_TOOL_RUNNING_LABELS.update(_BRAIN_LABELS)
 
 
 def _tool_running_label(tool_name: str, args: dict) -> str:

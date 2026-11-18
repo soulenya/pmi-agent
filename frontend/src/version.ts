@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 318;
-export const BUILD_DATE = "2026-11-13";
+export const BUILD_NUMBER = 319;
+export const BUILD_DATE = "2026-11-18";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 319,
+    date: "2026-11-18",
+    title: "Voice sessions fixed; groundwork for a shared company memory",
+    changes: [
+      "Fixed: voice sessions with the House Manager, and chats on the newer agent engine, could not start since build 317. They work again.",
+      "Behind the scenes: the pieces for a shared company memory that Gerry will be able to search and add to. It is switched off for now, so nothing changes for you yet.",
+    ],
+  },
   {
     build: 318,
     date: "2026-11-13",

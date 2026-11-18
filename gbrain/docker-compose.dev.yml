@@ -1,0 +1,34 @@
+# A throwaway GBrain on this computer, for development and for the contract
+# test in backend/tests/test_company_brain.py. Not how the hub runs it: here
+# GBrain's role is the database superuser, so it sets itself up, and the port
+# is published (to this computer only). See docs/GBRAIN.md.
+#
+#   docker compose -f gbrain/docker-compose.dev.yml up -d --build
+#   docker compose -f gbrain/docker-compose.dev.yml exec gbrain gbrain auth create dev --scopes read,write
+#   docker compose -f gbrain/docker-compose.dev.yml down -v
+
+name: gbrain-dev
+
+services:
+  postgres:
+    # The image the hub pins.
+    image: pgvector/pgvector:pg16@sha256:0dd3149a06e4579a0d70d8fef9945636cd514005e7237deb27f9b67886f8dc4f
+    environment:
+      POSTGRES_USER: gbrain
+      POSTGRES_PASSWORD: gbrain_dev_password
+      POSTGRES_DB: gbrain
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gbrain -d gbrain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  gbrain:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      GBRAIN_DATABASE_URL: postgresql://gbrain:gbrain_dev_password@postgres:5432/gbrain?sslmode=disable
+    ports:
+      - "127.0.0.1:3931:3131"

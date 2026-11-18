@@ -4,6 +4,51 @@
 
 ## Changelog
 
+### v5.33.0 · build 319 — 2026-11-18
+**Company brain (GBrain) on the hub, switched off; v2 agent tools load again**
+
+- **Fix — v2 agents could not start since 5.31.1.** The `edit_drive_file`
+  entry in `services/agent/v2/lc_tools.py` held `'Tasks'!D2:D500` inside a
+  single-quoted string, so the module did not parse. Every agent on the
+  LangGraph engine failed while building its tools: House Manager voice
+  sessions (always v2), chats with `llm.use_langgraph` on, and the `/agents`
+  routes. Quotes escaped; `test_agent_v2_tools.py` imports the catalogue and
+  builds every tool, which nothing in the suite did before.
+- **GBrain server for the hub, off by default.** `gbrain/Dockerfile` builds
+  [GBrain](https://github.com/garrytan/gbrain) from a pinned commit of its
+  stable branch (v0.60.734.0; upstream publishes no image). A hub whose VM
+  sets the `gbrain-image` metadata key runs it as a `gbrain` container behind
+  a compose profile, with no published port: MCP is
+  `http://gbrain:3131/mcp` on the compose network only. `hub-startup.sh`
+  gives it its own database and non-superuser role on the hub's Postgres
+  (`provision_gbrain_db`: extensions, `BYPASSRLS`, and the one event trigger
+  its schema needs a superuser for) from a new `gbrain-db-password` secret,
+  and starts it last; a failure there is logged and never stops the hub. The
+  URL carries `sslmode=disable` because GBrain demands TLS of any non-local
+  Postgres. `backup.sh` dumps that database to `gbrain/` in the bucket and
+  `restore.sh` restores it. With the key unset the script issues the same
+  docker commands and writes the same `.env` as before.
+- **Company brain tools, off by default** (brand feature `company_brain`,
+  false in the defaults): `search_company_brain`,
+  `remember_in_company_brain` (with `replaces` to correct a fact) and
+  `forget_from_company_brain`, in the standard chat and for the Executive
+  Assistant. `services/company_brain.py` calls GBrain over MCP on the hub
+  (`GBRAIN_MCP_URL`, `GBRAIN_MCP_TOKEN` from the `gbrain-mcp-token` secret);
+  a desktop calls the hub's new `/brain` routes as the signed-in person, and
+  the hub stamps who recorded each fact from its own session. A plain
+  "remember…" is still a private note. Colleagues' text reaches the model
+  inside GBrain's quoting. With the feature off no tool is registered and
+  both system prompts are byte-identical to 5.32.0.
+- `mcp>=2.3.0` added to the backend (ships in the hub image via the lock).
+  `gbrain/docker-compose.dev.yml` runs a throwaway brain locally; the
+  contract test in `test_company_brain.py` runs against it and is the check
+  before moving `GBRAIN_REF`. Runbook: `docs/GBRAIN.md`.
+- Verified against a running GBrain on the hub's pinned Postgres image
+  (16.15, pgvector 0.8.7): desktop tool → hub route → GBrain and back, and
+  from inside the built hub image. Not yet run on the hub VM itself. 11
+  tests, one of which needs a running brain and skips without it; 312
+  passing.
+
 ### v5.32.0 · build 318 — 2026-11-13
 **Real charts in Word documents, Google Docs and on their own**
 

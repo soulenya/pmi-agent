@@ -113,6 +113,9 @@ _DEFAULTS: dict[str, Any] = {
         "erp": True,
         "meetings": True,
         "hub": True,
+        # Tools for the shared company brain. Off until the hub runs GBrain
+        # (docs/GBRAIN.md); a brand turns it on in its brand.json.
+        "company_brain": False,
     },
     "erp": {
         "providers": ["odoo"],

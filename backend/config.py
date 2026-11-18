@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     vapid_public_key: str = ""
     vapid_private_key: str = ""
     vapid_subject: str = _BRAND.vapid_subject
+    # The company brain (GBrain) beside the API on the hub's compose network;
+    # docs/GBRAIN.md. Both blank on a desktop, which asks the hub instead.
+    gbrain_mcp_url: str = ""
+    gbrain_mcp_token: str = ""
 
     # ── Reaching the hub from a desktop install ──────────────────────────────
     # Where the shared project spaces live. Blank turns the feature off.

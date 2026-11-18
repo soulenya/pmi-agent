@@ -2890,9 +2890,11 @@ TOOL_DEFINITIONS: list[dict] = [
 # the project access rules; their schemas belong in the same list as the rest.
 from services.agent import project_tools as _project_tools  # noqa: E402
 from services.agent import notes_tools as _notes_tools  # noqa: E402
+from services.agent import brain_tools as _brain_tools  # noqa: E402
 
 TOOL_DEFINITIONS.extend(_project_tools.TOOL_DEFINITIONS)
 TOOL_DEFINITIONS.extend(_notes_tools.TOOL_DEFINITIONS)
+TOOL_DEFINITIONS.extend(_brain_tools.TOOL_DEFINITIONS)
 
 
 # ── Tool implementations ───────────────────────────────────────────────────────
@@ -8143,6 +8145,7 @@ from services.agent.custodian_tools import CUSTODIAN_EXECUTORS  # noqa: E402
 TOOL_EXECUTORS.update(CUSTODIAN_EXECUTORS)
 TOOL_EXECUTORS.update(_project_tools.TOOL_EXECUTORS)
 TOOL_EXECUTORS.update(_notes_tools.TOOL_EXECUTORS)
+TOOL_EXECUTORS.update(_brain_tools.TOOL_EXECUTORS)
 
 
 # When a model passes its single string argument as plain text instead of a
@@ -8211,6 +8214,7 @@ _PRIMARY_ARG = {
 
 _PRIMARY_ARG.update(_project_tools.PRIMARY_ARGS)
 _PRIMARY_ARG.update(_notes_tools.PRIMARY_ARGS)
+_PRIMARY_ARG.update(_brain_tools.PRIMARY_ARGS)
 
 
 # ── Brand + feature pass over the tool schemas ────────────────────────────────────
@@ -8234,6 +8238,7 @@ _RESTRICTION_SENTENCE = re.compile(
 _FEATURE_TOOLS = {
     "regulatory": {"get_regulatory_status"},
     "erp": {"read_odoo", "propose_odoo_write", "compare_budget_to_odoo"},
+    "company_brain": set(_brain_tools.TOOL_EXECUTORS),
 }
 # A brand whose ERP is not Odoo advertises the generic names; the Odoo names
 # stay dispatchable for old conversation histories. PMI keeps the Odoo names.
