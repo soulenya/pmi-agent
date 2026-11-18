@@ -75,7 +75,8 @@
     "invoices": true,
     "erp": true,
     "meetings": true,
-    "hub": true
+    "hub": true,
+    "company_brain": true
   },
   "erp": {
     "providers": ["odoo"],

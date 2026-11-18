@@ -4,6 +4,29 @@
 
 ## Changelog
 
+### v5.34.0 · build 320 — 2026-11-18
+**The company brain is on**
+
+- `features.company_brain` is now `true` in PMI's `brand/brand.json` (the
+  default in `brand.py` stays `false`, so a fork is unaffected until it runs
+  GBrain and sets it). Gerry gets `search_company_brain`,
+  `remember_in_company_brain` and `forget_from_company_brain` in the standard
+  chat and as the Executive Assistant, and both prompts gain the one line
+  that separates the brain from private notes: record there only on an
+  explicit request for the company or team; "remember…" stays a note.
+- PMI's hub runs GBrain since today: the `gbrain` container is healthy with
+  no published port, its database is in the nightly backup (first dump
+  uploaded during the 5.33.0 deploy), and the API holds a read/write token
+  from the `gbrain-mcp-token` secret.
+- Checked on the live system before switching on, all read-only: the hub API
+  reports the brain configured and recalls through it, and this desktop
+  reached it through IAP and the hub's `/brain` route. Not checked: a real
+  model choosing between a note and the brain from the wording, and a write
+  to the production brain (deliberately; GBrain keeps withdrawn facts in its
+  history). Writes were verified against the same GBrain version locally.
+- `USER_GUIDE.md` › Talking to Little Gerry › The company brain. No code
+  change; 312 passing.
+
 ### v5.33.0 · build 319 — 2026-11-18
 **Company brain (GBrain) on the hub, switched off; v2 agent tools load again**
 

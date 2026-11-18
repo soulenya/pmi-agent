@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 319;
+export const BUILD_NUMBER = 320;
 export const BUILD_DATE = "2026-11-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 320,
+    date: "2026-11-18",
+    title: "The company brain",
+    changes: [
+      "Gerry now has a memory the whole company shares. Say \"add to the company brain that…\" or \"record for the team that…\" and she records it where every colleague's Gerry can find it, with your name and the date. Ask \"what did we decide about…?\" and she looks it up.",
+      "A plain \"remember…\" or \"note that…\" is still a private note, yours alone. Only an explicit request puts something in the company brain, and everyone can see what is there, so keep personal things in notes.",
+      "You need to be connected to the hub to use it (Settings → Connections).",
+    ],
+  },
   {
     build: 319,
     date: "2026-11-18",

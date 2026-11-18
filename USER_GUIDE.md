@@ -275,6 +275,20 @@ They come back to you three ways:
 
 When this computer is connected to the hub, notes are kept **on the hub**, so one dictated on your phone and one typed at your desk are in the same list and your routine finds both wherever it runs. A note made while the hub could not be reached stays on this computer and is marked so.
 
+### The company brain
+
+Notes are yours alone. The **company brain** is the opposite: one memory for the whole firm, which everyone's Gerry can read and add to. It is for the things a colleague should be able to find later without asking you: what was decided and why, who owns what, a date that was agreed.
+
+- **To record something**, say so explicitly: **"add to the company brain that we chose Acme for the pump housing because of lead time"**, **"record for the team that…"** or **"log this decision…"**. Gerry records it as one fact under a subject and confirms that it is now shared. A plain "remember…" or "note that…" is still a private note.
+- **To ask**, use "we": **"what did we decide about the pump housing supplier?"** Gerry searches the brain and tells you what was recorded, by whom and when.
+- **To correct a fact**, tell her what changed ("that's April now, not March") and she replaces it. **To take one out**, say "remove that from the company brain". Either way the brain keeps the history.
+
+Three things to know before you use it:
+
+- **Everyone can see it.** Whatever is recorded is readable by every colleague's Gerry, with your name and the date on it. There is no approval step and no private corner. Keep anything personal or confidential in a note instead.
+- **It needs the hub.** The brain lives on the hub, so this computer has to be connected to it (Settings → Connections). If it is not, Gerry says so.
+- **It searches by keyword for now.** If she finds nothing, try the words the fact would have used before concluding it was never recorded.
+
 ### What Little Gerry can do automatically
 
 When Google is connected, Little Gerry calls the appropriate tool immediately — she doesn't just describe what she's about to do:
