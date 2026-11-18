@@ -111,6 +111,7 @@ pmi-agent/
 │   ├── install.ps1|.sh  update.ps1|.sh  apply_update.ps1|.sh  build-macos.sh  publish-*.{ps1,sh}
 │   ├── hub-startup.sh  init_db.sh   # VM bring-up from instance metadata
 │   ├── hub/deploy-hub.ps1|.sh       # release to the hub
+│   ├── finish-release.ps1           # steps 3-6 of a release in one run (§14)
 │   └── new-company/bootstrap.ps1  update-from-upstream.ps1
 ├── .github/workflows/               # windows-release, macos-release, sync-upstream
 ├── Start / Stop / Update Little Gerry.{bat,command}   Install Little Gerry.bat
@@ -317,6 +318,8 @@ Every release is one commit on `master` (mirrored to `dev/v1.5`) and one GitHub 
 5. **Hub deploy.** `scripts\hub\deploy-hub.ps1 -Tag X.Y.Z [-Migrate]`; confirm digest, alembic head, `health=200`.
 6. **Publish.** `gh release create vX.Y.Z installer\Output\LittleGerry_Setup.exe Trust-Little-Gerry.bat --target master --title "Little Gerry X.Y.Z" --notes-file notes.md`. `macos-release.yml` builds, signs and notarises `LittleGerry.pkg` and attaches it; `windows-release.yml` sees the exe already present and does nothing (for a fork it builds and signs instead). **Both jobs wait for approval**: Actions → the run → *Review deployments* → `release` → *Approve* — the signing secrets live in that environment (required reviewer: the owner; refs `v*` only). The dispatch must be on the tag ref.
 7. Installed copies pick the release up at next launch — after verifying the installer's signature against `brand.json` (`windows.cert_thumbprints` / `macos.team_ids`; docs/AUTO_UPDATE.md "The signature gate"). A new signing certificate goes into that list one release *before* it is first used.
+
+**Steps 3 to 6 in one run:** `scripts\finish-release.ps1 [-CheckOnly] [-Migrate] [-SkipHub] [-NotesFile path]`, once the release commit is on `origin/master` and the notes are in `installer\Output\notes-X.Y.Z.md`. It compiles, signs (asks for the PFX password), and goes no further unless the installer it just built reports the version in `VERSION` and passes `update_verify.py`; then hub image, hub deploy (must report `health=200`), publish, and a download of the published installer to confirm it is the signed file. Doing these by hand has twice put the wrong file in front of the signing step or the release (the previous build signed; an unsigned build published). `-CheckOnly` runs the checks and stops. `scripts\publish-release.ps1` is the older one-step script: it makes its own version-bump commit and skips the hub, so it does not fit this process.
 
 A company fork does steps 1–2 by merging upstream and 3–6 entirely in CI: `gh release create v$(cat VERSION)` is the whole release.
 
