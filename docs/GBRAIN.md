@@ -31,7 +31,8 @@ It uses about 220 MB of memory when idle.
 ## Turn it on
 
 Run from the repository root. The names are `gcp.*` in `brand/brand.json`;
-PMI's are shown.
+PMI's are shown. Every command below uses these three variables, and they
+last only as long as the terminal window: set them again in a new one.
 
 ```powershell
 $project  = "pmi-littlegerry-hub"
@@ -44,7 +45,11 @@ builds one from a pinned commit of its `stable` branch.
 
 ```powershell
 docker buildx build --platform linux/amd64 -t $image --push gbrain
+gcloud artifacts packages list --repository littlegerry --location us-central1 --project $project
 ```
+
+The second command should now list `gbrain` beside `backend`. If it does not,
+the push did not land and the VM will have nothing to pull.
 
 **2. Create the database password.** It goes into a connection URL as it is, so
 it must be URL-safe; this makes 64 hex characters.
@@ -56,6 +61,15 @@ $tmp = New-TemporaryFile
 [IO.File]::WriteAllText($tmp, (-join ($bytes | ForEach-Object { $_.ToString('x2') })))
 gcloud secrets create gbrain-db-password --project $project --replication-policy=automatic --data-file=$tmp
 Remove-Item $tmp
+```
+
+Then let the VM read it. A hub set up by the bootstrap script already grants
+its VM every secret in the project, and this adds nothing; an older hub, PMI's
+included, grants them one by one, and without this the VM is refused.
+
+```powershell
+$vmSa = gcloud compute instances describe hub --project $project --zone $zone --format="value(serviceAccounts[0].email)"
+gcloud secrets add-iam-policy-binding gbrain-db-password --project $project --member="serviceAccount:$vmSa" --role=roles/secretmanager.secretAccessor
 ```
 
 **3. Tell the VM, and give it the current startup script.**
@@ -81,7 +95,13 @@ gcloud compute ssh hub --project $project --zone $zone --tunnel-through-iap --co
 
 The log should say `gbrain: started` and the health should reach `healthy`
 within a minute or two. If the log says `WARNING: gbrain did not start`, the
-line above it says why; the hub itself is unaffected either way.
+line above it says why; the hub itself is unaffected either way. Two causes
+are worth knowing:
+
+- `secret gbrain-db-password is missing` when the secret exists: the VM is not
+  allowed to read it. Run the grant in step 2, then step 4 again.
+- A pull error naming the `gbrain` image: it is not in the registry. Repeat
+  step 1 and check that it is listed.
 
 ## Connect Little Gerry
 
@@ -101,7 +121,10 @@ $tmp = New-TemporaryFile
 [IO.File]::WriteAllText($tmp, (Read-Host "Paste the token"))
 gcloud secrets create gbrain-mcp-token --project $project --replication-policy=automatic --data-file=$tmp
 Remove-Item $tmp
+gcloud secrets add-iam-policy-binding gbrain-mcp-token --project $project --member="serviceAccount:$vmSa" --role=roles/secretmanager.secretAccessor
 ```
+
+`$vmSa` is the VM's service account, from step 2 of "Turn it on".
 
 **3. Deploy a hub image that knows the brain.** Any release from the one that
 added `backend/routers/brain.py` on: `.\scripts\hub\deploy-hub.ps1 -Tag <version>`.
