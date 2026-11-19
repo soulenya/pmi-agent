@@ -116,6 +116,10 @@ _DEFAULTS: dict[str, Any] = {
         # Tools for the shared company brain. Off until the hub runs GBrain
         # (docs/GBRAIN.md); a brand turns it on in its brand.json.
         "company_brain": False,
+        # The hub also stores its conversations in the brain, findable by the
+        # people who can open them. Needs company_brain, and a brain switched
+        # to database-only storage first (docs/GBRAIN.md).
+        "brain_conversations": False,
     },
     "erp": {
         "providers": ["odoo"],

@@ -5,7 +5,10 @@ set -eu
 : "${GBRAIN_DATABASE_URL:?GBRAIN_DATABASE_URL is required, e.g. postgresql://gbrain:<password>@postgres:5432/gbrain?sslmode=disable}"
 
 if [ ! -f "${GBRAIN_HOME}/.gbrain/config.json" ]; then
-  gbrain init --non-interactive --no-embedding
+  # --db-only: pages live in Postgres alone. Without it GBrain also writes each
+  # page to a folder under /data and will not start if that folder is lost,
+  # and the hub backs up the database, not this volume.
+  gbrain init --non-interactive --no-embedding --db-only
 fi
 
 # The upgrade steps that follow a new GBrain version. Memory keeps working

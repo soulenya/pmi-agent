@@ -76,7 +76,8 @@
     "erp": true,
     "meetings": true,
     "hub": true,
-    "company_brain": true
+    "company_brain": true,
+    "brain_conversations": true
   },
   "erp": {
     "providers": ["odoo"],

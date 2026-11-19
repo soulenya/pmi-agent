@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -328,7 +328,13 @@ function ToolCallsSection({ toolCalls }: { toolCalls: unknown[] }) {
   );
 }
 
-export function MessageBubble({ message, compact = false }: Props) {
+// Memoised on purpose. The panes that draw the conversation also hold the text
+// box and the streaming answer, so they re-render on every keystroke and every
+// token; without this, each of those re-parsed the Markdown and re-highlighted
+// the code of every message, and typing in a long chat lagged. A message object
+// keeps its identity for as long as it is in the list, so the default
+// comparison is enough.
+export const MessageBubble = memo(function MessageBubble({ message, compact = false }: Props) {
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
 
@@ -409,4 +415,4 @@ export function MessageBubble({ message, compact = false }: Props) {
       </div>
     </div>
   );
-}
+});

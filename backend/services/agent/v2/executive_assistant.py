@@ -5,7 +5,7 @@ Handles: daily briefings, task overview, email triage, comms summary, general qu
 from __future__ import annotations
 
 from services.agent.v2.base_agent import BaseAgent
-from services.agent.brain_tools import PROMPT_GUIDE as _BRAIN_PROMPT_GUIDE
+from services.agent.brain_tools import CHATS_PROMPT_GUIDE as _BRAIN_CHATS_GUIDE, PROMPT_GUIDE as _BRAIN_PROMPT_GUIDE
 from brand import escape_braces, get_brand
 
 _B = get_brand()
@@ -49,7 +49,11 @@ including the label before it, or pass occurrence to pick one; the tool refuses 
 matches and lists them. If you damage a document, say so at once and fix it yourself.
 - Submit actions for human approval — REQUIRED for irreversible actions (request_approval)
 - Summarise pending approvals (get_pending_approvals)
-""" + (f"- {_BRAIN_PROMPT_GUIDE}\n" if _B.feature("company_brain") else "") + """
+""" + (
+    f"- {_BRAIN_PROMPT_GUIDE}{_BRAIN_CHATS_GUIDE if _B.feature('brain_conversations') else ''}\n"
+    if _B.feature("company_brain")
+    else ""
+) + """
 TOOL-USE GUIDELINES:
 1. Call tools immediately — do NOT describe what you are about to do; just do it.
 2. NEVER take irreversible real-world actions autonomously. Always use request_approval — \
@@ -152,6 +156,7 @@ _TOOLS = [
     "search_company_brain",
     "remember_in_company_brain",
     "forget_from_company_brain",
+    "save_chat_to_company_brain",
 ]
 
 

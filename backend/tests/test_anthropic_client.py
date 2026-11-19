@@ -72,3 +72,25 @@ async def test_chat_stream_kwargs_bind_to_sdk_stream_signature():
     inspect.signature(AsyncMessages.stream).bind(None, **captured)
     assert "temperature" not in captured
     assert "".join(ch.content for ch in chunks) == "ok" and chunks[-1].done
+
+
+@pytest.mark.asyncio
+async def test_the_tool_list_is_cached_at_its_last_tool_and_usage_counts_the_cache():
+    captured: dict = {}
+    two_tools = [TOOLS[0], {"type": "function", "function": {"name": "g", "description": "d", "parameters": {"type": "object", "properties": {}}}}]
+
+    async def fake_create(**kwargs):
+        captured.update(kwargs)
+        message = _final_message()
+        # A cache hit: Anthropic reports only the uncached remainder as input_tokens.
+        message.usage = SimpleNamespace(input_tokens=40, output_tokens=7, cache_read_input_tokens=25000, cache_creation_input_tokens=300)
+        return message
+
+    c = AnthropicClient(api_key="x")
+    c._client = SimpleNamespace(messages=SimpleNamespace(create=fake_create))
+    chunk = await c.chat(MESSAGES, tools=two_tools)
+
+    inspect.signature(AsyncMessages.create).bind(None, **captured)
+    assert [t.get("cache_control") for t in captured["tools"]] == [None, {"type": "ephemeral"}]
+    assert "cache_control" not in two_tools[-1] and "cache_control" not in two_tools[-1]["function"]
+    assert (chunk.input_tokens, chunk.cache_read_tokens, chunk.cache_write_tokens, chunk.output_tokens) == (25340, 25000, 300, 7)

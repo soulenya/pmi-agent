@@ -39,7 +39,7 @@ from services.agent.guardrails import (
     WRITING_STYLE_NOTE,
 )
 from services.agent.tools import TOOL_DEFINITIONS, ToolContext, artifact_links_for, dispatch_tool
-from services.agent.brain_tools import PROMPT_GUIDE as _BRAIN_PROMPT_GUIDE
+from services.agent.brain_tools import CHATS_PROMPT_GUIDE as _BRAIN_CHATS_GUIDE, PROMPT_GUIDE as _BRAIN_PROMPT_GUIDE
 from brand import escape_braces, get_brand
 from services.embeddings.service import get_embedding_service_for_db
 from services.llm.ollama import OllamaClient, OllamaError, get_ollama_client
@@ -58,7 +58,11 @@ MAX_TOOL_ROUNDS = settings.agent_max_tool_rounds
 _B = get_brand()
 
 # Only a brand that ships the company brain tools is told about them.
-_COMPANY_BRAIN_GUIDE = f"\n   - {_BRAIN_PROMPT_GUIDE}" if _B.feature("company_brain") else ""
+_COMPANY_BRAIN_GUIDE = (
+    f"\n   - {_BRAIN_PROMPT_GUIDE}{_BRAIN_CHATS_GUIDE if _B.feature('brain_conversations') else ''}"
+    if _B.feature("company_brain")
+    else ""
+)
 
 SYSTEM_PROMPT = f"""\
 You are {escape_braces(_B.identity_line)}.

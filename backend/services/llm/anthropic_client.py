@@ -99,7 +99,33 @@ class AnthropicClient:
                 "description": fn.get("description", ""),
                 "input_schema": fn.get("parameters", {"type": "object", "properties": {}}),
             })
+        if result:
+            # One cache breakpoint, on the last tool. Tools come first in
+            # Anthropic's tools -> system -> messages order, so the whole list
+            # (the largest unchanging part of an agent call, re-sent on every
+            # tool round) is read from the cache instead of processed again,
+            # whatever the system prompt and history then hold. A list below
+            # the model's minimum is simply sent as usual.
+            result[-1]["cache_control"] = {"type": "ephemeral"}
         return result
+
+    def _usage(self, usage, cached_tools: bool) -> tuple[int, int, int, int]:
+        """(prompt tokens, output tokens, read from cache, written to cache)."""
+        if not usage:
+            return 0, 0, 0, 0
+        read = getattr(usage, "cache_read_input_tokens", 0) or 0
+        written = getattr(usage, "cache_creation_input_tokens", 0) or 0
+        # With a breakpoint set, usage.input_tokens counts only what followed
+        # it; the prompt's real size is all three together.
+        prompt = (usage.input_tokens or 0) + read + written
+        output = usage.output_tokens or 0
+        if cached_tools:
+            # The only way to tell a cache hit from a miss.
+            logger.info(
+                "anthropic %s: prompt=%d (cache read=%d, cache write=%d) output=%d",
+                self._model, prompt, read, written, output,
+            )
+        return prompt, output, read, written
 
     async def chat_stream(
         self,
@@ -120,8 +146,7 @@ class AnthropicClient:
             kwargs["tools"] = self._convert_tools(tools)
 
         tool_calls: list[dict] = []
-        input_tokens = 0
-        output_tokens = 0
+        usage = (0, 0, 0, 0)
 
         async with self._client.messages.stream(**kwargs) as stream:
             # stream.text_stream is the SDK's reliable way to get text tokens.
@@ -136,9 +161,7 @@ class AnthropicClient:
             # get_final_message() waits for the stream to complete and returns
             # the full Message object including all tool_use blocks.
             final = await stream.get_final_message()
-            if final.usage:
-                input_tokens = final.usage.input_tokens
-                output_tokens = final.usage.output_tokens
+            usage = self._usage(final.usage, bool(tools))
 
             for block in final.content:
                 if block.type == "tool_use":
@@ -155,8 +178,10 @@ class AnthropicClient:
             tool_calls=tool_calls,
             done=True,
             model=self._model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
+            input_tokens=usage[0],
+            output_tokens=usage[1],
+            cache_read_tokens=usage[2],
+            cache_write_tokens=usage[3],
         )
 
     async def chat(
@@ -193,14 +218,17 @@ class AnthropicClient:
                     }
                 })
 
+        usage = self._usage(resp.usage, bool(tools))
         return StreamChunk(
             content=content,
             tool_calls=tool_calls,
             done=True,
             model=self._model,
-            input_tokens=resp.usage.input_tokens if resp.usage else 0,
-            output_tokens=resp.usage.output_tokens if resp.usage else 0,
+            input_tokens=usage[0],
+            output_tokens=usage[1],
             stop_reason=getattr(resp, "stop_reason", "") or "",
+            cache_read_tokens=usage[2],
+            cache_write_tokens=usage[3],
         )
 
     async def is_available(self) -> bool:

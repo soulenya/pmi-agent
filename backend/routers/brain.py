@@ -7,13 +7,17 @@ is taken from this session, never from the request body.
 
 from __future__ import annotations
 
+import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from database import get_db
 from dependencies import get_current_user
 from models.db.user import User
+from services import brain_conversations as conversations
 from services import company_brain as svc
 
 router = APIRouter(prefix="/brain", tags=["brain"])
@@ -47,11 +51,34 @@ def _refused(exc: svc.BrainError) -> HTTPException:
 
 
 @router.post("/recall")
-async def recall(body: RecallIn, current_user: User = Depends(get_current_user)) -> dict:
+async def recall(
+    body: RecallIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
     try:
-        return await svc.recall(body.question, subject=body.subject, limit=body.limit)
+        # Facts are the company's; any stored chats that come back are only
+        # ones this caller could open on the hub.
+        return await conversations.recall_for_person(
+            db, current_user.id, body.question, subject=body.subject, limit=body.limit
+        )
     except svc.BrainError as exc:
         raise _refused(exc) from exc
+
+
+@router.post("/conversations/{conv_id}/archive")
+async def archive_conversation(
+    conv_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Store a hub conversation in the brain now, rather than when it next goes quiet."""
+    try:
+        stored = await conversations.save_now_for(db, current_user.id, conv_id)
+    except svc.BrainError as exc:
+        raise _refused(exc) from exc
+    await db.commit()
+    return {"conversation_id": str(conv_id), "messages": stored}
 
 
 @router.post("/remember")

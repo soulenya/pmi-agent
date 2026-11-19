@@ -70,6 +70,22 @@ async def execute_forget_from_company_brain(ctx: Any, args: dict[str, Any]) -> s
     return f"The company brain did not confirm that fact #{gone.get('id')} was withdrawn."
 
 
+async def execute_save_chat_to_company_brain(ctx: Any, args: dict[str, Any]) -> str:
+    from services import brain_conversations
+
+    try:
+        stored = await brain_conversations.save_now_for(ctx.db, ctx.user_id, ctx.conversation_id)
+    except svc.BrainError as exc:
+        return f"Error: {exc}"
+    if not stored:
+        return "There is nothing in this chat to store yet."
+    return (
+        f"This chat is stored in the company brain ({stored} message(s) so far). Only people who "
+        "can open this chat can find it there. What is said from here on follows by itself, a "
+        "few minutes after the chat goes quiet."
+    )
+
+
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
@@ -179,12 +195,30 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_chat_to_company_brain",
+            "description": (
+                "Store THIS chat in the company brain now, so it can be found later by what was "
+                "said in it. Chats kept on the hub are stored there by themselves a few minutes "
+                "after they go quiet; use this only when the user asks to save or file this chat "
+                "in the brain right away. A stored chat is not company-wide: only people who can "
+                "already open the chat can find it. It does not shorten or speed up the chat."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
 ]
+
+# Tools that also need the brand's brain_conversations feature.
+CONVERSATION_TOOLS = {"save_chat_to_company_brain"}
 
 TOOL_EXECUTORS = {
     "search_company_brain": execute_search_company_brain,
     "remember_in_company_brain": execute_remember_in_company_brain,
     "forget_from_company_brain": execute_forget_from_company_brain,
+    "save_chat_to_company_brain": execute_save_chat_to_company_brain,
 }
 
 PRIMARY_ARGS = {
@@ -197,6 +231,7 @@ RUNNING_LABELS = {
     "search_company_brain": "Checking the company brain…",
     "remember_in_company_brain": "Recording in the company brain…",
     "forget_from_company_brain": "Withdrawing from the company brain…",
+    "save_chat_to_company_brain": "Storing this chat in the company brain…",
 }
 
 TOOL_DOCS = {
@@ -223,6 +258,12 @@ TOOL_DOCS = {
         "remove or retract it; to correct one, use remember_in_company_brain with 'replaces'. "
         "JSON: {\"fact_id\": str}."
     ),
+    "save_chat_to_company_brain": (
+        "Store THIS chat in the company brain now so it can be found later by what was said. "
+        "Hub chats are stored by themselves once quiet; use only when the user asks to save or "
+        "file this chat in the brain right away. Only people who can open the chat can find it. "
+        "No arguments."
+    ),
 }
 
 # The line each engine adds to its prompt when a brand ships these tools.
@@ -232,4 +273,11 @@ PROMPT_GUIDE = (
     "Record in it (remember_in_company_brain) only when the user explicitly asks to record "
     "something for the company or the team; \"remember\" or \"note that\" on its own is "
     "still a private note (save_note)."
+)
+
+# Added to it when the brand also keeps conversations in the brain.
+CHATS_PROMPT_GUIDE = (
+    " search_company_brain also returns passages from the user's own past chats and their "
+    "projects' chats, so use it for \"what did we say about…\" as well; those are theirs to "
+    "see, not the whole company's."
 )

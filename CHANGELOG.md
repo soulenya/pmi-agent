@@ -4,6 +4,75 @@
 
 ## Changelog
 
+### v5.35.0 · build 321 — 2026-11-18
+**Typing in long chats fixed; conversations stored in the brain; tool list cached**
+
+- **Typing lag.** `ConversationPane` (Gerry's side panel and a project's Chat
+  tab) keeps the text box's state beside the message list, and
+  `MessageBubble` was not memoised, so every key press, and every streamed
+  token, ran Markdown and syntax highlighting again for every message in the
+  chat. `MessageBubble` is now `memo`'d; message objects keep their identity
+  between renders, so the default comparison is enough. Measured in a browser
+  on a 200-message chat with the real component: one key press went from
+  283 ms to 2.7 ms under `StrictMode` in a development build, which is how the
+  desktop app runs, and from 168 ms to 0.3 ms without `StrictMode`. Not
+  measured inside the installed app. The main Chat page already used an
+  uncontrolled text box and was not affected by typing; its once-a-second
+  "elapsed" tick no longer redraws the list either.
+- **Conversations in the brain** (`features.brain_conversations`, now `true`
+  in PMI's `brand/brand.json`; default `false`). The hub writes each
+  conversation it holds to GBrain as a page `conversations/<id>` about ten
+  minutes after it goes quiet (`_brain_conversations_loop`, every five
+  minutes, twenty per pass), tracked in `brain_conversation_archives`
+  (**migration 053**: deploy the hub with `-Migrate`). `save_chat_to_company_brain`
+  does it on request for a chat that is not on the hub yet. A stored chat is
+  not company-wide: a search asks GBrain only for pages tagged with a scope
+  the caller holds and then checks every hit with `conversation_for`, and the
+  company-wide recall drops conversation pages altogether. It is a copy for
+  search; it does not shorten or speed up a chat, and nothing was built on the
+  idea that it would.
+- **The brain must be database-only first, and the hub now checks.** A brain
+  created by the 5.33.0 image (PMI's) registers a content folder in its
+  volume, writes pages there too, and will not start without it; the backup
+  covers the database only. `gbrain init --db-only --force` does not convert
+  such a brain ("cannot detach an existing canonical source root"), which the
+  runbook on the feature branch wrongly said it would. `gbrain/entrypoint.sh`
+  now creates a brain with `--db-only`; an existing one has to be created
+  again, which `scripts/hub/recreate-gbrain.ps1` does in checked, re-runnable
+  steps (`docs/GBRAIN.md` › Conversations in the brain › Turning it on; PMI's
+  holds 0 facts and 0 pages as of this release, checked read-only).
+  `company_brain.stores_pages_in_database()` asks GBrain for its sources, and
+  the hub refuses to store a conversation, with the reason in the log, until
+  every one has no folder; `put_page` also rejects a write GBrain reports as
+  anything but `database`. Getting the order wrong therefore stores nothing
+  rather than something that cannot be restored.
+- **Prompt caching for the tool list** (`services/llm/anthropic_client.py`):
+  `cache_control` on the last tool, so the 95 tool definitions (about 35,000
+  tokens) are read from Anthropic's cache after the first call of a
+  conversation instead of being billed in full every call. It is a cost
+  change: time to the first token moved from about 1.7 s to about 1.3 s, and
+  how long an answer takes still follows how long the answer is. Usage records
+  now carry cache reads and writes. The newer agent engine calls
+  `ChatAnthropic` directly and is not covered.
+- Verified: 321 passing, including the contract tests against a running
+  GBrain 0.60.734.0 created database-only by the new entrypoint (write, search
+  by scope, update, remove; the storage check). Rehearsed by hand on that
+  brain: the refused conversion, and a database-only brain coming back with
+  its page and token after its volume is deleted. `recreate-gbrain.ps1` was
+  run under PowerShell 7 and Windows PowerShell 5.1 against a stand-in hub on
+  this computer (a real GBrain created by the 5.33.0 image and provisioned by
+  `provision_gbrain_db`, with stand-ins for gcloud and the bring-up): the full
+  run, a second run that does nothing, a brain holding a fact (refused, then
+  discarded on request), a failure storing the token and the run that resumes
+  from it; its `-CheckOnly` was run against PMI's hub. It has not recreated
+  PMI's brain; that is the first step of turning this on. The brand probe
+  against 5.34.0 shows exactly the new tool and
+  one prompt line in each of the two prompts that mention the brain. Not
+  verified: storing conversations on PMI's hub (it has not run there), and a
+  real model choosing when to search past chats.
+- `USER_GUIDE.md` › The company brain › Finding something said in an earlier
+  chat. `docs/GBRAIN.md`, `DEVELOPER_GUIDE.md` §10.
+
 ### v5.34.0 · build 320 — 2026-11-18
 **The company brain is on**
 

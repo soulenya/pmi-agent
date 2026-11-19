@@ -44,7 +44,7 @@ class StreamChunk:
     """One chunk from a streaming response."""
     __slots__ = (
         "content", "tool_calls", "done", "model", "input_tokens", "output_tokens",
-        "stop_reason",
+        "stop_reason", "cache_read_tokens", "cache_write_tokens",
     )
 
     def __init__(
@@ -56,6 +56,8 @@ class StreamChunk:
         input_tokens: int = 0,
         output_tokens: int = 0,
         stop_reason: str = "",
+        cache_read_tokens: int = 0,
+        cache_write_tokens: int = 0,
     ) -> None:
         self.content = content
         self.tool_calls = tool_calls or []
@@ -65,6 +67,10 @@ class StreamChunk:
         self.output_tokens = output_tokens
         # "max_tokens" here means the reply was cut off mid-output, not finished.
         self.stop_reason = stop_reason
+        # How much of input_tokens the provider read from, or wrote to, its
+        # prompt cache. Both 0 where the provider has none.
+        self.cache_read_tokens = cache_read_tokens
+        self.cache_write_tokens = cache_write_tokens
 
 
 # ── Text-based tool-call helpers ──────────────────────────────────────────────

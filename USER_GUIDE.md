@@ -289,6 +289,16 @@ Three things to know before you use it:
 - **It needs the hub.** The brain lives on the hub, so this computer has to be connected to it (Settings → Connections). If it is not, Gerry says so.
 - **It searches by keyword for now.** If she finds nothing, try the words the fact would have used before concluding it was never recorded.
 
+#### Finding something said in an earlier chat
+
+The brain also keeps a searchable copy of your chats, so you can ask **"what did we say about the gasket drawing?"** and Gerry finds the passage and tells you which chat it came from.
+
+- **It happens by itself when this computer is connected to the hub.** A chat is copied about ten minutes after it goes quiet, and again when you add to it. Project chats are copied the same way. Chats from before this was switched on are worked through gradually, so an old one may take a while to appear.
+- **For any other chat, ask:** **"save this chat to the company brain"** stores it straight away.
+- **A stored chat is not company-wide.** Unlike a recorded fact, it is shown only to people who could open the chat anyway: you, for your own chats; the project's members, for a project chat. Nobody else's Gerry can find it.
+- **Deleting a chat removes its copy** within a few minutes.
+- **It does not make anything faster.** The chat stays where it is and opens as before; the copy exists so it can be found. Gerry shows one passage from each of up to three chats, so ask again more specifically if the one you want is not among them.
+
 ### What Little Gerry can do automatically
 
 When Google is connected, Little Gerry calls the appropriate tool immediately — she doesn't just describe what she's about to do:

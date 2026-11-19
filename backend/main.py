@@ -567,6 +567,30 @@ async def _hub_conversation_backup_loop() -> None:
 
 # ── Background model-catalog refresh loop ───────────────────────────────────────
 
+async def _brain_conversations_loop() -> None:
+    """On a hub that keeps conversations in the company brain: every few minutes,
+    write the pages of conversations that have changed and gone quiet, and remove
+    the pages of conversations that were deleted. A copy for search; the
+    conversations themselves are untouched."""
+    from services import brain_conversations, company_brain
+
+    if not settings.hub_mode:
+        return
+    while True:
+        await asyncio.sleep(300)
+        if not brain_conversations.enabled():
+            continue
+        try:
+            async for db in get_db():
+                written, removed = await brain_conversations.run_once(db)
+                if written or removed:
+                    logger.info("Company brain: %d conversation(s) stored, %d removed", written, removed)
+        except company_brain.BrainError as exc:
+            logger.warning("Company brain conversation pass stopped: %s", exc)
+        except Exception:
+            logger.exception("Company brain conversation loop error")
+
+
 async def _model_catalog_loop() -> None:
     """Keep the LLM model catalog fresh (refreshed when older than a week).
 
@@ -727,6 +751,7 @@ async def lifespan(app: FastAPI):
     company_ctx_task = asyncio.create_task(_company_context_sync_once())
     hub_client_task = asyncio.create_task(_hub_client_fetch_once())
     chat_backfill_task = asyncio.create_task(_hub_chat_backfill_once())
+    brain_conv_task = asyncio.create_task(_brain_conversations_loop())
     yield
     bg_task.cancel()
     drive_task.cancel()
@@ -740,7 +765,8 @@ async def lifespan(app: FastAPI):
     company_ctx_task.cancel()
     hub_client_task.cancel()
     chat_backfill_task.cancel()
-    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, gmail_task, company_ctx_task, hub_client_task, chat_backfill_task):
+    brain_conv_task.cancel()
+    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, gmail_task, company_ctx_task, hub_client_task, chat_backfill_task, brain_conv_task):
         try:
             await _t
         except asyncio.CancelledError:

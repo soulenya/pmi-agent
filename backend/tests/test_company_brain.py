@@ -14,6 +14,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.db.user import User
+from services import brain_conversations as conv
 from services import company_brain as svc
 from services.agent.brain_tools import (
     execute_forget_from_company_brain,
@@ -70,6 +71,9 @@ def _on_the_hub(monkeypatch, replies: dict[str, dict]) -> list[tuple[str, dict]]
     """This process can reach GBrain; ``replies`` is what each tool answers."""
     monkeypatch.setattr(svc.settings, "gbrain_mcp_url", "http://gbrain.test/mcp")
     monkeypatch.setattr(svc.settings, "gbrain_mcp_token", "gbrain_test_token")
+    # Facts only here, whichever way the brand has stored chats; those are
+    # covered in test_brain_conversations.py.
+    monkeypatch.setattr(conv, "enabled", lambda: False)
     calls: list[tuple[str, dict]] = []
 
     async def fake_call(tool: str, arguments: dict):

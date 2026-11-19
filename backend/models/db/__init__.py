@@ -4,6 +4,7 @@ from models.db.approval import ApprovalIntent
 from models.db.assistant import AssistantSuggestion
 from models.db.audit import AuditEvent
 from models.db.base import Base
+from models.db.brain_archive import BrainConversationArchive
 from models.db.briefing import Briefing
 from models.db.browser import BrowserBookmark
 from models.db.budget import Budget, BudgetFolder, BudgetReference
@@ -50,6 +51,7 @@ __all__ = [
     "AgentRun",
     "Message",
     "ConversationAttachment",
+    "BrainConversationArchive",
     "ApprovalIntent",
     "Project",
     "ProjectItemCustody",

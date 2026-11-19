@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 320;
+export const BUILD_NUMBER = 321;
 export const BUILD_DATE = "2026-11-18";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 321,
+    date: "2026-11-18",
+    title: "Typing in long chats is quick again; past chats can be found",
+    changes: [
+      "Fixed: typing in Gerry's side panel or a project's Chat tab got slower the longer the chat was, because every key press redrew every message. It no longer does. Answers arriving in a long chat redraw less too.",
+      "Gerry can now find things said in earlier chats: ask \"what did we say about…?\". Chats are copied to the company brain automatically when this computer is connected to the hub, about ten minutes after they go quiet. For a chat that is not on the hub, say \"save this chat to the company brain\".",
+      "A stored chat is only ever shown to people who could open it anyway: you, or the members of its project. It is not shared with the company the way a recorded fact is.",
+      "This is for finding things, not for speed: a stored chat stays where it is and loads as before.",
+    ],
+  },
   {
     build: 320,
     date: "2026-11-18",

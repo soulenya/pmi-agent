@@ -8239,6 +8239,8 @@ _FEATURE_TOOLS = {
     "regulatory": {"get_regulatory_status"},
     "erp": {"read_odoo", "propose_odoo_write", "compare_budget_to_odoo"},
     "company_brain": set(_brain_tools.TOOL_EXECUTORS),
+    # Needs both: the brain, and conversations being kept in it.
+    "brain_conversations": set(_brain_tools.CONVERSATION_TOOLS),
 }
 # A brand whose ERP is not Odoo advertises the generic names; the Odoo names
 # stay dispatchable for old conversation histories. PMI keeps the Odoo names.
