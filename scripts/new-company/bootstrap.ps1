@@ -237,6 +237,9 @@ $features = @{
 foreach ($f in @("regulatory", "qms_agent", "investor_relations")) {
     $features[$f] = ((Ask "feature_$f" "Enable $f? (y/n)" "n") -match '^y')
 }
+# New people open on a popup of connections to set up, each explained and done
+# in the app (keys included), instead of the long first-use wizard.
+$features["setup_guide"] = ((Ask feature_setup_guide "Open on the in-app setup guide for new people? (y/n)" "y") -match '^y')
 $appId = Ask windows_app_id "Windows AppId GUID (blank = generate)" "" -Pattern '^\{?[0-9A-Fa-f-]{36}\}?$' -Hint "{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}"
 if (-not $appId) { $appId = "{" + ([guid]::NewGuid().ToString().ToUpper()) + "}" }
 # Reverse-DNS of the first sign-in domain: acme.co -> co.acme.littlegerry
@@ -506,11 +509,11 @@ function AskKey([string]$key, [string]$prompt, [string]$pattern, [string]$hint) 
     $v = Ask $key "$prompt (blank to skip)" -Secret -Pattern $pattern -Hint $hint
     if ($v) { AddVersion $key.Replace('_', '-') $v; Ok "$($key.Replace('_', '-')) set" }
 }
-AskKey anthropic_api_key "Anthropic API key for the hub" '^sk-ant-[A-Za-z0-9_-]{20,}$' "starts with sk-ant-"
-AskKey voyage_api_key "Voyage API key for the hub" '^pa-[A-Za-z0-9_-]{20,}$' "starts with pa-"
-AskKey google_api_key "Google API key (Speech/TTS) for the hub" '^AIza[A-Za-z0-9_-]{30,}$' "starts with AIza"
+AskKey anthropic_api_key "Anthropic API key for the hub (blank: the administrator adds it later in the app's setup guide)" '^sk-ant-[A-Za-z0-9_-]{20,}$' "starts with sk-ant-"
+AskKey voyage_api_key "Voyage API key for the hub (blank: added later in the app)" '^pa-[A-Za-z0-9_-]{20,}$' "starts with pa-"
+AskKey google_api_key "Google API key (Speech/TTS) for the hub (blank: added later in the app)" '^AIza[A-Za-z0-9_-]{30,}$' "starts with AIza"
 if ($webClientJson) { AddVersion "google-oauth-client" $webClientJson }
-$vapidPub = Ask vapid_public_key "VAPID public key (from: python3 -m py_vapid --gen; blank to skip push)" "" -Pattern '^[A-Za-z0-9_-]{80,100}$' -Hint "87 urlsafe-base64 characters"
+$vapidPub = Ask vapid_public_key "VAPID public key (blank: the hub makes its own pair on first start)" "" -Pattern '^[A-Za-z0-9_-]{80,100}$' -Hint "87 urlsafe-base64 characters"
 if ($vapidPub) { AddVersion "vapid-public-key" $vapidPub; AddVersion "vapid-private-key" (Ask vapid_private_key "VAPID private key" -Secret -Pattern '^[A-Za-z0-9_-]{40,50}$' -Hint "43 urlsafe-base64 characters") }
 
 # Hub backup bucket + VM service account roles

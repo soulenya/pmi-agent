@@ -5,6 +5,7 @@ import { BUILD_NUMBER } from "@/version";
 import { resolveGuide, type ResolvedGuide } from "@/lib/featureGuide";
 import { useFeatureGuideStore } from "@/stores/featureGuideStore";
 import { useBootPopupStore } from "@/stores/bootPopupStore";
+import { useSetupGuideStore } from "@/stores/setupGuideStore";
 import { getClientState, setClientState } from "@/api/settings";
 
 const SEEN_KEY = "featureGuide.seenBuilds";
@@ -40,6 +41,7 @@ export function FeatureGuideModal() {
   seenRef.current = seen;
 
   const phase = useBootPopupStore((s) => s.phase);
+  const setupGuideUp = useSetupGuideStore((s) => s.blocking);
   const requestedId = useFeatureGuideStore((s) => s.requestedId);
   const clearRequest = useFeatureGuideStore((s) => s.clear);
 
@@ -74,9 +76,10 @@ export function FeatureGuideModal() {
   }
 
   // Auto-open once per build the first time you enter each section. Waits until
-  // the "What's New" popup has finished (boot phase "done") so they don't stack.
+  // the "What's New" popup has finished (boot phase "done") so they don't stack,
+  // and for the setup guide where a brand opens on one.
   useEffect(() => {
-    if (phase !== "done") return;
+    if (phase !== "done" || setupGuideUp) return;
     if (seen === null) return; // still loading the seen-map
 
     const guide = resolveGuide(location.pathname);
@@ -85,7 +88,7 @@ export function FeatureGuideModal() {
 
     markSeen(guide.id);
     setActive(guide);
-  }, [location.pathname, phase, seen]);
+  }, [location.pathname, phase, seen, setupGuideUp]);
 
   // Manual open from the Help button — always shows the current section.
   useEffect(() => {

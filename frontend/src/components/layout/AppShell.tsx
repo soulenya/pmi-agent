@@ -5,6 +5,7 @@ import { StatusBar } from "./StatusBar";
 import { ChatSidebar } from "./ChatSidebar";
 import { WhatsNewModal } from "./WhatsNewModal";
 import { FeatureGuideModal } from "./FeatureGuideModal";
+import { SetupGuideModal } from "@/components/setup/SetupGuide";
 import { MoveToHubPrompt } from "@/components/hub/MoveToHubPrompt";
 import { HubOfflineBar } from "@/components/hub/HubOfflineBar";
 import { useNotificationWS } from "@/hooks/useNotificationWS";
@@ -118,6 +119,7 @@ export function AppShell() {
       <SystemNoticesBanner />
       <WhatsNewModal />
       <FeatureGuideModal />
+      <SetupGuideModal />
       <MoveToHubPrompt />
       <Toaster />
     </>

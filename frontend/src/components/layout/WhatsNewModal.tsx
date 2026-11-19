@@ -3,6 +3,7 @@ import { Sparkles, X } from "lucide-react";
 import { BUILD_NUMBER, BUILD_DATE, CHANGELOG } from "@/version";
 import type { ChangelogEntry } from "@/version";
 import { getClientState, setClientState } from "@/api/settings";
+import { hasOptInFeature } from "@/lib/brand";
 import { useBootPopupStore } from "@/stores/bootPopupStore";
 
 declare global {
@@ -82,6 +83,13 @@ export function WhatsNewModal() {
       // localStorage — which is also what an installer update looks like, since
       // it wipes the webview's storage) we show just the latest entry as a
       // welcome; otherwise we list every build the user hasn't acknowledged.
+      // A brand that opens on the setup guide skips that welcome: the guide is
+      // the first thing its people see, and the two would stack.
+      if (lastSeen === null && hasOptInFeature("setup_guide")) {
+        if (backendOk) void setClientState(LAST_SEEN_KEY, BUILD_NUMBER).catch(() => {});
+        setPhase("done");
+        return;
+      }
       const unseen =
         lastSeen === null
           ? CHANGELOG.slice(0, 1)

@@ -210,15 +210,19 @@ async def update_settings(
         if new_dim != current_dim:
             await _set_setting(db, "llm.kb_needs_reindex", "true", current_user.id)
 
-    # Store API keys in OS keyring (never persisted to DB)
-    if body.openai_api_key:
-        app_settings.set_api_key("openai", body.openai_api_key)
-    if body.anthropic_api_key:
-        app_settings.set_api_key("anthropic", body.anthropic_api_key)
-    if body.voyage_api_key:
-        app_settings.set_api_key("voyage", body.voyage_api_key)
-    if body.google_api_key:
-        app_settings.set_api_key("google", body.google_api_key)
+    # Keys go where this kind of install keeps them: the OS keyring on a
+    # desktop, the encrypted store on a hub (administrators only). Never in
+    # system_settings.
+    from services.secret_store import save_api_key
+
+    for provider, key in (
+        ("openai", body.openai_api_key),
+        ("anthropic", body.anthropic_api_key),
+        ("voyage", body.voyage_api_key),
+        ("google", body.google_api_key),
+    ):
+        if key:
+            await save_api_key(db, current_user, provider, key)
 
     await db.commit()
 
@@ -251,10 +255,14 @@ class TestConnectionResponse(BaseModel):
 @router.put("/api-key", status_code=status.HTTP_204_NO_CONTENT)
 async def set_api_key(
     body: ApiKeyRequest,
-    _user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> None:
-    """Store a cloud LLM API key in the OS keyring."""
-    app_settings.set_api_key(body.provider, body.api_key)
+    """Store a cloud LLM API key (keyring on a desktop; administrators only on a hub)."""
+    from services.secret_store import save_api_key
+
+    await save_api_key(db, current_user, body.provider, body.api_key)
+    await db.commit()
 
 
 @router.post("/test-connection", response_model=TestConnectionResponse)
@@ -595,6 +603,10 @@ async def system_notices(
     #    half of the app is on the person's own computer - say so once, or the
     #    missing budgets and knowledge base read as breakage.
     if app_settings.hub_mode:
+        from brand import get_brand
+
+        # Only a brand whose ERP is Odoo has an Odoo page to send people to.
+        uses_odoo = (get_brand().raw.get("erp") or {}).get("default", "odoo") == "odoo"
         notices.append({
             "id": "on_hub",
             "severity": "info",
@@ -604,7 +616,11 @@ async def system_notices(
                 "Conversations from your own computer arrive as it carries them up; "
                 "its knowledge base does not. "
                 "Connect your Google account under Settings to use Drive, Gmail and Calendar "
-                "from here, and paste your Odoo API key on the Odoo page to see the bank balance."
+                + (
+                    "from here, and paste your Odoo API key on the Odoo page to see the bank balance."
+                    if uses_odoo
+                    else "from here."
+                )
             ),
             "route": "/settings?tab=connections",
         })

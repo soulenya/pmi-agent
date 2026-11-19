@@ -4,6 +4,55 @@
 
 ## Changelog
 
+### v5.36.0 · build 322 — 2026-11-19
+**A setup guide in the app for a company that sets itself up; a hub's administrator can save keys in the web app. PMI unchanged**
+
+- **Setup guide** (`features.setup_guide`, default off; PMI's `brand.json`
+  does not set it). For a brand that has it, the first thing a new person
+  sees is a popup, "Would you like to...", listing Google Workspace, Gmail,
+  the AI service, search by meaning, voice, notifications and Settings. Each
+  opens to what it is, why it is there, what is gained, what it costs and
+  what comes with it, followed by the steps and the action itself (connect
+  Google, paste and test a key, choose the provider, turn notifications on).
+  "Finish later" brings it back next time; "Don't show this again" is kept
+  per person (`GET/PUT /setup-guide`); it stays under the person's name in
+  the menu. It replaces the linear first-use wizard for that brand, the
+  first-run "What's New" is skipped and the per-page feature guide waits, so
+  nothing stacks under it. Costs are described by how they are charged and
+  where to cap them, with no figures. Jobber and Google's Gemini are not in
+  it: neither integration exists yet.
+- **Keys saved in the app on a hub** (`services/secret_store.py`, table
+  `app_secrets`, **migration 054**: deploy the hub with `-Migrate`). The hub
+  has no keyring, so its provider keys could only come from Secret Manager,
+  and saving one in the web app failed. An administrator can now paste one;
+  it is Fernet-encrypted at rest and read after the environment and the
+  keyring, so a hub with keys in Secret Manager (PMI's) and every desktop
+  behave as before. On a hub only an administrator may set a key; a member's
+  attempt is refused with 403.
+- **A hub makes its own Web Push key pair** when the environment supplies
+  none, once, and keeps it in the same table. PMI's comes from Secret
+  Manager and is untouched.
+- `bootstrap.ps1` asks whether to turn the guide on (default yes) and says
+  the three provider keys and the push keys may be left blank.
+- Fixed for other brands: the "You're on the hub" notice told people to
+  paste an Odoo key on a hub whose ERP is not Odoo.
+- Verified: 325 passing; the two live GBrain contract tests were skipped
+  (no brain was running; nothing in them changed). 6 new: an administrator's
+  key is stored encrypted and used; a member is refused; a server key wins;
+  a desktop still uses the keyring; the guide is put away per person; a
+  generated push pair signs.
+  Migration 054 applied to a real Postgres and rolled back. End to end in a
+  browser against this backend in hub mode with a test brand: the guide
+  opens first and alone, a key saved in it is used and a wrong one says so,
+  a member sees the company items as done or waiting with no key box, it
+  fits a phone, the menu reopens it, and after "Don't show this again" it
+  does not come back. The brand probe against 5.35.0 shows no differences
+  for PMI. Not verified: Google's sign-in from the guide (the test server
+  had no OAuth client, so it showed the "not set up on this server" text),
+  turning notifications on (the test browser blocks them), and any of it on
+  a real company's hub.
+- `USER_GUIDE.md` › The setup guide; `DEVELOPER_GUIDE.md` §4.
+
 ### v5.35.0 · build 321 — 2026-11-18
 **Typing in long chats fixed; conversations stored in the brain; tool list cached**
 

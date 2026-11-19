@@ -119,6 +119,8 @@ Everyone runs their own copy of Little Gerry, so each install keeps its own loca
 
 The first time you sign in, Little Gerry walks you through everything it needs. You can skip any step and come back to it later in Settings. It covers:
 
+> **If your company's copy opens on a "Would you like to..." list instead**, that is the same setup in a different shape, used by companies that set themselves up from the web app. Each line is one connection (Google Workspace, Gmail, the AI service, search by meaning, voice, notifications, and a way into Settings). Open one and it tells you what it is, why it is there, what you gain, what it costs and what comes with it, then gives the steps and does the connecting right there. Do them in any order. **Finish later** closes it until next time; tick **Don't show this again** when you are done. It is always under your name in the menu as **Setup guide**. On the company's shared server the keys for the AI service, search and voice are set once by an administrator for everyone; other people see whether that has been done.
+
 1. **Welcome** and **How it works** — what the background pieces the installer set up are for.
 2. **Restore** — if you are moving from another computer, load your `.lgbackup` file here and everything comes back before you set anything else up. See [Backup & Restore](#backup--restore).
 3. **Claude** and **Voyage** — the two API keys described below.

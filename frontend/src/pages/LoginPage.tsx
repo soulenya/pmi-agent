@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { googleInitiate, googlePoll, getCredentialsStatus, fetchCredentials, uploadCredentials, getAuthMode, iapLogin } from "@/api/auth";
 import type { CredentialsStatus } from "@/api/auth";
-import { BRAND } from "@/lib/brand";
+import { BRAND, hasOptInFeature } from "@/lib/brand";
+import { completeOnboarding } from "@/api/settings";
 import { loadDesign } from "@/lib/designTokens";
 import { logoUrl } from "@/api/design";
 import type { User } from "@/types";
@@ -96,6 +97,13 @@ export function LoginPage() {
     // steps — whenever the wizard has gained steps since this user saw it.
     const seenVersion = user.onboarding_version ?? 0;
     if (!user.onboarding_complete || seenVersion < ONBOARDING_VERSION) {
+      if (hasOptInFeature("setup_guide")) {
+        // This brand opens on the setup guide (a popup over the app, put
+        // away when the person chooses) instead of the step-by-step wizard.
+        void completeOnboarding().catch(() => undefined);
+        navigate("/");
+        return;
+      }
       setWizardVersion(user.onboarding_complete ? seenVersion : 0);
       setShowSetup(true);
       return;

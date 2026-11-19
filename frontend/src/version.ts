@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 321;
-export const BUILD_DATE = "2026-11-18";
+export const BUILD_NUMBER = 322;
+export const BUILD_DATE = "2026-11-19";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 322,
+    date: "2026-11-19",
+    title: "A setup guide for companies setting themselves up",
+    changes: [
+      "Behind the scenes: companies that run their own copy of Little Gerry can now open on a setup guide that explains each connection (what it is, what it costs, how to do it) and lets them finish setup inside the app. Nothing changes for you.",
+    ],
+  },
   {
     build: 321,
     date: "2026-11-18",

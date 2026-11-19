@@ -120,6 +120,11 @@ _DEFAULTS: dict[str, Any] = {
         # people who can open them. Needs company_brain, and a brain switched
         # to database-only storage first (docs/GBRAIN.md).
         "brain_conversations": False,
+        # Off by default. Instead of the step-by-step first-use wizard, the
+        # first thing a new person sees is a "Would you like to..." popup of
+        # connections to set up, each explained (what, why, cost, how). For a
+        # company that sets itself up from the web app.
+        "setup_guide": False,
     },
     "erp": {
         "providers": ["odoo"],

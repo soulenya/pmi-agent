@@ -3,7 +3,8 @@ Application settings — reads from environment variables / .env file.
 
 Secrets (JWT, Fernet, provider API keys) come from the OS keyring on desktop
 installs. The hub has no keyring, so each one falls back to an environment
-variable populated from Secret Manager.
+variable populated from Secret Manager; a provider API key may also be one
+its administrator saved in the web app (services/secret_store.py).
 """
 
 from __future__ import annotations
@@ -276,11 +277,18 @@ class Settings(BaseSettings):
         return value
 
     def get_api_key(self, provider: str) -> str | None:
-        """Provider API key, e.g. ANTHROPIC_API_KEY then keyring."""
+        """Provider API key: environment, then the OS keyring, then one saved in the app."""
         env = os.environ.get(f"{provider.upper()}_API_KEY")
         if env:
             return env
-        return _keyring_get(f"{provider}_api_key")
+        value = _keyring_get(f"{provider}_api_key")
+        if value:
+            return value
+        # A hub has no keyring; its administrator may have entered the key in
+        # the web app (services/secret_store.py).
+        from services import secret_store
+
+        return secret_store.get(f"{provider}_api_key")
 
     def set_api_key(self, provider: str, key: str) -> None:
         """Store a cloud provider API key in the OS keyring."""

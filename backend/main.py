@@ -67,6 +67,7 @@ from routers.scheduled_tasks import router as scheduled_tasks_router
 from routers.voice import router as voice_router
 from routers.writing_voice import router as writing_voice_router
 from routers.push import router as push_router
+from routers.setup_guide import router as setup_guide_router
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -729,6 +730,17 @@ async def lifespan(app: FastAPI):
             logger.warning("DB not ready yet (attempt %d/10): %s — retrying in 3 s", _attempt + 1, exc)
             await asyncio.sleep(3)
     bg_task = asyncio.create_task(_notification_loop())
+    # Keys saved in the app (a hub has no keyring), and a hub's own Web Push
+    # key pair when the environment supplies none. Before anything asks for a key.
+    try:
+        from services import secret_store
+
+        async for _db in get_db():
+            await secret_store.load(_db)
+            if settings.hub_mode:
+                await secret_store.ensure_push_keys(_db)
+    except Exception:  # noqa: BLE001 — environment and keyring keys still work
+        logger.exception("Stored secrets startup load failed")
     # Design tokens (Settings → Design) before the first document is made.
     try:
         from services import design_tokens
@@ -849,6 +861,7 @@ def create_app() -> FastAPI:
     app.include_router(scheduled_tasks_router)
     app.include_router(extractions_router)
     app.include_router(push_router)
+    app.include_router(setup_guide_router)
 
     from routers.agents import router as agents_router
     app.include_router(agents_router)

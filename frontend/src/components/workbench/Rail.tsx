@@ -10,6 +10,7 @@ import {
   BookOpen,
   Clock,
   HelpCircle,
+  ListChecks,
   LogOut,
   MessageSquareText,
   Settings,
@@ -24,10 +25,12 @@ import { useWaitingCounts } from "@/components/waiting/WaitingForYou";
 import { useTeamUnread } from "@/hooks/useTeamUnread";
 import { RAIL, railItemFor } from "@/lib/workbench";
 import { resolveGuide } from "@/lib/featureGuide";
+import { hasOptInFeature } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useBootPopupStore } from "@/stores/bootPopupStore";
 import { useFeatureGuideStore } from "@/stores/featureGuideStore";
+import { useSetupGuideStore } from "@/stores/setupGuideStore";
 import { useRecentPlacesStore } from "@/stores/recentPlacesStore";
 import { BUILD_NUMBER } from "@/version";
 
@@ -163,6 +166,7 @@ function YouMenu({ onNavigate }: { onNavigate: (to: string) => void }) {
   const { user, refreshToken, logout } = useAuthStore();
   const requestGuide = useFeatureGuideStore((s) => s.requestOpen);
   const showWhatsNew = useBootPopupStore((s) => s.reopenWhatsNew);
+  const openSetupGuide = useSetupGuideStore((s) => s.open);
   const counts = useWaitingCounts();
   const guide = resolveGuide(pathname);
   const isAdmin = user?.role === "admin";
@@ -258,6 +262,18 @@ function YouMenu({ onNavigate }: { onNavigate: (to: string) => void }) {
               }}
             >
               <HelpCircle className="h-4 w-4" /> What Gerry can do here
+            </button>
+          )}
+          {hasOptInFeature("setup_guide") && (
+            <button
+              type="button"
+              className={item}
+              onClick={() => {
+                setOpen(false);
+                openSetupGuide();
+              }}
+            >
+              <ListChecks className="h-4 w-4" /> Setup guide
             </button>
           )}
           <button

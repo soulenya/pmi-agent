@@ -4,6 +4,7 @@ from models.db.approval import ApprovalIntent
 from models.db.assistant import AssistantSuggestion
 from models.db.audit import AuditEvent
 from models.db.base import Base
+from models.db.app_secret import AppSecret
 from models.db.brain_archive import BrainConversationArchive
 from models.db.briefing import Briefing
 from models.db.browser import BrowserBookmark
@@ -51,6 +52,7 @@ __all__ = [
     "AgentRun",
     "Message",
     "ConversationAttachment",
+    "AppSecret",
     "BrainConversationArchive",
     "ApprovalIntent",
     "Project",

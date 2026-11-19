@@ -13,6 +13,7 @@ import {
   Bot,
   ChevronLeft,
   FolderKanban,
+  ListChecks,
   LogOut,
   Menu,
   MessagesSquare,
@@ -32,8 +33,10 @@ import { useHubStatus } from "@/hooks/useAllWork";
 import { useTeamUnread } from "@/hooks/useTeamUnread";
 import { useIsStandalone } from "@/hooks/useViewport";
 import { RAIL, railItemFor, railPageFor } from "@/lib/workbench";
+import { hasOptInFeature } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
+import { useSetupGuideStore } from "@/stores/setupGuideStore";
 
 interface Place {
   id: string;
@@ -191,6 +194,7 @@ function MobileHeader({
 
 function MenuSheet({ pathname, onClose }: { pathname: string; onClose: () => void }) {
   const navigate = useNavigate();
+  const openSetupGuide = useSetupGuideStore((s) => s.open);
   const { user, refreshToken, logout } = useAuthStore();
   const { data: hub } = useHubStatus();
   const counts = useWaitingCounts();
@@ -286,6 +290,18 @@ function MenuSheet({ pathname, onClose }: { pathname: string; onClose: () => voi
         </div>
         <div className="mx-3 my-1 h-px bg-border" />
         <div className="px-3">
+          {hasOptInFeature("setup_guide") && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                openSetupGuide();
+              }}
+              className={row}
+            >
+              <ListChecks className="h-4 w-4 text-muted-foreground" /> Setup guide
+            </button>
+          )}
           <button type="button" onClick={() => navigate("/settings")} className={row}>
             <Settings className="h-4 w-4 text-muted-foreground" /> Settings
           </button>

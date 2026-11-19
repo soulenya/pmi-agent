@@ -14,6 +14,9 @@ export type FeatureName =
   | "meetings"
   | "hub";
 
+/** Features a brand has to switch on; absent from brand.json means off. */
+export type OptInFeatureName = "setup_guide";
+
 export interface RawBrand {
   slug: string;
   product_name: string;
@@ -26,7 +29,7 @@ export interface RawBrand {
   domains: string[];
   support_email?: string;
   hub_url?: string;
-  features: Record<FeatureName, boolean>;
+  features: Record<FeatureName, boolean> & Partial<Record<OptInFeatureName, boolean>>;
   erp?: { providers?: string[]; default?: string };
 }
 
@@ -64,6 +67,11 @@ export const BRAND = {
 
 export function hasFeature(name: FeatureName): boolean {
   return BRAND.features[name] !== false;
+}
+
+/** True only when the brand file says so (backend/brand.py defaults these to off). */
+export function hasOptInFeature(name: OptInFeatureName): boolean {
+  return BRAND.features[name] === true;
 }
 
 /** Example address for input placeholders: name@<first company domain>. */
