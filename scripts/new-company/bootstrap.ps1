@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Set up Little Gerry for a new company: brand.json, Google Cloud, signing,
     GitHub secrets and (optionally) the hub VM.
@@ -11,7 +11,9 @@
     instructions with the values filled in, and continues when you paste the
     result.
 
-    Run from the fork's checkout, signed in to gcloud (an account that can
+    Run from a fresh clone made for the company, never from another company's
+    working folder (it refuses: that folder's signing certificate and brand
+    would be taken over), signed in to gcloud (an account that can
     create projects under the company's billing account) and to gh (the fork).
     Windows PowerShell 5+ or PowerShell 7 (pwsh) on macOS/Linux; the signing
     certificate is made with the Windows certificate store or openssl.
@@ -170,6 +172,18 @@ Note "create one first at https://github.com/organizations/plan if you want one,
 $owner    = Ask github_owner "Repository owner (organisation or user)" $ghUser
 $repoName = Ask github_repo_name "Repository name" "little-gerry"
 $repo     = "$owner/$repoName"
+# A folder already set up for one company holds that company's signing
+# certificate and keys (untracked). Setting up another company in it would
+# replace its brand.json and upload that certificate to the new repository.
+$brandNow = Join-Path $root "brand/brand.json"
+$ownedBy  = if (Test-Path $brandNow) { "$((Get-Content $brandNow -Raw -Encoding UTF8 | ConvertFrom-Json).github_repo)" } else { "" }
+$theirs   = @("installer/cert/LittleGerry-Signing.pfx", "backend/google_stt_sa.json", "update_token.txt") |
+    Where-Object { Test-Path (Join-Path $root $_) }
+if ($ownedBy -and $ownedBy -ne $repo -and $theirs) {
+    $why = "This folder is the working copy of $ownedBy and holds its $($theirs -join ', '). " +
+           "Set up $repo from a fresh copy instead: git clone https://github.com/$ownedBy.git <new folder>, then run this script there."
+    if ($DryRun) { Note "A real run stops here. $why" } else { throw $why }
+}
 if (Exists @("gh", "repo", "view", $repo)) {
     Ok "repository $repo exists"
 } else {
