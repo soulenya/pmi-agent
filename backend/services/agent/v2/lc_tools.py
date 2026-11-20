@@ -168,10 +168,12 @@ _TOOL_DOCS = {
 from services.agent.project_tools import TOOL_DOCS as _PROJECT_TOOL_DOCS  # noqa: E402
 from services.agent.notes_tools import TOOL_DOCS as _NOTES_TOOL_DOCS  # noqa: E402
 from services.agent.brain_tools import TOOL_DOCS as _BRAIN_TOOL_DOCS  # noqa: E402
+from services.agent.pipeline_tools import TOOL_DOCS as _PIPELINE_TOOL_DOCS  # noqa: E402
 
 _TOOL_DOCS.update(_PROJECT_TOOL_DOCS)
 _TOOL_DOCS.update(_NOTES_TOOL_DOCS)
 _TOOL_DOCS.update(_BRAIN_TOOL_DOCS)
+_TOOL_DOCS.update(_PIPELINE_TOOL_DOCS)
 
 # Same brand/feature pass as the v1 schemas: PMI wording → this brand's, and
 # tools the brand does not ship are not offered to the v2 agents either.

@@ -3,8 +3,8 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 322;
-export const BUILD_DATE = "2026-11-19";
+export const BUILD_NUMBER = 323;
+export const BUILD_DATE = "2026-11-20";
 
 export interface ChangelogEntry {
   build: number;
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 323,
+    date: "2026-11-20",
+    title: "The sales pipeline is in Little Gerry",
+    changes: [
+      "New under Mail: Pipeline. Every lead, the stage it is in, the contact, the next step and the history of what was said, in one list the whole company shares. Move a lead between stages, mark it won or lost, and add notes.",
+      "Ask Gerry \"where are we with…?\" or \"who is in Clinical Evaluation?\" and she answers from the pipeline. She reads it; changes are made on the page.",
+      "Administrators can bring the leads and their notes over from Odoo with one button. It only reads Odoo, and can be run again without making duplicates.",
+      "You need to be connected to the hub to use it (Settings → Connections).",
+    ],
+  },
   {
     build: 322,
     date: "2026-11-19",

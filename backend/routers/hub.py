@@ -49,6 +49,8 @@ _ALLOWED_PREFIXES = (
     "/notifications",
     # Personal, not shared — but kept on the hub so every device sees one list.
     "/notes",
+    # The sales pipeline: one list for the whole company.
+    "/pipeline",
 )
 
 _SCOPES = ["openid", "email"]

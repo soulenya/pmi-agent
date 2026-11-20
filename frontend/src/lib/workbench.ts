@@ -17,7 +17,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { BRAND, hasFeature } from "@/lib/brand";
+import { BRAND, hasFeature, hasOptInFeature } from "@/lib/brand";
 
 /** PMI's rail says "Odoo"; a brand whose ERP is something else (or none yet) says "ERP". */
 const ERP_LABEL = BRAND.erpDefault === "odoo" ? "Odoo" : "ERP";
@@ -93,6 +93,7 @@ const ALL_RAIL: RailItem[] = [
     pages: [
       { route: "/inbox", label: "Inbox" },
       { route: "/contacts", label: "Contacts" },
+      { route: "/pipeline", label: "Pipeline" },
     ],
     also: ["/emails"],
   },
@@ -153,7 +154,11 @@ function applyFeatures(item: RailItem): RailItem | null {
     "/meetings": "meetings",
     "/team": "hub",
   };
-  const pages = item.pages.filter((p) => !gate[p.route] || hasFeature(gate[p.route]));
+  // Pages a brand has to switch on (absent from brand.json means off).
+  const optIn: Record<string, Parameters<typeof hasOptInFeature>[0]> = { "/pipeline": "pipeline" };
+  const pages = item.pages.filter(
+    (p) => (!gate[p.route] || hasFeature(gate[p.route])) && (!optIn[p.route] || hasOptInFeature(optIn[p.route])),
+  );
   if (!pages.length) return null;
   if (pages.length === item.pages.length) return item;
   const label = item.id === "compliance" && !hasFeature("regulatory") ? "Audit" : item.label;

@@ -125,6 +125,9 @@ _DEFAULTS: dict[str, Any] = {
         # connections to set up, each explained (what, why, cost, how). For a
         # company that sets itself up from the web app.
         "setup_guide": False,
+        # Off by default. The company's sales pipeline (leads, stages, history)
+        # on the hub, with a page and a read tool for the assistant.
+        "pipeline": False,
     },
     "erp": {
         "providers": ["odoo"],

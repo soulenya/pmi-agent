@@ -157,6 +157,8 @@ _TOOLS = [
     "remember_in_company_brain",
     "forget_from_company_brain",
     "save_chat_to_company_brain",
+    # The sales pipeline; offered only where the brand ships it.
+    "read_pipeline",
 ]
 
 

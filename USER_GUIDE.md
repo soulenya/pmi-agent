@@ -1264,6 +1264,21 @@ Click **Disconnect Google** in Settings. Your local token is deleted immediately
 
 ---
 
+## Pipeline
+
+**Mail → Pipeline** is the company's list of leads and opportunities: who you are talking to, where each conversation stands, and what was said. It is one list for everyone, kept on the hub, so this computer has to be connected to the hub (Settings → Connections).
+
+- **Stages** run across the top, each with its count of open leads. Click one to see only that stage; **All stages** shows everything. The **Status** box switches between open, won, lost and all.
+- **Search** looks in a lead's title, company, contact, email and details.
+- **Click a lead** to open it beside the list. Change its **stage** from the drop-down or mark it **Won** or **Lost**; both are written into its history with your name. Fill in the **next step** and its due date, correct the contact details, and press **Save changes**.
+- **History** is everything recorded about the lead, newest first. Type in the box and press **Add** to record a call, what was agreed or what comes next. A note is never edited afterwards; to correct one, add another.
+- **New lead** adds one by hand. It starts in the first stage, or in the stage you are looking at.
+- **Ask Gerry.** "Where are we with Riverside EMS?", "who is in Clinical Evaluation?", "what's in the pipeline?" She reads the pipeline and answers from it. She does not change it: moving a lead or adding a note is done on this page.
+
+**Bringing the leads over from Odoo (administrators).** Press **Import from Odoo**. It reads Odoo through your own Odoo connection (set that up first on the Odoo page of the same place you are importing into) and shows what it would bring: the leads, their stages and each lead's notes and recorded changes. Press **Import** to do it. Odoo is only read. You can run it again at any time: it brings anything new and leaves alone everything already here, including leads you have edited since.
+
+---
+
 ## Odoo ERP
 
 Open **Odoo ERP** from the home screen to connect your Odoo account.

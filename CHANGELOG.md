@@ -4,6 +4,50 @@
 
 ## Changelog
 
+### v5.37.0 · build 323 — 2026-11-20
+**The sales pipeline in Gerry, with an import from Odoo**
+
+- **Pipeline** (`features.pipeline`, on in PMI's `brand.json`, default off).
+  The company's leads, the stages they move through and each lead's history,
+  on the hub: tables `pipeline_stages`, `pipeline_leads`, `pipeline_notes`
+  (**migration 055**: deploy the hub with `-Migrate`; 054 from 5.36.0 goes
+  with it). Mail → Pipeline lists leads by stage with search and an
+  open/won/lost filter; a lead opens beside the list to change its stage or
+  status, set a next step and due date, edit the contact and add notes. A
+  stage or status change is written into the lead's history with who made it;
+  notes are never edited. Everyone signed in can work leads; adding a stage
+  and importing are for administrators. A desktop reaches it through the hub
+  (`/hub/api/pipeline`).
+- **Import from Odoo** (`POST /pipeline/import/odoo`, a button on the page for
+  administrators where the brand's ERP is Odoo). Reads `crm.stage`,
+  `crm.lead` (archived ones too, as lost) and the leads' `mail.message`
+  history through the administrator's own Odoo connection, shows what it
+  would bring, then inserts only what is not already here, keyed by Odoo id.
+  A lead edited in Gerry is never overwritten by a later run. Notes come
+  across as text; Odoo's tracked changes become lines like "Stage: A → B";
+  the "created" notice and empty messages are dropped. Odoo is only read.
+- **`read_pipeline`** for Gerry and the Executive Assistant: counts per
+  stage, leads by search or stage, or one lead with its history. Read-only;
+  a person changes a lead on the page. Notes reach the model marked as
+  records, not instructions.
+- This is the first step of leaving Odoo, which PMI uses only for its
+  pipeline. The plan for the rest (money read from the bank and QuickBooks,
+  then items, purchasing, inventory and builds) is `ERP-PLAN.md`, kept
+  locally.
+- Verified: 330 passing (5 new). Migration 055 applied to a real Postgres
+  and the models' columns compared with it. Against PMI's Odoo, read-only:
+  131 leads, 6 stages and 125 history entries imported into a scratch
+  database through the real route and through the page in a browser; counts
+  of filled fields match Odoo's; no HTML left in any text; a second run
+  brought nothing; the database refuses a duplicate Odoo id. In the browser
+  on a hub-mode backend: moving a lead, saving a next step, adding a note,
+  search, a new lead; a member reads and works leads and is refused the
+  import. The brand probe against 5.36.0 shows exactly the new tool. Not
+  verified: the import on PMI's hub (it needs Morgan's Odoo connection
+  there), the page on a desktop through the hub proxy, and a real model
+  choosing `read_pipeline`.
+- `USER_GUIDE.md` › Pipeline; `DEVELOPER_GUIDE.md` §4.
+
 ### v5.36.0 · build 322 — 2026-11-19
 **A setup guide in the app for a company that sets itself up; a hub's administrator can save keys in the web app. PMI unchanged**
 

@@ -24,6 +24,7 @@ from models.db.notification import Notification
 from models.db.erp import ErpConnection
 from models.db.odoo import OdooConnection
 from models.db.personal_note import PersonalNote
+from models.db.pipeline import PipelineLead, PipelineNote, PipelineStage
 from models.db.project_custody import ProjectItemCustody
 from models.db.project_link import ProjectLink
 from models.db.project_member import ProjectMember
@@ -77,6 +78,9 @@ __all__ = [
     "RegulatoryNode",
     "Notification",
     "PersonalNote",
+    "PipelineLead",
+    "PipelineNote",
+    "PipelineStage",
     "Briefing",
     "SystemSetting",
     "UserSetting",

@@ -8,7 +8,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSystemThemeSync, type ThemeValue } from "@/hooks/useTheme";
-import { hasFeature } from "@/lib/brand";
+import { hasFeature, hasOptInFeature } from "@/lib/brand";
 import { useIsPhone } from "@/hooks/useViewport";
 
 // Login and Today are the first two screens anyone sees, so they stay in the
@@ -34,6 +34,7 @@ const CalendarPage = lazy(() => import("@/pages/CalendarPage").then(m => ({ defa
 const ErpPage = lazy(() => import("@/pages/ErpPage"));
 const BudgetsPage = lazy(() => import("@/pages/BudgetsPage").then(m => ({ default: m.BudgetsPage })));
 const NotesPage = lazy(() => import("@/pages/NotesPage").then(m => ({ default: m.NotesPage })));
+const PipelinePage = lazy(() => import("@/pages/PipelinePage").then(m => ({ default: m.PipelinePage })));
 const MobileGerryPage = lazy(() => import("@/pages/MobileGerryPage").then(m => ({ default: m.MobileGerryPage })));
 
 const queryClient = new QueryClient({
@@ -100,6 +101,7 @@ function ThemedApp() {
             <Route index element={<Page><HomeRoute /></Page>} />
             <Route path="gerry" element={<Navigate to="/chat" replace />} />
             <Route path="notes" element={<Page><NotesPage /></Page>} />
+            <Route path="pipeline" element={hasOptInFeature("pipeline") ? <Page><PipelinePage /></Page> : <Navigate to="/today" replace />} />
             <Route path="planet/:planetId" element={<Page><DashboardPage /></Page>} />
             <Route path="dashboard" element={<Navigate to="/today" replace />} />
             <Route path="today" element={<Page><DashboardPage /></Page>} />
