@@ -21,7 +21,7 @@ from services.auth.service import hash_password
 from services.bank import usbank
 
 # PMI's brand keeps this off until the bank grants production access; the routes are tested regardless.
-if not any(getattr(r, "path", "").startswith("/finance") for r in app.routes):
+if not any(getattr(r, "path", "") == "/finance/access" for r in app.routes):
     app.include_router(finance_router)
 
 

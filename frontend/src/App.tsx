@@ -36,6 +36,7 @@ const BudgetsPage = lazy(() => import("@/pages/BudgetsPage").then(m => ({ defaul
 const NotesPage = lazy(() => import("@/pages/NotesPage").then(m => ({ default: m.NotesPage })));
 const PipelinePage = lazy(() => import("@/pages/PipelinePage").then(m => ({ default: m.PipelinePage })));
 const BankPage = lazy(() => import("@/pages/BankPage").then(m => ({ default: m.BankPage })));
+const QuickBooksPage = lazy(() => import("@/pages/QuickBooksPage").then(m => ({ default: m.QuickBooksPage })));
 const MobileGerryPage = lazy(() => import("@/pages/MobileGerryPage").then(m => ({ default: m.MobileGerryPage })));
 
 const queryClient = new QueryClient({
@@ -104,6 +105,7 @@ function ThemedApp() {
             <Route path="notes" element={<Page><NotesPage /></Page>} />
             <Route path="pipeline" element={hasOptInFeature("pipeline") ? <Page><PipelinePage /></Page> : <Navigate to="/today" replace />} />
             <Route path="bank" element={hasOptInFeature("finance") ? <Page><BankPage /></Page> : <Navigate to="/today" replace />} />
+            <Route path="quickbooks" element={hasOptInFeature("finance") ? <Page><QuickBooksPage /></Page> : <Navigate to="/today" replace />} />
             <Route path="planet/:planetId" element={<Page><DashboardPage /></Page>} />
             <Route path="dashboard" element={<Navigate to="/today" replace />} />
             <Route path="today" element={<Page><DashboardPage /></Page>} />

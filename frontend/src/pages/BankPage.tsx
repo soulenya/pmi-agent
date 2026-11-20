@@ -18,7 +18,7 @@ import {
 import type { FinanceAccess, SyncReport } from "@/api/finance";
 import { useHubStatus } from "@/hooks/useAllWork";
 
-function errorText(err: unknown, fallback: string): string {
+export function errorText(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
     const detail = err.response?.data?.detail;
     if (typeof detail === "string") return detail;
@@ -77,7 +77,7 @@ export function BankPage() {
   );
 }
 
-function Notice({ title, children }: { title: string; children: React.ReactNode }) {
+export function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="max-w-xl rounded-lg border p-5 text-sm">
       <p className="font-medium">{title}</p>

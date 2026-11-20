@@ -320,13 +320,15 @@ async def overview(db: AsyncSession, user: User, *, search: str = "", days: int 
     }
 
 
-async def overview_for(db: AsyncSession, user_id: uuid.UUID, **args: Any) -> dict[str, Any]:
-    """``overview`` from wherever this runs: here on a hub, through the hub on a desktop."""
-    if settings.hub_mode:
-        user = await db.get(User, user_id)
-        if user is None:
-            raise NotAllowed(NOT_ALLOWED)
-        return await overview(db, user, **args)
+async def person(db: AsyncSession, user_id: uuid.UUID) -> User:
+    user = await db.get(User, user_id)
+    if user is None:
+        raise NotAllowed(NOT_ALLOWED)
+    return user
+
+
+async def from_hub(db: AsyncSession, user_id: uuid.UUID, path: str, params: dict[str, Any] | None = None) -> Any:
+    """GET a ``/finance`` path on the hub as this person. For a desktop, which keeps no financial data."""
     from services.hub import client as hub
 
     if not hub.configured() or await hub.get_link(db, user_id) is None:
@@ -335,17 +337,28 @@ async def overview_for(db: AsyncSession, user_id: uuid.UUID, **args: Any) -> dic
         )
     try:
         resp = await hub.request(
-            db, user_id, "GET", "/finance/overview", params={k: v for k, v in args.items() if v not in ("", None)}
+            db, user_id, "GET", path, params={k: v for k, v in (params or {}).items() if v not in ("", None)}
         )
     except hub.HubError as exc:
         raise FinanceUnavailable(str(exc)) from exc
+    if resp.status_code == 200:
+        return resp.json()
     if resp.status_code == 403:
         raise NotAllowed(NOT_ALLOWED)
     if resp.status_code == 404:
-        raise FinanceUnavailable("The hub is not running a version that reads the bank yet.")
-    if resp.status_code != 200:
-        raise FinanceUnavailable(f"The hub refused the request ({resp.status_code}).")
-    return resp.json()
+        raise FinanceUnavailable("The hub is not running a version that has this yet.")
+    try:
+        detail = resp.json().get("detail")
+    except (ValueError, AttributeError):
+        detail = None
+    raise FinanceUnavailable(detail if isinstance(detail, str) and detail else f"The hub refused the request ({resp.status_code}).")
+
+
+async def overview_for(db: AsyncSession, user_id: uuid.UUID, **args: Any) -> dict[str, Any]:
+    """``overview`` from wherever this runs: here on a hub, through the hub on a desktop."""
+    if settings.hub_mode:
+        return await overview(db, await person(db, user_id), **args)
+    return await from_hub(db, user_id, "/finance/overview", args)
 
 
 def _amount(value: float | None, currency: str = "USD") -> str:

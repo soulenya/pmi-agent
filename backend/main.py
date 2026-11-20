@@ -70,6 +70,8 @@ from routers.push import router as push_router
 from routers.setup_guide import router as setup_guide_router
 from routers.pipeline import router as pipeline_router
 from routers.finance import router as finance_router
+from routers.quickbooks import callback_router as quickbooks_callback_router
+from routers.quickbooks import router as quickbooks_router
 from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
@@ -868,6 +870,8 @@ def create_app() -> FastAPI:
         app.include_router(pipeline_router)
     if get_brand().feature("finance"):
         app.include_router(finance_router)
+        app.include_router(quickbooks_router)
+        app.include_router(quickbooks_callback_router)
 
     from routers.agents import router as agents_router
     app.include_router(agents_router)

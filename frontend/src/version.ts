@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 324;
+export const BUILD_NUMBER = 325;
 export const BUILD_DATE = "2026-11-20";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 325,
+    date: "2026-11-20",
+    title: "Groundwork for reading QuickBooks",
+    changes: [
+      "Behind the scenes: Little Gerry can now connect to a company's QuickBooks Online and read its statements and lists (read-only), for people on the finance list. It is built against Intuit's test environment and stays switched off here for now. Nothing changes for you.",
+    ],
+  },
   {
     build: 324,
     date: "2026-11-20",

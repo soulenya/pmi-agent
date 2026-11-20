@@ -82,6 +82,13 @@ class Settings(BaseSettings):
     # Which U.S. Bank environment the bank reader talks to: sandbox (simulated
     # data), certification or production. See services/bank/usbank.py.
     usbank_environment: str = "sandbox"
+    # QuickBooks Online (services/quickbooks). Which of Intuit's worlds the
+    # keys belong to: sandbox or production. Blank means whatever was saved
+    # with the keys in the app, else sandbox.
+    quickbooks_environment: str = ""
+    # Where Intuit sends the person back after they approve. Must be listed in
+    # the Intuit app. Blank means this hub's own address, or localhost.
+    quickbooks_redirect_uri: str = ""
 
     # ── Reaching the hub from a desktop install ──────────────────────────────
     # Where the shared project spaces live. Blank turns the feature off.

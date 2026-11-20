@@ -4,6 +4,82 @@
 
 ## Changelog
 
+### v5.39.0 · build 325 — 2026-11-20
+**QuickBooks Online, read-only, behind the finance list. Built against Intuit's sandbox; off for PMI**
+
+- Part of **Finance** (`features.finance`, default off; PMI's `brand.json`
+  still does not set it). For PMI this release only adds **migration 057**,
+  one empty table on the hub (deploy with `-Migrate`; 054 to 056 go with it
+  if not yet applied).
+- **One connection for the company** (`quickbooks_connections`, one row per
+  Intuit environment). Someone on the finance list presses **Connect to
+  QuickBooks**, signs in at Intuit, chooses the company and approves; Intuit
+  sends their browser back to `/api/quickbooks/callback`, and from then on
+  everyone on the finance list reads through that connection. The request
+  is a signed token good for ten minutes and tied to the person who started
+  it, who must still be on the list when it comes back. Tokens are stored
+  Fernet-encrypted. Intuit replaces the refresh token as it is used, so a
+  renewal is committed the moment it succeeds; when Intuit stops accepting
+  the sign-in the connection is marked and the page asks for it to be
+  connected again rather than retrying. **Disconnect** deletes the tokens
+  and asks Intuit to revoke them.
+- **Read-only by construction** (`services/quickbooks/client.py`). Intuit's
+  permission for accounting data covers writing too; there is no read-only
+  one. The only function that reaches the books is `read`, a GET. Nothing
+  read is stored: a statement or list is fetched when asked for.
+- **Statements**: profit and loss, balance sheet, cash flow, receivables
+  aging, payables aging, for a period or as of a day; profit and loss and
+  cash flow optionally by month, quarter or year. **Lists**: accounts (with
+  each balance in the books), vendors, customers, bills, invoices, payments
+  received, expenses. A search narrows what came back; what a person types
+  never goes into the query sent to QuickBooks. A refund on a card is shown
+  as a negative expense.
+- **Routes**, all refused to anyone not on the finance list:
+  `GET /finance/quickbooks/status`, `PUT …/keys`, `POST …/connect`,
+  `POST …/disconnect`, `GET …/reports/{name}`, `GET …/lists/{dataset}`. A
+  desktop reaches them through the hub (`/hub/api/finance/quickbooks`).
+- **Keys.** The Intuit app's client ID and secret come from the environment
+  (`QUICKBOOKS_CLIENT_ID`, `QUICKBOOKS_CLIENT_SECRET`), then the OS keyring,
+  then what an administrator on the finance list saved on the page in the
+  hub's web app (encrypted in `app_secrets`, never sent back, checked with
+  Intuit before saving). `QUICKBOOKS_ENVIRONMENT` is `sandbox` or
+  `production`; `QUICKBOOKS_REDIRECT_URI` overrides the address Intuit
+  returns to, which is otherwise the hub's own address. That address has to
+  be listed in the Intuit app.
+- **Finance → QuickBooks** (page): the connection, the statements with a
+  period picker, and the lists with search. A sandbox company carries a
+  "Test data" banner.
+- **`quickbooks_report`** and **`read_quickbooks`** for Gerry and the
+  Executive Assistant (registered only with the feature): the same
+  statements and lists, for someone on the finance list; anyone else is told
+  they do not have access and QuickBooks is not asked. Sandbox figures are
+  labelled as test data in the text the model receives, and names and memos
+  are marked as records, not instructions.
+- What QuickBooks does not give: the bank's live balance (the Bank page is
+  for that), individual paychecks (payroll shows as totals in the accounts),
+  and tax returns.
+- Verified: 338 passing (4 new, against a stand-in for Intuit that fails if
+  anything but a GET reaches the books). Migration 057 applied to a real
+  Postgres after 001 to 056 and compared with the model. With the real
+  sandbox keys: Intuit's published sign-in addresses match the code, Intuit
+  accepts the client ID and secret, the Connect button opens Intuit's
+  sign-in for the app with the registered return address, and the running
+  server's callback passes Intuit's own refusal of a made-up code back to
+  the page. Report and expense shapes checked against public captures of
+  real QuickBooks responses. In a browser on a hub-mode backend against the
+  stand-in: keys entered by an administrator (a wrong secret refused), the
+  connection appearing without a reload, every statement and list, a second
+  person on the list seeing it, disconnect, and someone off the list seeing
+  nothing. The brand probe against 5.38.0 shows no difference for PMI and
+  exactly the two new tools for a brand with the feature. **Not verified:
+  a completed sign-in and any figure read from a live QuickBooks company,
+  sandbox or real** (it needs a person to sign in at Intuit); the balance
+  sheet's date parameters; the page and tools from a desktop through the
+  hub; a real model choosing the tools.
+- Not built: comparing a budget with QuickBooks, a daily renewal to keep an
+  unused connection alive past Intuit's hundred days, webhooks, any write.
+- `USER_GUIDE.md` › QuickBooks; `DEVELOPER_GUIDE.md` §4.
+
 ### v5.38.0 · build 324 — 2026-11-20
 **A read-only reader for the company's U.S. Bank accounts and a finance list, built against the bank's sandbox. Off for PMI**
 

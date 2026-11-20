@@ -159,8 +159,10 @@ _TOOLS = [
     "save_chat_to_company_brain",
     # The sales pipeline; offered only where the brand ships it.
     "read_pipeline",
-    # The bank, for people on the finance list; offered only where the brand ships it.
+    # The bank and the books, for people on the finance list; offered only where the brand ships it.
     "read_bank",
+    "quickbooks_report",
+    "read_quickbooks",
 ]
 
 

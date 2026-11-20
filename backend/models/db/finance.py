@@ -4,6 +4,9 @@ Read-only copies, refreshed by a sync. Each row carries the ``environment`` it
 came from, so sandbox test data can never be shown as the company's money.
 Only the last four digits of an account number are kept. A transaction is
 never updated or deleted: the bank's posted history does not change.
+
+Also here: the company's one connection to QuickBooks Online. Nothing read
+from QuickBooks is stored, only the encrypted tokens that allow reading it.
 """
 
 from __future__ import annotations
@@ -11,7 +14,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -63,3 +66,30 @@ class BankTransaction(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class QuickBooksConnection(Base):
+    """The company's connection to one QuickBooks company, one per environment."""
+
+    __tablename__ = "quickbooks_connections"
+    __table_args__ = (UniqueConstraint("environment", name="uq_quickbooks_connection_environment"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # sandbox | production: which of Intuit's two worlds the tokens belong to.
+    environment: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Intuit's id for the QuickBooks company; part of every request.
+    realm_id: Mapped[str] = mapped_column(String(40), nullable=False)
+    company_name: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    access_token_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    # Intuit replaces the refresh token as it is used; the newest one is the only one kept.
+    refresh_token_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    access_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    refresh_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    connected_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    connected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    # Intuit stopped accepting the tokens: a person has to connect again.
+    needs_reconnect: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

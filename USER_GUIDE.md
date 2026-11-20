@@ -48,11 +48,12 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 23. [Google Workspace](#google-workspace)
 24. [Odoo ERP](#odoo-erp)
 25. [Bank](#bank)
-26. [Manage Budgets](#manage-budgets)
-27. [Waiting for you](#waiting-for-you)
-28. [Settings](#settings)
-29. [Updating Little Gerry](#updating-little-gerry)
-30. [Tips & Example Prompts](#tips--example-prompts)
+26. [QuickBooks](#quickbooks)
+27. [Manage Budgets](#manage-budgets)
+28. [Waiting for you](#waiting-for-you)
+29. [Settings](#settings)
+30. [Updating Little Gerry](#updating-little-gerry)
+31. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -1301,6 +1302,23 @@ Open **Odoo ERP** from the home screen to connect your Odoo account.
 - **Ask Gerry.** "How much cash do we have?", "what did we pay Acme last month?", "what came in this week?" She answers from the bank's records and gives the date the figures run to. Someone who is not on the finance list is told they do not have access.
 - **It only reads.** Nothing on this page, and nothing Gerry can do, moves money or changes anything at the bank. These are bank records, not the accountants' books.
 - **Test data.** While the connection is to the bank's test environment, a banner says so and Gerry says so: the accounts and figures are made up by the bank and are not the company's.
+
+---
+
+## QuickBooks
+
+**Finance → QuickBooks** shows the company's books as the accountants keep them in QuickBooks Online: the financial statements, and the lists behind them. Like the Bank page it appears only where your company has it switched on, it is kept on the hub, and only people on the finance list see it or get an answer from Gerry about it.
+
+- **Connecting (once, by someone on the finance list).** Press **Connect to QuickBooks**. A browser tab opens at Intuit: sign in with a QuickBooks login that can see the company, choose the company and approve. The tab then says QuickBooks is connected and the page fills in by itself. From then on everyone on the finance list reads through that one connection. **Disconnect** removes it.
+- **It only reads.** Little Gerry has no way to add or change anything in the books. Intuit's approval screen mentions more than reading because Intuit offers no read-only permission; nothing in Little Gerry uses the rest.
+- **Statements.** Profit and loss, balance sheet, cash flow, **Owed to us** (who owes the company and how late) and **What we owe** (what the company owes and how late). Pick the period, or the "as of" day; profit and loss and cash flow can be shown by month, quarter or year.
+- **In the books.** Accounts with each balance, vendors, customers, bills, invoices, payments received and expenses. Search looks in every column. A refund shows as a negative expense.
+- **As current as the last posting.** These are the accountants' figures: they include what has been entered and categorised, not what happened at the bank this morning. For the bank's own balance and transactions, use the Bank page.
+- **Ask Gerry.** "What was our profit last quarter?", "show spending by month this year", "what do we owe Acme?", "has Riverside paid invoice 1007?" She reads the statement or list and says the period it covers.
+- **What it does not show.** Individual paychecks (payroll appears as totals in the accounts) and tax returns (the accountants prepare those outside QuickBooks).
+- **If it asks to be connected again.** Intuit ends a connection that has not been used for about a hundred days, or that someone removed from inside QuickBooks. Press **Connect again**.
+- **Setting it up on a hub (administrators).** The first time, the page asks for the **client ID** and **client secret** of the company's own app at developer.intuit.com, and shows the address to list there as a redirect URI. They are checked with Intuit, kept encrypted and never shown again.
+- **Test data.** While it is connected to a QuickBooks sandbox company, a banner says so and Gerry says so: the books are made up and are not the company's.
 
 ---
 
