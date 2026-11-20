@@ -15,7 +15,7 @@ export type FeatureName =
   | "hub";
 
 /** Features a brand has to switch on; absent from brand.json means off. */
-export type OptInFeatureName = "setup_guide" | "pipeline";
+export type OptInFeatureName = "setup_guide" | "pipeline" | "finance";
 
 export interface RawBrand {
   slug: string;

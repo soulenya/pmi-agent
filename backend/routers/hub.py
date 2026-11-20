@@ -51,6 +51,8 @@ _ALLOWED_PREFIXES = (
     "/notes",
     # The sales pipeline: one list for the whole company.
     "/pipeline",
+    # Money, read-only, for the finance list.
+    "/finance",
 )
 
 _SCOPES = ["openid", "email"]

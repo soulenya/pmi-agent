@@ -245,11 +245,13 @@ from services.agent.project_tools import RUNNING_LABELS as _PROJECT_LABELS  # no
 from services.agent.notes_tools import RUNNING_LABELS as _NOTES_LABELS  # noqa: E402
 from services.agent.brain_tools import RUNNING_LABELS as _BRAIN_LABELS  # noqa: E402
 from services.agent.pipeline_tools import RUNNING_LABELS as _PIPELINE_LABELS  # noqa: E402
+from services.agent.finance_tools import RUNNING_LABELS as _FINANCE_LABELS  # noqa: E402
 
 _TOOL_RUNNING_LABELS.update(_PROJECT_LABELS)
 _TOOL_RUNNING_LABELS.update(_NOTES_LABELS)
 _TOOL_RUNNING_LABELS.update(_BRAIN_LABELS)
 _TOOL_RUNNING_LABELS.update(_PIPELINE_LABELS)
+_TOOL_RUNNING_LABELS.update(_FINANCE_LABELS)
 
 
 def _tool_running_label(tool_name: str, args: dict) -> str:

@@ -136,6 +136,7 @@ const ALL_RAIL: RailItem[] = [
     route: "/budgets",
     pages: [
       { route: "/budgets", label: "Budgets" },
+      { route: "/bank", label: "Bank" },
       { route: "/odoo", label: ERP_LABEL },
     ],
   },
@@ -155,7 +156,7 @@ function applyFeatures(item: RailItem): RailItem | null {
     "/team": "hub",
   };
   // Pages a brand has to switch on (absent from brand.json means off).
-  const optIn: Record<string, Parameters<typeof hasOptInFeature>[0]> = { "/pipeline": "pipeline" };
+  const optIn: Record<string, Parameters<typeof hasOptInFeature>[0]> = { "/pipeline": "pipeline", "/bank": "finance" };
   const pages = item.pages.filter(
     (p) => (!gate[p.route] || hasFeature(gate[p.route])) && (!optIn[p.route] || hasOptInFeature(optIn[p.route])),
   );

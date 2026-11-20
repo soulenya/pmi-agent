@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 323;
+export const BUILD_NUMBER = 324;
 export const BUILD_DATE = "2026-11-20";
 
 export interface ChangelogEntry {
@@ -14,6 +14,14 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 324,
+    date: "2026-11-20",
+    title: "Groundwork for reading the bank",
+    changes: [
+      "Behind the scenes: Little Gerry can now read a company's U.S. Bank accounts (balances and posted transactions, read-only) and show them only to people on a finance list. It is built against the bank's test environment and stays switched off here until the bank grants access to the real accounts. Nothing changes for you.",
+    ],
+  },
   {
     build: 323,
     date: "2026-11-20",

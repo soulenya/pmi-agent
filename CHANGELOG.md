@@ -4,6 +4,66 @@
 
 ## Changelog
 
+### v5.38.0 · build 324 — 2026-11-20
+**A read-only reader for the company's U.S. Bank accounts and a finance list, built against the bank's sandbox. Off for PMI**
+
+- **Finance** (`features.finance`, default off; PMI's `brand.json` does not
+  set it, because the only bank access so far is the sandbox and its made-up
+  figures must not appear as PMI's money). Nothing changes for PMI in this
+  release beyond **migration 056** creating two empty tables on the hub
+  (deploy with `-Migrate`; 054 and 055 go with it if not yet applied).
+- **The bank reader** (`services/bank/usbank.py`): U.S. Bank's Corporate
+  Account Information API v2. It signs in with the API key and secret, lists
+  the accounts, reads previous-day balances and posted transactions, and
+  does nothing else: there is no call in it that moves money or changes
+  anything. Key and secret come from the environment (`USBANK_API_KEY`,
+  `USBANK_API_SECRET`) or the OS keyring (`usbank_api_key`,
+  `usbank_api_secret`); `USBANK_ENVIRONMENT` picks `sandbox` (default),
+  `certification` or `production`. Only the sandbox works today:
+  certification and production need a client certificate and the bank's
+  onboarding, and the reader refuses to run there rather than guess.
+- **What is kept** (tables `bank_accounts`, `bank_transactions`, on the hub):
+  for an account its name, type, currency, the last four digits of its number
+  and its balances with their "as of" date; for a transaction the date,
+  signed amount, description, payee where the bank gives one, type and
+  references. Every row carries the environment it came from, so sandbox
+  rows can never be counted with real ones. A read goes back 90 days the
+  first time and 7 days after that, and a line already saved is not saved
+  twice. An account the bank will not give transactions for is skipped and
+  named in the result instead of failing the read.
+- **The finance list** (system setting `finance.viewers`). Bank data is shown
+  only to people on it: `GET /finance/access`, `PUT /finance/viewers`,
+  `GET /finance/bank/accounts`, `GET /finance/bank/transactions`,
+  `POST /finance/bank/sync`, `GET /finance/overview`. Being an administrator
+  is not enough to see it. An administrator can start the list while it is
+  empty; after that only someone on the list can change it, and only people
+  with an active account can be added. A desktop reaches all of it through
+  the hub (`/hub/api/finance`).
+- **Finance → Bank** (page, for brands with the feature): accounts with
+  balances and a total, transactions with search, **Read the bank now**, when
+  the bank was last read, and the list of who can see financial data. Data
+  that is not from production carries a "Test data" banner.
+- **`read_bank`** for Gerry and the Executive Assistant (registered only when
+  the feature is on): balances and recent or matching transactions for
+  someone on the finance list; anyone else is told they do not have access
+  and nothing about the accounts. It reads the bank itself when the saved
+  figures are older than a day. Test data is labelled as test data in the
+  text the model receives.
+- Verified: 334 passing (4 new). Migration 056 applied to a real Postgres and
+  the models' columns compared with it. Against U.S. Bank's sandbox with real
+  sandbox keys: 24 accounts, balances for 5 of them, 40 transactions, 19
+  accounts the sandbox refuses transactions for; a second read added nothing.
+  In a browser on a hub-mode backend with a test brand: an administrator not
+  on the list sees no figures, starts the list, an unknown email is refused,
+  the bank is read, search narrows the transactions, and a member not on the
+  list sees no figures and no list editor. The brand probe against 5.37.0
+  shows no difference for PMI. Not verified: anything against certification
+  or production; the page and the tool from a desktop through the hub proxy;
+  a real model choosing `read_bank`; the keys on a hub (they would go in
+  Secret Manager).
+- Next in the plan: QuickBooks Online, read-only, behind the same list.
+- `USER_GUIDE.md` › Bank; `DEVELOPER_GUIDE.md` §4.
+
 ### v5.37.0 · build 323 — 2026-11-20
 **The sales pipeline in Gerry, with an import from Odoo**
 

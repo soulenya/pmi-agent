@@ -2892,11 +2892,13 @@ from services.agent import project_tools as _project_tools  # noqa: E402
 from services.agent import notes_tools as _notes_tools  # noqa: E402
 from services.agent import brain_tools as _brain_tools  # noqa: E402
 from services.agent import pipeline_tools as _pipeline_tools  # noqa: E402
+from services.agent import finance_tools as _finance_tools  # noqa: E402
 
 TOOL_DEFINITIONS.extend(_project_tools.TOOL_DEFINITIONS)
 TOOL_DEFINITIONS.extend(_notes_tools.TOOL_DEFINITIONS)
 TOOL_DEFINITIONS.extend(_brain_tools.TOOL_DEFINITIONS)
 TOOL_DEFINITIONS.extend(_pipeline_tools.TOOL_DEFINITIONS)
+TOOL_DEFINITIONS.extend(_finance_tools.TOOL_DEFINITIONS)
 
 
 # ── Tool implementations ───────────────────────────────────────────────────────
@@ -8149,6 +8151,7 @@ TOOL_EXECUTORS.update(_project_tools.TOOL_EXECUTORS)
 TOOL_EXECUTORS.update(_notes_tools.TOOL_EXECUTORS)
 TOOL_EXECUTORS.update(_brain_tools.TOOL_EXECUTORS)
 TOOL_EXECUTORS.update(_pipeline_tools.TOOL_EXECUTORS)
+TOOL_EXECUTORS.update(_finance_tools.TOOL_EXECUTORS)
 
 
 # When a model passes its single string argument as plain text instead of a
@@ -8219,6 +8222,7 @@ _PRIMARY_ARG.update(_project_tools.PRIMARY_ARGS)
 _PRIMARY_ARG.update(_notes_tools.PRIMARY_ARGS)
 _PRIMARY_ARG.update(_brain_tools.PRIMARY_ARGS)
 _PRIMARY_ARG.update(_pipeline_tools.PRIMARY_ARGS)
+_PRIMARY_ARG.update(_finance_tools.PRIMARY_ARGS)
 
 
 # ── Brand + feature pass over the tool schemas ────────────────────────────────────
@@ -8246,6 +8250,7 @@ _FEATURE_TOOLS = {
     # Needs both: the brain, and conversations being kept in it.
     "brain_conversations": set(_brain_tools.CONVERSATION_TOOLS),
     "pipeline": set(_pipeline_tools.TOOL_EXECUTORS),
+    "finance": set(_finance_tools.TOOL_EXECUTORS),
 }
 # A brand whose ERP is not Odoo advertises the generic names; the Odoo names
 # stay dispatchable for old conversation histories. PMI keeps the Odoo names.

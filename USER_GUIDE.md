@@ -47,11 +47,12 @@ Little Gerry is your AI Executive Assistant, Chief of Staff, and Knowledge Manag
 22. [Slide Decks](#slide-decks)
 23. [Google Workspace](#google-workspace)
 24. [Odoo ERP](#odoo-erp)
-25. [Manage Budgets](#manage-budgets)
-26. [Waiting for you](#waiting-for-you)
-27. [Settings](#settings)
-28. [Updating Little Gerry](#updating-little-gerry)
-29. [Tips & Example Prompts](#tips--example-prompts)
+25. [Bank](#bank)
+26. [Manage Budgets](#manage-budgets)
+27. [Waiting for you](#waiting-for-you)
+28. [Settings](#settings)
+29. [Updating Little Gerry](#updating-little-gerry)
+30. [Tips & Example Prompts](#tips--example-prompts)
 
 ---
 
@@ -1286,6 +1287,20 @@ Open **Odoo ERP** from the home screen to connect your Odoo account.
 - The organization URL, database, and your login are pre-filled — you only paste your **Odoo API key**, which is stored **encrypted** on your machine.
 - Once connected, Little Gerry can read Odoo data and **propose** ERP actions. Like all write actions, anything that changes Odoo goes through the **Approvals** queue for your sign-off.
 - Behind the page is a general **ERP** layer: the company configuration names the providers a build offers and which one is preselected. PMI offers Odoo. A build whose company has no ERP shows a provider picker with **No ERP**; Gerry's ERP tools then say "No ERP is connected" instead of guessing. The first administrator also sees an **ERP** step in the setup wizard. Each person connects with their own key, so the step repeats per computer.
+
+---
+
+## Bank
+
+**Finance → Bank** shows the company's bank accounts as the bank reports them: each account's balance and the transactions that have posted. It appears only where your company has it switched on, and it is kept on the hub, so this computer has to be connected to the hub (Settings → Connections).
+
+- **Only the finance list sees it.** Financial data is shown to the people named under **Who can see financial data** and to nobody else, on this page and through Gerry alike. Being an administrator is not enough. An administrator can start the list while it is empty; after that, only someone already on it can add or remove people. A person has to have signed in once before they can be added.
+- **Accounts** lists each account by name and the last four digits of its number, with its balances and the date they are as of. These are the bank's figures at its last close, not a live balance.
+- **Transactions** are the lines the bank has posted, newest first: money in is positive, money out negative. **Search** looks in the description, payee, type and reference.
+- **Read the bank now** fetches anything new. Gerry also does this herself when the saved figures are more than a day old. Reading twice never creates duplicates.
+- **Ask Gerry.** "How much cash do we have?", "what did we pay Acme last month?", "what came in this week?" She answers from the bank's records and gives the date the figures run to. Someone who is not on the finance list is told they do not have access.
+- **It only reads.** Nothing on this page, and nothing Gerry can do, moves money or changes anything at the bank. These are bank records, not the accountants' books.
+- **Test data.** While the connection is to the bank's test environment, a banner says so and Gerry says so: the accounts and figures are made up by the bank and are not the company's.
 
 ---
 

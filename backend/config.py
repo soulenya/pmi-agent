@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     # docs/GBRAIN.md. Both blank on a desktop, which asks the hub instead.
     gbrain_mcp_url: str = ""
     gbrain_mcp_token: str = ""
+    # Which U.S. Bank environment the bank reader talks to: sandbox (simulated
+    # data), certification or production. See services/bank/usbank.py.
+    usbank_environment: str = "sandbox"
 
     # ── Reaching the hub from a desktop install ──────────────────────────────
     # Where the shared project spaces live. Blank turns the feature off.

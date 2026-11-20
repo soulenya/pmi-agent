@@ -22,6 +22,7 @@ from models.db.hub_link import HubLink
 from models.db.meeting import MeetingNote
 from models.db.notification import Notification
 from models.db.erp import ErpConnection
+from models.db.finance import BankAccount, BankTransaction
 from models.db.odoo import OdooConnection
 from models.db.personal_note import PersonalNote
 from models.db.pipeline import PipelineLead, PipelineNote, PipelineStage
@@ -54,6 +55,8 @@ __all__ = [
     "Message",
     "ConversationAttachment",
     "AppSecret",
+    "BankAccount",
+    "BankTransaction",
     "BrainConversationArchive",
     "ApprovalIntent",
     "Project",

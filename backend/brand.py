@@ -128,6 +128,9 @@ _DEFAULTS: dict[str, Any] = {
         # Off by default. The company's sales pipeline (leads, stages, history)
         # on the hub, with a page and a read tool for the assistant.
         "pipeline": False,
+        # Off by default. Money, read-only: the company's bank accounts read
+        # through the bank's API, shown only to people on the finance list.
+        "finance": False,
     },
     "erp": {
         "providers": ["odoo"],
