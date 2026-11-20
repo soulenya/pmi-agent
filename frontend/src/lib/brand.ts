@@ -31,6 +31,8 @@ export interface RawBrand {
   hub_url?: string;
   features: Record<FeatureName, boolean> & Partial<Record<OptInFeatureName, boolean>>;
   erp?: { providers?: string[]; default?: string };
+  /** Addresses whose mail is a website form's notification; filed in the pipeline. */
+  website_inquiries?: { senders?: string[] };
 }
 
 const raw: RawBrand = __BRAND__;
@@ -62,6 +64,8 @@ export const BRAND = {
   features: raw.features,
   erpProviders: raw.erp?.providers ?? [],
   erpDefault: raw.erp?.default ?? "none",
+  /** True when website form notifications are filed in the pipeline. */
+  websiteInquiries: (raw.website_inquiries?.senders ?? []).length > 0,
   isPmi: raw.slug === "littlegerry",
 } as const;
 

@@ -141,6 +141,10 @@ _DEFAULTS: dict[str, Any] = {
             "email_domain": "precisianmedical.com",
         },
     },
+    # Mail from these addresses is a website form's notification: each one is
+    # read and filed in the pipeline (services/pipeline_inquiries.py). Empty
+    # means nothing is read. A brand names its own form service's address.
+    "website_inquiries": {"senders": []},
     "agents": [
         "executive_assistant", "house_manager", "research", "operations",
         "engineering", "qms", "regulatory", "ir",
@@ -233,6 +237,12 @@ class Brand:
     # ── features / agents ───────────────────────────────────────────────────
     def feature(self, name: str) -> bool:
         return bool((self.raw.get("features") or {}).get(name, False))
+
+    @property
+    def inquiry_senders(self) -> list[str]:
+        """Addresses whose mail is a website form's notification, lowercase."""
+        raw = (self.raw.get("website_inquiries") or {}).get("senders") or []
+        return [str(a).strip().lower() for a in raw if "@" in str(a)]
 
     @property
     def agents(self) -> list[str]:

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 325;
+export const BUILD_NUMBER = 326;
 export const BUILD_DATE = "2026-11-20";
 
 export interface ChangelogEntry {
@@ -14,6 +14,16 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 326,
+    date: "2026-11-20",
+    title: "Website inquiries file themselves in the pipeline",
+    changes: [
+      "When someone fills in the contact form on the website, the notification that lands in your inbox is now read and added to Mail → Pipeline within a few minutes: a new lead with their name, organization, role, email and message.",
+      "If that person already has an open lead, what they wrote is added to that lead's history instead. Nothing is filed twice, and inquiries already in the pipeline are left alone.",
+      "Your inbox is only read. The Check website inquiries button on the Pipeline page looks right away. Your Google account has to be connected on the hub.",
+    ],
+  },
   {
     build: 325,
     date: "2026-11-20",

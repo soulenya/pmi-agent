@@ -10,6 +10,7 @@ import { Download, Loader2, Mail, Plus, Search, X } from "lucide-react";
 
 import {
   addLeadNote,
+  checkWebsiteInquiries,
   createLead,
   getLead,
   importFromOdoo,
@@ -65,6 +66,27 @@ export function PipelinePage() {
 
   const refresh = () => void qc.invalidateQueries({ queryKey: ["pipeline"] });
 
+  const [websiteNote, setWebsiteNote] = useState<{ text: string; bad?: boolean } | null>(null);
+  const checkWebsite = useMutation({
+    mutationFn: checkWebsiteInquiries,
+    onSuccess: (r) => {
+      const parts: string[] = [];
+      if (r.new_leads) {
+        parts.push(`${r.new_leads} new lead${r.new_leads === 1 ? "" : "s"} from the website: ${r.titles.join(", ")}.`);
+      }
+      if (r.added_to_existing) {
+        parts.push(
+          `${r.added_to_existing} inquir${r.added_to_existing === 1 ? "y" : "ies"} added to the history of leads already here.`,
+        );
+      }
+      if (!parts.length) parts.push("Nothing new from the website form.");
+      if (r.more_to_read) parts.push("Older mail is still being read; that carries on by itself.");
+      setWebsiteNote({ text: parts.join(" ") });
+      if (r.new_leads || r.added_to_existing) refresh();
+    },
+    onError: (e) => setWebsiteNote({ text: errorText(e, "The inbox could not be checked."), bad: true }),
+  });
+
   if (hub.isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (!reachable) {
     return (
@@ -114,6 +136,17 @@ export function PipelinePage() {
             <Download className="h-4 w-4" /> Import from Odoo
           </button>
         )}
+        {BRAND.websiteInquiries && (
+          <button
+            onClick={() => checkWebsite.mutate()}
+            disabled={checkWebsite.isPending}
+            title="New website form submissions in your inbox are added here every few minutes. This checks now."
+            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-60"
+          >
+            {checkWebsite.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+            {checkWebsite.isPending ? "Checking your inbox…" : "Check website inquiries"}
+          </button>
+        )}
         <button
           onClick={() => setAdding(true)}
           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
@@ -121,6 +154,11 @@ export function PipelinePage() {
           <Plus className="h-4 w-4" /> New lead
         </button>
       </div>
+      {websiteNote && (
+        <p className={`text-sm ${websiteNote.bad ? "text-destructive" : "text-muted-foreground"}`} role="status">
+          {websiteNote.text}
+        </p>
+      )}
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         <button onClick={() => setStageId("")} className={tab(stageId === "")}>

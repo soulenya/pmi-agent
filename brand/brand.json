@@ -90,6 +90,9 @@
       "email_domain": "precisianmedical.com"
     }
   },
+  "website_inquiries": {
+    "senders": ["formresponses@netlify.com"]
+  },
   "agents": [
     "executive_assistant",
     "house_manager",

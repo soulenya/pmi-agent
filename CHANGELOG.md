@@ -4,6 +4,62 @@
 
 ## Changelog
 
+### v5.40.0 · build 326 — 2026-11-20
+**Website inquiries file themselves in the pipeline**
+
+- **What it does** (`services/pipeline_inquiries.py`). A website's contact
+  form emails each submission to someone's inbox (Netlify Forms, for PMI:
+  `formresponses@netlify.com`). Every five minutes the hub looks in each
+  connected person's Gmail for mail from the addresses the brand names,
+  reads the fields out of each one (name, organization, role, email,
+  message) and files it in the pipeline: a new lead in the first stage,
+  owned by the person whose inbox it reached, dated when it arrived. Gmail
+  is only read.
+- **Switched on by the brand**: `"website_inquiries": {"senders": [...]}` in
+  `brand.json`. PMI's names Netlify's address; the default is empty, which
+  reads nothing. Needs `features.pipeline`. No migration.
+- **Nothing is filed twice, and nothing already there is touched.** A
+  submission is known by a fingerprint of who sent it and what they wrote,
+  so the same notification in two people's inboxes is one lead. A
+  submission whose text is already on that person's lead (entered by hand,
+  or brought over from Odoo) is recognised and left alone, as is a blank
+  message from someone already in the pipeline. An inquiry from someone
+  who already has an open lead, saying something new, is added to that
+  lead's history instead of making a second lead.
+- **Only the form service is believed.** A message counts only when Gmail's
+  own check (`Authentication-Results` written by `mx.google.com`) says the
+  sender's domain signed it; a header a sender wrote, a similar address, or
+  a reply in the same thread does not. What people type into a public form
+  is kept as text: the lead's details and notes reach Gerry marked as
+  records, not instructions, as before.
+- **Paced for Gmail.** One look opens at most 40 messages; Gmail's "too
+  fast" ends a look early and the next one carries on. Per person, the time
+  their mailbox has been read up to is saved (`pipeline_inquiries.read_through`
+  in their settings), so a restart re-reads only the last day.
+- **Check website inquiries** (button on Mail → Pipeline, `POST
+  /pipeline/inquiries/check`): looks in the signed-in person's own inbox
+  now and says what was filed. It needs their Google account connected on
+  the hub.
+- Verified: 343 passing (3 new: parsing and filing against a stand-in
+  Gmail, including a forged sender, a blank form, a reply, the same mail
+  in a second inbox, and Gmail's rate limit). **Against Morgan's real
+  mailbox, read-only, on this PC:** 61 messages from the sender; 58
+  submissions read correctly (all five fields, no sign-off text left in any
+  message), two blank submissions and one reply from a different Netlify
+  address correctly set aside; every message carried Netlify's verified
+  signature. Run against a throwaway copy of the hub's pipeline: all 58
+  were recognised as already there and nothing was added (131 leads and 125
+  notes before and after); with one lead removed from the copy, its email
+  was filed again as a lead with the right fields and date. In a browser on
+  a hub-mode backend with a stand-in inbox: the background check filing a
+  lead by itself, the button reporting a new lead and a follow-up added to
+  an existing lead's history, a second press finding nothing, and someone
+  without Google connected being told so. The brand probe shows no change
+  to what Gerry is given. Not verified: the background check on PMI's hub
+  with the hub's own Google connection (this release puts it there), and a
+  brand-new submission arriving while it runs.
+- `USER_GUIDE.md` › Pipeline; `DEVELOPER_GUIDE.md` §4.
+
 ### v5.39.0 · build 325 — 2026-11-20
 **QuickBooks Online and the U.S. Bank reader, read-only, behind the finance list. Switched on for PMI against the two sandboxes (test data)**
 

@@ -21,6 +21,7 @@ from models.db.erp import ErpConnection
 from models.db.pipeline import PipelineLead
 from models.db.user import User
 from services import pipeline as svc
+from services import pipeline_inquiries as inquiries
 from services.erp.errors import ErpError
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
@@ -52,6 +53,10 @@ class NoteIn(BaseModel):
 
 class ImportIn(BaseModel):
     dry_run: bool = True
+
+
+class InquiryCheckIn(BaseModel):
+    dry_run: bool = False
 
 
 def _bad(exc: svc.PipelineError) -> HTTPException:
@@ -161,6 +166,25 @@ async def add_note(
         raise _bad(exc) from exc
     await db.commit()
     return await svc.get_lead(db, lead.id)
+
+
+@router.post("/inquiries/check")
+async def check_website_inquiries(
+    body: InquiryCheckIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Look in this person's own Gmail for website form submissions now, and file what is new.
+
+    The hub does this by itself every few minutes; this is for not waiting.
+    ``dry_run`` only counts.
+    """
+    try:
+        return await inquiries.check_mailbox(db, user, dry_run=body.dry_run)
+    except svc.PipelineError as exc:
+        raise _bad(exc) from exc
+    except Exception as exc:  # noqa: BLE001 - Gmail's own errors: quota, a withdrawn grant
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Gmail could not be read: {exc}") from exc
 
 
 @router.post("/import/odoo")

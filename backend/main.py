@@ -445,6 +445,42 @@ async def _assistant_scan_loop() -> None:
             logger.exception("Assistant scan loop error")
 
 
+async def _website_inquiries_loop() -> None:
+    """On a hub: every few minutes, file new website form submissions from each
+    connected person's Gmail into the pipeline (services/pipeline_inquiries.py)."""
+    from services import pipeline_inquiries
+
+    if not settings.hub_mode or not pipeline_inquiries.enabled():
+        return
+
+    async def check(user) -> None:
+        async for db in get_db():
+            try:
+                report = await pipeline_inquiries.check_mailbox(db, user)
+            except pipeline_inquiries.NotConnected:
+                return
+            if report["new_leads"] or report["added_to_existing"]:
+                logger.info(
+                    "Website inquiries for %s: %s new lead(s), %s added to existing leads",
+                    user.email, report["new_leads"], report["added_to_existing"],
+                )
+
+    await asyncio.sleep(60)
+    while True:
+        try:
+            users: list = []
+            async for db in get_db():
+                users = await _google_users(db)
+            for user in users:
+                try:
+                    await _as_google_user(user.id, check(user))
+                except Exception:
+                    logger.exception("Website inquiries check failed for %s", user.email)
+        except Exception:
+            logger.exception("Website inquiries loop error")
+        await asyncio.sleep(pipeline_inquiries.CHECK_EVERY_SECONDS)
+
+
 # ── Background scheduled-tasks loop ───────────────────────────────────────────
 
 async def _scheduled_tasks_loop() -> None:
@@ -768,7 +804,9 @@ async def lifespan(app: FastAPI):
     hub_client_task = asyncio.create_task(_hub_client_fetch_once())
     chat_backfill_task = asyncio.create_task(_hub_chat_backfill_once())
     brain_conv_task = asyncio.create_task(_brain_conversations_loop())
+    inquiries_task = asyncio.create_task(_website_inquiries_loop())
     yield
+    inquiries_task.cancel()
     bg_task.cancel()
     drive_task.cancel()
     assistant_task.cancel()
@@ -782,7 +820,7 @@ async def lifespan(app: FastAPI):
     hub_client_task.cancel()
     chat_backfill_task.cancel()
     brain_conv_task.cancel()
-    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, gmail_task, company_ctx_task, hub_client_task, chat_backfill_task, brain_conv_task):
+    for _t in (bg_task, drive_task, assistant_task, scheduler_task, catalog_task, meeting_task, cleanup_task, backup_task, gmail_task, company_ctx_task, hub_client_task, chat_backfill_task, brain_conv_task, inquiries_task):
         try:
             await _t
         except asyncio.CancelledError:

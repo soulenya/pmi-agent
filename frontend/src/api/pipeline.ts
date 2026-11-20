@@ -94,3 +94,21 @@ export async function addLeadNote(id: string, body: string): Promise<PipelineLea
 export async function importFromOdoo(dryRun: boolean): Promise<ImportReport> {
   return (await apiClient.post<ImportReport>(`${P}/import/odoo`, { dry_run: dryRun })).data;
 }
+
+export interface InquiryReport {
+  /** Messages opened this time. */
+  read: number;
+  new_leads: number;
+  /** Inquiries from someone who already has an open lead, added to that lead's history. */
+  added_to_existing: number;
+  already_here: number;
+  /** Titles of the new leads. */
+  titles: string[];
+  /** Gmail asked it to slow down, or there is a backlog: the hub carries on by itself. */
+  more_to_read: boolean;
+}
+
+/** Look in the signed-in person's own Gmail for website form submissions now. The hub also does this every few minutes. */
+export async function checkWebsiteInquiries(): Promise<InquiryReport> {
+  return (await apiClient.post<InquiryReport>(`${P}/inquiries/check`, {}, { timeout: 120_000 })).data;
+}
