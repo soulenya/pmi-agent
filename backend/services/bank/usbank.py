@@ -38,6 +38,7 @@ from typing import Any
 import httpx
 
 from config import _keyring_get, settings
+from services import secret_store
 
 _API = "/commercial-banking/account-management/v2"
 _HOSTS = {
@@ -65,14 +66,44 @@ def environment() -> str:
 
 
 def credentials() -> tuple[str, str] | None:
-    """(API key, secret) from the environment or the OS keyring; None when either is missing."""
+    """(API key, secret): the environment, then the OS keyring, then what a hub's administrator saved in the app."""
     key = (settings.get_api_key("usbank") or "").strip()
-    secret = (os.environ.get("USBANK_API_SECRET") or _keyring_get("usbank_api_secret") or "").strip()
+    secret = (
+        os.environ.get("USBANK_API_SECRET") or _keyring_get("usbank_api_secret")
+        or secret_store.get("usbank_api_secret") or ""
+    ).strip()
     return (key, secret) if key and secret else None
 
 
 def configured() -> bool:
     return credentials() is not None
+
+
+def keys_source() -> str | None:
+    """Where the key and secret come from: 'server', 'keyring', 'app', or None when there are none."""
+    if not configured():
+        return None
+    if os.environ.get("USBANK_API_KEY") and os.environ.get("USBANK_API_SECRET"):
+        return "server"
+    if _keyring_get("usbank_api_key") and _keyring_get("usbank_api_secret"):
+        return "keyring"
+    return "app"
+
+
+async def keys_refused(key: str, secret: str) -> bool:
+    """True when the bank turns this key and secret away. Only the sandbox can be asked without a certificate."""
+    if environment() != "sandbox":
+        return False
+    try:
+        resp = await _send("POST", token_url(), auth=(key, secret), data={"grant_type": "client_credentials"})
+    except (httpx.HTTPError, BankError):
+        return False  # could not ask; do not block saving on that
+    return resp.status_code in (401, 403)
+
+
+def forget_tokens() -> None:
+    """Drop any sign-in held in memory, so the next call signs in afresh (the keys changed)."""
+    _tokens.clear()
 
 
 def token_url() -> str:

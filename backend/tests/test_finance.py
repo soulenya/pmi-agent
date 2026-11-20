@@ -67,7 +67,9 @@ class _Bank:
     async def __call__(self, method: str, url: str, **kw) -> httpx.Response:
         self.calls.append((method, url, kw))
         if url.endswith("/oauth2/client-credentials/v2/token"):
-            assert kw["auth"] == ("key", "secret") and kw["data"] == {"grant_type": "client_credentials"}
+            if kw["auth"] != ("key", "secret"):
+                return httpx.Response(401, json={"errors": [{"message": "Unauthorized"}]})
+            assert kw["data"] == {"grant_type": "client_credentials"}
             return httpx.Response(200, json={"tokenType": "BearerToken", "expiresIn": "899", "accessToken": "tok"})
         assert kw["headers"]["Authorization"] == "Bearer tok" and kw["headers"]["Correlation-ID"]
         # What the sandbox enforces: a page size only ever with a page number.
@@ -217,6 +219,43 @@ async def test_the_bank_saying_no_is_reported_in_its_own_words(monkeypatch):
     monkeypatch.setattr(settings, "usbank_environment", "production")
     with pytest.raises(usbank.BankUnavailable, match="certificate and private key"):
         await usbank.accounts()
+
+
+@pytest.mark.asyncio
+async def test_a_hub_administrator_saves_the_banks_keys_in_the_app(client, db_session: AsyncSession, monkeypatch):
+    import config
+    from services import secret_store
+
+    fake = _Bank()
+    real_keyring = config._keyring_get
+    no_bank_keys = lambda name: None if name.startswith("usbank") else real_keyring(name)  # noqa: E731
+    monkeypatch.setattr(config, "_keyring_get", no_bank_keys)
+    monkeypatch.setattr(usbank, "_keyring_get", no_bank_keys)
+    monkeypatch.setattr(usbank, "_send", fake)
+    monkeypatch.setattr(usbank, "_tokens", {})
+    monkeypatch.setattr(secret_store, "_cache", {})
+    monkeypatch.setattr(settings, "usbank_environment", "sandbox")
+    monkeypatch.setattr(settings, "hub_mode", True)
+    for name in ("USBANK_API_KEY", "USBANK_API_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    admin, admin_h = await _person(db_session, client, "morgan@pmi.local", "admin")
+    _, member_h = await _person(db_session, client, "miller@pmi.local")
+    await svc.set_viewers(db_session, admin, ["morgan@pmi.local", "miller@pmi.local"])
+
+    start = (await client.get("/finance/access", headers=admin_h)).json()
+    assert (start["bank_configured"], start["can_save_bank_keys"]) == (False, True)
+    assert (await client.get("/finance/access", headers=member_h)).json()["can_save_bank_keys"] is False
+
+    keys = {"api_key": " key ", "api_secret": "secret"}
+    assert (await client.put("/finance/bank/keys", headers=member_h, json=keys)).status_code == 403
+    wrong = await client.put("/finance/bank/keys", headers=admin_h, json={**keys, "api_secret": "typo"})
+    assert wrong.status_code == 400 and "does not accept" in wrong.json()["detail"]
+    saved = await client.put("/finance/bank/keys", headers=admin_h, json=keys)
+    assert saved.status_code == 200 and saved.json() == {"bank_configured": True}
+    assert usbank.credentials() == ("key", "secret") and usbank.keys_source() == "app"
+    # Anyone on the finance list can now read the bank with the keys the administrator saved.
+    read = await client.post("/finance/bank/sync", headers=member_h)
+    assert read.status_code == 200 and read.json()["accounts"] == 2
 
 
 def _certificate(name: str, issuer=None, *, ca: bool = False, usage=None, ip: str | None = None):

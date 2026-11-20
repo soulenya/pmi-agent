@@ -17,9 +17,11 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     build: 325,
     date: "2026-11-20",
-    title: "Groundwork for reading QuickBooks",
+    title: "Finance: Bank and QuickBooks pages (test data for now)",
     changes: [
-      "Behind the scenes: Little Gerry can now connect to a company's QuickBooks Online and read its statements and lists (read-only), for people on the finance list. It is built against Intuit's test environment and stays switched off here for now. Nothing changes for you.",
+      "New under Finance: Bank and QuickBooks. They read the company's U.S. Bank accounts and its books in QuickBooks Online. Read-only: nothing here, and nothing Gerry can do, moves money or changes the books.",
+      "Only people on the finance list see any figures or get an answer from Gerry about money. Everyone else sees a short notice.",
+      "For now both are connected to the bank's and Intuit's test environments, so every figure is made up and carries a \"Test data\" banner. The real accounts follow once the bank and Intuit grant access.",
     ],
   },
   {
@@ -27,7 +29,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-11-20",
     title: "Groundwork for reading the bank",
     changes: [
-      "Behind the scenes: Little Gerry can now read a company's U.S. Bank accounts (balances and posted transactions, read-only) and show them only to people on a finance list. It is built against the bank's test environment and stays switched off here until the bank grants access to the real accounts. Nothing changes for you.",
+      "Behind the scenes: Little Gerry can now read a company's U.S. Bank accounts (balances and posted transactions, read-only) and show them only to people on a finance list. It is built against the bank's test environment. The Bank page itself arrives in the next entry.",
     ],
   },
   {

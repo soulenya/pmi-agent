@@ -150,6 +150,7 @@ function Connection({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [replacing, setReplacing] = useState(false);
   const connect = useMutation({
     mutationFn: startQuickBooksConnect,
     onSuccess: (url) => {
@@ -234,6 +235,17 @@ function Connection({
         </div>
       )}
       {error && <p className="mt-2 text-xs text-destructive" role="status">{error}</p>}
+      {status.configured && status.can_save_keys && (
+        <div className="mt-3 border-t pt-3">
+          {replacing ? (
+            <Keys status={status} onSaved={() => { setReplacing(false); onChanged(); }} />
+          ) : (
+            <button onClick={() => setReplacing(true)} className="text-xs text-muted-foreground underline hover:text-foreground">
+              Change the Intuit keys (for example, to production keys)
+            </button>
+          )}
+        </div>
+      )}
     </section>
   );
 }

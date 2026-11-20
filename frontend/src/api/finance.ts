@@ -14,6 +14,8 @@ export interface FinanceAccess {
   /** sandbox | certification | production. Anything but production is test data. */
   environment: string;
   bank_configured: boolean;
+  /** An administrator on the finance list may enter the bank's keys here (on a hub). */
+  can_save_bank_keys: boolean;
   last_synced: string | null;
 }
 
@@ -57,6 +59,10 @@ export async function getFinanceAccess(): Promise<FinanceAccess> {
 
 export async function setFinanceViewers(emails: string[]): Promise<void> {
   await apiClient.put(`${F}/viewers`, { emails });
+}
+
+export async function saveBankKeys(body: { api_key: string; api_secret: string }): Promise<void> {
+  await apiClient.put(`${F}/bank/keys`, body, { timeout: 60_000 });
 }
 
 export async function listBankAccounts(): Promise<BankAccount[]> {

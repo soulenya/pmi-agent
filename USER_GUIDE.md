@@ -1301,6 +1301,7 @@ Open **Odoo ERP** from the home screen to connect your Odoo account.
 - **Read the bank now** fetches anything new. Gerry also does this herself when the saved figures are more than a day old. Reading twice never creates duplicates.
 - **Ask Gerry.** "How much cash do we have?", "what did we pay Acme last month?", "what came in this week?" She answers from the bank's records and gives the date the figures run to. Someone who is not on the finance list is told they do not have access.
 - **It only reads.** Nothing on this page, and nothing Gerry can do, moves money or changes anything at the bank. These are bank records, not the accountants' books.
+- **Setting it up on a hub (administrators).** The first time, the page asks an administrator on the finance list for the **API key** and **secret** from the company's project at developer.usbank.com. They are checked with the bank, kept encrypted and never shown again; **Change the bank keys** replaces them later.
 - **Test data.** While the connection is to the bank's test environment, a banner says so and Gerry says so: the accounts and figures are made up by the bank and are not the company's.
 
 ---
@@ -1317,7 +1318,7 @@ Open **Odoo ERP** from the home screen to connect your Odoo account.
 - **Ask Gerry.** "What was our profit last quarter?", "show spending by month this year", "what do we owe Acme?", "has Riverside paid invoice 1007?" She reads the statement or list and says the period it covers.
 - **What it does not show.** Individual paychecks (payroll appears as totals in the accounts) and tax returns (the accountants prepare those outside QuickBooks).
 - **If it asks to be connected again.** Intuit ends a connection that has not been used for about a hundred days, or that someone removed from inside QuickBooks. Press **Connect again**.
-- **Setting it up on a hub (administrators).** The first time, the page asks for the **client ID** and **client secret** of the company's own app at developer.intuit.com, and shows the address to list there as a redirect URI. They are checked with Intuit, kept encrypted and never shown again.
+- **Setting it up on a hub (administrators).** The first time, the page asks for the **client ID** and **client secret** of the company's own app at developer.intuit.com, and shows the address to list there as a redirect URI. They are checked with Intuit, kept encrypted and never shown again; **Change the Intuit keys** replaces them later, for example with production keys.
 - **Test data.** While it is connected to a QuickBooks sandbox company, a banner says so and Gerry says so: the books are made up and are not the company's.
 
 ---

@@ -78,7 +78,8 @@
     "hub": true,
     "company_brain": true,
     "brain_conversations": true,
-    "pipeline": true
+    "pipeline": true,
+    "finance": true
   },
   "erp": {
     "providers": ["odoo"],

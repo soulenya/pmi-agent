@@ -25,6 +25,7 @@ from config import settings
 from models.db.finance import BankAccount, BankTransaction
 from models.db.settings import SystemSetting
 from models.db.user import User
+from services import secret_store
 from services.bank import usbank
 
 VIEWERS_KEY = "finance.viewers"
@@ -92,6 +93,29 @@ async def set_viewers(db: AsyncSession, user: User, emails: list[str]) -> list[s
         row.updated_by = user.id
     await db.flush()
     return wanted
+
+
+async def save_bank_keys(db: AsyncSession, user: User, api_key: str, api_secret: str) -> None:
+    """Keep the bank's API key and secret on a hub, encrypted. Caller commits.
+
+    The company's certificate and its private key, which the bank's real
+    environments also require, are never kept here: they are files on the server.
+    """
+    await require_view(db, user)
+    if not settings.hub_mode:
+        raise FinanceError("The bank's keys are saved on the hub, not on a desktop.")
+    if user.role != "admin":
+        raise NotAllowed("Only an administrator can set the company's bank keys.")
+    if usbank.keys_source() not in (None, "app"):
+        raise FinanceError("This server is given its bank keys directly; keys saved here would not be used.")
+    api_key, api_secret = api_key.strip(), api_secret.strip()
+    if not api_key or not api_secret:
+        raise FinanceError("Both the API key and the secret are needed.")
+    if await usbank.keys_refused(api_key, api_secret):
+        raise FinanceError("U.S. Bank does not accept that API key and secret. Check both were copied in full.")
+    await secret_store.put(db, "usbank_api_key", api_key, user.id)
+    await secret_store.put(db, "usbank_api_secret", api_secret, user.id)
+    usbank.forget_tokens()
 
 
 # ── The bank ──────────────────────────────────────────────────────────────────

@@ -5,12 +5,28 @@
 ## Changelog
 
 ### v5.39.0 · build 325 — 2026-11-20
-**QuickBooks Online, read-only, behind the finance list. Built against Intuit's sandbox; off for PMI**
+**QuickBooks Online and the U.S. Bank reader, read-only, behind the finance list. Switched on for PMI against the two sandboxes (test data)**
 
-- Part of **Finance** (`features.finance`, default off; PMI's `brand.json`
-  still does not set it). For PMI this release only adds **migration 057**,
-  one empty table on the hub (deploy with `-Migrate`; 054 to 056 go with it
-  if not yet applied).
+- **Finance is on for PMI** (`"finance": true` in `brand/brand.json`), so
+  that both sandboxes can be tried on the hub. Finance → Bank and Finance →
+  QuickBooks appear for everyone; only people on the finance list see any
+  figure, and everything carries a "Test data" banner and is labelled as
+  test data to Gerry until production access exists. Gerry gains
+  `read_bank`, `quickbooks_report` and `read_quickbooks` (the brand probe
+  against the previous commit shows exactly those three). **Migrations 056
+  and 057** create the tables (deploy with `-Migrate`; 054 and 055 go with
+  them).
+- **The bank's keys can be saved in the app** on a hub
+  (`PUT /finance/bank/keys`, a form on the Bank page): an administrator on
+  the finance list pastes the API key and secret, they are checked with the
+  bank's sandbox, stored encrypted in `app_secrets` and never sent back.
+  The order is the environment, then the keyring, then the app. The
+  company's certificate and its private key, which the bank's real
+  environments also require, are never stored there: they stay files on
+  the server. Both pages let that administrator replace saved keys later
+  (for example with production keys). Verified against the real sandbox: a
+  made-up key is refused by the bank, the real ones are accepted and a
+  second person on the list then reads the bank with them.
 - **One connection for the company** (`quickbooks_connections`, one row per
   Intuit environment). Someone on the finance list presses **Connect to
   QuickBooks**, signs in at Intuit, chooses the company and approves; Intuit
@@ -78,7 +94,7 @@
   waiting at a terminal. **Not verified against the bank**: that needs the
   bank's onboarding, a certificate it has installed, and its keys. Nothing
   puts the certificate on the hub yet.
-- Verified: 339 passing (5 new; QuickBooks against a stand-in for Intuit
+- Verified: 340 passing (6 new; QuickBooks against a stand-in for Intuit
   that fails if anything but a GET reaches the books). Migration 057 applied to a real
   Postgres after 001 to 056 and compared with the model. **Against a live
   Intuit sandbox company, on a hub-mode backend with a test brand:** Morgan
@@ -93,12 +109,12 @@
   labelled text and refused someone off the list; Disconnect made Intuit
   revoke the sign-in. Also: a wrong secret, a made-up code, an expired or
   foreign request and a non-numeric company id are each refused; keys
-  entered by an administrator in the page (against the stand-in). The brand
-  probe against 5.38.0 shows no difference for PMI and exactly the two new
-  tools for a brand with the feature. Not verified: anything against
-  production keys or PMI's real books; the page and tools from a desktop
-  through the hub; the return address on the real hub behind IAP; a real
-  model choosing the tools.
+  entered by an administrator in the page (against the stand-in). The pages
+  were also run in a browser under PMI's own brand. Not verified: anything
+  on PMI's hub itself (this is the release that puts it there); anything
+  against production keys or PMI's real books; the page and tools from a
+  desktop through the hub; the return address on the real hub behind IAP; a
+  real model choosing the tools.
 - Not built: comparing a budget with QuickBooks, a daily renewal to keep an
   unused connection alive past Intuit's hundred days, webhooks, any write.
 - `USER_GUIDE.md` › QuickBooks; `DEVELOPER_GUIDE.md` §4.

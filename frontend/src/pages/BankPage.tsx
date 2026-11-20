@@ -12,6 +12,7 @@ import {
   getFinanceAccess,
   listBankAccounts,
   listBankTransactions,
+  saveBankKeys,
   setFinanceViewers,
   syncBank,
 } from "@/api/finance";
@@ -92,6 +93,7 @@ function Books({ access, onChanged }: { access: FinanceAccess; onChanged: () => 
   const [q, setQ] = useState("");
   const [report, setReport] = useState<SyncReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [replacing, setReplacing] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setQ(typed.trim()), 300);
@@ -132,8 +134,19 @@ function Books({ access, onChanged }: { access: FinanceAccess; onChanged: () => 
           {sync.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           {sync.isPending ? "Reading the bank…" : "Read the bank now"}
         </button>
-        {!access.bank_configured && <span className="text-muted-foreground">The bank connection is not set up on this server.</span>}
+        {!access.bank_configured && !access.can_save_bank_keys && (
+          <span className="text-muted-foreground">The bank connection is not set up on this server.</span>
+        )}
       </div>
+      {!access.bank_configured && access.can_save_bank_keys && <BankKeys onSaved={onChanged} />}
+      {access.bank_configured && access.can_save_bank_keys &&
+        (replacing ? (
+          <BankKeys onSaved={() => { setReplacing(false); onChanged(); }} />
+        ) : (
+          <button onClick={() => setReplacing(true)} className="text-xs text-muted-foreground underline hover:text-foreground">
+            Change the bank keys
+          </button>
+        ))}
       {error && <p className="text-sm text-destructive" role="status">{error}</p>}
       {report && (
         <p className="text-sm" role="status">
@@ -244,6 +257,39 @@ function Books({ access, onChanged }: { access: FinanceAccess; onChanged: () => 
         </div>
       </section>
     </>
+  );
+}
+
+function BankKeys({ onSaved }: { onSaved: () => void }) {
+  const [apiKey, setApiKey] = useState("");
+  const [secret, setSecret] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: () => saveBankKeys({ api_key: apiKey, api_secret: secret }),
+    onSuccess: () => {
+      setError(null);
+      onSaved();
+    },
+    onError: (e) => setError(errorText(e, "Could not save the keys.")),
+  });
+  const field = "min-w-0 rounded-md border bg-background px-3 py-1.5";
+
+  return (
+    <section className="max-w-xl space-y-3 rounded-lg border p-4 text-sm">
+      <p className="font-medium">Set up the bank connection</p>
+      <p className="text-muted-foreground">
+        Paste the API key and secret from your project at developer.usbank.com. They are checked with the bank, kept
+        encrypted on the hub and never shown again. They only allow reading.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="API key" aria-label="API key" autoComplete="off" className={field} />
+        <input value={secret} onChange={(e) => setSecret(e.target.value)} type="password" placeholder="Secret" aria-label="Secret" autoComplete="off" className={field} />
+      </div>
+      <button onClick={() => save.mutate()} disabled={!apiKey.trim() || !secret.trim() || save.isPending} className="rounded-md border px-3 py-1.5 hover:bg-accent disabled:opacity-60">
+        {save.isPending ? "Checking with the bank…" : "Save"}
+      </button>
+      {error && <p className="text-xs text-destructive" role="status">{error}</p>}
+    </section>
   );
 }
 

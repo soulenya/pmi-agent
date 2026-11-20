@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import settings
 from database import get_db
 from dependencies import get_current_user
 from models.db.user import User
@@ -26,6 +27,11 @@ router = APIRouter(prefix="/finance", tags=["finance"])
 
 class ViewersIn(BaseModel):
     emails: list[str]
+
+
+class BankKeysIn(BaseModel):
+    api_key: str
+    api_secret: str
 
 
 def _refuse(exc: svc.FinanceError) -> HTTPException:
@@ -46,12 +52,29 @@ async def get_access(db: AsyncSession = Depends(get_db), user: User = Depends(ge
     """Whether this person may see financial data, and may change who can."""
     out = await svc.access(db, user)
     synced = await svc.last_synced(db) if out["can_view"] else None
+    source = usbank.keys_source()
     return {
         **out,
         "environment": usbank.environment(),
-        "bank_configured": usbank.configured(),
+        "bank_configured": source is not None,
+        # Keys saved in the app live on a hub and are an administrator's to set;
+        # ones the server is given directly would win over anything saved here.
+        "can_save_bank_keys": out["can_view"] and settings.hub_mode and user.role == "admin" and source in (None, "app"),
         "last_synced": synced.isoformat() if synced else None,
     }
+
+
+@router.put("/bank/keys")
+async def put_bank_keys(
+    body: BankKeysIn, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+) -> dict[str, Any]:
+    """Save the bank's API key and secret on a hub. They are never sent back."""
+    try:
+        await svc.save_bank_keys(db, user, body.api_key, body.api_secret)
+    except svc.FinanceError as exc:
+        raise _refuse(exc) from exc
+    await db.commit()
+    return {"bank_configured": usbank.configured()}
 
 
 @router.put("/viewers")
