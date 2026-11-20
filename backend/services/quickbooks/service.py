@@ -324,7 +324,7 @@ def _spent_on(row: dict) -> str:
 
 
 def _paid(row: dict) -> float | None:
-    """What an expense took out. QuickBooks marks a refund with ``Credit`` and a positive amount; here it is negative."""
+    """What an expense took out. QuickBooks marks a credit (a refund, or a payment onto a card) with ``Credit`` and a positive amount; here it is negative."""
     total = _num(row.get("TotalAmt"))
     return -total if total is not None and row.get("Credit") is True else total
 
@@ -376,7 +376,7 @@ DATASETS: dict[str, dict[str, Any]] = {
         "title": "Expenses paid", "entity": "Purchase", "order": "TxnDate", "dated": True,
         "columns": [("date", "Date", "date"), ("name", "Paid to", "text"), ("category", "For", "text"),
                     ("account", "Paid from", "text"), ("method", "How", "text"), ("number", "Number", "text"),
-                    ("total", "Amount (refunds negative)", "money"), ("memo", "Memo", "text")],
+                    ("total", "Amount (credits negative)", "money"), ("memo", "Memo", "text")],
         "row": lambda r: {"date": r.get("TxnDate") or "", "name": _ref(r, "EntityRef"), "category": _spent_on(r),
                           "account": _ref(r, "AccountRef"), "method": r.get("PaymentType") or "", "number": r.get("DocNumber") or "",
                           "total": _paid(r), "memo": r.get("PrivateNote") or ""},
@@ -402,6 +402,9 @@ async def listing(
     found = (raw.get("QueryResponse") or {}).get(spec["entity"]) or []
     read_row: Callable[[dict], dict[str, Any]] = spec["row"]
     rows = [read_row(r) for r in found]
+    if not since:
+        # By the name shown: QuickBooks sorts accounts by the last part of a name like "Fees:Accounting".
+        rows.sort(key=lambda r: str(r["name"]).lower())
     words = search.strip().lower()
     if words:
         rows = [r for r in rows if words in " ".join(str(v) for v in r.values() if v is not None).lower()]

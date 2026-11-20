@@ -32,8 +32,9 @@
   cash flow optionally by month, quarter or year. **Lists**: accounts (with
   each balance in the books), vendors, customers, bills, invoices, payments
   received, expenses. A search narrows what came back; what a person types
-  never goes into the query sent to QuickBooks. A refund on a card is shown
-  as a negative expense.
+  never goes into the query sent to QuickBooks. A credit (a refund, or a
+  payment onto a card) is shown as a negative expense. Lists without dates
+  are in order of the name shown.
 - **Routes**, all refused to anyone not on the finance list:
   `GET /finance/quickbooks/status`, `PUT …/keys`, `POST …/connect`,
   `POST …/disconnect`, `GET …/reports/{name}`, `GET …/lists/{dataset}`. A
@@ -60,22 +61,25 @@
   and tax returns.
 - Verified: 338 passing (4 new, against a stand-in for Intuit that fails if
   anything but a GET reaches the books). Migration 057 applied to a real
-  Postgres after 001 to 056 and compared with the model. With the real
-  sandbox keys: Intuit's published sign-in addresses match the code, Intuit
-  accepts the client ID and secret, the Connect button opens Intuit's
-  sign-in for the app with the registered return address, and the running
-  server's callback passes Intuit's own refusal of a made-up code back to
-  the page. Report and expense shapes checked against public captures of
-  real QuickBooks responses. In a browser on a hub-mode backend against the
-  stand-in: keys entered by an administrator (a wrong secret refused), the
-  connection appearing without a reload, every statement and list, a second
-  person on the list seeing it, disconnect, and someone off the list seeing
-  nothing. The brand probe against 5.38.0 shows no difference for PMI and
-  exactly the two new tools for a brand with the feature. **Not verified:
-  a completed sign-in and any figure read from a live QuickBooks company,
-  sandbox or real** (it needs a person to sign in at Intuit); the balance
-  sheet's date parameters; the page and tools from a desktop through the
-  hub; a real model choosing the tools.
+  Postgres after 001 to 056 and compared with the model. **Against a live
+  Intuit sandbox company, on a hub-mode backend with a test brand:** Morgan
+  signed in at Intuit from the Connect button and was returned to the
+  callback; all five statements and seven lists were read through the
+  routes and in the page in a browser, profit and loss also by month; the
+  figures agree with each other (net income on the profit and loss and the
+  balance sheet, the checking balance on the balance sheet and in the
+  accounts list); the balance sheet for two different days differs as it
+  should; an expired access token and one Intuit refuses were both renewed
+  with Intuit and the read went through; Gerry's two tools returned the
+  labelled text and refused someone off the list; Disconnect made Intuit
+  revoke the sign-in. Also: a wrong secret, a made-up code, an expired or
+  foreign request and a non-numeric company id are each refused; keys
+  entered by an administrator in the page (against the stand-in). The brand
+  probe against 5.38.0 shows no difference for PMI and exactly the two new
+  tools for a brand with the feature. Not verified: anything against
+  production keys or PMI's real books; the page and tools from a desktop
+  through the hub; the return address on the real hub behind IAP; a real
+  model choosing the tools.
 - Not built: comparing a budget with QuickBooks, a daily renewal to keep an
   unused connection alive past Intuit's hundred days, webhooks, any write.
 - `USER_GUIDE.md` › QuickBooks; `DEVELOPER_GUIDE.md` §4.
