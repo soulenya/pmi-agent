@@ -82,6 +82,18 @@ class Settings(BaseSettings):
     # Which U.S. Bank environment the bank reader talks to: sandbox (simulated
     # data), certification or production. See services/bank/usbank.py.
     usbank_environment: str = "sandbox"
+    # Certification and production also need the company's own certificate
+    # (mutual TLS): the full chain in one PEM file, and its private key. The
+    # key's passphrase, if it has one, is USBANK_CLIENT_KEY_PASSWORD or the
+    # keyring's usbank_client_key_password.
+    usbank_client_cert_file: str = ""
+    usbank_client_key_file: str = ""
+    # The bank's root certificate, trusted in addition to the usual ones. Blank
+    # unless the bank's servers do not verify without it.
+    usbank_ca_file: str = ""
+    # The sign-in address, when the bank's onboarding team names one different
+    # from the general one in services/bank/usbank.py.
+    usbank_token_url: str = ""
     # QuickBooks Online (services/quickbooks). Which of Intuit's worlds the
     # keys belong to: sandbox or production. Blank means whatever was saved
     # with the keys in the app, else sandbox.

@@ -5,18 +5,31 @@ fifteen minutes; every data call carries it. Which environment is used is
 ``settings.usbank_environment``:
 
 - ``sandbox``: simulated data, sign-in with the key and secret alone.
-- ``certification`` / ``production``: the bank also requires a client
-  certificate (mutual TLS) and issues the sign-in address during onboarding.
-  That is not built yet, and this module says so rather than guessing.
+- ``certification`` / ``production``: the same sign-in request, but every
+  connection must also present the company's own certificate (mutual TLS):
+  ``usbank_client_cert_file`` (the full chain: the company's certificate, the
+  intermediate, the root, in one PEM file) and ``usbank_client_key_file``.
+  The certificate has to allow client authentication and come from an
+  authority the bank accepts; the bank installs it during onboarding.
+
+The sign-in address for the certificate environments is the one in the
+bank's general mTLS guide. That guide says a product's Security guide has the
+definitive address, so ``usbank_token_url`` overrides it. **This path has
+been exercised against a local server that demands a client certificate, not
+against the bank**: that needs the bank's onboarding.
 
 What the sandbox taught that the specification does not say: dates are
 ``YYYY-MM-DD`` only; ``pageSize`` is refused without ``pageNumber``; amounts
-and balances arrive as strings.
+and balances arrive as strings. The bank's testing guide shows certification
+returning amounts as numbers, dates with a time and ``CREDIT`` in capitals;
+``services/finance`` reads both.
 """
 
 from __future__ import annotations
 
+import functools
 import os
+import ssl
 import time
 import uuid
 from datetime import date
@@ -33,6 +46,7 @@ _HOSTS = {
     "production": "https://api2.usbank.com",
 }
 _SANDBOX_TOKEN = "/oauth2/client-credentials/v2/token"
+_TOKEN = "/auth/oauth2/v1/token"
 _PAGE = 100
 # environment -> (token, good until, in monotonic seconds)
 _tokens: dict[str, tuple[str, float]] = {}
@@ -61,9 +75,48 @@ def configured() -> bool:
     return credentials() is not None
 
 
+def token_url() -> str:
+    env = environment()
+    return settings.usbank_token_url.strip() or _HOSTS[env] + (_SANDBOX_TOKEN if env == "sandbox" else _TOKEN)
+
+
+def certificate() -> tuple[str, str] | None:
+    """(certificate chain file, private key file) for mutual TLS; None when either is not set."""
+    cert, key = settings.usbank_client_cert_file.strip(), settings.usbank_client_key_file.strip()
+    return (cert, key) if cert and key else None
+
+
+@functools.lru_cache(maxsize=4)
+def _identity(cert: str, key: str, password: str, ca: str) -> ssl.SSLContext:
+    context = httpx.create_ssl_context()
+    if ca:
+        context.load_verify_locations(cafile=ca)
+    # A passphrase is always supplied, even an empty one: without it an
+    # encrypted key would make OpenSSL stop and ask at the terminal.
+    context.load_cert_chain(certfile=cert, keyfile=key, password=lambda: password)
+    return context
+
+
+def _verify() -> ssl.SSLContext | bool:
+    """How a connection proves who it is: nothing extra in the sandbox, the company's certificate elsewhere."""
+    if environment() == "sandbox":
+        return True
+    found = certificate()
+    if found is None:
+        raise BankUnavailable(
+            f"U.S. Bank's {environment()} environment needs the company's certificate and private key. "
+            "Neither file is set on this server."
+        )
+    password = os.environ.get("USBANK_CLIENT_KEY_PASSWORD") or _keyring_get("usbank_client_key_password") or ""
+    try:
+        return _identity(*found, password, settings.usbank_ca_file.strip())
+    except (OSError, ssl.SSLError, ValueError) as exc:
+        raise BankUnavailable(f"The company's certificate or private key for U.S. Bank could not be loaded: {exc}") from exc
+
+
 async def _send(method: str, url: str, **kwargs: Any) -> httpx.Response:
     """The one place a request leaves; tests replace it."""
-    async with httpx.AsyncClient(timeout=45) as client:
+    async with httpx.AsyncClient(timeout=45, verify=_verify()) as client:
         return await client.request(method, url, **kwargs)
 
 
@@ -90,17 +143,21 @@ async def _token(force: bool = False) -> str:
     creds = credentials()
     if creds is None:
         raise BankUnavailable("The U.S. Bank API key and secret are not set on this server.")
-    if env != "sandbox":
+    if env != "sandbox" and certificate() is None:
         raise BankUnavailable(
-            f"U.S. Bank's {env} environment needs the bank's client certificate and the sign-in "
-            "address it issues during onboarding. Neither is set up yet."
+            f"U.S. Bank's {env} environment needs the company's certificate and private key. "
+            "Neither file is set on this server."
         )
     try:
-        resp = await _send(
-            "POST", _HOSTS[env] + _SANDBOX_TOKEN, auth=creds, data={"grant_type": "client_credentials"}
-        )
+        resp = await _send("POST", token_url(), auth=creds, data={"grant_type": "client_credentials"})
     except httpx.HTTPError as exc:
         raise BankUnavailable(f"Could not reach U.S. Bank: {exc}") from exc
+    if resp.status_code == 403 and env != "sandbox":
+        # What the bank's testing guide says a 403 here nearly always is.
+        raise BankError(
+            "U.S. Bank refused the connection (403). That is usually the certificate: the file must hold the "
+            "full chain (the company's certificate, the intermediate, then the root), and be the one the bank installed."
+        )
     if resp.status_code in (401, 403):
         raise BankError("U.S. Bank did not accept the API key and secret.")
     if resp.status_code != 200:

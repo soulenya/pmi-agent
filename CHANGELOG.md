@@ -59,8 +59,27 @@
 - What QuickBooks does not give: the bank's live balance (the Bank page is
   for that), individual paychecks (payroll shows as totals in the accounts),
   and tax returns.
-- Verified: 338 passing (4 new, against a stand-in for Intuit that fails if
-  anything but a GET reaches the books). Migration 057 applied to a real
+- **U.S. Bank beyond the sandbox** (`services/bank/usbank.py`). For
+  `USBANK_ENVIRONMENT=certification` or `production` the reader now signs in
+  the way the bank's guides describe: the same request as the sandbox, on a
+  connection that presents the company's own certificate (mutual TLS).
+  `USBANK_CLIENT_CERT_FILE` is the full chain in one PEM file (the company's
+  certificate, the intermediate, the root), `USBANK_CLIENT_KEY_FILE` its
+  private key, `USBANK_CLIENT_KEY_PASSWORD` (or the keyring) the key's
+  passphrase if it has one, `USBANK_CA_FILE` the bank's root certificate if
+  its servers do not verify without it. The sign-in address is the bank's
+  general one, `<host>/auth/oauth2/v1/token`; the bank says a product's
+  Security guide has the definitive one, so `USBANK_TOKEN_URL` overrides it.
+  With no certificate set the reader says so and contacts nobody. Verified
+  by a real handshake against a local server that, like the bank's, refuses
+  any connection without a certificate from an authority it trusts: the
+  right certificate gets through, one from another authority does not, and
+  a key locked with a passphrase nobody supplied is reported instead of
+  waiting at a terminal. **Not verified against the bank**: that needs the
+  bank's onboarding, a certificate it has installed, and its keys. Nothing
+  puts the certificate on the hub yet.
+- Verified: 339 passing (5 new; QuickBooks against a stand-in for Intuit
+  that fails if anything but a GET reaches the books). Migration 057 applied to a real
   Postgres after 001 to 056 and compared with the model. **Against a live
   Intuit sandbox company, on a hub-mode backend with a test brand:** Morgan
   signed in at Intuit from the Connect button and was returned to the
