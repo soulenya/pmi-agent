@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Download, Loader2, Mail, Plus, Search, X } from "lucide-react";
+import { Download, Loader2, Mail, Plus, Search, Send, X } from "lucide-react";
 
 import {
   addLeadNote,
@@ -19,6 +19,7 @@ import {
   updateLead,
 } from "@/api/pipeline";
 import type { ImportReport, LeadChanges, LeadStatus, PipelineLead, PipelineLeadDetail } from "@/api/pipeline";
+import { EmailLeadsDialog } from "@/components/pipeline/EmailLeadsDialog";
 import { useHubStatus } from "@/hooks/useAllWork";
 import { BRAND } from "@/lib/brand";
 import { useAuthStore } from "@/stores/authStore";
@@ -51,6 +52,7 @@ export function PipelinePage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [emailing, setEmailing] = useState<{ leads: PipelineLead[]; single: boolean } | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setQ(typed.trim()), 300);
@@ -148,6 +150,14 @@ export function PipelinePage() {
           </button>
         )}
         <button
+          onClick={() => setEmailing({ leads: leads.data ?? [], single: false })}
+          disabled={!leads.data?.length}
+          title="Send an email to the leads shown here, or to the ones you tick. Each person gets their own copy."
+          className="inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm hover:bg-accent disabled:opacity-60"
+        >
+          <Send className="h-4 w-4" /> Email leads
+        </button>
+        <button
           onClick={() => setAdding(true)}
           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
@@ -196,10 +206,19 @@ export function PipelinePage() {
             stages={stages.data ?? []}
             onClose={() => setOpenId(null)}
             onChanged={refresh}
+            onEmail={(lead) => setEmailing({ leads: [lead], single: true })}
           />
         )}
       </div>
 
+      {emailing && (
+        <EmailLeadsDialog
+          leads={emailing.leads}
+          single={emailing.single}
+          onClose={() => setEmailing(null)}
+          onSent={refresh}
+        />
+      )}
       {adding && (
         <NewLead
           stageId={stageId}
@@ -258,11 +277,13 @@ function LeadPanel({
   stages,
   onClose,
   onChanged,
+  onEmail,
 }: {
   id: string;
   stages: { id: string; name: string }[];
   onClose: () => void;
   onChanged: () => void;
+  onEmail: (lead: PipelineLead) => void;
 }) {
   const qc = useQueryClient();
   const lead = useQuery({ queryKey: ["pipeline", "lead", id], queryFn: () => getLead(id) });
@@ -305,9 +326,9 @@ function LeadPanel({
       <div className="flex items-center gap-2 border-b px-4 py-3">
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">{data?.title ?? "Lead"}</h2>
         {data?.email && (
-          <a href={`mailto:${data.email}`} className="rounded-md p-1 hover:bg-accent" aria-label="Email this contact">
+          <button onClick={() => onEmail(data)} className="rounded-md p-1 hover:bg-accent" aria-label="Email this contact" title="Email this contact">
             <Mail className="h-4 w-4" />
-          </a>
+          </button>
         )}
         <button onClick={onClose} className="rounded-md p-1 hover:bg-accent" aria-label="Close">
           <X className="h-4 w-4" />

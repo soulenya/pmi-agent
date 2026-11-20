@@ -112,3 +112,69 @@ export interface InquiryReport {
 export async function checkWebsiteInquiries(): Promise<InquiryReport> {
   return (await apiClient.post<InquiryReport>(`${P}/inquiries/check`, {}, { timeout: 120_000 })).data;
 }
+
+// ── Email from the pipeline ───────────────────────────────────────────────────
+
+export interface EmailSetup {
+  /** The signed-in person's Google account is connected where the pipeline lives. */
+  connected: boolean;
+  /** The Gmail address the email goes from. */
+  from: string;
+  signature: string;
+}
+
+export interface EmailDraft {
+  lead_ids: string[];
+  subject: string;
+  body: string;
+}
+
+export interface EmailPreview {
+  /** Distinct addresses: each gets one email. */
+  recipients: number;
+  /** Leads those addresses belong to (more than recipients when leads share an address). */
+  leads: number;
+  /** Titles of the chosen leads that have no usable address. */
+  without_email: string[];
+  too_many: boolean;
+  limit: number;
+  /** Per token used in the email: how many people have nothing to fill it with. */
+  missing: Record<string, number>;
+  /** What those people read instead. */
+  fallbacks: Record<string, string>;
+  /** The email as the first person gets it. */
+  sample: { to: string; subject: string; body: string } | null;
+}
+
+export interface EmailJob {
+  id: string;
+  /** null when the server restarted and only the leads' histories know. */
+  total: number | null;
+  sent: number;
+  failed: { to: string; reason: string }[];
+  done: boolean;
+  /** Why it ended early, when it did. */
+  stopped: string;
+}
+
+export async function getEmailSetup(): Promise<EmailSetup> {
+  return (await apiClient.get<EmailSetup>(`${P}/email/setup`)).data;
+}
+
+export async function previewEmail(draft: EmailDraft): Promise<EmailPreview> {
+  return (await apiClient.post<EmailPreview>(`${P}/email/preview`, draft)).data;
+}
+
+/** Sends the email to the signed-in person's own address only. */
+export async function sendTestEmail(draft: EmailDraft): Promise<{ sent_to: string }> {
+  return (await apiClient.post<{ sent_to: string }>(`${P}/email/test`, draft, { timeout: 60_000 })).data;
+}
+
+/** Starts sending; poll getEmailJob for progress. */
+export async function sendEmail(draft: EmailDraft): Promise<EmailJob> {
+  return (await apiClient.post<EmailJob>(`${P}/email/send`, draft)).data;
+}
+
+export async function getEmailJob(id: string): Promise<EmailJob> {
+  return (await apiClient.get<EmailJob>(`${P}/email/jobs/${id}`)).data;
+}

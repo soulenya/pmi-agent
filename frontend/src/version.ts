@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 326;
+export const BUILD_NUMBER = 327;
 export const BUILD_DATE = "2026-11-20";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 327,
+    date: "2026-11-20",
+    title: "Email your leads from the pipeline",
+    changes: [
+      "New on Mail → Pipeline: Email leads. Write one message and send it to everyone shown, or to the ones you tick. Each person gets their own copy from your Gmail and does not see the others; {first_name}, {name} and {company} are filled in for each.",
+      "Before anything is sent you see how many emails will go, who is left out for having no address, and the first one exactly as it will arrive. You can also send a test to yourself.",
+      "The envelope button on a lead now opens a message to that contact in a popup inside the pipeline, instead of handing off to another mail program.",
+      "Every email sent is recorded in the lead's history. Your Google account has to be connected on the hub.",
+    ],
+  },
   {
     build: 326,
     date: "2026-11-20",

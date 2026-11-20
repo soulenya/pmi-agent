@@ -4,6 +4,54 @@
 
 ## Changelog
 
+### v5.41.0 · build 327 — 2026-11-20
+**Email from the pipeline: one lead in a popup, or many, each with their own copy**
+
+- **Email leads** (button on Mail → Pipeline; `services/pipeline_mail.py`).
+  Opens on the leads currently shown, all ticked; untick, or clear and tick
+  a few. Write a subject and a message; `{first_name}`, `{name}` and
+  `{company}` are filled in per person. **Review** shows exactly what will
+  happen before anything leaves: how many separate emails and from which
+  address, which leads are left out for having no usable address, how many
+  people have nothing on file for a token used (they read "there" or "your
+  organization"), and the first email as it will arrive. **Send a test to
+  me** sends that one to the sender's own address only.
+- **Each person gets their own message**, from the Gmail of the person who
+  pressed Send: no Cc, nobody sees anybody else. Two leads with the same
+  address get one email. Every email sent is written into the lead's
+  history (kind `email`, with the text as sent), which is also the record
+  of who got it if a send is cut short.
+- **A send to many runs in the background** (`POST /pipeline/email/send`
+  returns at once; `GET /pipeline/email/jobs/{id}` reports progress): one
+  message a second, a "too fast" answer from Gmail waits a minute and
+  tries that message again, a refused address is reported and the rest
+  still go, and five failures in a row stop it. One send goes to at most
+  500 people; one person runs one send at a time. Closing the dialog does
+  not stop it.
+- **The email button on a lead** used to be a `mailto:` link, which hands
+  off to whatever mail program the computer has. It now opens the same
+  dialog for that one contact, inside the pipeline.
+- Other routes: `GET /pipeline/email/setup` (whose Gmail, and their
+  signature to start the message with), `POST /pipeline/email/preview`,
+  `POST /pipeline/email/test`. Sending needs the person's Google account
+  connected where the pipeline lives (the hub). Plain text only; no
+  attachments.
+- Not built: an opt-out flag on a lead. Someone who asks not to be emailed
+  has to be unticked by hand, or marked lost so they leave the open list.
+- Verified: 346 passing (3 new, against a stand-in for Gmail's send:
+  separate messages with the tokens filled, shared addresses, a refused
+  address, a rate limit retried, stopping when nothing gets through, a
+  test going only to the sender). In a browser on a hub-mode backend with
+  made-up leads and a stand-in send: choosing recipients, the test, the
+  review, progress to "Sent to 2 people" with the refused address named,
+  the email appearing in the lead's history, the single-contact popup (no
+  `mailto:` link left on the page), and someone without Google connected
+  being told so. The brand probe shows no change to what Gerry is given.
+  **Not verified: a real email leaving through Gmail from this feature**
+  (it uses the same send the Mail tab uses), and the dialog from a desktop
+  through the hub.
+- `USER_GUIDE.md` › Pipeline; `DEVELOPER_GUIDE.md` §4. No migration.
+
 ### v5.40.0 · build 326 — 2026-11-20
 **Website inquiries file themselves in the pipeline**
 

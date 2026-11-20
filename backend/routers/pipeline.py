@@ -22,6 +22,7 @@ from models.db.pipeline import PipelineLead
 from models.db.user import User
 from services import pipeline as svc
 from services import pipeline_inquiries as inquiries
+from services import pipeline_mail as mail
 from services.erp.errors import ErpError
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
@@ -57,6 +58,12 @@ class ImportIn(BaseModel):
 
 class InquiryCheckIn(BaseModel):
     dry_run: bool = False
+
+
+class EmailIn(BaseModel):
+    lead_ids: list[uuid.UUID] = Field(..., min_length=1, max_length=2000)
+    subject: str = Field(..., max_length=500)
+    body: str = Field(..., max_length=50000)
 
 
 def _bad(exc: svc.PipelineError) -> HTTPException:
@@ -185,6 +192,57 @@ async def check_website_inquiries(
         raise _bad(exc) from exc
     except Exception as exc:  # noqa: BLE001 - Gmail's own errors: quota, a withdrawn grant
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Gmail could not be read: {exc}") from exc
+
+
+@router.get("/email/setup")
+async def email_setup(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)) -> dict[str, Any]:
+    """Whose Gmail an email from the pipeline goes from, and their signature."""
+    return await mail.setup(db, user)
+
+
+@router.post("/email/preview")
+async def email_preview(
+    body: EmailIn, db: AsyncSession = Depends(get_db), _user: User = Depends(get_current_user)
+) -> dict[str, Any]:
+    """Who these leads reach, and the email as the first of them would get it. Sends nothing."""
+    try:
+        return await mail.preview(db, body.lead_ids, body.subject, body.body)
+    except svc.PipelineError as exc:
+        raise _bad(exc) from exc
+
+
+@router.post("/email/test")
+async def email_test(
+    body: EmailIn, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+) -> dict[str, Any]:
+    """Send the email to the sender's own address only, to see how it arrives."""
+    try:
+        return await mail.send_test(db, user, body.lead_ids, body.subject, body.body)
+    except svc.PipelineError as exc:
+        raise _bad(exc) from exc
+    except Exception as exc:  # noqa: BLE001 - Gmail's own errors
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Gmail did not send it: {exc}") from exc
+
+
+@router.post("/email/send", status_code=status.HTTP_202_ACCEPTED)
+async def email_send(
+    body: EmailIn, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
+) -> dict[str, Any]:
+    """Send each of these leads their own copy, from the sender's Gmail. Returns at once;
+    ``GET /pipeline/email/jobs/{id}`` says how it is going. Each one sent is written into the lead's history."""
+    try:
+        job = await mail.start(db, user, body.lead_ids, body.subject, body.body)
+    except svc.PipelineError as exc:
+        raise _bad(exc) from exc
+    return job.out()
+
+
+@router.get("/email/jobs/{job_id}")
+async def email_job(job_id: str, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)) -> dict[str, Any]:
+    try:
+        return await mail.status(db, user, job_id)
+    except svc.PipelineError as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
 
 
 @router.post("/import/odoo")
