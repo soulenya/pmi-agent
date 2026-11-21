@@ -57,6 +57,18 @@
   health pings, `test-connection`, per-task models, the "no API key"
   notice, the status bar and the model button under the chat box all read
   the registry. The model button shows a tab per provider that has a key.
+- **The setup guide offers the same providers** (`components/setup/SetupGuide.tsx`;
+  what a company set up from the web app opens on). "Choose the AI" lists
+  every chat provider from the registry (Claude, OpenAI, Gemini and Grok
+  first, the rest behind **More**) and "search by meaning" lists Voyage and
+  every provider with an embedding model. Claude, OpenAI and Voyage keep
+  their written steps; the others get the registry's key page and general
+  steps. Choosing a provider that has embeddings says that search by
+  meaning was set with it. The guide's "Set up / Not set up" now reads the
+  key of the provider actually in use; it used to look only at Claude's or
+  OpenAI's, so a company on Gemini would have been told it was not set up.
+  The step-by-step wizard PMI's desktop app opens on is unchanged: Claude
+  and Voyage, with everything else in Settings.
 - **Only Claude reads scanned documents and images.** That is unchanged and
   the page says so when another provider is chosen.
 - **Not checked against the real services:** no Gemini, xAI, Mistral,

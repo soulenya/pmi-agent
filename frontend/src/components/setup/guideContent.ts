@@ -74,7 +74,7 @@ export const GUIDE_ITEMS: GuideItem[] = [
     strings: [
       `Anything ${G} wants to send waits for your approval first. Mail you write and send yourself goes straight out.`,
       "It comes with the Google Workspace sign-in above: connect that and Gmail is connected.",
-      `What ${G} reads is sent to the AI service you choose below so it can answer. Anthropic and OpenAI say they do not train their models on what business accounts send by default; read the provider's terms if that matters to you.`,
+      `What ${G} reads is sent to the AI service you choose below so it can answer. Anthropic and OpenAI say they do not train their models on what business accounts send by default. The other services have their own terms: read the terms of the one you choose if that matters to you.`,
     ],
   },
   {
@@ -89,12 +89,12 @@ export const GUIDE_ITEMS: GuideItem[] = [
       `Everything ${G} does: answering, drafting, summarising, planning, reading documents.`,
       "You choose the service, and you can change it later in Settings.",
     ],
-    cost: "Paid by use, on your own account with the AI company: you are charged for the amount of text sent and written, not a flat fee. Light use costs little; long documents and heavy daily use cost more. Both companies let you prepay and set a monthly limit, which is worth doing on day one.",
+    cost: "Paid by use, on your own account with the AI company: you are charged for the amount of text sent and written, not a flat fee. Light use costs little; long documents and heavy daily use cost more. Anthropic and OpenAI both let you prepay and set a monthly limit, which is worth doing on day one; look for the same with any other.",
     strings: [
       `The bill comes from the AI company, not from ${BRAND.productName}.`,
       "One key serves the whole company here, so everyone's use is on that one bill.",
       "Only Claude can read scanned documents and images in this app; with any other service those cannot be read.",
-      "Gemini, Grok, Mistral, DeepSeek, Groq and OpenRouter are set up in Settings, under AI, not in this guide.",
+      "If the service you choose also does search by meaning (OpenAI, Gemini, Mistral), that is set for you on the same key, and the next step is already done.",
     ],
   },
   {
@@ -111,7 +111,7 @@ export const GUIDE_ITEMS: GuideItem[] = [
     ],
     cost: "Paid by use and small: it is charged by the amount of text indexed, which happens once per document. Voyage gives new accounts a free allowance.",
     strings: [
-      "If you chose OpenAI above, you can use the same key here and skip a second account. The same goes for Gemini and Mistral, chosen in Settings.",
+      "If you chose OpenAI, Gemini or Mistral above, this was set to the same service on the same key when you chose it, and there is no second account. Claude and Grok have no such service, which is why Voyage AI is offered beside them.",
       "Changing this service later means the Knowledge Base has to be indexed again.",
     ],
   },

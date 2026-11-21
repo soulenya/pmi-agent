@@ -11,7 +11,7 @@ export interface SetupGuideState {
   on_hub: boolean;
   /** On a hub only an administrator sets the company's keys. */
   can_set_keys: boolean;
-  keys: Record<"anthropic" | "openai" | "voyage" | "google", KeySource>;
+  keys: Record<string, KeySource | undefined>;
   /** The server can send notifications to a browser or phone. */
   push_ready: boolean;
 }

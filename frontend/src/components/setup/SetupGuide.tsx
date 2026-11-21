@@ -30,11 +30,12 @@ import {
 
 import { connectGoogleOnHub, getGoogleStatus, startGoogleAuth } from "@/api/google";
 import { sendTestPush } from "@/api/push";
-import { getAiOptions, getSettings, testConnection, updateSettings } from "@/api/settings";
-import type { SettingsUpdate } from "@/api/settings";
+import { getAiOptions, getSettings, saveApiKey, testConnection, updateSettings } from "@/api/settings";
+import type { AiProvider } from "@/api/settings";
 import { getSetupGuide, setSetupGuideDismissed } from "@/api/setupGuide";
 import type { KeySource, SetupGuideState } from "@/api/setupGuide";
 import { usePush } from "@/hooks/usePush";
+import { useAiProviders } from "@/lib/aiProviders";
 import { BRAND, hasOptInFeature } from "@/lib/brand";
 import { openExternal } from "@/lib/externalLinks";
 import { useSetupGuideStore } from "@/stores/setupGuideStore";
@@ -53,10 +54,9 @@ const ICONS: Record<GuideItemId, typeof Bell> = {
   settings: SettingsIcon,
 };
 
-type ProviderId = "anthropic" | "openai" | "voyage" | "google";
-
 interface ProviderChoice {
-  id: ProviderId;
+  /** The provider's name in the app's list of AI services, or "google" for the speech key. */
+  id: string;
   label: string;
   note: string;
   placeholder: string;
@@ -124,11 +124,62 @@ const GOOGLE_SPEECH: ProviderChoice = {
   ],
 };
 
-const CHOICES: Partial<Record<GuideItemId, ProviderChoice[]>> = {
-  ai: [ANTHROPIC, OPENAI],
-  embeddings: [VOYAGE, { ...OPENAI, note: "Use the same OpenAI key as above; no second account." }],
-  voice: [GOOGLE_SPEECH],
-};
+/** Providers with their own steps written out. Any other comes from the app's list. */
+const WRITTEN: Record<string, ProviderChoice> = { anthropic: ANTHROPIC, openai: OPENAI, voyage: VOYAGE };
+
+/** Shown before the rest; the others are behind "More". */
+const SHOWN_FIRST = 4;
+
+function fromList(p: AiProvider, note: string): ProviderChoice {
+  return {
+    id: p.key,
+    label: p.label,
+    note,
+    placeholder: p.key_hint || "Paste the key",
+    url: p.key_url,
+    urlLabel: `Open the ${p.label} key page`,
+    steps: [
+      `Open the ${p.label} key page and sign in, or create an account with your work email.`,
+      "If it asks, add a payment method or some credit, and set a monthly limit while you are there.",
+      "Create an API key and copy it. It is usually shown only once.",
+      "Paste it below and save.",
+    ],
+  };
+}
+
+/**
+ * What a step offers. The AI services are the app's own list (the same one
+ * Settings shows), so a service added there appears here without being written in.
+ */
+function choicesFor(kind: "ai" | "embeddings" | "voice", providers: AiProvider[]): ProviderChoice[] {
+  if (kind === "voice") return [GOOGLE_SPEECH];
+  if (kind === "ai") {
+    const listed = providers
+      .filter((p) => p.chat && p.needs_key)
+      .map(
+        (p) =>
+          WRITTEN[p.key] ??
+          fromList(
+            p,
+            `${
+              p.embedding_models.length > 0
+                ? "One key covers chat and search by meaning."
+                : "Chat and writing only: search by meaning needs a second service."
+            }${p.reads_documents ? "" : " Cannot read scanned documents or images in this app."}`,
+          ),
+      );
+    return listed.length > 0 ? listed : [ANTHROPIC, OPENAI];
+  }
+  const sameKey = (p: AiProvider) => `Use the same ${p.label} key as for chat; no second account.`;
+  const listed = providers
+    .filter((p) => p.needs_key && p.embedding_models.length > 0)
+    .map((p) => (p.chat ? { ...(WRITTEN[p.key] ?? fromList(p, "")), note: sameKey(p) } : WRITTEN[p.key] ?? fromList(p, p.about)))
+    // Voyage is the recommendation, so it leads.
+    .sort((a, b) => Number(b.id === "voyage") - Number(a.id === "voyage"));
+  return listed.length > 0
+    ? listed
+    : [VOYAGE, { ...OPENAI, note: "Use the same OpenAI key as above; no second account." }];
+}
 
 function errorText(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -173,6 +224,7 @@ function SetupGuide() {
     refetchInterval: (q) => (open && !q.state.data?.connected ? 4000 : false),
   });
   const settings = useQuery({ queryKey: ["setup-guide", "settings"], queryFn: getSettings, enabled: open });
+  const { providers } = useAiProviders();
   const push = usePush();
 
   // Asked for from the menu.
@@ -219,20 +271,24 @@ function SetupGuide() {
   // Notifications reach a browser or phone through the hub; the desktop app has its own bell.
   const items = GUIDE_ITEMS.filter((i) => i.id !== "notifications" || state.on_hub);
 
+  // The key of whichever service is in use, not of a fixed pair: a company
+  // that chose Gemini is set up when Gemini's key is there.
+  function providerStatus(provider: string): Status {
+    const known = providers.find((p) => p.key === provider);
+    if (known && !known.needs_key) return { state: "done", label: "Set up" };
+    return keyStatus(state.keys[provider], state.can_set_keys);
+  }
+
   function statusOf(id: GuideItemId): Status | null {
     switch (id) {
       case "google":
       case "gmail":
         if (google.data?.connected) return { state: "done", label: "Connected" };
         return { state: "todo", label: "Not connected" };
-      case "ai": {
-        const provider = settings.data?.llm_provider === "openai" ? "openai" : "anthropic";
-        return keyStatus(state.keys[provider], state.can_set_keys);
-      }
-      case "embeddings": {
-        const provider = settings.data?.embedding_provider === "openai" ? "openai" : "voyage";
-        return keyStatus(state.keys[provider], state.can_set_keys);
-      }
+      case "ai":
+        return providerStatus(settings.data?.llm_provider ?? "anthropic");
+      case "embeddings":
+        return providerStatus(settings.data?.embedding_provider ?? "voyage");
       case "voice":
         return keyStatus(state.keys.google, state.can_set_keys);
       case "notifications":
@@ -328,11 +384,11 @@ function SetupGuide() {
                   configured={google.data?.configured !== false}
                 />
               )}
-              {CHOICES[current.id] && (
+              {(current.id === "ai" || current.id === "embeddings" || current.id === "voice") && (
                 <KeyStep
                   key={current.id}
-                  kind={current.id as "ai" | "embeddings" | "voice"}
-                  choices={CHOICES[current.id]!}
+                  kind={current.id}
+                  choices={choicesFor(current.id, providers)}
                   guide={state}
                   onChanged={refresh}
                 />
@@ -541,8 +597,11 @@ function KeyStep({
 
   const inUse =
     kind === "ai" ? settings.data?.llm_provider : kind === "embeddings" ? settings.data?.embedding_provider : "google";
-  const [picked, setPicked] = useState<ProviderId | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
   const choice = choices.find((c) => c.id === (picked ?? inUse)) ?? choices[0];
+  // The first few, and always the one being looked at.
+  const shown = showAll || choices.indexOf(choice) >= SHOWN_FIRST ? choices : choices.slice(0, SHOWN_FIRST);
 
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
@@ -558,15 +617,20 @@ function KeyStep({
     onChanged();
     void qc.invalidateQueries({ queryKey: ["setup-guide", "settings"] });
     void qc.invalidateQueries({ queryKey: ["setup-guide", "ai-options"] });
+    // Settings and the model button show the same things.
+    for (const name of ["settings", "ai-options", "ai-providers"]) {
+      void qc.invalidateQueries({ queryKey: [name] });
+    }
   }
 
   async function save() {
     setBusy(true);
     setResult(null);
     try {
-      await updateSettings({ [`${choice.id}_api_key`]: key.trim() } as SettingsUpdate);
+      await saveApiKey(choice.id, key.trim());
       setKey("");
-      if (choice.id === "anthropic" || choice.id === "openai") {
+      // Voyage and the speech key have nothing to ask; every chat service does.
+      if (kind !== "voice" && choice.id !== "voyage") {
         const test = await testConnection(choice.id);
         setResult({ ok: test.ok, text: test.ok ? "Saved, and the key works." : `Saved, but it did not work: ${test.message}` });
       } else {
@@ -586,12 +650,19 @@ function KeyStep({
     setBusy(true);
     setResult(null);
     try {
-      await updateSettings(
+      const saved = await updateSettings(
         kind === "ai"
           ? { llm_provider: choice.id, llm_model: chosen }
           : { embedding_provider: choice.id, embedding_model: chosen },
       );
-      setResult({ ok: true, text: `${BRAND.assistantName} now uses ${choice.label}.` });
+      let text = `${BRAND.assistantName} now uses ${choice.label}.`;
+      if (kind === "ai" && saved.embeddings_followed) {
+        text += ` Search by meaning was set to ${choice.label} as well, on the same key: there is nothing more to do for it.`;
+      }
+      if (kind === "embeddings" && saved.reindex_required) {
+        text += " The Knowledge Base was indexed with a different service and has to be indexed again: Settings, AI.";
+      }
+      setResult({ ok: true, text });
       reload();
     } catch (e) {
       setResult({ ok: false, text: errorText(e, "Could not switch. Try again.") });
@@ -614,7 +685,7 @@ function KeyStep({
     <div>
       {choices.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-2">
-          {choices.map((c) => (
+          {shown.map((c) => (
             <button
               key={c.id}
               onClick={() => {
@@ -629,6 +700,14 @@ function KeyStep({
               {c.label}
             </button>
           ))}
+          {shown.length < choices.length && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="rounded-md border border-dashed px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent"
+            >
+              More ({choices.length - shown.length})
+            </button>
+          )}
         </div>
       )}
       <p className="mb-3 text-xs text-muted-foreground">{choice.note}</p>

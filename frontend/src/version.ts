@@ -23,6 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "If the provider you pick also does embeddings (OpenAI, Gemini, Mistral), the embeddings part of the page is filled in for you on the same key. Claude and Grok have no embedding model, so that part stays as it was.",
       "If your Knowledge Base already has documents, the embeddings are not moved for you, because every document would need re-indexing. The page offers the switch and says how many documents it affects.",
       "Only Claude can read scanned documents and images. With another provider for chat, keep Claude for Document Extraction under Models per Task.",
+      "The setup guide that a company set up from the web app opens on offers the same providers.",
     ],
   },
   {
