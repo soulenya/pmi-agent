@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from database import get_db
 from models.db.settings import SystemSetting
+from services.llm import providers as llm_providers
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -72,6 +73,16 @@ async def _ping_llm(provider: str, model: str, db: AsyncSession) -> dict:
                 resp.raise_for_status()
             return {"status": "ok", "provider": "ollama", "model": model}
 
+        spec = llm_providers.get(provider)
+        if spec is not None and spec.kind == "compatible":
+            api_key = settings.get_api_key(provider)
+            if not api_key:
+                return {"status": "error", "provider": provider, "model": model,
+                        "detail": "No API key — add it in Settings → AI Engine"}
+            # Listing models is free and is refused for a bad key.
+            await llm_providers.list_models(provider, api_key, timeout=_PING_TIMEOUT)
+            return {"status": "ok", "provider": provider, "model": model}
+
         return {"status": "error", "provider": provider, "model": model,
                 "detail": f"Unknown provider: {provider}"}
 
@@ -120,6 +131,22 @@ async def _ping_embedding(provider: str, model: str, db: AsyncSession) -> dict:
                 data = resp.json()
             dim = len(data.get("embedding", []))
             return {"status": "ok", "provider": "ollama", "model": model, "dimension": dim}
+
+        spec = llm_providers.get(provider)
+        if spec is not None and spec.kind == "compatible" and spec.embeddings:
+            api_key = settings.get_api_key(provider)
+            if not api_key:
+                return {"status": "error", "provider": provider, "model": model,
+                        "detail": f"No {spec.label} API key — add it in Settings → AI Engine"}
+            from services.embeddings.service import CompatibleEmbeddingService
+
+            found = spec.embeddings.get(model)
+            service = CompatibleEmbeddingService(
+                api_key=api_key, model=model, base_url=spec.base_url,
+                truncate_to=found.dimension if found and found.truncate else None,
+            )
+            return {"status": "ok", "provider": provider, "model": model,
+                    "dimension": len(await service.embed("ping"))}
 
         return {"status": "error", "provider": provider, "model": model,
                 "detail": f"Unknown embedding provider: {provider}"}

@@ -27,10 +27,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from models.db.app_secret import AppSecret
 from models.db.user import User
+from services.llm import providers as _llm_providers
 
 logger = logging.getLogger(__name__)
 
-PROVIDERS = ("anthropic", "openai", "voyage", "google")
+# Everything a key can be saved for: the AI providers, and Google Cloud speech.
+PROVIDERS = tuple(dict.fromkeys(("anthropic", "openai", "voyage", "google", *_llm_providers.KEYED)))
 
 _cache: dict[str, str] = {}
 

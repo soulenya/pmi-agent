@@ -1,14 +1,17 @@
 """
-Embeddings service — supports Ollama (local), OpenAI, and Voyage AI (cloud).
+Embeddings service — supports Ollama (local), OpenAI, Voyage AI, and any
+OpenAI-compatible service that has an embedding model (Gemini, Mistral).
 
 Provider is determined by the 'llm.embedding_provider' DB setting:
   - "ollama"  → nomic-embed-text via Ollama HTTP API (768 dims native)
   - "openai"  → text-embedding-3-small or text-embedding-3-large (native dims)
   - "voyage"  → voyage-3 or voyage-3-lite via Voyage AI API (native dims)
                 Voyage AI is Anthropic's recommended embedding partner.
+  - others    → CompatibleEmbeddingService; the models and their sizes are
+                listed in services/llm/providers.py.
 
-Each provider returns its native dimension. If you switch providers, run
-POST /documents/reindex to re-embed all documents at the new dimension.
+If you switch providers, run POST /documents/reindex to re-embed all
+documents at the new dimension.
 """
 
 from __future__ import annotations
@@ -22,26 +25,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
 from database import get_db
+from services.llm import providers as llm_providers
 
 logger = logging.getLogger(__name__)
 
 EMBEDDING_MODEL = "nomic-embed-text"
 EMBEDDING_DIM = 768  # Ollama default; retained for backward compatibility
 
-# Native output dimensions per provider and model.
+# Stored vector size per provider and model, from the provider registry.
 # Used to detect mismatches when the user switches providers.
 PROVIDER_DIMENSIONS: dict[str, dict[str, int]] = {
-    "voyage": {
-        "voyage-3": 1024,
-        "voyage-3-lite": 512,
-    },
-    "openai": {
-        "text-embedding-3-large": 3072,
-        "text-embedding-3-small": 1536,
-    },
-    "ollama": {
-        "nomic-embed-text": 768,
-    },
+    p.key: {name: spec.dimension for name, spec in p.embeddings.items()}
+    for p in llm_providers.PROVIDERS.values()
+    if p.embeddings
 }
 
 
@@ -205,6 +201,45 @@ class VoyageEmbeddingService:
         return await self._embed_with_retry(texts)
 
 
+class CompatibleEmbeddingService:
+    """Embeddings from a service that speaks OpenAI's API at its own address
+    (Gemini, Mistral: services/llm/providers.py).
+
+    ``truncate_to`` cuts a longer vector down and re-normalises it, for models
+    whose maker documents that as supported: pgvector cannot index more than
+    2000 dimensions, and Gemini's models return 3072.
+    """
+
+    def __init__(self, api_key: str, model: str, base_url: str, truncate_to: int | None = None) -> None:
+        self._api_key = api_key
+        self._model = model
+        self._base_url = base_url
+        self._truncate_to = truncate_to
+
+    def _fit(self, vector: list[float]) -> list[float]:
+        if not self._truncate_to or len(vector) <= self._truncate_to:
+            return vector
+        cut = vector[: self._truncate_to]
+        length = sum(x * x for x in cut) ** 0.5
+        return [x / length for x in cut] if length else cut
+
+    async def embed(self, text: str) -> list[float]:
+        return (await self.embed_batch([text]))[0]
+
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        import openai
+
+        client = openai.AsyncOpenAI(api_key=self._api_key, base_url=self._base_url)
+        out: list[list[float]] = []
+        # Some services cap how many texts one request may carry.
+        for i in range(0, len(texts), 64):
+            resp = await client.embeddings.create(model=self._model, input=texts[i:i + 64])
+            out += [self._fit(list(e.embedding)) for e in sorted(resp.data, key=lambda e: e.index)]
+        return out
+
+
 # ── FastAPI dependencies ──────────────────────────────────────────────────────
 
 def get_embedding_service() -> EmbeddingService:
@@ -212,103 +247,66 @@ def get_embedding_service() -> EmbeddingService:
     return EmbeddingService()
 
 
-# Per-provider default embedding models
-_PROVIDER_DEFAULT_MODEL: dict[str, str] = {
-    "ollama": "nomic-embed-text",
-    "openai": "text-embedding-3-small",
-    "voyage": "voyage-3",
-}
-
-
 def _resolve_model(provider: str, stored_model: str) -> str:
     """Return a valid model for the given provider.
     If the stored model belongs to a different provider's namespace, fall back
     to the provider's default (e.g. 'nomic-embed-text' when provider=voyage).
     """
-    provider_models = set(PROVIDER_DIMENSIONS.get(provider, {}).keys())
-    if provider_models and stored_model not in provider_models:
-        return _PROVIDER_DEFAULT_MODEL.get(provider, stored_model)
-    return stored_model
+    spec = llm_providers.get(provider)
+    if spec is None or spec.kind == "ollama" or not spec.embeddings:
+        return stored_model
+    return stored_model if stored_model in spec.embeddings else spec.default_embedding
 
 
-async def get_embedding_service_for_db(
-    db: AsyncSession,
-) -> "EmbeddingService | OpenAIEmbeddingService | VoyageEmbeddingService":
+AnyEmbeddingService = (
+    EmbeddingService | OpenAIEmbeddingService | VoyageEmbeddingService | CompatibleEmbeddingService
+)
+
+
+async def _build(db: AsyncSession) -> AnyEmbeddingService:
+    """The embedding backend the settings name. Raises RuntimeError when its key is missing."""
+    provider = await _read_setting(db, "llm.embedding_provider", settings.default_embedding_provider)
+    stored_model = await _read_setting(db, "llm.embedding_model", settings.default_embedding_model)
+    model = _resolve_model(provider, stored_model)
+    spec = llm_providers.get(provider)
+
+    if spec is not None and spec.needs_key and spec.has_embeddings:
+        api_key = settings.get_api_key(provider)
+        if not api_key:
+            raise RuntimeError(
+                f"{spec.label} is selected for embeddings but no {spec.label} API key is configured. "
+                f"Go to Settings → AI Engine and enter your {spec.label} API key, then save."
+                + (f" Get one at {spec.key_url}" if spec.key_url else "")
+            )
+        if provider == "openai":
+            return OpenAIEmbeddingService(api_key=api_key, model=model)
+        if provider == "voyage":
+            return VoyageEmbeddingService(api_key=api_key, model=model)
+        found = spec.embeddings.get(model)
+        return CompatibleEmbeddingService(
+            api_key=api_key, model=model, base_url=spec.base_url,
+            truncate_to=found.dimension if found and found.truncate else None,
+        )
+
+    # Ollama, and anything unrecognised.
+    return EmbeddingService(base_url=await _read_ollama_url(db))
+
+
+async def get_embedding_service_for_db(db: AsyncSession) -> AnyEmbeddingService:
     """
     Awaitable (non-generator) version of get_embedding_service_db.
     Use this from code that cannot use FastAPI dependency injection (e.g., the agent executor).
     """
-    embedding_provider = await _read_setting(
-        db, "llm.embedding_provider", settings.default_embedding_provider
-    )
-    stored_model = await _read_setting(
-        db, "llm.embedding_model", settings.default_embedding_model
-    )
-    embedding_model = _resolve_model(embedding_provider, stored_model)
-
-    if embedding_provider == "openai":
-        api_key = settings.get_api_key("openai")
-        if not api_key:
-            raise RuntimeError(
-                "OpenAI embedding provider selected but no API key configured."
-            )
-        return OpenAIEmbeddingService(api_key=api_key, model=embedding_model)
-
-    if embedding_provider == "voyage":
-        api_key = settings.get_api_key("voyage")
-        if not api_key:
-            raise RuntimeError(
-                "Voyage AI embedding provider selected but no Voyage API key configured. "
-                "Go to Settings → AI Engine and enter your Voyage API key."
-            )
-        return VoyageEmbeddingService(api_key=api_key, model=embedding_model)
-
-    # Default: Ollama
-    url = await _read_ollama_url(db)
-    return EmbeddingService(base_url=url)
+    return await _build(db)
 
 
 async def get_embedding_service_db(
     db: AsyncSession = Depends(get_db),
-) -> AsyncGenerator[EmbeddingService | OpenAIEmbeddingService | VoyageEmbeddingService, None]:
+) -> AsyncGenerator[AnyEmbeddingService, None]:
     """
-    DB-aware dependency — resolves the correct embedding backend from settings:
-      llm.embedding_provider = "openai"  → OpenAIEmbeddingService (native dims)
-      llm.embedding_provider = "voyage"  → VoyageEmbeddingService (native dims)
-      llm.embedding_provider = "ollama"  → EmbeddingService (Ollama, 768 dims)
-    When no provider is persisted, falls back to the configured default
-    (settings.default_embedding_provider) rather than Ollama, so a fresh install
-    with a cloud key configured doesn't silently try a non-running local server.
+    DB-aware dependency: the embedding backend named by ``llm.embedding_provider``
+    and ``llm.embedding_model``. When no provider is persisted it falls back to the
+    configured default (settings.default_embedding_provider) rather than Ollama,
+    so a fresh install with a cloud key doesn't silently try a local server.
     """
-    embedding_provider = await _read_setting(
-        db, "llm.embedding_provider", settings.default_embedding_provider
-    )
-    stored_model = await _read_setting(
-        db, "llm.embedding_model", settings.default_embedding_model
-    )
-    embedding_model = _resolve_model(embedding_provider, stored_model)
-
-    if embedding_provider == "openai":
-        api_key = settings.get_api_key("openai")
-        if not api_key:
-            raise RuntimeError(
-                "OpenAI embedding provider is selected but no OpenAI API key is configured. "
-                "Go to Settings → AI Engine and enter your OpenAI API key, then save."
-            )
-        yield OpenAIEmbeddingService(api_key=api_key, model=embedding_model)
-        return
-
-    if embedding_provider == "voyage":
-        api_key = settings.get_api_key("voyage")
-        if not api_key:
-            raise RuntimeError(
-                "Voyage AI embedding provider is selected but no Voyage API key is configured. "
-                "Go to Settings → AI Engine and enter your Voyage API key, then save. "
-                "Get a free key at https://dash.voyageai.com"
-            )
-        yield VoyageEmbeddingService(api_key=api_key, model=embedding_model)
-        return
-
-    # Default: Ollama
-    url = await _read_ollama_url(db)
-    yield EmbeddingService(base_url=url)
+    yield await _build(db)

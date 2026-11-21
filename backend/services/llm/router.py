@@ -26,10 +26,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings as app_settings
 from models.db.settings import SystemSetting
+from services.llm import providers
 
 logger = logging.getLogger(__name__)
 
-PROVIDERS = ("ollama", "openai", "anthropic")
+PROVIDERS = providers.CHAT_PROVIDERS
 
 # Providers whose client can accept image / PDF-document content blocks in the
 # format the vision extraction service builds (Anthropic content blocks).
@@ -81,7 +82,7 @@ async def resolve_task_llm(db: AsyncSession, task: str | None = None) -> tuple[s
             # If the override targets a cloud provider whose key has since been
             # removed, fall back to the global pick rather than breaking
             # background features (daily scan, briefings, etc.).
-            if ov_provider in ("openai", "anthropic") and not app_settings.get_api_key(ov_provider):
+            if providers.key_missing(ov_provider):
                 logger.warning(
                     "Task '%s' override targets %s but no API key is configured — using global model",
                     task, ov_provider,
@@ -109,16 +110,17 @@ async def get_llm_client(db: AsyncSession, task: str | None = None):
     Raises RuntimeError if a cloud provider is selected but has no API key.
     """
     provider, model = await resolve_task_llm(db, task)
+    spec = providers.get(provider)
 
-    if provider == "openai":
-        api_key = app_settings.get_api_key("openai")
+    if spec is not None and spec.kind in ("openai", "compatible"):
+        api_key = app_settings.get_api_key(provider)
         if not api_key:
             raise RuntimeError(
-                "OpenAI is selected as the LLM provider but no API key is configured. "
-                "Go to Settings → AI Engine and enter your OpenAI API key."
+                f"{spec.label} is selected as the LLM provider but no API key is configured. "
+                f"Go to Settings → AI Engine and enter your {spec.label} API key."
             )
         from services.llm.openai_client import OpenAIClient
-        return OpenAIClient(api_key=api_key, model=model)
+        return OpenAIClient(api_key=api_key, model=model, base_url=spec.base_url or None)
 
     if provider == "anthropic":
         api_key = app_settings.get_api_key("anthropic")

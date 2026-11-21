@@ -13,9 +13,11 @@ Rules:
 Stored shape (system_settings key 'llm.model_catalog'):
   {
     "updated_at": "<iso>",
-    "llm":       {"anthropic": [{"id": ..., "first_seen": ...}], "openai": [...], "ollama": [...]},
-    "embedding": {"voyage": [...], "openai": [...], "ollama": [...]}
+    "llm":       {"anthropic": [{"id": ..., "first_seen": ...}], "openai": [...], "gemini": [...], "ollama": [...]},
+    "embedding": {"voyage": [...], "openai": [...], "gemini": [...], "ollama": [...]}
   }
+
+Which providers exist, and how each is reached, is services/llm/providers.py.
 """
 
 from __future__ import annotations
@@ -30,15 +32,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings as app_settings
 from models.db.settings import SystemSetting
+from services.llm import providers
 
 logger = logging.getLogger(__name__)
 
 CATALOG_KEY = "llm.model_catalog"
 CATALOG_MAX_AGE_DAYS = 7
 NEW_MODEL_BADGE_DAYS = 14
-
-# Voyage has no public list-models endpoint — static list, shown only when a key is set.
-_VOYAGE_EMBEDDING_MODELS = ["voyage-3", "voyage-3-lite", "voyage-3-large"]
 
 _OPENAI_CHAT_EXCLUDE = (
     "embedding", "audio", "tts", "whisper", "dall-e", "realtime",
@@ -158,11 +158,32 @@ async def refresh_model_catalog(db: AsyncSession) -> dict:
             llm["openai"] = prev_llm.get("openai", [])
             embedding["openai"] = prev_emb.get("openai", [])
 
-    # Voyage — embeddings only, static list gated on key presence
+    # Voyage — embeddings only. It has no list-models endpoint, so the list is
+    # the registry's, shown only when a key is set.
     if app_settings.get_api_key("voyage"):
         embedding["voyage"] = _merge_first_seen(
-            _VOYAGE_EMBEDDING_MODELS, prev_emb.get("voyage", []), now_iso, is_first_scan
+            list(providers.PROVIDERS["voyage"].embeddings), prev_emb.get("voyage", []), now_iso, is_first_scan
         )
+
+    # Every OpenAI-compatible service with a key (Gemini, Grok, Mistral...).
+    # Chat models are asked for; embedding models come from the registry,
+    # because their vector size has to be known.
+    for spec in providers.PROVIDERS.values():
+        if spec.kind != "compatible":
+            continue
+        key = app_settings.get_api_key(spec.key)
+        if not key:
+            continue
+        try:
+            models = await providers.list_models(spec.key, key)
+            llm[spec.key] = _merge_first_seen(models, prev_llm.get(spec.key, []), now_iso, is_first_scan)
+        except Exception as exc:
+            logger.warning("Model discovery (%s) failed: %s", spec.key, exc)
+            llm[spec.key] = prev_llm.get(spec.key, [])
+        if spec.embeddings:
+            embedding[spec.key] = _merge_first_seen(
+                list(spec.embeddings), prev_emb.get(spec.key, []), now_iso, is_first_scan
+            )
 
     # Ollama — local, no key; include only when reachable
     try:

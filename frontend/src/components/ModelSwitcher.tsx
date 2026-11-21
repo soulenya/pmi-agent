@@ -7,12 +7,14 @@
  * - Saves immediately on selection via PUT /settings
  */
 import { useState, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { BrainCircuit, ChevronDown, Check, KeyRound, Loader2, AlertCircle } from "lucide-react";
-import { getSettings, updateSettings, getOllamaModels, getAnthropicModels } from "@/api/settings";
+import { getSettings, updateSettings, getOllamaModels, getAnthropicModels, getAiOptions } from "@/api/settings";
+import { providerShortLabel, useAiProviders } from "@/lib/aiProviders";
 import { cn } from "@/lib/utils";
 
-// ── Static OpenAI list (no unauthenticated listing endpoint) ─────────────────
+// ── Shown for OpenAI until its own list has been read with a key ─────────────
 
 const OPENAI_MODELS = [
   { id: "gpt-4o",      label: "GPT-4o",       note: "Most capable" },
@@ -21,17 +23,12 @@ const OPENAI_MODELS = [
   { id: "o4-mini",     label: "o4-mini",       note: "Fast reasoning" },
 ];
 
-const PROVIDER_LABELS: Record<string, string> = {
-  ollama: "Ollama",
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-};
-
-const PROVIDER_ORDER = ["openai", "anthropic", "ollama"] as const;
+// These three always have a tab (a key can be pasted right here). Any other
+// provider gets one once its key has been saved in Settings.
+const ALWAYS_SHOWN = ["openai", "anthropic", "ollama"];
 
 function providerLabel(provider: string, model: string): string {
-  const short = PROVIDER_LABELS[provider] ?? provider;
-  return `${short} · ${model}`;
+  return `${providerShortLabel(provider)} · ${model}`;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -64,11 +61,26 @@ export function ModelSwitcher({ direction = "down" }: { direction?: "down" | "up
     staleTime: 60_000,
   });
 
+  const { data: aiOpts } = useQuery({
+    queryKey: ["ai-options"],
+    queryFn: getAiOptions,
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  const { providers } = useAiProviders();
+  const others = providers
+    .filter((p) => p.chat && p.key_set && !ALWAYS_SHOWN.includes(p.key))
+    .map((p) => p.key);
+  const tabs = ["openai", "anthropic", ...others, "ollama"];
+
   // Build the model list for the current tab
+  const listed = (aiOpts?.llm[activeTab] ?? []).map((id) => ({ id, label: id }));
   const tabModels: { id: string; label: string; note?: string }[] =
-    activeTab === "openai" ? OPENAI_MODELS :
+    activeTab === "openai" ? (listed.length > 0 ? listed : OPENAI_MODELS) :
     activeTab === "anthropic" ? anthropicModels.map((id) => ({ id, label: id })) :
-    ollamaModels.map((id) => ({ id, label: id }));
+    activeTab === "ollama" ? ollamaModels.map((id) => ({ id, label: id })) :
+    listed;
 
   const mutation = useMutation({
     mutationFn: updateSettings,
@@ -163,19 +175,19 @@ export function ModelSwitcher({ direction = "down" }: { direction?: "down" | "up
           )}
         >
           {/* Provider tabs */}
-          <div className="flex border-b">
-            {PROVIDER_ORDER.map((p) => (
+          <div className="flex flex-wrap border-b">
+            {tabs.map((p) => (
               <button
                 key={p}
                 onClick={() => { setActiveTab(p); setApiKeyInput(""); setKeyError(""); }}
                 className={cn(
-                  "flex-1 py-2 text-xs font-medium transition-colors",
+                  "flex-1 whitespace-nowrap px-2 py-2 text-xs font-medium transition-colors",
                   activeTab === p
                     ? "border-b-2 border-primary text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {PROVIDER_LABELS[p]}
+                {providerShortLabel(p)}
               </button>
             ))}
           </div>
@@ -277,7 +289,8 @@ export function ModelSwitcher({ direction = "down" }: { direction?: "down" | "up
                   placeholder={
                     activeTab === "ollama" ? "e.g. llama3.3"
                     : activeTab === "openai" ? "e.g. gpt-4.5"
-                    : "e.g. claude-opus-4-0"
+                    : activeTab === "anthropic" ? "e.g. claude-opus-4-0"
+                    : "Model name"
                   }
                   className="flex-1 rounded border bg-background px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-ring"
                 />
@@ -289,6 +302,14 @@ export function ModelSwitcher({ direction = "down" }: { direction?: "down" | "up
                 </button>
               </form>
             </div>
+
+            <Link
+              to="/settings?tab=ai"
+              onClick={() => setOpen(false)}
+              className="mt-2 block px-2 text-[11px] text-muted-foreground underline hover:text-foreground"
+            >
+              Gemini, Grok and other providers: add a key in Settings
+            </Link>
           </div>
         </div>
       )}

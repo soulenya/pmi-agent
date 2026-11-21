@@ -39,6 +39,7 @@ from services.embeddings.service import (
     get_provider_dimension,
     PROVIDER_DIMENSIONS,
 )
+from services.llm.providers import MAX_INDEXED_DIMENSION
 
 logger = logging.getLogger(__name__)
 
@@ -637,7 +638,7 @@ async def dismiss_document_update_endpoint(
 # ── Knowledge Base Re-index ───────────────────────────────────────────────────
 
 class ReindexRequest(BaseModel):
-    provider: str | None = Field(None, pattern="^(ollama|openai|voyage)$")
+    provider: str | None = Field(None, pattern="^(" + "|".join(PROVIDER_DIMENSIONS) + ")$")
     model: str | None = Field(None, min_length=1, max_length=100)
 
 
@@ -760,10 +761,12 @@ async def reindex_knowledge_base(
                     return
 
             # ── Step 6: Recreate vector index + update settings ───────────────
-            await db.execute(text(
-                f"CREATE INDEX IF NOT EXISTS ix_document_chunks_embedding "
-                f"ON document_chunks USING ivfflat (embedding vector_cosine_ops)"
-            ))
+            # pgvector cannot index a vector this long; search then scans.
+            if target_dim <= MAX_INDEXED_DIMENSION:
+                await db.execute(text(
+                    f"CREATE INDEX IF NOT EXISTS ix_document_chunks_embedding "
+                    f"ON document_chunks USING ivfflat (embedding vector_cosine_ops)"
+                ))
             await _update_settings(db, provider, model, target_dim, current_user.id)
             await db.commit()
 

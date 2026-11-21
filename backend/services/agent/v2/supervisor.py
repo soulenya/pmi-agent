@@ -139,12 +139,16 @@ class LangGraphSupervisor:
             if not key:
                 raise RuntimeError("Anthropic API key is not configured.")
             return ChatAnthropic(model=model, api_key=key, max_tokens=4096)
-        if provider == "openai":
+        from services.llm import providers
+
+        spec = providers.get(provider)
+        if spec is not None and spec.kind in ("openai", "compatible"):
             from langchain_openai import ChatOpenAI
-            key = app_settings.get_api_key("openai")
+            key = app_settings.get_api_key(provider)
             if not key:
-                raise RuntimeError("OpenAI API key is not configured.")
-            return ChatOpenAI(model=model, api_key=key)
+                raise RuntimeError(f"{spec.label} API key is not configured.")
+            # A compatible service is OpenAI's client pointed at its address.
+            return ChatOpenAI(model=model, api_key=key, base_url=spec.base_url or None)
         raise RuntimeError(
             f"The agent supervisor requires a cloud LLM provider (got {provider!r})."
         )

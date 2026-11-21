@@ -20,10 +20,14 @@ DEFAULT_MODEL = "gpt-4o-mini"
 
 
 class OpenAIClient:
-    """Async OpenAI client matching OllamaClient's interface."""
+    """Async OpenAI client matching OllamaClient's interface.
 
-    def __init__(self, api_key: str, model: str | None = None) -> None:
-        self._client = AsyncOpenAI(api_key=api_key)
+    ``base_url`` points it at another service that speaks the same API
+    (services/llm/providers.py lists them).
+    """
+
+    def __init__(self, api_key: str, model: str | None = None, base_url: str | None = None) -> None:
+        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url or None)
         self._model = model or DEFAULT_MODEL
 
     def _convert_messages(self, messages: list[dict]) -> list[dict]:
@@ -38,14 +42,22 @@ class OpenAIClient:
                 for tc in m["tool_calls"]:
                     fn = tc.get("function", {})
                     args = fn.get("arguments", {})
-                    oa_calls.append({
-                        "id": tc.get("id", f"call_{fn.get('name', 'fn')}"),
+                    oa_call = {
+                        # Some compatible services send no id; the same stand-in
+                        # is used for the tool's answer (build_tool_result_message).
+                        "id": tc.get("id") or f"call_{fn.get('name', 'fn')}",
                         "type": "function",
                         "function": {
                             "name": fn.get("name", ""),
                             "arguments": _json.dumps(args) if isinstance(args, dict) else str(args),
                         },
-                    })
+                    }
+                    # Whatever else the service attached to its own call goes
+                    # back unchanged (Gemini refuses a call without the
+                    # thought signature it sent in extra_content).
+                    if tc.get("extra_content"):
+                        oa_call["extra_content"] = tc["extra_content"]
+                    oa_calls.append(oa_call)
                 result.append({
                     "role": "assistant",
                     "content": m.get("content") or None,
@@ -78,7 +90,13 @@ class OpenAIClient:
             kwargs["tools"] = [_to_openai_tool(t) for t in tools]
             kwargs["tool_choice"] = "auto"
 
-        accumulated_tool_calls: dict[int, dict] = {}
+        # Calls being assembled, in order. OpenAI sends a call's id once and then
+        # its arguments in pieces under the same index; some compatible services
+        # send each call whole and reuse index 0, so a new id starts a new call.
+        calls: list[dict] = []
+        slot_by_index: dict[int, int] = {}
+        sent_done = False
+        last_model = self._model
 
         stream = await self._client.chat.completions.create(**kwargs)
         async for chunk in stream:
@@ -92,24 +110,35 @@ class OpenAIClient:
             # Accumulate tool call deltas
             if delta.tool_calls:
                 for tc in delta.tool_calls:
-                    idx = tc.index
-                    if idx not in accumulated_tool_calls:
-                        accumulated_tool_calls[idx] = {
+                    idx = tc.index if tc.index is not None else len(calls)
+                    slot = slot_by_index.get(idx)
+                    if slot is None or (tc.id and calls[slot]["id"] and tc.id != calls[slot]["id"]):
+                        calls.append({
                             "id": tc.id or "",
                             "type": "function",
                             "function": {"name": "", "arguments": ""},
-                        }
+                        })
+                        slot = slot_by_index[idx] = len(calls) - 1
+                    call = calls[slot]
+                    if tc.id and not call["id"]:
+                        call["id"] = tc.id
+                    extra = getattr(tc, "extra_content", None)
+                    if extra:
+                        call["extra_content"] = extra
                     if tc.function:
                         if tc.function.name:
-                            accumulated_tool_calls[idx]["function"]["name"] += tc.function.name
+                            call["function"]["name"] += tc.function.name
                         if tc.function.arguments:
-                            accumulated_tool_calls[idx]["function"]["arguments"] += tc.function.arguments
+                            call["function"]["arguments"] += tc.function.arguments
 
             done = chunk.choices[0].finish_reason is not None
 
-            if done and accumulated_tool_calls:
-                tool_calls = _convert_openai_tool_calls(list(accumulated_tool_calls.values()))
+            if done and calls:
+                tool_calls = _convert_openai_tool_calls(calls)
+                calls, slot_by_index = [], {}
 
+            sent_done = sent_done or done
+            last_model = chunk.model or last_model
             usage = chunk.usage
             yield StreamChunk(
                 content=content,
@@ -118,6 +147,12 @@ class OpenAIClient:
                 model=chunk.model,
                 input_tokens=usage.prompt_tokens if usage else 0,
                 output_tokens=usage.completion_tokens if usage else 0,
+            )
+
+        # A service that ends the stream without saying why still gets its calls run.
+        if calls and not sent_done:
+            yield StreamChunk(
+                content="", tool_calls=_convert_openai_tool_calls(calls), done=True, model=last_model,
             )
 
     async def chat(
@@ -142,9 +177,13 @@ class OpenAIClient:
 
         tool_calls: list[dict] = []
         if msg.tool_calls:
-            tool_calls = _convert_openai_tool_calls(
-                [{"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in msg.tool_calls]
-            )
+            raw = []
+            for tc in msg.tool_calls:
+                call = {"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                if getattr(tc, "extra_content", None):
+                    call["extra_content"] = tc.extra_content
+                raw.append(call)
+            tool_calls = _convert_openai_tool_calls(raw)
 
         return StreamChunk(
             content=msg.content or "",
@@ -187,11 +226,14 @@ def _convert_openai_tool_calls(raw_calls: list[dict]) -> list[dict]:
             args = json.loads(tc["function"]["arguments"])
         except (json.JSONDecodeError, KeyError):
             args = {}
-        result.append({
-            "id": tc.get("id", ""),
+        call = {
+            "id": tc.get("id") or "",
             "function": {
                 "name": tc["function"]["name"],
                 "arguments": args,
             }
-        })
+        }
+        if tc.get("extra_content"):
+            call["extra_content"] = tc["extra_content"]
+        result.append(call)
     return result

@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 327;
+export const BUILD_NUMBER = 328;
 export const BUILD_DATE = "2026-11-20";
 
 export interface ChangelogEntry {
@@ -14,6 +14,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    build: 328,
+    date: "2026-11-20",
+    title: "Gemini, Grok and more AI providers",
+    changes: [
+      "Settings → AI now offers Google Gemini, xAI (Grok), Mistral, DeepSeek, Groq and OpenRouter beside Claude, OpenAI and Ollama. Pick one, paste its key, press Save key, and choose from that provider's own list of models.",
+      "If the provider you pick also does embeddings (OpenAI, Gemini, Mistral), the embeddings part of the page is filled in for you on the same key. Claude and Grok have no embedding model, so that part stays as it was.",
+      "If your Knowledge Base already has documents, the embeddings are not moved for you, because every document would need re-indexing. The page offers the switch and says how many documents it affects.",
+      "Only Claude can read scanned documents and images. With another provider for chat, keep Claude for Document Extraction under Models per Task.",
+    ],
+  },
   {
     build: 327,
     date: "2026-11-20",

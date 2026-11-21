@@ -1389,12 +1389,15 @@ Every section on this page starts collapsed — click a heading to open it. A se
 Update your display name and password.
 
 ### AI Engine
-- **LLM Provider** — Anthropic (recommended), OpenAI, or Ollama (local)
-- **Chat Model** — select the specific model (e.g., `claude-sonnet-4-6`)
-- **API Key** — enter and save your Anthropic or OpenAI key
-- **Document Embeddings** — select Voyage AI (recommended), OpenAI, or Ollama; enter the key
-- **Re-index Now** — appears when the embedding provider or model changes; re-embeds all Knowledge Base documents with live progress
+- **LLM Provider** — Anthropic (Claude, recommended), OpenAI, Google Gemini, xAI (Grok), Mistral, DeepSeek, Groq, OpenRouter, or Ollama (on this computer). A provider with no key yet says **needs a key**.
+- **API Key** — paste the provider's key and press **Save key**. It is saved straight away, so that provider's models can be listed. The page says where to get one.
+- **Chat Model** — the provider's own list of models. After changing provider, choose one of its models; **Save** stays off until a key is saved and a model is chosen, so Gerry is never left unable to answer.
+- **Document Embeddings** — OpenAI, Gemini and Mistral have an embedding model as well as chat. Choose one of them and the embeddings are **set automatically** to the same provider, on the same key: there is nothing more to fill in (press **Change** to pick something else). Claude, Grok, DeepSeek, Groq and OpenRouter have no embedding model, so the embeddings stay with what you have (Voyage AI is recommended beside Claude).
+- **If the Knowledge Base already has documents**, the embeddings are *not* moved for you, because every document would have to be re-indexed with the new model. The page offers **Use … for embeddings too**, says how many documents that affects, and **Keep …** undoes it before you save.
+- **Re-index Now** — appears when the Knowledge Base was embedded with a different model than the one now chosen; re-embeds all Knowledge Base documents with live progress. Changing back before re-indexing clears it.
 - **LLM ● / Embedding ●** — live API ping status indicators shown inline after saving
+- **Only Claude reads scanned documents and images.** With another provider for chat, keep Claude for **Document Extraction** under Models per Task if you use that.
+- The model button under the chat box shows a tab for each provider that has a key.
 
 ### Appearance
 Switch between Light, Dark, or System theme. Set your local timezone.

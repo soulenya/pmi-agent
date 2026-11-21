@@ -23,7 +23,7 @@
 #ifndef AppPublisher
   #define AppPublisher  "Precisian Medical Instruments"
 #endif
-#define AppVersion    "5.41.0"
+#define AppVersion    "5.42.0"
 #ifndef AppURL
   #define AppURL        "https://github.com/soulenya/pmi-agent"
 #endif

@@ -31,7 +31,7 @@ The stack: **React 19 + TypeScript + Vite** frontend, **FastAPI** backend (Pytho
 
 Key design principles:
 
-- **Local-first data, cloud-flexible inference** — all documents, conversations, and tasks are stored on your machine; AI inference is provided by Anthropic (or OpenAI / Ollama optionally)
+- **Local-first data, cloud-flexible inference** — all documents, conversations, and tasks are stored on your machine; AI inference is provided by Anthropic (or, optionally, OpenAI, Google Gemini, xAI Grok, Mistral, DeepSeek, Groq, OpenRouter or a local Ollama)
 - **Medical-grade context** — purpose-built prompts for FDA/ISO regulatory workflows, CAPA, and VACTOR device documentation
 - **Human-in-the-loop** — AI suggestions require explicit approval before executing consequential actions
 - **Full audit trail** — every AI action and document change is logged immutably
@@ -604,7 +604,7 @@ OLLAMA_BASE_URL=http://localhost:11434
 DEBUG=false
 ```
 
-API keys (Anthropic, OpenAI, Voyage AI) are **never** stored in `.env` — they are entered in Settings → AI Engine and stored in the OS keychain (Windows Credential Manager).
+API keys (Anthropic, OpenAI, Voyage AI and any other AI provider's) are **never** stored in `.env` — they are entered in Settings → AI Engine and stored in the OS keychain (Windows Credential Manager).
 
 ### System Health API
 
@@ -730,7 +730,7 @@ The release sequence (docs gate → gates → installer + signing → hub image 
 
 - The backend binds to `127.0.0.1` only — not accessible from other machines on the network
 - JWT secrets are stored in the OS keyring (Windows Credential Manager), not in `.env` files
-- API keys (Anthropic, OpenAI, Voyage AI) are stored in the OS keychain via the `keyring` library — never written to disk
+- API keys (Anthropic, OpenAI, Voyage AI and any other AI provider's) are stored in the OS keychain via the `keyring` library — never written to disk
 - All document files are encrypted at rest using Fernet symmetric encryption
 - Rate limiting is applied to all API endpoints via `slowapi`
 - CORS is restricted to localhost origins

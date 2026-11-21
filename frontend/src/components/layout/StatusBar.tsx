@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getHealth } from "@/api/auth";
 import { getSettings } from "@/api/settings";
+import { providerShortLabel } from "@/lib/aiProviders";
 import { cn } from "@/lib/utils";
 
 function Dot({ ok, pulse }: { ok: boolean; pulse?: boolean }) {
@@ -14,12 +15,6 @@ function Dot({ ok, pulse }: { ok: boolean; pulse?: boolean }) {
     />
   );
 }
-
-const PROVIDER_LABELS: Record<string, string> = {
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  ollama: "Ollama",
-};
 
 export function StatusBar() {
   const { data: health } = useQuery({
@@ -42,14 +37,14 @@ export function StatusBar() {
 
   const provider  = settings?.llm_provider ?? "";
   const model     = settings?.llm_model ?? "";
-  const providerLabel = PROVIDER_LABELS[provider] ?? provider;
+  const providerLabel = providerShortLabel(provider);
 
   // Determine if the active provider is reachable
   const providerOk =
     provider === "ollama"    ? ollamaOk :
     provider === "openai"    ? settings?.openai_key_set === true :
     provider === "anthropic" ? settings?.anthropic_key_set === true :
-    false;
+    settings?.keys_set?.[provider] === true;
 
   // Shorten model name for display (e.g. "gpt-4o-mini", "llama3.2:latest" → "llama3.2")
   const modelShort = model.split(":")[0];

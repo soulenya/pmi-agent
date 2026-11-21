@@ -18,6 +18,44 @@ export interface AppSettings {
   anthropic_key_set: boolean;
   voyage_key_set: boolean;
   google_key_set: boolean;
+  /** Whether a key is set, for every provider that takes one. */
+  keys_set?: Record<string, boolean>;
+  /** In the answer to a save: choosing a provider moved the embeddings with it. */
+  embeddings_followed?: boolean;
+}
+
+/** One AI service the app can use (GET /settings/ai-providers). */
+export interface AiProvider {
+  key: string;
+  label: string;
+  about: string;
+  /** False for a service that only does embeddings (Voyage). */
+  chat: boolean;
+  needs_key: boolean;
+  key_set: boolean;
+  key_url: string;
+  key_hint: string;
+  /** Can read scanned documents and images in this app. */
+  reads_documents: boolean;
+  /** Empty for a chat-only service. */
+  embedding_models: { id: string; dimension: number; note: string }[];
+  default_embedding: string;
+}
+
+export interface AiProviders {
+  providers: AiProvider[];
+  /** Documents a change of embedding model would have to re-index. */
+  embedded_documents: number;
+}
+
+export async function getAiProviders(): Promise<AiProviders> {
+  const resp = await apiClient.get<AiProviders>("/settings/ai-providers");
+  return resp.data;
+}
+
+/** Save one provider's API key straight away (and look up its models). */
+export async function saveApiKey(provider: string, apiKey: string): Promise<void> {
+  await apiClient.put("/settings/api-key", { provider, api_key: apiKey }, { timeout: 60_000 });
 }
 
 export interface SettingsUpdate {

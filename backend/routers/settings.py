@@ -27,8 +27,16 @@ from models.db.settings import SystemSetting
 from models.db.user import User
 from models.schemas.auth import UserOut
 from services.auth.service import hash_password, verify_password
+from services.llm import providers as llm_providers
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+
+# Which providers may be named, from the one registry (services/llm/providers.py).
+_CHAT_PATTERN = "^(" + "|".join(llm_providers.CHAT_PROVIDERS) + ")$"
+_EMBEDDING_PATTERN = "^(" + "|".join(llm_providers.EMBEDDING_PROVIDERS) + ")$"
+# "google" is the Google Cloud speech key, which is not an AI provider's.
+_KEY_NAMES = (*llm_providers.KEYED, "google")
+_KEY_PATTERN = "^(" + "|".join(_KEY_NAMES) + ")$"
 
 # Current revision of the first-use wizard. Raise this whenever steps are added
 # so existing users are offered the new ones; the frontend keeps a matching
@@ -110,14 +118,18 @@ class SettingsOut(BaseModel):
     anthropic_key_set: bool
     voyage_key_set: bool
     google_key_set: bool
+    # The same, for every provider that takes a key.
+    keys_set: dict[str, bool] = {}
+    # Set when choosing a provider moved the embeddings with it.
+    embeddings_followed: bool = False
 
 
 class SettingsUpdate(BaseModel):
-    llm_provider: str | None = Field(None, pattern="^(ollama|openai|anthropic)$")
+    llm_provider: str | None = Field(None, pattern=_CHAT_PATTERN)
     llm_model: str | None = Field(None, min_length=1, max_length=100)
     ollama_url: str | None = Field(None, min_length=1, max_length=255)
     embedding_model: str | None = Field(None, min_length=1, max_length=100)
-    embedding_provider: str | None = Field(None, pattern="^(ollama|openai|voyage)$")
+    embedding_provider: str | None = Field(None, pattern=_EMBEDDING_PATTERN)
     theme: str | None = Field(None, pattern="^(light|dark|system)$")
     timezone: str | None = Field(None, max_length=64)
     notifications_email_enabled: bool | None = None
@@ -128,6 +140,8 @@ class SettingsUpdate(BaseModel):
     anthropic_api_key: str | None = Field(None, min_length=1, max_length=500)
     voyage_api_key: str | None = Field(None, min_length=1, max_length=500)
     google_api_key: str | None = Field(None, min_length=1, max_length=500)
+    # Any provider's key, by provider: {"gemini": "AIza..."}.
+    api_keys: dict[str, str] | None = None
 
 
 class ProfileUpdate(BaseModel):
@@ -168,7 +182,30 @@ async def get_settings(
         anthropic_key_set=app_settings.get_api_key("anthropic") is not None,
         voyage_key_set=app_settings.get_api_key("voyage") is not None,
         google_key_set=app_settings.get_api_key("google") is not None,
+        keys_set={name: app_settings.get_api_key(name) is not None for name in _KEY_NAMES},
     )
+
+
+async def _embedded_documents(db: AsyncSession, other_than_model: str | None = None) -> int:
+    """How many documents hold stored vectors: all of them, or only those made
+    with a model other than the one named. Every chunk records the model that
+    embedded it, so this is read from the knowledge base and not remembered."""
+    from sqlalchemy import text
+
+    sql = "SELECT count(DISTINCT document_id) FROM document_chunks WHERE embedding IS NOT NULL"
+    params: dict[str, str] = {}
+    if other_than_model is not None:
+        sql += " AND embedding_model <> :model"
+        params["model"] = other_than_model
+    return int((await db.execute(text(sql), params)).scalar() or 0)
+
+
+def _stored_embedding_model(provider: str, model: str) -> str:
+    """The model name written on a chunk when this provider embeds it."""
+    from services.embeddings.service import EMBEDDING_MODEL, _resolve_model
+
+    # The Ollama service embeds with one model whatever the setting says.
+    return EMBEDDING_MODEL if provider == "ollama" else _resolve_model(provider, model)
 
 
 @router.put("", response_model=SettingsOut)
@@ -177,14 +214,63 @@ async def update_settings(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> SettingsOut:
-    from services.embeddings.service import get_provider_dimension
+    keys: dict[str, str] = {
+        name: key
+        for name, key in (
+            ("openai", body.openai_api_key),
+            ("anthropic", body.anthropic_api_key),
+            ("voyage", body.voyage_api_key),
+            ("google", body.google_api_key),
+        )
+        if key
+    }
+    for name, key in (body.api_keys or {}).items():
+        if name not in _KEY_NAMES:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unknown provider: {name}")
+        if key and key.strip():
+            keys[name] = key.strip()[:500]
+
+    old_llm_provider = str(await _get_setting(db, "llm.provider"))
+    old_emb_provider = str(await _get_setting(db, "llm.embedding_provider"))
+    old_emb_model = str(await _get_setting(db, "llm.embedding_model"))
+
+    emb_provider, emb_model = body.embedding_provider, body.embedding_model
+
+    # A provider that does embeddings too takes them with it, so one key is
+    # enough: but only when the request leaves embeddings alone and no document
+    # has been embedded yet. With a knowledge base in place the switch would
+    # mean re-embedding all of it, which is the person's call (the Settings
+    # page offers it), never a side effect of picking a chat model.
+    followed = False
+    if (
+        body.llm_provider
+        and body.llm_provider != old_llm_provider
+        and emb_provider is None
+        and emb_model is None
+    ):
+        spec = llm_providers.get(body.llm_provider)
+        if (
+            spec is not None
+            and spec.default_embedding
+            and spec.key != old_emb_provider
+            and await _embedded_documents(db) == 0
+        ):
+            emb_provider, emb_model = spec.key, spec.default_embedding
+            followed = True
+
+    if emb_provider is not None or emb_model is not None:
+        from services.embeddings.service import _resolve_model
+
+        emb_provider = emb_provider or old_emb_provider
+        # A model from another provider's list becomes this provider's default.
+        emb_model = _resolve_model(emb_provider, emb_model or old_emb_model)
 
     db_updates = {
         "llm.provider": body.llm_provider,
         "llm.model": body.llm_model,
         "llm.ollama_url": body.ollama_url,
-        "llm.embedding_model": body.embedding_model,
-        "llm.embedding_provider": body.embedding_provider,
+        "llm.embedding_model": emb_model,
+        "llm.embedding_provider": emb_provider,
         "app.theme": body.theme,
         "app.timezone": body.timezone,
         "notifications.email_enabled": body.notifications_email_enabled,
@@ -195,56 +281,45 @@ async def update_settings(
         if val is not None:
             await _set_setting(db, key, val, current_user.id)
 
-    # ── Detect embedding dimension mismatch ──────────────────────────────────
-    if body.embedding_provider is not None or body.embedding_model is not None:
-        new_provider = body.embedding_provider or str(await _get_setting(db, "llm.embedding_provider"))
-        new_model = body.embedding_model or str(await _get_setting(db, "llm.embedding_model"))
-        new_dim = get_provider_dimension(new_provider, new_model)
-
-        current_dim_raw = await _get_setting(db, "llm.embedding_dimension")
-        try:
-            current_dim = int(current_dim_raw) if current_dim_raw else 768
-        except (TypeError, ValueError):
-            current_dim = 768
-
-        if new_dim != current_dim:
-            await _set_setting(db, "llm.kb_needs_reindex", "true", current_user.id)
+    # ── Does the knowledge base still match the embedding model? ─────────────
+    # Vectors from two models cannot be compared, even at the same size, so a
+    # re-index is due exactly when a stored vector came from another model.
+    # Switching back before re-indexing therefore clears the flag again.
+    if emb_provider is not None and emb_model is not None:
+        stale = await _embedded_documents(db, _stored_embedding_model(emb_provider, emb_model))
+        await _set_setting(db, "llm.kb_needs_reindex", "true" if stale else "false", current_user.id)
 
     # Keys go where this kind of install keeps them: the OS keyring on a
     # desktop, the encrypted store on a hub (administrators only). Never in
     # system_settings.
     from services.secret_store import save_api_key
 
-    for provider, key in (
-        ("openai", body.openai_api_key),
-        ("anthropic", body.anthropic_api_key),
-        ("voyage", body.voyage_api_key),
-        ("google", body.google_api_key),
-    ):
-        if key:
-            await save_api_key(db, current_user, provider, key)
+    for name, key in keys.items():
+        await save_api_key(db, current_user, name, key)
 
     await db.commit()
 
     # A newly added key unlocks that provider's models — rescan the catalog now
     # instead of waiting for the weekly refresh.
-    if body.openai_api_key or body.anthropic_api_key or body.voyage_api_key:
+    if any(name != "google" for name in keys):
         try:
             from services.llm.catalog import refresh_model_catalog
             await refresh_model_catalog(db)
         except Exception:
             pass  # discovery failure must never block saving settings
 
-    return await get_settings(db, current_user)
+    out = await get_settings(db, current_user)
+    out.embeddings_followed = followed
+    return out
 
 
 class ApiKeyRequest(BaseModel):
-    provider: str = Field(..., pattern="^(openai|anthropic)$")
+    provider: str = Field(..., pattern=_KEY_PATTERN)
     api_key: str = Field(..., min_length=1, max_length=500)
 
 
 class TestConnectionRequest(BaseModel):
-    provider: str = Field(..., pattern="^(ollama|openai|anthropic)$")
+    provider: str = Field(..., pattern=_CHAT_PATTERN)
 
 
 class TestConnectionResponse(BaseModel):
@@ -258,11 +333,17 @@ async def set_api_key(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """Store a cloud LLM API key (keyring on a desktop; administrators only on a hub)."""
+    """Store a provider's API key (keyring on a desktop; administrators only on a hub)."""
     from services.secret_store import save_api_key
 
     await save_api_key(db, current_user, body.provider, body.api_key)
     await db.commit()
+    if body.provider != "google":
+        try:
+            from services.llm.catalog import refresh_model_catalog
+            await refresh_model_catalog(db)
+        except Exception:
+            pass  # discovery failure must never block saving a key
 
 
 @router.post("/test-connection", response_model=TestConnectionResponse)
@@ -306,6 +387,30 @@ async def test_connection(
             return TestConnectionResponse(
                 ok=available,
                 message="Anthropic API key is valid." if available else "Anthropic API key is invalid or the API is unreachable.",
+            )
+
+        spec = llm_providers.get(provider)
+        if spec is not None and spec.kind == "compatible":
+            api_key = app_settings.get_api_key(provider)
+            if not api_key:
+                return TestConnectionResponse(ok=False, message=f"No {spec.label} API key configured.")
+            import httpx
+
+            try:
+                models = await llm_providers.list_models(provider, api_key)
+            except httpx.HTTPStatusError as exc:
+                code = exc.response.status_code
+                return TestConnectionResponse(
+                    ok=False,
+                    message=(
+                        f"{spec.label} refused this API key."
+                        if code in (400, 401, 403)
+                        else f"{spec.label} answered with an error ({code})."
+                    ),
+                )
+            return TestConnectionResponse(
+                ok=True,
+                message=f"{spec.label} API key is valid: {len(models)} chat model(s) available.",
             )
 
     except Exception as exc:
@@ -386,7 +491,7 @@ class TaskModelOut(BaseModel):
 class TaskModelUpdate(BaseModel):
     task: str = Field(..., min_length=1, max_length=50)
     # Both null/omitted = clear the override (revert to global pick)
-    provider: str | None = Field(None, pattern="^(ollama|openai|anthropic)$")
+    provider: str | None = Field(None, pattern=_CHAT_PATTERN)
     model: str | None = Field(None, min_length=1, max_length=100)
 
 
@@ -446,16 +551,58 @@ async def update_task_model(
             f"llm.task.{body.task}.model",
         ])))
     else:
-        if body.provider in ("openai", "anthropic") and not app_settings.get_api_key(body.provider):
+        if llm_providers.key_missing(body.provider):
             raise HTTPException(
                 status_code=400,
-                detail=f"No API key configured for {body.provider}. Add the key first in Settings → AI Engine.",
+                detail=(
+                    f"No API key configured for {llm_providers.label(body.provider)}. "
+                    "Add the key first in Settings → AI Engine."
+                ),
             )
         await _set_setting(db, f"llm.task.{body.task}.provider", body.provider, current_user.id)
         await _set_setting(db, f"llm.task.{body.task}.model", body.model, current_user.id)
 
     await db.commit()
     return await get_task_models(db, current_user)
+
+
+@router.get("/ai-providers")
+async def get_ai_providers(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Every AI service this app can use, for the Settings page: what it is
+    called, whether it takes a key and has one, where to get one, and which
+    embedding models it has (none for a chat-only service).
+
+    ``embedded_documents`` is how many documents a change of embedding model
+    would have to re-index.
+    """
+    from services.llm.router import VISION_PROVIDERS
+
+    return {
+        "providers": [
+            {
+                "key": p.key,
+                "label": p.label,
+                "about": p.about,
+                "chat": p.has_chat,
+                "needs_key": p.needs_key,
+                "key_set": (not p.needs_key) or app_settings.get_api_key(p.key) is not None,
+                "key_url": p.key_url,
+                "key_hint": p.key_hint,
+                "reads_documents": p.key in VISION_PROVIDERS,
+                "embedding_models": [
+                    {"id": name, "dimension": m.dimension, "note": m.note}
+                    for name, m in p.embeddings.items()
+                ],
+                "default_embedding": p.default_embedding,
+            }
+            for p in llm_providers.PROVIDERS.values()
+        ],
+        "embedded_documents": await _embedded_documents(db),
+    }
 
 
 @router.get("/ai-options")
@@ -653,12 +800,12 @@ async def system_notices(
     # 2. AI engine: key missing, or live ping failing
     provider = str(await _get_setting(db, "llm.provider") or app_settings.default_llm_provider)
     model = str(await _get_setting(db, "llm.model") or app_settings.default_llm_model)
-    if provider in ("openai", "anthropic") and not app_settings.get_api_key(provider):
+    if llm_providers.key_missing(provider):
         notices.append({
             "id": "llm_key_missing",
             "severity": "error",
             "title": "AI engine has no API key",
-            "message": f"{provider.capitalize()} is selected but no API key is configured — Gerry can't answer.",
+            "message": f"{llm_providers.label(provider)} is selected but no API key is configured — Gerry can't answer.",
             "route": "/settings",
         })
     else:

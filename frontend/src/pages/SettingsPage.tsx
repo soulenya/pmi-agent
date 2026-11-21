@@ -33,7 +33,6 @@ import {
   checkForUpdate,
   applyUpdate,
   getOllamaModels,
-  getAnthropicModels,
   getAiOptions,
   getTaskModels,
   updateTaskModel,
@@ -41,6 +40,8 @@ import {
   getCompanyContext,
   refreshCompanyContext,
   setCompanyContextFileId,
+  saveApiKey,
+  type AiProvider,
   type AppSettings,
   type SettingsUpdate,
   type ProfileUpdate,
@@ -48,6 +49,7 @@ import {
   type TaskModel,
   type TaskModelUpdate,
 } from "@/api/settings";
+import { providerChoiceProblem, providerShortLabel, useAiProviders } from "@/lib/aiProviders";
 import { listVoices } from "@/api/voice";
 import {
   getWritingVoice,
@@ -367,21 +369,6 @@ function ProfileSection() {
 
 // ── LLM config section ────────────────────────────────────────────────────────
 
-// Embedding model options per provider
-const EMBEDDING_MODEL_OPTIONS: Record<string, { value: string; label: string }[]> = {
-  voyage: [
-    { value: "voyage-3", label: "voyage-3 (1024 dims — recommended)" },
-    { value: "voyage-3-lite", label: "voyage-3-lite (512 dims — faster)" },
-  ],
-  openai: [
-    { value: "text-embedding-3-large", label: "text-embedding-3-large (3072 dims — highest quality)" },
-    { value: "text-embedding-3-small", label: "text-embedding-3-small (1536 dims — faster)" },
-  ],
-};
-
-// Static model list for OpenAI (doesn't have a public unauthenticated listing endpoint)
-const OPENAI_MODELS = ["gpt-4o", "gpt-4o-mini", "o3", "o4-mini"];
-
 // ── Re-index progress modal ─────────────────────────────────────────────────────────────────────────────────
 
 function ReindexModal({
@@ -530,37 +517,102 @@ function ReindexModal({
 
 // ── LLM config section ─────────────────────────────────────────────────────────────────────────────────
 
+/** One provider's API key: saved the moment it is entered, so its models can be listed before anything else is saved. */
+function ProviderKeyField({ provider, purpose }: { provider: AiProvider; purpose?: string }) {
+  const qc = useQueryClient();
+  const [value, setValue] = useState("");
+  const save = useMutation({
+    mutationFn: () => saveApiKey(provider.key, value.trim()),
+    onSuccess: () => {
+      setValue("");
+      for (const key of ["settings", "ai-providers", "ai-options", "task-models", "settings-health", "setup-guide"]) {
+        qc.invalidateQueries({ queryKey: [key] });
+      }
+    },
+  });
+  const where = provider.key_url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+
+  return (
+    <div className="border-t pt-4 space-y-3">
+      <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+        <KeyRound className="h-3.5 w-3.5" />
+        {provider.label} API Key
+        {purpose && <span className="font-normal text-muted-foreground/70">({purpose})</span>}
+      </p>
+      {provider.key_set && (
+        <p className="flex items-center gap-1.5 text-xs text-green-600">
+          <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
+        </p>
+      )}
+      <Field
+        label={provider.key_set ? "Replace API Key" : "API Key"}
+        hint={`${where ? `Get one at ${where}. ` : ""}Kept in this computer's keychain, or encrypted on the hub. Never shown again.`}
+      >
+        <div className="flex gap-2">
+          <input
+            type="password"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && value.trim()) save.mutate(); }}
+            placeholder={provider.key_hint || "Paste the key"}
+            aria-label={`${provider.label} API key`}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+          />
+          <button
+            onClick={() => save.mutate()}
+            disabled={!value.trim() || save.isPending}
+            className="shrink-0 flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 disabled:opacity-50"
+          >
+            {save.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Save key
+          </button>
+        </div>
+      </Field>
+      {save.isError && (
+        <p className="flex items-center gap-1.5 text-xs text-destructive">
+          <XCircle className="h-3.5 w-3.5 shrink-0" /> {(save.error as Error).message}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function LLMSection({
   settings,
+  saved,
+  problem,
   onChange,
   onReindexComplete,
 }: {
   settings: AppSettings;
+  /** What is saved now, without the changes still waiting for Save. */
+  saved: AppSettings | undefined;
+  /** Why the chosen provider and model cannot be saved yet, if they cannot. */
+  problem: string | null;
   onChange: (s: SettingsUpdate) => void;
   onReindexComplete: () => void;
 }) {
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [anthropicKey, setAnthropicKey] = useState("");
-  const [voyageKey, setVoyageKey] = useState("");
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testing, setTesting] = useState(false);
   const [reindexOpen, setReindexOpen] = useState(false);
+  const [showEmbeddings, setShowEmbeddings] = useState(false);
+  // The embeddings were moved here by choosing a provider, not by hand.
+  const [followed, setFollowed] = useState(false);
 
   const provider = settings.llm_provider ?? "anthropic";
   const embProv = settings.embedding_provider ?? "voyage";
+
+  const { providers, byKey, embeddedDocuments } = useAiProviders();
+  const spec = byKey[provider];
+  const embSpec = byKey[embProv];
+  const chatProviders = providers.filter((p) => p.chat);
+  const embeddingProviders = providers.filter((p) => p.embedding_models.length > 0);
 
   const { data: ollamaModels = [] } = useQuery({
     queryKey: ["ollama-models"],
     queryFn: getOllamaModels,
     enabled: provider === "ollama" || embProv === "ollama",
     staleTime: 30_000,
-  });
-
-  const { data: anthropicModels = [] } = useQuery({
-    queryKey: ["anthropic-models"],
-    queryFn: getAnthropicModels,
-    enabled: provider === "anthropic",
-    staleTime: 60_000,
   });
 
   const { data: aiHealth } = useQuery<SettingsHealthResult>({
@@ -577,18 +629,46 @@ function LLMSection({
     refetchOnWindowFocus: false,
   });
 
-  // Catalog-driven, key-filtered model list. Providers without an active API
-  // key return no models (add the key first, the list refreshes automatically).
-  const modelOptions = aiOpts
-    ? aiOpts.llm[provider] ?? []
-    : provider === "ollama" ? ollamaModels :
-      provider === "openai" ? OPENAI_MODELS :
-      anthropicModels;
+  // Each provider's own list, asked for with its key. No key, no list.
+  const modelOptions = aiOpts?.llm[provider] ?? (provider === "ollama" ? ollamaModels : []);
+  const newModels = new Set(aiOpts?.new_models ?? []);
+  const modelListed = modelOptions.includes(settings.llm_model);
+  const providerChanged = !!saved && saved.llm_provider !== provider;
+  // Still the last provider's model: not something to show as this one's.
+  const modelIsStale = providerChanged && settings.llm_model === saved?.llm_model;
 
-  const embModelOptions =
-    embProv === "voyage" ? EMBEDDING_MODEL_OPTIONS.voyage :
-    embProv === "openai" ? EMBEDDING_MODEL_OPTIONS.openai :
-    ollamaModels.map((m) => ({ value: m, label: m }));
+  const embModels = embSpec?.embedding_models ?? [];
+  const embDimension = embModels.find((m) => m.id === settings.embedding_model)?.dimension;
+  const embeddingsMatch = embProv === provider && (spec?.embedding_models.length ?? 0) > 0;
+  const embeddingsChanged =
+    !!saved && (saved.embedding_provider !== embProv || saved.embedding_model !== settings.embedding_model);
+  const canOfferEmbeddings = !!spec?.default_embedding && embProv !== provider;
+
+  const pickProvider = (key: string) => {
+    const next = byKey[key];
+    const patch: SettingsUpdate = { llm_provider: key };
+    if (next?.default_embedding && key !== embProv && embeddedDocuments === 0) {
+      // It does embeddings too: bring them along, so one key covers both.
+      // With documents already embedded that would mean re-indexing them, so
+      // it is offered below and not done.
+      patch.embedding_provider = key;
+      patch.embedding_model = next.default_embedding;
+      setFollowed(true);
+    } else if (followed && !next?.default_embedding && saved) {
+      // Moving on to a chat-only service: the embeddings go back where they were.
+      patch.embedding_provider = saved.embedding_provider;
+      patch.embedding_model = saved.embedding_model;
+      setFollowed(false);
+    }
+    onChange(patch);
+    setTestResult(null);
+    setShowEmbeddings(false);
+  };
+
+  const pickEmbeddingProvider = (key: string) => {
+    setFollowed(false);
+    onChange({ embedding_provider: key, embedding_model: byKey[key]?.default_embedding ?? settings.embedding_model });
+  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -603,21 +683,12 @@ function LLMSection({
     }
   };
 
-  const handleKeyApply = () => {
-    const patch: SettingsUpdate = {};
-    if (openaiKey) patch.openai_api_key = openaiKey;
-    if (anthropicKey) patch.anthropic_api_key = anthropicKey;
-    if (voyageKey) patch.voyage_api_key = voyageKey;
-    onChange(patch);
-    setOpenaiKey("");
-    setAnthropicKey("");
-    setVoyageKey("");
-  };
-
   const handleReindexComplete = () => {
     setReindexOpen(false);
     onReindexComplete();
   };
+
+  const selectClass = "w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring";
 
   return (
     <>
@@ -664,133 +735,184 @@ function LLMSection({
         )}
 
         {/* Provider selector */}
-        <Field label="LLM Provider" hint="Select which AI service powers the assistant.">
+        <Field label="LLM Provider" hint={spec?.about ?? "Select which AI service powers the assistant."}>
           <select
             value={provider}
-            onChange={(e) => onChange({ llm_provider: e.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+            onChange={(e) => pickProvider(e.target.value)}
+            aria-label="LLM Provider"
+            className={selectClass}
           >
-            <option value="ollama">Ollama (local)</option>
-            <option value="openai">OpenAI (cloud)</option>
-            <option value="anthropic">Anthropic / Claude (cloud)</option>
+            {chatProviders.length === 0 && <option value={provider}>{providerShortLabel(provider)}</option>}
+            {chatProviders.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}{p.needs_key && !p.key_set ? " — needs a key" : ""}
+              </option>
+            ))}
           </select>
         </Field>
 
-        {/* Model dropdown */}
+        {spec && !spec.reads_documents && (
+          <p className="text-xs text-muted-foreground">
+            {spec.label} cannot read scanned documents or images in this app. Keep Claude for
+            <strong> Document Extraction</strong> under Models per Task if you use that.
+          </p>
+        )}
+
+        {/* Model: the provider's own list, or typed in when there is none */}
         <Field
           label="Chat Model"
           hint={
             provider === "ollama"
               ? "Locally installed Ollama models. Pull more with: ollama pull <model>"
-              : provider === "openai"
-              ? "OpenAI model to use for chat."
-              : "Anthropic Claude model to use for chat."
+              : `The ${spec?.label ?? "provider"} model that answers in chat. The list comes from the provider and is refreshed weekly.`
           }
         >
-          <select
-            value={settings.llm_model}
-            onChange={(e) => onChange({ llm_model: e.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-          >
-            {modelOptions.length === 0 && (
-              <option value={settings.llm_model}>{settings.llm_model || "No models found"}</option>
-            )}
-            {modelOptions.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
+          {modelOptions.length > 0 ? (
+            <select
+              value={modelListed || !providerChanged ? settings.llm_model : ""}
+              onChange={(e) => onChange({ llm_model: e.target.value })}
+              aria-label="Chat Model"
+              className={selectClass}
+            >
+              {!modelListed && providerChanged && <option value="" disabled>Choose a model…</option>}
+              {!modelListed && !providerChanged && <option value={settings.llm_model}>{settings.llm_model}</option>}
+              {modelOptions.map((m) => (
+                <option key={m} value={m}>{m}{newModels.has(m) ? " · NEW" : ""}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={modelIsStale ? "" : settings.llm_model}
+              onChange={(e) => onChange({ llm_model: e.target.value })}
+              disabled={!!spec?.needs_key && !spec.key_set}
+              placeholder={
+                spec?.needs_key && !spec.key_set
+                  ? "Save the API key below to see the models"
+                  : provider === "ollama" ? "e.g. llama3.3" : "Model name, as the provider writes it"
+              }
+              aria-label="Chat Model"
+              className={cn(selectClass, "font-mono disabled:opacity-60")}
+            />
+          )}
         </Field>
+
+        {(provider === "ollama" || embProv === "ollama") && (
+          <Field label="Ollama Server URL" hint="Address of the Ollama server on this computer or network.">
+            <input
+              value={settings.ollama_url}
+              onChange={(e) => onChange({ ollama_url: e.target.value })}
+              placeholder="http://localhost:11434"
+              className={cn(selectClass, "font-mono")}
+            />
+          </Field>
+        )}
+
+        {spec?.needs_key && <ProviderKeyField key={spec.key} provider={spec} />}
 
         {/* ── Embedding provider ───────────────────────────────────────────────────────── */}
         <div className="border-t pt-4 space-y-3">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Document Embeddings</p>
           <p className="text-xs text-muted-foreground">
-            Embeddings power Knowledge Base import and Semantic Search — independent of your LLM choice.
-            Anthropic has no embedding API; use <strong>Voyage AI</strong> (Anthropic’s partner) or OpenAI.
+            Embeddings power Knowledge Base import and Semantic Search. A provider that has an embedding
+            model (OpenAI, Gemini, Mistral) covers them on the same key; one that has none (Claude, Grok)
+            needs a second service, such as <strong>Voyage AI</strong>.
           </p>
+
+          {embeddingsMatch && !showEmbeddings ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border bg-muted/50 px-3 py-2 text-xs">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />
+              <span>
+                {followed ? "Set automatically: " : ""}{spec?.label}, on the same key ·{" "}
+                <span className="font-mono">{settings.embedding_model}</span>
+                {embDimension ? ` · ${embDimension} dims` : ""}
+              </span>
+              <button onClick={() => setShowEmbeddings(true)} className="ml-auto underline text-muted-foreground hover:text-foreground">
+                Change
+              </button>
+            </div>
+          ) : (
+          <>
           <Field label="Embedding Provider">
             <select
               value={embProv}
-              onChange={(e) => onChange({ embedding_provider: e.target.value })}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+              onChange={(e) => pickEmbeddingProvider(e.target.value)}
+              aria-label="Embedding Provider"
+              className={selectClass}
             >
-              <option value="ollama">Ollama (local — nomic-embed-text · 768 dims)</option>
-              <option value="voyage">Voyage AI (cloud — voyage-3 · 1024 dims — recommended)</option>
-              <option value="openai">OpenAI (cloud — text-embedding-3-small · 1536 dims)</option>
+              {embeddingProviders.length === 0 && <option value={embProv}>{providerShortLabel(embProv)}</option>}
+              {embeddingProviders.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label} · {p.default_embedding} · {p.embedding_models.find((m) => m.id === p.default_embedding)?.dimension} dims
+                </option>
+              ))}
             </select>
           </Field>
 
           {/* Embedding model — per-provider select */}
           {embProv === "ollama" ? (
-            <>
-              <Field label="Ollama Server URL" hint="Address of the Ollama server running your embedding model.">
-                <input
-                  value={settings.ollama_url}
-                  onChange={(e) => onChange({ ollama_url: e.target.value })}
-                  placeholder="http://localhost:11434"
-                  className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
-                />
-              </Field>
-              <Field label="Embedding Model" hint="Ollama model to use for embeddings. Must be pulled first.">
-                {ollamaModels.length > 0 ? (
-                  <select
-                    value={settings.embedding_model}
-                    onChange={(e) => onChange({ embedding_model: e.target.value })}
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    {ollamaModels.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                ) : (
-                  <input
-                    value={settings.embedding_model}
-                    onChange={(e) => onChange({ embedding_model: e.target.value })}
-                    placeholder="nomic-embed-text"
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                  />
-                )}
-              </Field>
-            </>
+            <Field label="Embedding Model" hint="Embeddings on this computer use nomic-embed-text (768 dims). Pull it first: ollama pull nomic-embed-text">
+              <input value="nomic-embed-text" readOnly className={cn(selectClass, "font-mono opacity-70")} />
+            </Field>
           ) : (
-            <Field
-              label="Embedding Model"
-              hint={
-                embProv === "voyage"
-                  ? "voyage-3 gives the highest quality (1024 dims). voyage-3-lite is faster (512 dims)."
-                  : "text-embedding-3-large gives the highest quality (3072 dims). text-embedding-3-small is faster (1536 dims)."
-              }
-            >
+            <Field label="Embedding Model">
               <select
                 value={settings.embedding_model}
-                onChange={(e) => onChange({ embedding_model: e.target.value })}
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                onChange={(e) => { setFollowed(false); onChange({ embedding_model: e.target.value }); }}
+                aria-label="Embedding Model"
+                className={selectClass}
               >
-                {(embModelOptions.length > 0 ? embModelOptions : [{ value: settings.embedding_model, label: settings.embedding_model }]).map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                {!embModels.some((m) => m.id === settings.embedding_model) && (
+                  <option value={settings.embedding_model}>{settings.embedding_model}</option>
+                )}
+                {embModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.id} · {m.dimension} dims{m.note ? ` · ${m.note}` : ""}
+                    {m.dimension > 2000 ? " · too large to index, slower search" : ""}
+                  </option>
                 ))}
               </select>
             </Field>
           )}
+          </>
+          )}
 
-          {embProv === "voyage" && (
-            <div className="rounded-md border border-purple-200 bg-purple-50 dark:bg-purple-950/30 dark:border-purple-800 px-4 py-3 text-xs text-purple-800 dark:text-purple-200 space-y-1">
-              <p className="font-semibold">Voyage AI — Anthropic’s recommended embedding partner</p>
+          {/* The provider could do embeddings too, and has not been given them. */}
+          {canOfferEmbeddings && spec && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3 text-xs text-blue-800 dark:text-blue-200 space-y-2">
               <p>
-                {settings.voyage_key_set
-                  ? "✓ Voyage API key is configured."
-                  : <></>}
-                {!settings.voyage_key_set && (
-                  <>Get a free key at <strong>dash.voyageai.com</strong> and enter it below.</>
-                )}
+                <strong>{spec.label}</strong> has an embedding model too, on the same key.
+                {embeddedDocuments > 0
+                  ? ` It was not switched for you because ${embeddedDocuments} document${embeddedDocuments === 1 ? " is" : "s are"} already embedded with ${saved?.embedding_model ?? "the current model"}: switching means re-indexing ${embeddedDocuments === 1 ? "it" : "them"}.`
+                  : ""}
               </p>
+              <button
+                onClick={() => { setFollowed(false); onChange({ embedding_provider: provider, embedding_model: spec.default_embedding }); }}
+                className="rounded-md border border-blue-300 dark:border-blue-700 px-3 py-1.5 font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40"
+              >
+                Use {spec.label} for embeddings too
+              </button>
             </div>
           )}
 
-          {embProv === "openai" && (
-            <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-4 py-3 text-xs text-blue-800 dark:text-blue-200 space-y-1">
-              <p className="font-semibold">OpenAI Embeddings</p>
-              <p>{settings.openai_key_set ? "✓ OpenAI API key is configured." : "Add your OpenAI key below and save."}</p>
-            </div>
+          {embeddingsChanged && embeddedDocuments > 0 && (
+            <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 px-4 py-3 text-xs text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>
+                Once saved, the {embeddedDocuments} document{embeddedDocuments === 1 ? "" : "s"} in the Knowledge Base
+                {embeddedDocuments === 1 ? " has" : " have"} to be re-indexed with {settings.embedding_model} before
+                search by meaning works again. That re-reads every document and is billed by the new provider.
+                {saved && (
+                  <button
+                    onClick={() => { setFollowed(false); onChange({ embedding_provider: saved.embedding_provider, embedding_model: saved.embedding_model }); }}
+                    className="ml-1 underline font-medium"
+                  >
+                    Keep {saved.embedding_model}
+                  </button>
+                )}
+              </span>
+            </p>
           )}
+
         </div>
 
         {/* ── Re-index warning ───────────────────────────────────────────────────────────────── */}
@@ -801,8 +923,8 @@ function LLMSection({
               Knowledge Base re-index required
             </p>
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              The embedding provider or model changed and the stored vector dimensions no longer match.
-              Semantic search is disabled until you re-index.
+              The Knowledge Base was embedded with a different model than the one now chosen, and vectors
+              from two models cannot be compared. Search by meaning is unreliable until you re-index.
             </p>
             <button
               onClick={() => setReindexOpen(true)}
@@ -814,137 +936,13 @@ function LLMSection({
           </div>
         )}
 
-        {/* Voyage AI key */}
-        {embProv === "voyage" && (
-          <div className="border-t pt-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <KeyRound className="h-3.5 w-3.5" />
-              Voyage AI API Key
-            </p>
-            {settings.voyage_key_set && (
-              <p className="flex items-center gap-1.5 text-xs text-green-600">
-                <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
-              </p>
-            )}
-            <Field label={settings.voyage_key_set ? "Replace API Key" : "API Key"} hint="Stored securely in the OS keychain — never saved to disk. Get yours at dash.voyageai.com">
-              <input
-                type="password"
-                value={voyageKey}
-                onChange={(e) => setVoyageKey(e.target.value)}
-                placeholder="pa-..."
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
-              />
-            </Field>
-            {voyageKey && (
-              <button
-                onClick={handleKeyApply}
-                className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
-              >
-                Stage key (save with main Save button)
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Cloud API keys — OpenAI LLM */}
-        {provider === "openai" && (
-          <div className="border-t pt-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <KeyRound className="h-3.5 w-3.5" />
-              OpenAI API Key
-            </p>
-            {settings.openai_key_set && (
-              <p className="flex items-center gap-1.5 text-xs text-green-600">
-                <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
-              </p>
-            )}
-            <Field label="New API Key" hint="Stored securely in the OS keychain — never saved to disk.">
-              <input
-                type="password"
-                value={openaiKey}
-                onChange={(e) => setOpenaiKey(e.target.value)}
-                placeholder="sk-..."
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
-              />
-            </Field>
-            {openaiKey && (
-              <button
-                onClick={handleKeyApply}
-                className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
-              >
-                Stage key (save with main Save button)
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* OpenAI key when LLM != openai but embedding = openai */}
-        {provider !== "openai" && embProv === "openai" && (
-          <div className="border-t pt-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <KeyRound className="h-3.5 w-3.5" />
-              OpenAI API Key <span className="font-normal text-muted-foreground/70">(for embeddings)</span>
-            </p>
-            {settings.openai_key_set
-              ? <p className="flex items-center gap-1.5 text-xs text-green-600"><CheckCircle2 className="h-3.5 w-3.5" /> API key configured</p>
-              : (
-                <>
-                  <Field label="API Key" hint="Stored securely in the OS keychain — never saved to disk.">
-                    <input
-                      type="password"
-                      value={openaiKey}
-                      onChange={(e) => setOpenaiKey(e.target.value)}
-                      placeholder="sk-..."
-                      className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
-                    />
-                  </Field>
-                  {openaiKey && (
-                    <button
-                      onClick={handleKeyApply}
-                      className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
-                    >
-                      Stage key (save with main Save button)
-                    </button>
-                  )}
-                </>
-              )
-            }
-          </div>
-        )}
-
-        {provider === "anthropic" && (
-          <div className="border-t pt-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <KeyRound className="h-3.5 w-3.5" />
-              Anthropic API Key
-            </p>
-            {settings.anthropic_key_set && (
-              <p className="flex items-center gap-1.5 text-xs text-green-600">
-                <CheckCircle2 className="h-3.5 w-3.5" /> API key configured
-              </p>
-            )}
-            <Field label="New API Key" hint="Stored securely in the OS keychain — never saved to disk.">
-              <input
-                type="password"
-                value={anthropicKey}
-                onChange={(e) => setAnthropicKey(e.target.value)}
-                placeholder="sk-ant-..."
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
-              />
-            </Field>
-            {anthropicKey && (
-              <button
-                onClick={handleKeyApply}
-                className="text-xs rounded-md bg-primary text-primary-foreground px-3 py-1.5 hover:bg-primary/90"
-              >
-                Stage key (save with main Save button)
-              </button>
-            )}
-          </div>
+        {/* The embedding provider's key, when it is not the chat provider's */}
+        {embSpec?.needs_key && embProv !== provider && (
+          <ProviderKeyField key={embSpec.key} provider={embSpec} purpose="for embeddings" />
         )}
 
         {/* Test connection */}
-        <div className="border-t pt-4 flex items-center gap-3">
+        <div className="border-t pt-4 flex flex-wrap items-center gap-3">
           <button
             onClick={handleTest}
             disabled={testing}
@@ -957,6 +955,11 @@ function LLMSection({
             <span className={cn("flex items-center gap-1 text-xs", testResult.ok ? "text-green-600" : "text-destructive")}>
               {testResult.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
               {testResult.message}
+            </span>
+          )}
+          {problem && (
+            <span className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5" /> {problem}
             </span>
           )}
         </div>
@@ -1610,11 +1613,8 @@ function TaskModelsSection() {
 
   const providers: Record<string, string[]> = aiOpts?.llm ?? {};
   const newModels = new Set(aiOpts?.new_models ?? []);
-  const providerLabels: Record<string, string> = {
-    anthropic: "Anthropic / Claude",
-    openai: "OpenAI",
-    ollama: "Ollama (local)",
-  };
+  const { byKey: providerSpecs } = useAiProviders();
+  const providerName = (key: string) => providerSpecs[key]?.label ?? providerShortLabel(key);
 
   // A recommendation like "claude-haiku-4-5" should match dated catalog
   // snapshots such as "claude-haiku-4-5-20251001".
@@ -1688,7 +1688,7 @@ function TaskModelsSection() {
                   <option value="__global__">Global default</option>
                   {Object.entries(providers).map(([prov, models]) =>
                     models.length > 0 ? (
-                      <optgroup key={prov} label={providerLabels[prov] ?? prov}>
+                      <optgroup key={prov} label={providerName(prov)}>
                         {models.map((m) => (
                           <option key={`${prov}::${m}`} value={`${prov}::${m}`}>
                             {m}
@@ -1951,12 +1951,7 @@ function SystemHealthSection() {
   // AI Engine label: use the active provider from the llm check
   const llmCheck = (checks.llm ?? checks.ollama) as { status?: string; provider?: string; model?: string; detail?: string } | undefined;
   const embCheck = checks.embedding as { status?: string; provider?: string; model?: string; dimension?: number; detail?: string } | undefined;
-  const providerLabels: Record<string, string> = {
-    ollama: "AI Engine (Ollama)",
-    openai: "AI Engine (OpenAI)",
-    anthropic: "AI Engine (Anthropic)",
-  };
-  const llmLabel = providerLabels[llmCheck?.provider ?? ""] ?? "AI Engine";
+  const llmLabel = llmCheck?.provider ? `AI Engine (${providerShortLabel(llmCheck.provider)})` : "AI Engine";
 
   return (
     <Section
@@ -2788,9 +2783,9 @@ export function SettingsPage() {
   const mutation = useMutation({
     mutationFn: (body: SettingsUpdate) => updateSettings(body),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["settings"] });
-      qc.invalidateQueries({ queryKey: ["ai-options"] });
-      qc.invalidateQueries({ queryKey: ["task-models"] });
+      for (const key of ["settings", "ai-options", "ai-providers", "task-models", "settings-health"]) {
+        qc.invalidateQueries({ queryKey: [key] });
+      }
       setSettingsSaved(true);
       setLocalSettings({});
       setTimeout(() => setSettingsSaved(false), 2500);
@@ -2800,6 +2795,14 @@ export function SettingsPage() {
   const handleChange = (patch: SettingsUpdate) => {
     setLocalSettings((prev) => ({ ...prev, ...patch }));
   };
+
+  const { byKey: aiProviders } = useAiProviders();
+  const { data: aiOptions } = useQuery({
+    queryKey: ["ai-options"],
+    queryFn: getAiOptions,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
 
   const mergedSettings: AppSettings = settings
     ? { ...settings, ...localSettings }
@@ -2825,6 +2828,20 @@ export function SettingsPage() {
 
   const hasChanges = Object.keys(localSettings).length > 0;
 
+  // A provider without its key, or with another provider's model, would leave
+  // Gerry unable to answer: say what is missing and hold the save until it is there.
+  const aiProblem =
+    "llm_provider" in localSettings || "llm_model" in localSettings
+      ? providerChoiceProblem(
+          aiProviders[mergedSettings.llm_provider],
+          mergedSettings.llm_model,
+          aiOptions?.llm[mergedSettings.llm_provider] ?? [],
+          !!settings &&
+            settings.llm_provider !== mergedSettings.llm_provider &&
+            settings.llm_model === mergedSettings.llm_model,
+        )
+      : null;
+
   return (
     <div className="flex flex-col gap-4 md:gap-6 md:p-6 max-w-3xl mx-auto">
       {/* Header */}
@@ -2837,11 +2854,18 @@ export function SettingsPage() {
           </p>
         </div>
         {hasChanges && (
-          <SaveButton
-            onClick={() => mutation.mutate(localSettings)}
-            loading={mutation.isPending}
-            saved={settingsSaved}
-          />
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <SaveButton
+              onClick={() => mutation.mutate(localSettings)}
+              loading={mutation.isPending}
+              saved={settingsSaved}
+              disabled={!!aiProblem}
+            />
+            {aiProblem && <span className="text-xs text-amber-700 dark:text-amber-400">{aiProblem}</span>}
+            {mutation.isError && (
+              <span className="text-xs text-destructive">{(mutation.error as Error).message}</span>
+            )}
+          </div>
         )}
       </div>
 
@@ -2882,6 +2906,8 @@ export function SettingsPage() {
             <>
               <LLMSection
                 settings={mergedSettings}
+                saved={settings}
+                problem={aiProblem}
                 onChange={handleChange}
                 onReindexComplete={() => {
                   qc.invalidateQueries({ queryKey: ["settings"] });
@@ -2934,11 +2960,13 @@ export function SettingsPage() {
           )}
 
           {hasChanges && (
-            <div className="flex justify-end">
+            <div className="flex items-center justify-end gap-3">
+              {aiProblem && <span className="text-xs text-amber-700 dark:text-amber-400">{aiProblem}</span>}
               <SaveButton
                 onClick={() => mutation.mutate(localSettings)}
                 loading={mutation.isPending}
                 saved={settingsSaved}
+                disabled={!!aiProblem}
               />
             </div>
           )}

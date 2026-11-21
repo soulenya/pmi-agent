@@ -4,6 +4,68 @@
 
 ## Changelog
 
+### v5.42.0 · build 328 — 2026-11-20
+**More AI providers: Gemini, Grok, Mistral, DeepSeek, Groq and OpenRouter; embeddings that follow the provider**
+
+- **One list of providers** (`services/llm/providers.py`). Anthropic,
+  OpenAI and Ollama were named in a dozen places; they now come from one
+  registry, which adds Google Gemini, xAI (Grok), Mistral, DeepSeek, Groq
+  and OpenRouter. Those six speak OpenAI's chat-completions API at their
+  own address, so they share OpenAI's client with a different `base_url`
+  (`OpenAIClient`, and `ChatOpenAI` on the LangGraph path). Adding another
+  is one entry in that file.
+- **Settings → AI Engine** lists every provider, marks the ones with no key
+  yet, says where to get a key, and saves a key the moment it is entered
+  (`PUT /settings/api-key`, any provider) so that provider's models can be
+  read from the provider itself (`GET {base_url}/models`). Nothing about
+  which models exist is written in code. **Save** stays off until the
+  chosen provider has a key and one of its own models is chosen; before,
+  changing only the provider could save OpenAI with a Claude model.
+- **Embeddings follow the provider.** OpenAI, Gemini and Mistral have an
+  embedding model as well as chat. Choosing one of them sets the
+  embeddings to the same provider on the same key and collapses that part
+  of the page to one line ("Set automatically"); Claude, Grok, DeepSeek,
+  Groq and OpenRouter have none, so the embeddings stay where they are.
+  The same happens for a change made anywhere else (the model button under
+  the chat box): `PUT /settings` moves the embeddings when the request
+  leaves them alone and nothing is embedded yet.
+- **A knowledge base is never re-pointed as a side effect.** With documents
+  already embedded, the switch is offered ("Use Gemini for embeddings
+  too"), with the number of documents it would re-index and a one-click
+  way back before saving.
+- **Gemini's embeddings are stored at 1536 numbers.** Its models return
+  3072, which pgvector cannot index (the limit is 2000). The vector is cut
+  and re-normalised, which Google documents as supported
+  (`CompatibleEmbeddingService`). Mistral's are 1024.
+- **"Re-index required" now means what it says.** It used to be raised only
+  when the vector size changed, so Voyage (1024) to Mistral (1024), or
+  OpenAI small (1536) to Gemini (1536), would have searched one model's
+  vectors with another's and returned nonsense without a word. It is now
+  raised exactly when a stored vector was made by a model other than the
+  one chosen (each chunk records its model), and cleared by changing back.
+- Fixed on the way: a re-index to OpenAI's `text-embedding-3-large` (3072)
+  re-embedded every document and then failed creating the index, leaving
+  the flag up; the index is now skipped above 2000 dimensions. `voyage-3-large`
+  was in the model catalog but sized as 768; it is 1024.
+- **Tool calls from compatible services.** `OpenAIClient` hands back
+  whatever a service attached to its own call (`extra_content`: Gemini
+  refuses a call returned without its thought signature), treats a new id
+  under an index already in use as a new call (some services send each
+  call whole and reuse index 0, which used to glue two calls into one),
+  and runs the calls of a stream that ends without a finish reason.
+- Also: `GET /settings/ai-providers`; `keys_set` on `GET /settings`; the
+  health pings, `test-connection`, per-task models, the "no API key"
+  notice, the status bar and the model button under the chat box all read
+  the registry. The model button shows a tab per provider that has a key.
+- **Only Claude reads scanned documents and images.** That is unchanged and
+  the page says so when another provider is chosen.
+- **Not checked against the real services:** no Gemini, xAI, Mistral,
+  DeepSeek, Groq or OpenRouter key was available. Each address was probed
+  and answers as OpenAI's API does to a bad key; chat with tool calls,
+  embeddings, model listing and the Settings flow were run end to end
+  against a local stand-in that behaves as Gemini's endpoint is documented
+  to. The first real key may show a difference the stand-in does not.
+
 ### v5.41.0 · build 327 — 2026-11-20
 **Email from the pipeline: one lead in a popup, or many, each with their own copy**
 
