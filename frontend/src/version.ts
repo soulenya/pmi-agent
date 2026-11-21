@@ -3,7 +3,7 @@
  * Increment BUILD_NUMBER and add an entry to CHANGELOG with every improvement.
  */
 
-export const BUILD_NUMBER = 328;
+export const BUILD_NUMBER = 329;
 export const BUILD_DATE = "2026-11-20";
 
 export interface ChangelogEntry {
@@ -15,6 +15,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    build: 329,
+    date: "2026-11-20",
+    title: "The setup guide offers every AI provider",
+    changes: [
+      "For companies that open on the setup guide: choosing the AI now offers Claude, OpenAI, Gemini and Grok, with Mistral, DeepSeek, Groq and OpenRouter behind More. If the one you choose also does search by meaning, that line is set for you on the same key.",
+      "Fixed: the guide said \"Not set up\" for a company that had chosen Gemini or another new provider in Settings.",
+    ],
+  },
+  {
     build: 328,
     date: "2026-11-20",
     title: "Gemini, Grok and more AI providers",
@@ -23,7 +32,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       "If the provider you pick also does embeddings (OpenAI, Gemini, Mistral), the embeddings part of the page is filled in for you on the same key. Claude and Grok have no embedding model, so that part stays as it was.",
       "If your Knowledge Base already has documents, the embeddings are not moved for you, because every document would need re-indexing. The page offers the switch and says how many documents it affects.",
       "Only Claude can read scanned documents and images. With another provider for chat, keep Claude for Document Extraction under Models per Task.",
-      "The setup guide that a company set up from the web app opens on offers the same providers.",
     ],
   },
   {

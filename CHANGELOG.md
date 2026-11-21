@@ -4,6 +4,35 @@
 
 ## Changelog
 
+### v5.42.1 · build 329 — 2026-11-20
+**The setup guide offers every AI provider**
+
+- **The setup guide** (`components/setup/SetupGuide.tsx`; what a company set
+  up from the web app opens on) still offered only Claude or OpenAI for the
+  AI and Voyage or OpenAI for search by meaning. "Choose the AI" now lists
+  every chat provider from the registry (Claude, OpenAI, Gemini and Grok
+  first, the rest behind **More**) and "search by meaning" lists Voyage and
+  every provider with an embedding model. Claude, OpenAI and Voyage keep
+  their written steps; the others get the registry's key page and general
+  steps. A key is saved with `PUT /settings/api-key` and tested for any
+  chat provider.
+- Choosing a provider that has embeddings says that search by meaning was
+  set with it, so the next line of the guide is already done.
+- **Fixed:** the guide's "Set up / Not set up" looked only at Claude's or
+  OpenAI's key (Voyage's or OpenAI's for search). Since 5.42.0 a company
+  could choose Gemini in Settings and be told here that nothing was set
+  up, and a member would read "Waiting for your administrator". It now
+  reads the key of the provider in use.
+- The guide's sentence about not training on what business accounts send
+  named no limits; it now says it covers Anthropic and OpenAI and that the
+  other services have their own terms.
+- Unchanged: the step-by-step wizard PMI's desktop app opens on walks
+  through Claude and Voyage, with everything else in Settings. The
+  new-company bootstrap still asks up front only for Anthropic, Voyage and
+  Google speech keys; any other provider's key is entered in the guide.
+- Run in a browser as a made-up company on a hub-mode backend, against a
+  stand-in for Gemini: not with a real key.
+
 ### v5.42.0 · build 328 — 2026-11-20
 **More AI providers: Gemini, Grok, Mistral, DeepSeek, Groq and OpenRouter; embeddings that follow the provider**
 
@@ -57,18 +86,6 @@
   health pings, `test-connection`, per-task models, the "no API key"
   notice, the status bar and the model button under the chat box all read
   the registry. The model button shows a tab per provider that has a key.
-- **The setup guide offers the same providers** (`components/setup/SetupGuide.tsx`;
-  what a company set up from the web app opens on). "Choose the AI" lists
-  every chat provider from the registry (Claude, OpenAI, Gemini and Grok
-  first, the rest behind **More**) and "search by meaning" lists Voyage and
-  every provider with an embedding model. Claude, OpenAI and Voyage keep
-  their written steps; the others get the registry's key page and general
-  steps. Choosing a provider that has embeddings says that search by
-  meaning was set with it. The guide's "Set up / Not set up" now reads the
-  key of the provider actually in use; it used to look only at Claude's or
-  OpenAI's, so a company on Gemini would have been told it was not set up.
-  The step-by-step wizard PMI's desktop app opens on is unchanged: Claude
-  and Voyage, with everything else in Settings.
 - **Only Claude reads scanned documents and images.** That is unchanged and
   the page says so when another provider is chosen.
 - **Not checked against the real services:** no Gemini, xAI, Mistral,
